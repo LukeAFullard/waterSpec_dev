@@ -53,14 +53,19 @@ def log_transform(data):
 
     return np.log(data)
 
-def handle_censored_data(data_series, strategy='ignore', lower_multiplier=0.5, upper_multiplier=1.1):
+def handle_censored_data(data_series, strategy='drop', lower_multiplier=0.5, upper_multiplier=1.1):
     """
     Handles censored data in a pandas Series.
 
     Args:
         data_series (pd.Series): The data series, which may contain strings with '<' or '>'.
-        strategy (str, optional): The strategy to use. One of ['ignore', 'multiplier'].
-                                  Defaults to 'ignore'.
+        strategy (str, optional): The strategy to use. One of ['drop', 'use_detection_limit', 'multiplier'].
+                                  Defaults to 'drop'.
+                                  - 'drop': Censored values are replaced with NaN and will be ignored in subsequent analysis.
+                                  - 'use_detection_limit': (Formerly 'ignore') Uses the numeric value of the detection
+                                    limit (e.g., '<5' becomes 5).
+                                    **Warning**: This is a statistically biased approach and should be used with caution.
+                                  - 'multiplier': Multiplies the detection limit by a factor.
         lower_multiplier (float, optional): The multiplier for left-censored data ('<').
                                             Defaults to 0.5.
         upper_multiplier (float, optional): The multiplier for right-censored data ('>').
@@ -69,30 +74,34 @@ def handle_censored_data(data_series, strategy='ignore', lower_multiplier=0.5, u
     Returns:
         np.ndarray: A numeric numpy array with censored values handled.
     """
-    # Ensure data is in string format to search for symbols
-    processed_series = data_series.astype(str)
+    # Convert series to numeric, coercing all non-numeric values (including censored) to NaN
+    numeric_series = pd.to_numeric(data_series, errors='coerce')
 
-    # Create a numeric series for the results, coercing errors to NaN
-    numeric_series = pd.to_numeric(processed_series, errors='coerce').to_numpy()
+    # Convert to string series to safely use string methods
+    str_series = data_series.astype(str)
 
     # Find left-censored values
-    left_censored_mask = processed_series.str.startswith('<', na=False)
-    left_values = pd.to_numeric(processed_series[left_censored_mask].str.lstrip('<'), errors='coerce')
+    left_censored_mask = str_series.str.startswith('<', na=False)
+    left_values = pd.to_numeric(str_series[left_censored_mask].str.lstrip('<'), errors='coerce')
 
     # Find right-censored values
-    right_censored_mask = processed_series.str.startswith('>', na=False)
-    right_values = pd.to_numeric(processed_series[right_censored_mask].str.lstrip('>'), errors='coerce')
+    right_censored_mask = str_series.str.startswith('>', na=False)
+    right_values = pd.to_numeric(str_series[right_censored_mask].str.lstrip('>'), errors='coerce')
 
-    if strategy == 'ignore':
+    if strategy == 'drop':
+        # Set censored values to NaN. This is already done by the initial `pd.to_numeric`
+        pass
+    elif strategy == 'use_detection_limit':
         numeric_series[left_censored_mask] = left_values
         numeric_series[right_censored_mask] = right_values
     elif strategy == 'multiplier':
         numeric_series[left_censored_mask] = left_values * lower_multiplier
         numeric_series[right_censored_mask] = right_values * upper_multiplier
     else:
-        raise ValueError("Invalid strategy. Choose from ['ignore', 'multiplier']")
+        raise ValueError("Invalid strategy. Choose from ['drop', 'use_detection_limit', 'multiplier']")
 
-    return numeric_series
+    # Return as a numpy array
+    return numeric_series.to_numpy()
 
 def detrend_loess(x, y, frac=0.5):
     """

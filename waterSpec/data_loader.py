@@ -14,9 +14,9 @@ def load_data(file_path, time_col, data_col):
         data_col (str): The name of the column containing the data values.
 
     Returns:
-        tuple[np.ndarray, np.ndarray]: A tuple containing two numpy arrays:
-                                       - time (as numeric, seconds since epoch)
-                                       - data values
+        tuple[np.ndarray, pd.Series]: A tuple containing:
+                                      - time (np.ndarray, as numeric, seconds since epoch)
+                                      - data values (pd.Series)
 
     Raises:
         ValueError: If the file format is not supported or if columns are not found.
@@ -35,9 +35,9 @@ def load_data(file_path, time_col, data_col):
 
     # Validate that the required columns exist
     if time_col not in df.columns:
-        raise ValueError(f"Time column '{time_col}' not found in the CSV file.")
+        raise ValueError(f"Time column '{time_col}' not found in the file.")
     if data_col not in df.columns:
-        raise ValueError(f"Data column '{data_col}' not found in the CSV file.")
+        raise ValueError(f"Data column '{data_col}' not found in the file.")
 
     # Convert the time column to datetime objects
     # The `to_datetime` function is powerful and can infer many formats.

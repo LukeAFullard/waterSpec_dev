@@ -6,7 +6,7 @@ from .interpreter import interpret_beta
 from .plotting import plot_spectrum
 
 def run_analysis(file_path, time_col, data_col, n_bootstraps=1000,
-                 censor_strategy='ignore', lower_multiplier=0.5, upper_multiplier=1.1,
+                 censor_strategy='drop', lower_multiplier=0.5, upper_multiplier=1.1,
                  analysis_type='standard', detrend_method='linear',
                  do_plot=False, output_path=None):
     """
@@ -22,7 +22,7 @@ def run_analysis(file_path, time_col, data_col, n_bootstraps=1000,
         n_bootstraps (int, optional): The number of bootstrap samples for uncertainty analysis.
                                       Defaults to 1000.
         censor_strategy (str, optional): The strategy for handling censored data.
-                                         One of ['ignore', 'multiplier']. Defaults to 'ignore'.
+                                         One of ['drop', 'use_detection_limit', 'multiplier']. Defaults to 'drop'.
         lower_multiplier (float, optional): Multiplier for left-censored data ('<'). Defaults to 0.5.
         upper_multiplier (float, optional): Multiplier for right-censored data ('>'). Defaults to 1.1.
         analysis_type (str, optional): The type of spectral fit to perform.

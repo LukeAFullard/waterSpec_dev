@@ -56,11 +56,19 @@ def censored_data_series():
     """Provides a pandas Series with censored data."""
     return pd.Series(['10.1', '<5.0', '10.3', '>100', '11.0'])
 
-def test_handle_censored_data_ignore_strategy(censored_data_series):
-    """Test the 'ignore' strategy for censored data."""
-    result = handle_censored_data(censored_data_series, strategy='ignore')
+def test_handle_censored_data_use_detection_limit_strategy(censored_data_series):
+    """Test the 'use_detection_limit' strategy for censored data."""
+    result = handle_censored_data(censored_data_series, strategy='use_detection_limit')
     expected = np.array([10.1, 5.0, 10.3, 100.0, 11.0])
     np.testing.assert_array_almost_equal(result, expected)
+
+def test_handle_censored_data_drop_strategy(censored_data_series):
+    """Test the default 'drop' strategy for censored data."""
+    # Default strategy is 'drop'
+    result = handle_censored_data(censored_data_series)
+    expected = np.array([10.1, np.nan, 10.3, np.nan, 11.0])
+    # Use assert_equal for arrays with NaNs
+    np.testing.assert_equal(result, expected)
 
 def test_handle_censored_data_multiplier_strategy(censored_data_series):
     """Test the 'multiplier' strategy for censored data."""
@@ -75,7 +83,7 @@ def test_handle_censored_data_multiplier_strategy(censored_data_series):
 
 def test_handle_censored_data_invalid_strategy(censored_data_series):
     """Test that an invalid strategy raises an error."""
-    with pytest.raises(ValueError, match="Invalid strategy"):
+    with pytest.raises(ValueError, match="Invalid strategy. Choose from \\['drop', 'use_detection_limit', 'multiplier'\\]"):
         handle_censored_data(censored_data_series, strategy='invalid_strategy')
 
 @pytest.fixture

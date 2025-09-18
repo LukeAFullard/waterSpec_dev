@@ -27,6 +27,10 @@ def test_run_analysis_workflow():
     # Check that the interpretation string is not empty
     assert len(results['interpretation']) > 0
 
+    # Add a regression test for the beta value to ensure it doesn't change unexpectedly.
+    # The value for this dataset is expected to be in the range of Brownian motion.
+    assert 1.0 <= results['beta'] <= 2.0
+
 def test_run_analysis_with_censored_data():
     """
     Test the full analysis workflow with censored data.

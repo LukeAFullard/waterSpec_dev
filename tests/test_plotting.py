@@ -39,3 +39,32 @@ def test_plot_spectrum_runs_without_path(spectrum_data):
         plot_spectrum(frequency, power, fit_results=fit_results, output_path=None, show=False)
     except Exception as e:
         pytest.fail(f"plot_spectrum raised an exception when no output path was provided: {e}")
+
+def test_plot_spectrum_segmented(spectrum_data, tmp_path):
+    """
+    Test that plot_spectrum can handle segmented fit results without crashing.
+    """
+    frequency, power, _ = spectrum_data
+    output_file = tmp_path / "test_plot_segmented.png"
+
+    # Create synthetic segmented fit results
+    segmented_fit_results = {
+        'beta1': 0.5,
+        'beta2': 1.8,
+        'breakpoint': np.median(frequency)
+    }
+
+    try:
+        plot_spectrum(
+            frequency,
+            power,
+            fit_results=segmented_fit_results,
+            output_path=str(output_file),
+            show=False
+        )
+    except Exception as e:
+        pytest.fail(f"plot_spectrum raised an exception with segmented data: {e}")
+
+    # Check that the file was created
+    assert os.path.exists(output_file)
+    assert os.path.getsize(output_file) > 0
