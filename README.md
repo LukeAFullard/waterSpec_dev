@@ -4,6 +4,19 @@
 
 This package is inspired by the methods described in Liang et al. (2021).
 
+## Features
+
+- **Flexible Data Loading**: Load time series data from `.csv`, `.xlsx`, and `.json` files.
+- **Censored Data Handling**: Strategies to handle left-censored (`<`) and right-censored (`>`) data.
+- **Core Spectral Analysis**:
+    - Lomb-Scargle Periodogram for unevenly spaced data.
+    - Spectral fitting to find the spectral exponent (β).
+    - Bootstrap resampling for confidence intervals on β.
+- **Interpretation and Plotting**:
+    - Scientific interpretation of the β value.
+    - Publication-quality plotting of the power spectrum.
+- **Simple Workflow**: A high-level `run_analysis` function to perform a full analysis in one step.
+
 ## Installation
 
 You can install `waterSpec` directly from this repository using pip:
@@ -30,6 +43,8 @@ if not os.path.exists('plots'):
 output_plot_path = 'plots/spectrum_plot.png'
 
 # Run the full analysis with a single function call
+# The run_analysis function can also handle censored data, e.g.:
+# results = ws.run_analysis(..., censor_strategy='multiplier')
 results = ws.run_analysis(
     file_path,
     time_col='timestamp',

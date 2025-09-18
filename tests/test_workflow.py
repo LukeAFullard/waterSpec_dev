@@ -26,3 +26,26 @@ def test_run_analysis_workflow():
 
     # Check that the interpretation string is not empty
     assert len(results['interpretation']) > 0
+
+def test_run_analysis_with_censored_data():
+    """
+    Test the full analysis workflow with censored data.
+    """
+    file_path = 'examples/censored_data.csv'
+
+    # Run the analysis with the 'multiplier' strategy
+    results = run_analysis(
+        file_path,
+        time_col='timestamp',
+        data_col='concentration',
+        n_bootstraps=100,
+        censor_strategy='multiplier'
+    )
+
+    # Check that the results dictionary is not empty and is a dictionary
+    assert results
+    assert isinstance(results, dict)
+
+    # Check that the beta value is calculated and is a float
+    assert 'beta' in results
+    assert isinstance(results['beta'], float)

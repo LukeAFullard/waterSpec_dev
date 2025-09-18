@@ -22,6 +22,7 @@ dependencies = [
     "pandas",
     "matplotlib",
     "astropy",
+    "openpyxl",
 ]
 
 [project.optional-dependencies]

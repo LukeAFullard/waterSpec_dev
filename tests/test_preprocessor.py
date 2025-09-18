@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
-from waterSpec.preprocessor import detrend, normalize, log_transform
+import pandas as pd
+from waterSpec.preprocessor import detrend, normalize, log_transform, handle_censored_data
 
 # Sample data for testing
 @pytest.fixture
@@ -49,3 +50,30 @@ def test_log_transform_with_negative():
     data_with_negative = np.array([-1.0, 1.0, 2.0])
     with pytest.raises(ValueError, match="log-transform requires all data to be positive"):
         log_transform(data_with_negative)
+
+@pytest.fixture
+def censored_data_series():
+    """Provides a pandas Series with censored data."""
+    return pd.Series(['10.1', '<5.0', '10.3', '>100', '11.0'])
+
+def test_handle_censored_data_ignore_strategy(censored_data_series):
+    """Test the 'ignore' strategy for censored data."""
+    result = handle_censored_data(censored_data_series, strategy='ignore')
+    expected = np.array([10.1, 5.0, 10.3, 100.0, 11.0])
+    np.testing.assert_array_almost_equal(result, expected)
+
+def test_handle_censored_data_multiplier_strategy(censored_data_series):
+    """Test the 'multiplier' strategy for censored data."""
+    result = handle_censored_data(
+        censored_data_series,
+        strategy='multiplier',
+        lower_multiplier=0.5,
+        upper_multiplier=1.1
+    )
+    expected = np.array([10.1, 2.5, 10.3, 110.0, 11.0])
+    np.testing.assert_array_almost_equal(result, expected)
+
+def test_handle_censored_data_invalid_strategy(censored_data_series):
+    """Test that an invalid strategy raises an error."""
+    with pytest.raises(ValueError, match="Invalid strategy"):
+        handle_censored_data(censored_data_series, strategy='invalid_strategy')

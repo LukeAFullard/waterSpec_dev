@@ -76,14 +76,19 @@ We will call the package **`waterSpec`** (preferred name). Alternatives consider
     ```
 
 ### Step 2: Data Loading (`data_loader.py`)
-- Functions to load CSV/TSV, parse time columns, convert to numeric days/seconds.
-- Validation: monotonic time, no NaNs.
-- Return numpy arrays (t, y).
+- **Flexible Data Formats**: Functions to load data from various formats including CSV, TSV, Excel (`.xlsx`), and JSON files. The function will auto-detect the format from the file extension.
+- **Time Column Parsing**: Parse time columns and convert them to a numeric representation (e.g., seconds since epoch).
+- **Validation**: Ensure time is monotonic and there are no `NaN` values in the final numeric arrays.
+- **Output**: Return numpy arrays (t, y) for direct use in analysis functions.
 
 ### Step 3: Preprocessing (`preprocessor.py`)
-- Options: detrend, normalize, log-transform.
-- Handle irregular gaps (pass to Lomb-Scargle, no interpolation).
-- Edge checks (len < 10, all NaNs).
+- **Standard Options**: Provide functions for common preprocessing tasks like detrending, normalizing, and log-transformation.
+- **Censored Data Handling**: Implement strategies for handling censored data common in environmental monitoring (e.g., values reported as `<DL` or `>UL`).
+  - **Strategy 1 (Ignore)**: Remove censor marks and use the raw numeric value.
+  - **Strategy 2 (Multiplier)**: Replace censored values with the detection/quantification limit multiplied by a user-defined factor. For example, `<5` could be replaced with `5 * 0.5`.
+  - The chosen strategy will be a parameter in the preprocessing function.
+- **Gap Handling**: Handle irregular gaps by passing them directly to the Lomb-Scargle algorithm (no interpolation).
+- **Edge Case Checks**: Validate data for sufficient length (e.g., >10 points) and handle cases with all `NaN` values.
 
 ### Step 4: Spectral Analysis (`spectral_analyzer.py`)
 - Default to **Astropy’s LombScargle** (robust handling of irregular sampling, normalization, significance).
@@ -196,11 +201,12 @@ Outputs: point estimate, 95% CI (bootstrap), optional posterior summary.
 - Add error handling and logging.
 
 ### Extensions (Future Work)
-- Wavelet analysis for time-frequency scaling.
-- Cross-spectral analysis for pollutant vs. discharge coherence.
-- Multi-pollutant workflows to compare β across variables.
-- Visualization templates reproducing Liang et al. plots.
-- Educational modules for hydrology training.
+- **Advanced Censored Data Methods**: Implement more statistically robust methods for handling censored data, such as distribution fitting or survival analysis techniques.
+- **Wavelet Analysis**: Add wavelet analysis for time-frequency scaling.
+- **Cross-Spectral Analysis**: Implement cross-spectral analysis for comparing pollutant vs. discharge coherence.
+- **Multi-Pollutant Workflows**: Create workflows to easily compare β across multiple variables in a dataset.
+- **Visualization Templates**: Develop more advanced visualization templates that reproduce plots from key literature like Liang et al. (2021).
+- **Educational Modules**: Build educational modules and tutorials for hydrology students and professionals.
 
 ---
 
