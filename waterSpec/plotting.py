@@ -20,35 +20,36 @@ def plot_spectrum(frequency, power, fit_results=None, output_path=None, show=Tru
     # Plot the power spectrum
     plt.loglog(frequency, power, 'o', markersize=5, label='Power Spectrum')
 
+    # Plot the raw data on a log-log scale
+    plt.loglog(frequency, power, 'o', markersize=5, label='Power Spectrum')
+
     # Plot the fitted line if results are provided
     if fit_results:
-        # Check for segmented fit results first
-        beta1 = fit_results.get('beta1')
-        beta2 = fit_results.get('beta2')
-        breakpoint_freq = fit_results.get('breakpoint')
+        pw_model = fit_results.get('model_object')
+        if pw_model:
+            # Use the model's built-in plotting method for an accurate fit line
+            # Note: this plots on a linear scale, so we are doing it differently.
+            # We will transform the axes back to log-log.
 
-        if beta1 is not None and beta2 is not None and breakpoint_freq is not None:
-            # Handle segmented plot
-            plt.axvline(breakpoint_freq, color='k', linestyle='--', label=f'Breakpoint = {breakpoint_freq:.2f}')
+            # Since plot_fit is complex, we will extract the fit lines manually from the model
+            # This gives us more control over the plotting style.
 
-            # Find the power value at the breakpoint to connect the lines
-            # This requires an estimate of the intercept of the first line.
-            # We can get this from the model summary if available, but it's complex.
-            # A simpler way is to find the power of the data point closest to the breakpoint.
-            idx = np.argmin(np.abs(frequency - breakpoint_freq))
-            breakpoint_power = power[idx]
+            # Get the breakpoint in log space
+            breakpoint_log_freq = pw_model.get_results()["estimates"]["breakpoint1"]["estimate"]
 
-            # Line 1: P = C1 * f^-B1  => C1 = P_break * f_break^B1
-            const1 = breakpoint_power * (breakpoint_freq ** beta1)
-            freq1 = frequency[frequency < breakpoint_freq]
-            fit_line1 = const1 * (freq1 ** -beta1)
-            plt.loglog(freq1, fit_line1, 'r-', linewidth=2, label=f'Fit (β₁ = {beta1:.2f})')
+            # Get the model predictions in log-power space
+            log_freq_sorted = np.sort(pw_model.x)
+            log_power_pred = pw_model.predict(log_freq_sorted)
 
-            # Line 2: P = C2 * f^-B2 => C2 = P_break * f_break^B2
-            const2 = breakpoint_power * (breakpoint_freq ** beta2)
-            freq2 = frequency[frequency >= breakpoint_freq]
-            fit_line2 = const2 * (freq2 ** -beta2)
-            plt.loglog(freq2, fit_line2, 'g-', linewidth=2, label=f'Fit (β₂ = {beta2:.2f})')
+            # Transform back to linear space for plotting
+            freq_fit = np.exp(log_freq_sorted)
+            power_fit = np.exp(log_power_pred)
+
+            plt.loglog(freq_fit, power_fit, 'r-', linewidth=2, label='Segmented Fit')
+
+            # Add a vertical line for the breakpoint
+            breakpoint_freq = np.exp(breakpoint_log_freq)
+            plt.axvline(breakpoint_freq, color='k', linestyle='--', label=f'Breakpoint = {breakpoint_freq:.2e}')
 
         else:
             # Handle standard single-slope plot
@@ -60,9 +61,9 @@ def plot_spectrum(frequency, power, fit_results=None, output_path=None, show=Tru
                 fit_line = np.exp(intercept) * (frequency ** -beta)
                 plt.loglog(frequency, fit_line, 'r-', linewidth=2, label=f'Fit (β = {beta:.2f})')
 
-    plt.xlabel('Frequency')
-    plt.ylabel('Power')
-    plt.title('Power Spectrum')
+    plt.xlabel('Frequency (log scale)')
+    plt.ylabel('Power (log scale)')
+    plt.title('Log-Log Power Spectrum')
     plt.grid(True, which="both", ls="--")
     plt.legend()
 
