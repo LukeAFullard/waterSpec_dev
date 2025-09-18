@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy import signal
+import statsmodels.api as sm
 
 def detrend(data):
     """
@@ -92,3 +93,21 @@ def handle_censored_data(data_series, strategy='ignore', lower_multiplier=0.5, u
         raise ValueError("Invalid strategy. Choose from ['ignore', 'multiplier']")
 
     return numeric_series
+
+def detrend_loess(x, y, frac=0.5):
+    """
+    Removes a non-linear trend from a time series using LOESS.
+
+    Args:
+        x (np.ndarray): The independent variable (e.g., time).
+        y (np.ndarray): The dependent variable (the data).
+        frac (float, optional): The fraction of the data used for smoothing.
+                                Defaults to 0.5.
+
+    Returns:
+        np.ndarray: The detrended time series (residuals).
+    """
+    # lowess returns a 2D array, where the second column is the smoothed data
+    smoothed = sm.nonparametric.lowess(y, x, frac=frac)
+    residuals = y - smoothed[:, 1]
+    return residuals

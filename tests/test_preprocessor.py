@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 import pandas as pd
-from waterSpec.preprocessor import detrend, normalize, log_transform, handle_censored_data
+from waterSpec.preprocessor import detrend, normalize, log_transform, handle_censored_data, detrend_loess
 
 # Sample data for testing
 @pytest.fixture
@@ -77,3 +77,22 @@ def test_handle_censored_data_invalid_strategy(censored_data_series):
     """Test that an invalid strategy raises an error."""
     with pytest.raises(ValueError, match="Invalid strategy"):
         handle_censored_data(censored_data_series, strategy='invalid_strategy')
+
+@pytest.fixture
+def nonlinear_data():
+    """Provides a sample numpy array with a non-linear trend."""
+    x = np.linspace(0, 10, 100)
+    # Quadratic trend + some noise
+    trend = 0.1 * x**2 - 0.5 * x
+    y = trend + np.random.randn(100) * 0.1
+    return x, y
+
+def test_detrend_loess(nonlinear_data):
+    """Test the LOESS detrending function."""
+    x, y = nonlinear_data
+    detrended_y = detrend_loess(x, y)
+
+    # The mean of the residuals should be close to zero
+    assert np.mean(detrended_y) == pytest.approx(0.0, abs=1e-1)
+    # Check that it returns an array of the same shape
+    assert detrended_y.shape == y.shape

@@ -1,5 +1,5 @@
 from .data_loader import load_data
-from .preprocessor import detrend, handle_censored_data
+from .preprocessor import detrend, handle_censored_data, detrend_loess
 from .spectral_analyzer import calculate_periodogram
 from .fitter import fit_spectrum_with_bootstrap, fit_segmented_spectrum
 from .interpreter import interpret_beta
@@ -7,7 +7,7 @@ from .plotting import plot_spectrum
 
 def run_analysis(file_path, time_col, data_col, n_bootstraps=1000,
                  censor_strategy='ignore', lower_multiplier=0.5, upper_multiplier=1.1,
-                 analysis_type='standard',
+                 analysis_type='standard', detrend_method='linear',
                  do_plot=False, output_path=None):
     """
     Runs the full spectral analysis workflow on a given time series file.
@@ -27,6 +27,8 @@ def run_analysis(file_path, time_col, data_col, n_bootstraps=1000,
         upper_multiplier (float, optional): Multiplier for right-censored data ('>'). Defaults to 1.1.
         analysis_type (str, optional): The type of spectral fit to perform.
                                        One of ['standard', 'segmented']. Defaults to 'standard'.
+        detrend_method (str, optional): The detrending method to use.
+                                        One of ['linear', 'loess']. Defaults to 'linear'.
         do_plot (bool, optional): If True, a plot of the spectrum will be generated.
                                   Defaults to False.
         output_path (str, optional): The path to save the plot image. If None and do_plot is True,
@@ -47,7 +49,12 @@ def run_analysis(file_path, time_col, data_col, n_bootstraps=1000,
         upper_multiplier=upper_multiplier
     )
     # Then detrend
-    preprocessed_data = detrend(numeric_data)
+    if detrend_method == 'linear':
+        preprocessed_data = detrend(numeric_data)
+    elif detrend_method == 'loess':
+        preprocessed_data = detrend_loess(time, numeric_data)
+    else:
+        raise ValueError("Invalid detrend_method. Choose from ['linear', 'loess']")
 
     # 3. Calculate periodogram
     frequency, power = calculate_periodogram(time, preprocessed_data)

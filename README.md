@@ -8,6 +8,7 @@ This package is inspired by the methods described in Liang et al. (2021).
 
 - **Flexible Data Loading**: Load time series data from `.csv`, `.xlsx`, and `.json` files.
 - **Censored Data Handling**: Strategies to handle left-censored (`<`) and right-censored (`>`) data.
+- **Advanced Preprocessing**: Includes linear and non-linear (LOESS) detrending options.
 - **Core Spectral Analysis**:
     - Lomb-Scargle Periodogram for unevenly spaced data.
     - **Standard and Segmented Regression**: Fit a single slope (standard) or detect changes in scaling with a two-slope segmented regression for multifractal analysis.
@@ -43,8 +44,8 @@ if not os.path.exists('plots'):
 output_plot_path = 'plots/spectrum_plot.png'
 
 # Run the full analysis with a single function call
-# The run_analysis function can also handle censored data and perform segmented regression, e.g.:
-# results = ws.run_analysis(..., censor_strategy='multiplier', analysis_type='segmented')
+# The run_analysis function can also handle censored data, segmented regression, and different detrending methods, e.g.:
+# results = ws.run_analysis(..., censor_strategy='multiplier', analysis_type='segmented', detrend_method='loess')
 results = ws.run_analysis(
     file_path,
     time_col='timestamp',

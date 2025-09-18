@@ -72,3 +72,26 @@ def test_run_analysis_segmented_no_breakpoint():
     assert np.isnan(results['breakpoint'])
     assert np.isnan(results['beta1'])
     assert np.isnan(results['beta2'])
+
+def test_run_analysis_loess_detrend():
+    """
+    Test the workflow with LOESS detrending.
+    """
+    file_path = 'examples/sample_data.csv'
+
+    # Run the analysis with LOESS detrending
+    results = run_analysis(
+        file_path,
+        time_col='timestamp',
+        data_col='concentration',
+        n_bootstraps=100,
+        detrend_method='loess'
+    )
+
+    # Check that the results dictionary is not empty and is a dictionary
+    assert results
+    assert isinstance(results, dict)
+
+    # Check that the beta value is calculated and is a float
+    assert 'beta' in results
+    assert isinstance(results['beta'], float)

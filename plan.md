@@ -82,7 +82,8 @@ We will call the package **`waterSpec`** (preferred name). Alternatives consider
 - **Output**: Return numpy arrays (t, y) for direct use in analysis functions.
 
 ### Step 3: Preprocessing (`preprocessor.py`)
-- **Standard Options**: Provide functions for common preprocessing tasks like detrending, normalizing, and log-transformation.
+- **Detrending**: Provide options for both linear and non-linear trend removal. Non-linear detrending will be handled using a LOESS smoother from the `statsmodels` library.
+- **Standard Options**: Provide functions for other common preprocessing tasks like normalizing and log-transformation.
 - **Censored Data Handling**: Implement strategies for handling censored data common in environmental monitoring (e.g., values reported as `<DL` or `>UL`).
   - **Strategy 1 (Ignore)**: Remove censor marks and use the raw numeric value.
   - **Strategy 2 (Multiplier)**: Replace censored values with the detection/quantification limit multiplied by a user-defined factor. For example, `<5` could be replaced with `5 * 0.5`.
