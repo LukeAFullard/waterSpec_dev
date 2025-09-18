@@ -35,3 +35,8 @@ test = [
 [project.urls]
 "Homepage" = "https://github.com/example/waterSpec"
 "Bug Tracker" = "https://github.com/example/waterSpec/issues"
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "."
+]
