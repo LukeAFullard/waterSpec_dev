@@ -3,11 +3,11 @@
 ## Motivation and References
 
 ### Motivation
-Building a Python package for spectral analysis of water quality data, specifically to calculate and interpret the scaling exponent (β), is motivated by the need to analyze irregularly sampled time series data common in environmental monitoring. In hydrology and environmental science, temporal scaling reveals fractal behaviors in variables like pollutant concentrations, helping identify dominant transport pathways (e.g., surface runoff vs. subsurface drainage), persistence (correlation over time), and periodicities (e.g., seasonal cycles). This can inform conservation planning, such as matching practices to pathways in agricultural watersheds to reduce nutrient/sediment export.  
+Building a Python package for spectral analysis of water quality data, specifically to calculate and interpret the scaling exponent (β), is motivated by the need to analyze irregularly sampled time series data common in environmental monitoring. In hydrology and environmental science, temporal scaling reveals fractal behaviors in variables like pollutant concentrations, helping identify dominant transport pathways (e.g., surface runoff vs. subsurface drainage), persistence (correlation over time), and periodicities (e.g., seasonal cycles). This can inform conservation planning, such as matching practices to pathways in agricultural watersheds to reduce nutrient/sediment export.
 
-The core inspiration comes from Liang et al. (2021), which uses spectral analysis on Raccoon River data to show increasing β from bacteria (0.27, surface-dominated) to nitrate (1.73, subsurface-dominated), indicating chemostatic behavior for nitrate due to large soil reservoirs. Extending this to a reusable package allows users to apply similar analyses to their data, handling gaps without interpolation, and interpreting results for practical insights (e.g., low β suggests event-driven runoff controls like buffers; high β suggests subsurface interventions like bioreactors).  
+The core inspiration comes from Liang et al. (2021), which uses spectral analysis on Raccoon River data to show increasing β from bacteria (0.27, surface-dominated) to nitrate (1.73, subsurface-dominated), indicating chemostatic behavior for nitrate due to large soil reservoirs. Extending this to a reusable package allows users to apply similar analyses to their data, handling gaps without interpolation, and interpreting results for practical insights (e.g., low β suggests event-driven runoff controls like buffers; high β suggests subsurface interventions like bioreactors).
 
-Broader applications include anomaly detection in hydrological signals, uncertainty quantification in models, and scaling parameter estimation for simulations. This package promotes reproducible science by encapsulating methods in an installable tool, following best practices for data science workflows.  
+Broader applications include anomaly detection in hydrological signals, uncertainty quantification in models, and scaling parameter estimation for simulations. This package promotes reproducible science by encapsulating methods in an installable tool, following best practices for data science workflows.
 
 ### References and Relevant Information
 - **Primary Reference**: Liang X, Schilling KE, Jones CS, Zhang Y-K. 2021. Temporal scaling of long-term co-occurring agricultural contaminants and the implications for conservation planning. *Environmental Research Letters* 16:094015. DOI: 10.1088/1748-9326/ac19dd.
@@ -49,41 +49,47 @@ Broader applications include anomaly detection in hydrological signals, uncertai
 We will call the package **`waterSpec`** (preferred name). Alternatives considered: `hydroscale`, `aquaSpectra`, `temposcale`.
 
 ### Step 1: Set Up Development Environment
-1. Create project directory and Git repo.
-2. Create virtual environment (`python -m venv venv`).
-3. Install dependencies: `numpy`, `scipy`, `pandas`, `matplotlib`, `astropy`, `setuptools`, `wheel`, `twine`, `pytest`.
-4. Save dependencies in `requirements.txt`.
-5. Organize folder structure:
-
-   waterSpec/
-init.py
-data_loader.py
-preprocessor.py
-spectral_analyzer.py
-fitter.py
-interpreter.py
-utils.py
-tests/
-test_analysis.py
-examples/
-example_data.csv
-demo.ipynb
-docs/
-README.md
-setup.py
-LICENSE
-MANIFEST.in
-
+1.  Create project directory and Git repo.
+2.  Create virtual environment (`python -m venv venv`).
+3.  Install dependencies: `numpy`, `scipy`, `pandas`, `matplotlib`, `astropy`, `setuptools`, `wheel`, `twine`, `pytest`.
+4.  Save dependencies in `requirements.txt`.
+5.  Organize folder structure:
+    ```
+    waterSpec/
+    |-- __init__.py
+    |-- data_loader.py
+    |-- preprocessor.py
+    |-- spectral_analyzer.py
+    |-- fitter.py
+    |-- interpreter.py
+    |-- utils.py
+    |-- tests/
+    |   |-- test_analysis.py
+    |-- examples/
+    |   |-- example_data.csv
+    |   |-- demo.ipynb
+    |-- docs/
+    |-- README.md
+    |-- setup.py
+    |-- LICENSE
+    |-- MANIFEST.in
+    ```
 
 ### Step 2: Data Loading (`data_loader.py`)
-- Functions to load CSV/TSV, parse time columns, convert to numeric days/seconds.
-- Validation: monotonic time, no NaNs.
-- Return numpy arrays (t, y).
+- **Flexible Data Formats**: Functions to load data from various formats including CSV, TSV, Excel (`.xlsx`), and JSON files. The function will auto-detect the format from the file extension.
+- **Time Column Parsing**: Parse time columns and convert them to a numeric representation (e.g., seconds since epoch).
+- **Validation**: Ensure time is monotonic and there are no `NaN` values in the final numeric arrays.
+- **Output**: Return numpy arrays (t, y) for direct use in analysis functions.
 
 ### Step 3: Preprocessing (`preprocessor.py`)
-- Options: detrend, normalize, log-transform.
-- Handle irregular gaps (pass to Lomb-Scargle, no interpolation).
-- Edge checks (len < 10, all NaNs).
+- **Detrending**: Provide options for both linear and non-linear trend removal. Non-linear detrending will be handled using a LOESS smoother from the `statsmodels` library.
+- **Standard Options**: Provide functions for other common preprocessing tasks like normalizing and log-transformation.
+- **Censored Data Handling**: Implement strategies for handling censored data common in environmental monitoring (e.g., values reported as `<DL` or `>UL`).
+  - **Strategy 1 (Ignore)**: Remove censor marks and use the raw numeric value.
+  - **Strategy 2 (Multiplier)**: Replace censored values with the detection/quantification limit multiplied by a user-defined factor. For example, `<5` could be replaced with `5 * 0.5`.
+  - The chosen strategy will be a parameter in the preprocessing function.
+- **Gap Handling**: Handle irregular gaps by passing them directly to the Lomb-Scargle algorithm (no interpolation).
+- **Edge Case Checks**: Validate data for sufficient length (e.g., >10 points) and handle cases with all `NaN` values.
 
 ### Step 4: Spectral Analysis (`spectral_analyzer.py`)
 - Default to **Astropy’s LombScargle** (robust handling of irregular sampling, normalization, significance).
@@ -94,9 +100,9 @@ MANIFEST.in
 - Add FFT-based option for evenly spaced data.
 
 ### Step 5: Fitting (`fitter.py`)
-- Log-log linear regression on spectrum.
-- Auto-crossover detection (segmented regression / knee detection) for multifractals.
-- Return β, R², stderr, fit line.
+- **Log-log Linear Regression**: Fit a single line to the power spectrum on a log-log plot to determine the primary spectral exponent (β).
+- **Segmented Regression**: For detecting multifractal behavior (i.e., changes in scaling), implement auto-crossover detection using segmented regression. This will be achieved using the `piecewise-regression` Python package to find breakpoints ("knees") in the log-log spectrum.
+- **Outputs**: The fitting functions will return key metrics such as β, R-squared, standard error, and breakpoint locations for segmented fits.
 
 **Uncertainty Handling**:
 - **Bootstrap resampling**: resample residuals or blocks of time series; re-estimate β to get confidence intervals.
@@ -110,134 +116,127 @@ Outputs: point estimate, 95% CI (bootstrap), optional posterior summary.
 ### Step 6: Interpretation (`interpreter.py`)
 
 #### Goals
-- Provide **automated, easy-to-understand interpretations** of β values.  
-- Include **uncertainty-aware summaries**, benchmark comparisons, and conservation suggestions.  
-- Offer **visual and textual outputs** for accessibility.  
+- Provide **automated, easy-to-understand interpretations** of β values.
+- Include **uncertainty-aware summaries**, benchmark comparisons, and conservation suggestions.
+- Offer **visual and textual outputs** for accessibility.
 
 #### Features
-1. **Automated Summary Function**  
-```python
-from waterSpec import interpret_results
+1.  **Automated Summary Function**
+    ```python
+    from waterSpec import interpret_results
 
-results = interpret_results(beta, ci=(1.5,1.9), param_name="Nitrate")
-print(results["text"])
+    results = interpret_results(beta=1.7, ci=(1.5, 1.9), param_name="Nitrate")
+    print(results["text"])
+    ```
+    **Example output:**
+    ```
+    Nitrate (β = 1.7, 95% CI [1.5–1.9])
+    Interpretation: Strong persistence, subsurface-dominated transport (fBm-like).
+    Similar to nitrate behavior in Liang et al. (2021).
+    Suggested focus: subsurface interventions (e.g., bioreactors, drainage management).
+    ```
 
-Example output:
-Nitrate (β = 1.7, 95% CI [1.5–1.9])
-Interpretation: Strong persistence, subsurface-dominated transport (fBm-like).
-Similar to nitrate behavior in Liang et al. (2021).
-Suggested focus: subsurface interventions (e.g., bioreactors, drainage management).
+2.  **Benchmark Comparison Table**
+    Automatically compares β against known pollutants. It highlights the “closest match” for the user’s variable.
 
-Benchmark Comparison Table
+| Parameter | Typical β Range | Interpretation | Dominant Pathway |
+| :--- | :--- | :--- | :--- |
+| E. coli | 0.1 – 0.5 | Weak persistence | Surface runoff |
+| TSS | 0.4 – 0.8 | Weak persistence | Surface runoff |
+| Ortho-P | 0.6 – 1.2 | Mixed | Surface/Shallow subsurface |
+| Chloride | 1.3 – 1.7 | Strong persistence | Subsurface |
+| Nitrate-N | 1.5 – 2.0 | Strong persistence | Subsurface |
+| Discharge (Q) | 1.0 – 1.8 | Persistent | Integrated signal |
 
-Automatically compares β against known pollutants (E. coli, TSS, OP, Cl, NO₃-N, Q).
+3.  **Uncertainty-Aware Messages**
+    > If the confidence interval is wide:
+    > “Interpretation uncertain: the β range spans both event-driven and subsurface processes. More data may be needed to draw a firm conclusion.”
 
-Highlights “closest match” for user’s variable.
+4.  **Traffic-Light System for Persistence**
+    - **β < 0.5 → 🔴 Event-driven**
+    - **0.5 – 1.0 → 🟡 Mixed / weak persistence**
+    - **β > 1.0 → 🟢 Persistent / subsurface dominated**
 
-Uncertainty-Aware Messages
+5.  **Optional Plot Overlay**
+    - Automatically plot spectrum with β fit line.
+    - Annotate with a text box summarizing the interpretation.
 
-If CI is wide:
+6.  **Custom Domain Profiles**
+    - Hydrology (runoff vs subsurface)
+    - Ecology (short vs long ecological memory)
+    - Climate (noise vs oscillations)
 
-“Interpretation uncertain: β range spans event-driven and subsurface processes. More data recommended.”
+### Step 7: Integration and Plotting
+- Expose functions in `__init__.py`.
+- Add plotting utilities (log-log plots, fits, annotated peaks, confidence bands).
+- Templates styled after Liang et al. (2021).
 
-Traffic-Light System for Persistence
+### Step 8: Documentation and Examples
+- **README**: Install, quick-start example.
+- **Example notebook**: load sample data → preprocess → compute spectrum → fit β with uncertainty → interpret.
+- Sphinx-compatible docstrings.
+- Provide tutorials for hydrology users.
 
-β < 0.5 → 🔴 Event-driven
+### Step 9: Testing (`tests/`)
+- Synthetic test cases:
+  - White noise (β ≈ 0).
+  - Random walk (β ≈ 2).
+  - Known fGn/fBm simulations.
+  - Sine wave with gaps (check peak detection).
+- Validate uncertainty estimates (bootstrap CI covers true β in simulations).
+- Validate automated interpretation outputs.
+- Use `pytest`.
 
-0.5–1.0 → 🟡 Mixed / weak persistence
+### Step 10: Packaging and Distribution
+- `setup.py` and `pyproject.toml`.
+- Build: `python -m build`.
+- Install locally: `pip install .`.
+- Upload to PyPI (optional).
+- Semantic versioning.
 
-1.0 → 🟢 Persistent / subsurface dominated
+### Step 11: Validation and Iteration
+- Test with article-like data.
+- Confirm β matches expectations.
+- Validate bootstrap and surrogate-based uncertainty.
+- Confirm automated interpretations are intuitive for users.
+- Add error handling and logging.
 
-Optional Plot Overlay
+### Extensions (Future Work)
+- **Advanced Censored Data Methods**: Implement more statistically robust methods for handling censored data, such as distribution fitting or survival analysis techniques.
+- **Wavelet Analysis**: Add wavelet analysis for time-frequency scaling.
+- **Cross-Spectral Analysis**: Implement cross-spectral analysis for comparing pollutant vs. discharge coherence.
+- **Multi-Pollutant Workflows**: Create workflows to easily compare β across multiple variables in a dataset.
+- **Visualization Templates**: Develop more advanced visualization templates that reproduce plots from key literature like Liang et al. (2021).
+- **Educational Modules**: Build educational modules and tutorials for hydrology students and professionals.
 
-Automatically plot spectrum with β fit line.
+---
 
-Annotate with text box summarizing interpretation.
+## Additional Suggestions for the Plan
 
-Custom Domain Profiles
+To further enhance the project's quality and maintainability, consider incorporating the following steps into your development workflow:
 
-Hydrology (runoff vs subsurface)
+1.  **Continuous Integration/Continuous Deployment (CI/CD)**
+    - **What:** Set up a CI pipeline using a service like GitHub Actions.
+    - **Why:** To automatically run tests, check code formatting, and build the package on every push and pull request. This ensures that new changes don't break existing functionality and maintain a high standard of code quality. It can also automate publishing the package to PyPI upon creating a new release.
 
-Ecology (short vs long ecological memory)
+2.  **Code Quality and Style Enforcement**
+    - **What:** Integrate automated code formatting (e.g., `black`) and linting (e.g., `ruff` or `flake8`) into the development process.
+    - **Why:** This enforces a consistent code style across the entire project, making the code more readable and easier to maintain. Using pre-commit hooks can automate this process, ensuring that all committed code adheres to the style guide.
 
-Climate (noise vs oscillations)
+3.  **Community and Contribution Guidelines**
+    - **What:** Create `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md` files in the root of the repository.
+    - **Why:** A `CONTRIBUTING.md` file provides clear guidelines for others on how to contribute to your project, report issues, and submit pull requests. A `CODE_OF_CONDUCT.md` helps foster a positive and inclusive community around the project.
 
-Step 7: Integration and Plotting
+4.  **Changelog Management**
+    - **What:** Maintain a `CHANGELOG.md` file.
+    - **Why:** This file provides a clear and chronological record of all notable changes made to the project, such as new features, bug fixes, and performance improvements. It is invaluable for users and contributors to understand the evolution of the package between different versions.
 
-Expose functions in __init__.py.
+5.  **Modern Python Packaging**
+    - **What:** Consolidate project configuration into `pyproject.toml`.
+    - **Why:** The `pyproject.toml` file is the new standard for configuring Python packages. It can replace `setup.py`, `setup.cfg`, `requirements.txt`, and configuration files for tools like `pytest`, `black`, and `ruff`. This simplifies project management by having a single source of truth for metadata, dependencies, and tool settings.
 
-Add plotting utilities (log-log plots, fits, annotated peaks, confidence bands).
+## Summary
 
-Templates styled after Liang et al. (2021).
+This plan provides an end-to-end workflow to build a Python package (`waterSpec`) that enables robust spectral analysis of irregularly sampled environmental time series. It integrates best practices (testing, packaging, documentation), scientific rigor (fractal scaling, β interpretation, uncertainty), and practical value (domain-specific interpretations for conservation planning).
 
-Step 8: Documentation and Examples
-
-README: install, quick-start example.
-
-Example notebook: load sample data → preprocess → compute spectrum → fit β with uncertainty → interpret.
-
-Sphinx-compatible docstrings.
-
-Provide tutorials for hydrology users.
-
-Step 9: Testing (tests/)
-
-Synthetic test cases:
-
-White noise (β ≈ 0).
-
-Random walk (β ≈ 2).
-
-Known fGn/fBm simulations.
-
-Sine wave with gaps (check peak detection).
-
-Validate uncertainty estimates (bootstrap CI covers true β in simulations).
-
-Validate automated interpretation outputs.
-
-Use pytest.
-
-Step 10: Packaging and Distribution
-
-setup.py and pyproject.toml.
-
-Build: python -m build.
-
-Install locally: pip install ..
-
-Upload to PyPI (optional).
-
-Semantic versioning.
-
-Step 11: Validation and Iteration
-
-Test with article-like data.
-
-Confirm β matches expectations.
-
-Validate bootstrap and surrogate-based uncertainty.
-
-Confirm automated interpretations are intuitive for users.
-
-Add error handling and logging.
-
-Extend with wavelet analysis, cross-spectra, multi-pollutant comparisons.
-
-Extensions (Future Work)
-
-Wavelet analysis for time-frequency scaling.
-
-Cross-spectral analysis for pollutant vs. discharge coherence.
-
-Multi-pollutant workflows to compare β across variables.
-
-Visualization templates reproducing Liang et al. plots.
-
-Educational modules for hydrology training.
-
-Summary
-
-This plan provides an end-to-end workflow to build a Python package (waterSpec) that enables robust spectral analysis of irregularly sampled environmental time series. It integrates best practices (testing, packaging, documentation), scientific rigor (fractal scaling, β interpretation, uncertainty), and practical value (domain-specific interpretations for conservation planning).
-
-By including an automated interpretation module, the package ensures results are easy to understand, actionable, and useful for both researchers and practitioners.
+By including an automated interpretation module, the package ensures results are easy to understand, actionable, and useful for both researchers and practitioners. The additional suggestions aim to improve the development process, making it more robust, collaborative, and maintainable in the long run.
