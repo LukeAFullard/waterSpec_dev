@@ -104,3 +104,39 @@ def test_detrend_loess(nonlinear_data):
     assert np.mean(detrended_y) == pytest.approx(0.0, abs=1e-1)
     # Check that it returns an array of the same shape
     assert detrended_y.shape == y.shape
+
+# --- Edge Case Tests ---
+
+def test_handle_censored_data_no_censoring():
+    """Test handle_censored_data with a series containing no censored values."""
+    data = pd.Series(['1.0', '2.0', '3.0'])
+    result = handle_censored_data(data, strategy='use_detection_limit')
+    expected = np.array([1.0, 2.0, 3.0])
+    np.testing.assert_array_almost_equal(result, expected)
+
+def test_handle_censored_data_all_censored():
+    """Test handle_censored_data with a series of only censored values."""
+    data = pd.Series(['<1.0', '>2.0', '<3.0'])
+    result = handle_censored_data(data, strategy='drop')
+    assert np.all(np.isnan(result))
+
+def test_detrend_short_series():
+    """Test detrending a very short series (should not fail)."""
+    data = np.array([10.0, 10.5])
+    result = detrend(data)
+    assert result.shape == data.shape
+    assert np.mean(result) == pytest.approx(0.0)
+
+def test_normalize_short_series():
+    """Test normalizing a very short series."""
+    data = np.array([10.0, 20.0])
+    result = normalize(data)
+    assert np.mean(result) == pytest.approx(0.0)
+    assert np.std(result) == pytest.approx(1.0)
+
+def test_normalize_constant_series():
+    """Test normalizing a constant series (should return zeros)."""
+    data = np.array([5.0, 5.0, 5.0])
+    result = normalize(data)
+    expected = np.array([0.0, 0.0, 0.0])
+    np.testing.assert_array_almost_equal(result, expected)

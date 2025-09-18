@@ -131,3 +131,29 @@ def test_fit_segmented_spectrum(multifractal_spectrum):
     # Check that the estimated betas are close to the known betas
     assert results['beta1'] == pytest.approx(known_beta1, abs=0.3)
     assert results['beta2'] == pytest.approx(known_beta2, abs=0.3)
+
+# --- Edge Case Tests ---
+
+def test_fit_spectrum_white_noise():
+    """Test fitting a flat spectrum (white noise), where beta should be ~0."""
+    frequency = np.linspace(0.01, 1, 100)
+    # Power is constant for white noise, with some random variation
+    rng = np.random.default_rng(42)
+    power = np.ones_like(frequency) + rng.normal(0, 0.1, len(frequency))
+
+    fit_results = fit_spectrum(frequency, power)
+    assert fit_results['beta'] == pytest.approx(0.0, abs=0.1)
+
+def test_fit_spectrum_bootstrap_insufficient_data():
+    """Test bootstrap function when the initial fit fails."""
+    # Not enough data points to perform a fit
+    frequency = np.array([1.0])
+    power = np.array([1.0])
+
+    results = fit_spectrum_with_bootstrap(frequency, power)
+
+    # Check that all results are NaN
+    assert np.isnan(results['beta'])
+    assert np.isnan(results['r_squared'])
+    assert np.isnan(results['beta_ci_lower'])
+    assert np.isnan(results['beta_ci_upper'])
