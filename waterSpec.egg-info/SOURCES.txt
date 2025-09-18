@@ -1,6 +1,0 @@
-pyproject.toml
-waterSpec.egg-info/PKG-INFO
-waterSpec.egg-info/SOURCES.txt
-waterSpec.egg-info/dependency_links.txt
-waterSpec.egg-info/requires.txt
-waterSpec.egg-info/top_level.txt
