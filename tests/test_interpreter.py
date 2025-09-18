@@ -13,8 +13,7 @@ def test_get_scientific_interpretation():
     assert "Pink noise" in get_scientific_interpretation(1.0)
     assert "fBm-like" in get_scientific_interpretation(1.5)
     assert "Brownian noise" in get_scientific_interpretation(2.0)
-    with pytest.raises(ValueError):
-        get_scientific_interpretation(-1)
+    assert "Warning" in get_scientific_interpretation(-1.0)
 
 def test_get_persistence_traffic_light():
     assert "Event-driven" in get_persistence_traffic_light(0.2)

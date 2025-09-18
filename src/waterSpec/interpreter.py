@@ -15,7 +15,7 @@ def get_scientific_interpretation(beta):
     """Provides a scientific interpretation of the spectral exponent (beta)."""
     # Relax the check to allow for slightly negative beta values, which can occur with noisy data.
     if beta < -0.5:
-        raise ValueError("Beta value is significantly negative, which is physically unrealistic.")
+        return "Warning: Beta value is significantly negative, which is physically unrealistic."
     if np.isclose(beta, 0, atol=0.2): return "β ≈ 0: White noise (uncorrelated)."
     if np.isclose(beta, 1, atol=0.2): return "β ≈ 1: Pink noise (1/f), common in nature."
     if np.isclose(beta, 2, atol=0.2): return "β ≈ 2: Brownian noise (random walk)."
