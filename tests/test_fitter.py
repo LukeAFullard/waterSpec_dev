@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from waterSpec.fitter import fit_spectrum, fit_spectrum_with_bootstrap
+from waterSpec.fitter import fit_spectrum, fit_spectrum_with_bootstrap, fit_segmented_spectrum
 
 @pytest.fixture
 def synthetic_spectrum():
@@ -54,6 +54,9 @@ def test_fit_spectrum_with_bootstrap(synthetic_spectrum):
     """
     Test that fit_spectrum_with_bootstrap returns a confidence interval for beta.
     """
+    # Set a seed for reproducibility of the bootstrap
+    np.random.seed(42)
+
     frequency, power, known_beta = synthetic_spectrum
 
     # Fit the spectrum with bootstrap
@@ -72,3 +75,59 @@ def test_fit_spectrum_with_bootstrap(synthetic_spectrum):
 
     # Check that the confidence interval is not excessively wide
     assert (fit_results['beta_ci_upper'] - fit_results['beta_ci_lower']) < 1.0
+
+@pytest.fixture
+def multifractal_spectrum():
+    """
+    Generates a synthetic power spectrum with two slopes and a known breakpoint.
+    """
+    n_points = 200
+    breakpoint_freq = 0.1
+    beta1 = 0.5
+    beta2 = 1.8
+
+    # Generate a frequency array
+    frequency = np.logspace(-3, 1, n_points)
+
+    # Create the two-slope power spectrum
+    power = np.zeros(n_points)
+
+    # First segment
+    mask1 = frequency < breakpoint_freq
+    power[mask1] = (frequency[mask1] ** -beta1)
+
+    # Second segment
+    mask2 = frequency >= breakpoint_freq
+    # We need to scale the second segment to connect smoothly at the breakpoint
+    scale_factor = (breakpoint_freq ** -beta1) / (breakpoint_freq ** -beta2)
+    power[mask2] = scale_factor * (frequency[mask2] ** -beta2)
+
+    # Add some noise
+    rng = np.random.default_rng(42)
+    noise = rng.normal(0, 0.1, n_points)
+    log_power = np.log(power) + noise
+    power = np.exp(log_power)
+
+    return frequency, power, breakpoint_freq, beta1, beta2
+
+def test_fit_segmented_spectrum(multifractal_spectrum):
+    """
+    Test that fit_segmented_spectrum correctly identifies the breakpoint and slopes.
+    """
+    frequency, power, known_breakpoint, known_beta1, known_beta2 = multifractal_spectrum
+
+    # Fit the segmented spectrum
+    results = fit_segmented_spectrum(frequency, power)
+
+    # Check that the results contain the expected keys
+    assert 'breakpoint' in results
+    assert 'beta1' in results
+    assert 'beta2' in results
+
+    # Check that the identified breakpoint is close to the known breakpoint
+    # The breakpoint is on a log scale, so we check the log values
+    assert np.log10(results['breakpoint']) == pytest.approx(np.log10(known_breakpoint), abs=0.5)
+
+    # Check that the estimated betas are close to the known betas
+    assert results['beta1'] == pytest.approx(known_beta1, abs=0.3)
+    assert results['beta2'] == pytest.approx(known_beta2, abs=0.3)

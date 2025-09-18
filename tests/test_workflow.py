@@ -49,3 +49,26 @@ def test_run_analysis_with_censored_data():
     # Check that the beta value is calculated and is a float
     assert 'beta' in results
     assert isinstance(results['beta'], float)
+
+import numpy as np
+
+def test_run_analysis_segmented_no_breakpoint():
+    """
+    Test that segmented analysis on linear data fails gracefully.
+    """
+    # Using standard data that doesn't have a clear breakpoint
+    file_path = 'examples/sample_data.csv'
+
+    results = run_analysis(
+        file_path,
+        time_col='timestamp',
+        data_col='concentration',
+        analysis_type='segmented'
+    )
+
+    # The model should not converge on this data, and return NaNs
+    assert results
+    assert isinstance(results, dict)
+    assert np.isnan(results['breakpoint'])
+    assert np.isnan(results['beta1'])
+    assert np.isnan(results['beta2'])

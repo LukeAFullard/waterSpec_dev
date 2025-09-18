@@ -99,9 +99,9 @@ We will call the package **`waterSpec`** (preferred name). Alternatives consider
 - Add FFT-based option for evenly spaced data.
 
 ### Step 5: Fitting (`fitter.py`)
-- Log-log linear regression on spectrum.
-- Auto-crossover detection (segmented regression / knee detection) for multifractals.
-- Return β, R², stderr, fit line.
+- **Log-log Linear Regression**: Fit a single line to the power spectrum on a log-log plot to determine the primary spectral exponent (β).
+- **Segmented Regression**: For detecting multifractal behavior (i.e., changes in scaling), implement auto-crossover detection using segmented regression. This will be achieved using the `piecewise-regression` Python package to find breakpoints ("knees") in the log-log spectrum.
+- **Outputs**: The fitting functions will return key metrics such as β, R-squared, standard error, and breakpoint locations for segmented fits.
 
 **Uncertainty Handling**:
 - **Bootstrap resampling**: resample residuals or blocks of time series; re-estimate β to get confidence intervals.

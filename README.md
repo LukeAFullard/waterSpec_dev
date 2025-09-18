@@ -10,8 +10,8 @@ This package is inspired by the methods described in Liang et al. (2021).
 - **Censored Data Handling**: Strategies to handle left-censored (`<`) and right-censored (`>`) data.
 - **Core Spectral Analysis**:
     - Lomb-Scargle Periodogram for unevenly spaced data.
-    - Spectral fitting to find the spectral exponent (β).
-    - Bootstrap resampling for confidence intervals on β.
+    - **Standard and Segmented Regression**: Fit a single slope (standard) or detect changes in scaling with a two-slope segmented regression for multifractal analysis.
+    - **Uncertainty Analysis**: Bootstrap resampling for confidence intervals on β.
 - **Interpretation and Plotting**:
     - Scientific interpretation of the β value.
     - Publication-quality plotting of the power spectrum.
@@ -43,8 +43,8 @@ if not os.path.exists('plots'):
 output_plot_path = 'plots/spectrum_plot.png'
 
 # Run the full analysis with a single function call
-# The run_analysis function can also handle censored data, e.g.:
-# results = ws.run_analysis(..., censor_strategy='multiplier')
+# The run_analysis function can also handle censored data and perform segmented regression, e.g.:
+# results = ws.run_analysis(..., censor_strategy='multiplier', analysis_type='segmented')
 results = ws.run_analysis(
     file_path,
     time_col='timestamp',

@@ -23,6 +23,7 @@ dependencies = [
     "matplotlib",
     "astropy",
     "openpyxl",
+    "piecewise-regression",
 ]
 
 [project.optional-dependencies]

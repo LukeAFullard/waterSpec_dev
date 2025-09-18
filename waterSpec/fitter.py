@@ -1,5 +1,6 @@
 import numpy as np
 from scipy import stats
+import piecewise_regression
 
 def fit_spectrum(frequency, power):
     """
@@ -111,3 +112,57 @@ def fit_spectrum_with_bootstrap(frequency, power, n_bootstraps=1000, ci=95):
     initial_fit['beta_ci_upper'] = beta_ci_upper
 
     return initial_fit
+
+def fit_segmented_spectrum(frequency, power):
+    """
+    Fits a segmented regression to the power spectrum to find breakpoints.
+
+    Args:
+        frequency (np.ndarray): The frequency array.
+        power (np.ndarray): The power array.
+
+    Returns:
+        dict: A dictionary containing the fit results.
+    """
+    # Log-transform the data
+    valid_indices = (frequency > 0) & (power > 0)
+    if np.sum(valid_indices) < 5: # Need enough points for segmented regression
+        return {
+            'breakpoint': np.nan, 'beta1': np.nan, 'beta2': np.nan,
+            'model_summary': "Not enough data points for segmented regression."
+        }
+
+    log_freq = np.log(frequency[valid_indices])
+    log_power = np.log(power[valid_indices])
+
+    # Fit the piecewise regression model, specifying 1 breakpoint
+    pw_fit = piecewise_regression.Fit(log_freq, log_power, n_breakpoints=1)
+
+    # Check for convergence and statistical significance of the breakpoint
+    davies_p_value = pw_fit.davies
+    if not pw_fit.get_results()["converged"] or davies_p_value > 0.05:
+        return {
+            'breakpoint': np.nan, 'beta1': np.nan, 'beta2': np.nan,
+            'model_summary': "No significant breakpoint found (Davies test p > 0.05) or model did not converge."
+        }
+
+    # Extract the results using the correct API
+    estimates = pw_fit.get_results()["estimates"]
+
+    breakpoint_log_freq = estimates["breakpoint1"]["estimate"]
+    breakpoint_freq = np.exp(breakpoint_log_freq)
+
+    alpha1 = estimates["alpha1"]["estimate"]
+    alpha2 = estimates["alpha2"]["estimate"]
+
+    beta1 = -alpha1
+    beta2 = -alpha2
+
+    results = {
+        'breakpoint': breakpoint_freq,
+        'beta1': beta1,
+        'beta2': beta2,
+        'model_summary': str(pw_fit.summary())
+    }
+
+    return results
