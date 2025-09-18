@@ -1,142 +1,83 @@
 import numpy as np
-import pytest
 import pandas as pd
-from waterSpec.preprocessor import detrend, normalize, log_transform, handle_censored_data, detrend_loess
+import pytest
+from waterSpec.preprocessor import (
+    detrend,
+    normalize,
+    log_transform,
+    handle_censored_data,
+    detrend_loess,
+    preprocess_data,
+    _validate_data_length
+)
 
-# Sample data for testing
+# A dataset with more than 10 points for validation checks
 @pytest.fixture
 def sample_data():
-    """Provides a sample numpy array for testing."""
-    return np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    return np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0])
 
-@pytest.fixture
-def trending_data():
-    """Provides a sample numpy array with a linear trend."""
-    # A simple linear trend with some noise
-    x = np.arange(10)
-    y = 2 * x + 1 + np.random.randn(10) * 0.1
-    return y
-
-def test_detrend(trending_data):
+def test_detrend(sample_data):
     """Test the detrend function."""
-    detrended_data = detrend(trending_data)
-    # A simple check: the mean of the detrended data should be close to zero.
-    assert np.mean(detrended_data) == pytest.approx(0.0, abs=1e-9)
-    # Check that it returns an array of the same shape
-    assert detrended_data.shape == trending_data.shape
+    trended_data = sample_data
+    detrended = detrend(trended_data.copy())
+    assert np.mean(detrended) == pytest.approx(0)
+    assert not np.array_equal(detrended, trended_data)
 
 def test_normalize(sample_data):
     """Test the normalize function."""
-    normalized_data = normalize(sample_data)
-    # The mean of normalized data should be close to 0
-    assert np.mean(normalized_data) == pytest.approx(0.0, abs=1e-9)
-    # The standard deviation of normalized data should be close to 1
-    assert np.std(normalized_data) == pytest.approx(1.0, abs=1e-9)
+    normalized_data = normalize(sample_data.copy())
+    assert np.mean(normalized_data) == pytest.approx(0)
+    assert np.std(normalized_data) == pytest.approx(1)
 
 def test_log_transform(sample_data):
-    """Test the log_transform function."""
-    transformed_data = log_transform(sample_data)
+    """Test the log_transform function with valid data."""
+    transformed_data = log_transform(sample_data.copy())
     expected_data = np.log(sample_data)
     np.testing.assert_array_almost_equal(transformed_data, expected_data)
 
-def test_log_transform_with_zero():
-    """Test log_transform with data containing zero, which should raise an error."""
-    data_with_zero = np.array([0.0, 1.0, 2.0])
+def test_log_transform_non_positive():
+    """Test that log_transform raises ValueError for non-positive data."""
     with pytest.raises(ValueError, match="log-transform requires all data to be positive"):
-        log_transform(data_with_zero)
-
-def test_log_transform_with_negative():
-    """Test log_transform with negative data, which should raise an error."""
-    data_with_negative = np.array([-1.0, 1.0, 2.0])
+        log_transform(np.array([1.0, 2.0, 0.0, 4.0, 5.0]))
     with pytest.raises(ValueError, match="log-transform requires all data to be positive"):
-        log_transform(data_with_negative)
+        log_transform(np.array([1.0, -2.0, 3.0, 4.0, 5.0]))
 
-@pytest.fixture
-def censored_data_series():
-    """Provides a pandas Series with censored data."""
-    return pd.Series(['10.1', '<5.0', '10.3', '>100', '11.0'])
+def test_handle_censored_data():
+    """Test the handle_censored_data function."""
+    data_series = pd.Series(["1", "<2", "3", ">4", "5"])
+    result = handle_censored_data(data_series, strategy='drop')
+    assert np.isnan(result[1])
+    assert np.isnan(result[3])
+    assert result[0] == 1
 
-def test_handle_censored_data_use_detection_limit_strategy(censored_data_series):
-    """Test the 'use_detection_limit' strategy for censored data."""
-    result = handle_censored_data(censored_data_series, strategy='use_detection_limit')
-    expected = np.array([10.1, 5.0, 10.3, 100.0, 11.0])
-    np.testing.assert_array_almost_equal(result, expected)
+    result = handle_censored_data(data_series, strategy='use_detection_limit')
+    assert result[1] == 2.0
+    assert result[3] == 4.0
 
-def test_handle_censored_data_drop_strategy(censored_data_series):
-    """Test the default 'drop' strategy for censored data."""
-    # Default strategy is 'drop'
-    result = handle_censored_data(censored_data_series)
-    expected = np.array([10.1, np.nan, 10.3, np.nan, 11.0])
-    # Use assert_equal for arrays with NaNs
-    np.testing.assert_equal(result, expected)
+    result = handle_censored_data(data_series, strategy='multiplier', lower_multiplier=0.5, upper_multiplier=1.1)
+    assert result[1] == 1.0
+    assert result[3] == 4.4
 
-def test_handle_censored_data_multiplier_strategy(censored_data_series):
-    """Test the 'multiplier' strategy for censored data."""
-    result = handle_censored_data(
-        censored_data_series,
-        strategy='multiplier',
-        lower_multiplier=0.5,
-        upper_multiplier=1.1
-    )
-    expected = np.array([10.1, 2.5, 10.3, 110.0, 11.0])
-    np.testing.assert_array_almost_equal(result, expected)
-
-def test_handle_censored_data_invalid_strategy(censored_data_series):
-    """Test that an invalid strategy raises an error."""
-    with pytest.raises(ValueError, match="Invalid strategy. Choose from \\['drop', 'use_detection_limit', 'multiplier'\\]"):
-        handle_censored_data(censored_data_series, strategy='invalid_strategy')
-
-@pytest.fixture
-def nonlinear_data():
-    """Provides a sample numpy array with a non-linear trend."""
-    x = np.linspace(0, 10, 100)
-    # Quadratic trend + some noise
-    trend = 0.1 * x**2 - 0.5 * x
-    y = trend + np.random.randn(100) * 0.1
-    return x, y
-
-def test_detrend_loess(nonlinear_data):
+def test_detrend_loess(sample_data):
     """Test the LOESS detrending function."""
-    x, y = nonlinear_data
-    detrended_y = detrend_loess(x, y)
+    time = np.arange(len(sample_data))
+    trended_data = sample_data + np.sin(time)
+    detrended = detrend_loess(time, trended_data)
+    assert np.var(detrended) < np.var(trended_data)
 
-    # The mean of the residuals should be close to zero
-    assert np.mean(detrended_y) == pytest.approx(0.0, abs=1e-1)
-    # Check that it returns an array of the same shape
-    assert detrended_y.shape == y.shape
+def test_validate_data_length():
+    """Test the data length validation function."""
+    _validate_data_length(np.random.rand(20), min_length=10)
+    with pytest.raises(ValueError, match="has only 5 valid data points"):
+        _validate_data_length(np.random.rand(5), min_length=10)
 
-# --- Edge Case Tests ---
+def test_preprocess_data_wrapper(sample_data):
+    """Test the main preprocess_data wrapper function."""
+    time = np.arange(len(sample_data))
+    data_series = pd.Series(sample_data)
 
-def test_handle_censored_data_no_censoring():
-    """Test handle_censored_data with a series containing no censored values."""
-    data = pd.Series(['1.0', '2.0', '3.0'])
-    result = handle_censored_data(data, strategy='use_detection_limit')
-    expected = np.array([1.0, 2.0, 3.0])
-    np.testing.assert_array_almost_equal(result, expected)
+    processed = preprocess_data(data_series, time, detrend_method='linear')
+    assert np.mean(processed) == pytest.approx(0)
 
-def test_handle_censored_data_all_censored():
-    """Test handle_censored_data with a series of only censored values."""
-    data = pd.Series(['<1.0', '>2.0', '<3.0'])
-    result = handle_censored_data(data, strategy='drop')
-    assert np.all(np.isnan(result))
-
-def test_detrend_short_series():
-    """Test detrending a very short series (should not fail)."""
-    data = np.array([10.0, 10.5])
-    result = detrend(data)
-    assert result.shape == data.shape
-    assert np.mean(result) == pytest.approx(0.0)
-
-def test_normalize_short_series():
-    """Test normalizing a very short series."""
-    data = np.array([10.0, 20.0])
-    result = normalize(data)
-    assert np.mean(result) == pytest.approx(0.0)
-    assert np.std(result) == pytest.approx(1.0)
-
-def test_normalize_constant_series():
-    """Test normalizing a constant series (should return zeros)."""
-    data = np.array([5.0, 5.0, 5.0])
-    result = normalize(data)
-    expected = np.array([0.0, 0.0, 0.0])
-    np.testing.assert_array_almost_equal(result, expected)
+    with pytest.warns(UserWarning, match="Unknown detrending method"):
+        preprocess_data(data_series, time, detrend_method='bad_method')

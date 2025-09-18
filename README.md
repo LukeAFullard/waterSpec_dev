@@ -1,5 +1,9 @@
 # waterSpec: Spectral Analysis of Environmental Time Series
 
+<p align="center">
+  <img src="assets/logo.jpg" alt="waterSpec Logo" width="200"/>
+</p>
+
 `waterSpec` is a Python package for performing spectral analysis on environmental time series, particularly those that are irregularly sampled. It provides tools to load data, calculate the Lomb-Scargle periodogram, fit the power spectrum to determine the spectral exponent (β), and interpret the results in a hydrological context.
 
 This package is inspired by the methods described in Liang et al. (2021).
