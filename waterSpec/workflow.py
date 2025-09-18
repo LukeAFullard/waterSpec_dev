@@ -1,3 +1,4 @@
+import numpy as np
 from .data_loader import load_data
 from .preprocessor import detrend, handle_censored_data, detrend_loess
 from .spectral_analyzer import calculate_periodogram
@@ -48,16 +49,21 @@ def run_analysis(file_path, time_col, data_col, n_bootstraps=1000,
         lower_multiplier=lower_multiplier,
         upper_multiplier=upper_multiplier
     )
+    # Create a mask for finite values
+    is_finite = np.isfinite(numeric_data)
+    time_finite = time[is_finite]
+    numeric_data_finite = numeric_data[is_finite]
+
     # Then detrend
     if detrend_method == 'linear':
-        preprocessed_data = detrend(numeric_data)
+        preprocessed_data = detrend(numeric_data_finite)
     elif detrend_method == 'loess':
-        preprocessed_data = detrend_loess(time, numeric_data)
+        preprocessed_data = detrend_loess(time_finite, numeric_data_finite)
     else:
         raise ValueError("Invalid detrend_method. Choose from ['linear', 'loess']")
 
     # 3. Calculate periodogram
-    frequency, power = calculate_periodogram(time, preprocessed_data)
+    frequency, power = calculate_periodogram(time_finite, preprocessed_data)
 
     # 4. Fit spectrum
     if analysis_type == 'standard':

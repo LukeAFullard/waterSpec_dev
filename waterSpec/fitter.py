@@ -162,7 +162,8 @@ def fit_segmented_spectrum(frequency, power):
         'breakpoint': breakpoint_freq,
         'beta1': beta1,
         'beta2': beta2,
-        'model_summary': str(pw_fit.summary())
+        'model_summary': str(pw_fit.summary()),
+        'model_object': pw_fit
     }
 
     return results
