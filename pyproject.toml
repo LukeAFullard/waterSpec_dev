@@ -24,6 +24,7 @@ dependencies = [
     "astropy",
     "openpyxl",
     "piecewise-regression",
+    "statsmodels",
 ]
 
 [project.optional-dependencies]
