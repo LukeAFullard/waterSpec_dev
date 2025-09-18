@@ -11,16 +11,17 @@ def interpret_beta(beta):
         str: A string containing the interpretation.
 
     Raises:
-        ValueError: If the beta value is negative.
+        ValueError: If the beta value is significantly negative.
     """
-    if beta < 0:
-        raise ValueError("Beta value must be non-negative.")
-
-    # Using np.isclose for floating point comparisons
+    # Using np.isclose for floating point comparisons to handle noisy data
+    # where beta might be slightly negative but effectively zero.
     if np.isclose(beta, 0, atol=0.1):
         return "β ≈ 0: White noise. The time series is random and uncorrelated."
 
-    if 0 < beta < 0.5:
+    if beta < -0.1:
+        raise ValueError("Beta value cannot be significantly negative.")
+
+    if 0.1 <= beta < 0.5:
         return "0 < β < 0.5 (fGn): Weak persistence. Signal is highly event-driven (e.g., surface runoff)."
 
     if 0.5 <= beta < 1.0:

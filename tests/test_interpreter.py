@@ -28,7 +28,12 @@ def test_interpret_beta_brownian_motion():
     interpretation = interpret_beta(2.0)
     assert "brownian motion" in interpretation.lower()
 
+def test_interpret_beta_slightly_negative_is_white_noise():
+    """Test that a slightly negative beta is interpreted as white noise."""
+    interpretation = interpret_beta(-0.05)
+    assert "white noise" in interpretation.lower()
+
 def test_interpret_beta_invalid_input():
-    """Test that the function handles invalid (negative) beta values."""
-    with pytest.raises(ValueError, match="Beta value must be non-negative."):
+    """Test that the function handles significantly negative beta values."""
+    with pytest.raises(ValueError, match="Beta value cannot be significantly negative."):
         interpret_beta(-0.5)
