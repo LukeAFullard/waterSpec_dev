@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from waterSpec.fitter import fit_spectrum
+from waterSpec.fitter import fit_spectrum, fit_spectrum_with_bootstrap
 
 @pytest.fixture
 def synthetic_spectrum():
@@ -49,3 +49,26 @@ def test_fit_spectrum_returns_good_fit_metrics(synthetic_spectrum):
     # Check that the R-squared value indicates a good fit
     assert 'r_squared' in fit_results
     assert fit_results['r_squared'] > 0.95
+
+def test_fit_spectrum_with_bootstrap(synthetic_spectrum):
+    """
+    Test that fit_spectrum_with_bootstrap returns a confidence interval for beta.
+    """
+    frequency, power, known_beta = synthetic_spectrum
+
+    # Fit the spectrum with bootstrap
+    fit_results = fit_spectrum_with_bootstrap(frequency, power, n_bootstraps=100) # Use a small number for testing
+
+    # Check that the results dictionary contains the required keys
+    assert 'beta' in fit_results
+    assert 'beta_ci_lower' in fit_results
+    assert 'beta_ci_upper' in fit_results
+
+    # Check that the main beta estimate is within the confidence interval
+    assert fit_results['beta_ci_lower'] <= fit_results['beta'] <= fit_results['beta_ci_upper']
+
+    # Check that the known beta is within the confidence interval (it should be, most of the time)
+    assert fit_results['beta_ci_lower'] <= known_beta <= fit_results['beta_ci_upper']
+
+    # Check that the confidence interval is not excessively wide
+    assert (fit_results['beta_ci_upper'] - fit_results['beta_ci_lower']) < 1.0
