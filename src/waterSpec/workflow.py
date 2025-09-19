@@ -15,6 +15,7 @@ def run_analysis(
     param_name=None,
     censor_strategy='drop',
     detrend_method='linear',
+    detrend_options=None,
     analysis_type='standard',
     n_bootstraps=1000,
     do_plot=False,
@@ -28,7 +29,8 @@ def run_analysis(
         data_series,
         time_numeric,
         censor_strategy=censor_strategy,
-        detrend_method=detrend_method
+        detrend_method=detrend_method,
+        detrend_options=detrend_options
     )
 
     valid_indices = ~np.isnan(processed_data)
