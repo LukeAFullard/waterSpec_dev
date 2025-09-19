@@ -240,3 +240,18 @@ To further enhance the project's quality and maintainability, consider incorpora
 This plan provides an end-to-end workflow to build a Python package (`waterSpec`) that enables robust spectral analysis of irregularly sampled environmental time series. It integrates best practices (testing, packaging, documentation), scientific rigor (fractal scaling, β interpretation, uncertainty), and practical value (domain-specific interpretations for conservation planning).
 
 By including an automated interpretation module, the package ensures results are easy to understand, actionable, and useful for both researchers and practitioners. The additional suggestions aim to improve the development process, making it more robust, collaborative, and maintainable in the long run.
+
+---
+
+## Recently Completed Tasks
+
+### Task: Refactor Frequency Grid Generation
+
+**Goal:** Improve the code structure by moving the frequency grid generation logic to a separate module.
+
+**Plan:**
+
+1.  **Create New Module:** Create a new file `src/waterSpec/frequency_generator.py`.
+2.  **Move Logic:** Move the frequency grid generation logic from `src/waterSpec/workflow.py` to a new function `generate_log_spaced_grid` in the new module.
+3.  **Update Workflow:** Update `src/waterSpec/workflow.py` to use the new function.
+4.  **Verify:** Run the test suite to ensure no regressions were introduced.

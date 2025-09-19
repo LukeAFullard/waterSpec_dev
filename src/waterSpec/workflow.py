@@ -4,6 +4,7 @@ from .spectral_analyzer import calculate_periodogram
 from .fitter import fit_spectrum_with_bootstrap, fit_segmented_spectrum
 from .interpreter import interpret_results
 from .plotting import plot_spectrum
+from .frequency_generator import generate_log_spaced_grid
 import warnings
 import numpy as np
 
@@ -36,7 +37,8 @@ def run_analysis(
     time_numeric = time_numeric[valid_indices]
     processed_data = processed_data[valid_indices]
 
-    frequency, power = calculate_periodogram(time_numeric, processed_data)
+    custom_frequency = generate_log_spaced_grid(time_numeric)
+    frequency, power = calculate_periodogram(time_numeric, processed_data, frequency=custom_frequency)
 
     if analysis_type == 'standard':
         fit_results = fit_spectrum_with_bootstrap(frequency, power, n_bootstraps=n_bootstraps)

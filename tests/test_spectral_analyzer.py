@@ -37,3 +37,21 @@ def test_calculate_periodogram_finds_peak_frequency(synthetic_signal):
 
     # Assert that the found frequency is close to the known frequency
     assert peak_frequency == pytest.approx(known_frequency, abs=0.01)
+
+def test_calculate_periodogram_with_custom_frequency(synthetic_signal):
+    """
+    Test that calculate_periodogram works correctly with a custom frequency grid.
+    """
+    time, y, known_frequency = synthetic_signal
+
+    # Create a custom frequency grid around the known frequency
+    custom_frequency = np.linspace(known_frequency - 0.05, known_frequency + 0.05, 100)
+
+    # Calculate the periodogram
+    frequency, power = calculate_periodogram(time, y, frequency=custom_frequency)
+
+    # Find the frequency with the maximum power
+    peak_frequency = frequency[np.argmax(power)]
+
+    # Assert that the found frequency is close to the known frequency
+    assert peak_frequency == pytest.approx(known_frequency, abs=0.01)
