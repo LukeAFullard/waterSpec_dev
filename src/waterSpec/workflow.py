@@ -36,7 +36,21 @@ def run_analysis(
     time_numeric = time_numeric[valid_indices]
     processed_data = processed_data[valid_indices]
 
-    frequency, power = calculate_periodogram(time_numeric, processed_data)
+    # Generate a logarithmically spaced frequency grid for the analysis.
+    # This is often better for analyzing geophysical time series.
+    duration = np.max(time_numeric) - np.min(time_numeric)
+    min_freq = 1 / duration
+    nyquist_freq = 0.5 / np.median(np.diff(time_numeric))
+
+    # Ensure min_freq is positive and less than nyquist_freq
+    if min_freq <= 0:
+        min_freq = 1e-6  # A small positive number
+    if min_freq >= nyquist_freq:
+        min_freq = nyquist_freq / 100 # Adjust if duration is too short
+
+    custom_frequency = np.logspace(np.log10(min_freq), np.log10(nyquist_freq), num=200)
+
+    frequency, power = calculate_periodogram(time_numeric, processed_data, frequency=custom_frequency)
 
     if analysis_type == 'standard':
         fit_results = fit_spectrum_with_bootstrap(frequency, power, n_bootstraps=n_bootstraps)
