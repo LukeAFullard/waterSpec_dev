@@ -22,6 +22,37 @@ def test_plot_spectrum_saves_file(spectrum_data, tmp_path):
 
     assert os.path.exists(output_file)
 
+def test_plot_spectrum_with_ci_and_peaks(tmp_path):
+    """
+    Test that plot_spectrum can handle confidence intervals and find peaks.
+    """
+    # Create a synthetic spectrum with a clear peak
+    frequency = np.linspace(0.01, 1, 500)
+    power = np.exp(-0.5 * (frequency - 0.5)**2 / 0.01**2) + np.random.rand(500) * 0.1
+
+    # Add fit results with confidence intervals
+    fit_results = {
+        'beta': 0.1,
+        'intercept': 0.0,
+        'beta_ci_lower': 0.05,
+        'beta_ci_upper': 0.15
+    }
+
+    output_file = tmp_path / "test_plot_with_ci_and_peaks.png"
+
+    try:
+        plot_spectrum(
+            frequency,
+            power,
+            fit_results=fit_results,
+            analysis_type='standard',
+            output_path=str(output_file)
+        )
+    except Exception as e:
+        pytest.fail(f"plot_spectrum raised an exception with CI and peak data: {e}")
+
+    assert os.path.exists(output_file)
+
 def test_plot_spectrum_runs_without_path(spectrum_data):
     """
     Test that plot_spectrum runs without error when no output path is given.
