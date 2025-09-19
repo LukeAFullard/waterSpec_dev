@@ -80,10 +80,23 @@ def handle_censored_data(data_series, strategy='drop', lower_multiplier=0.5, upp
 
     return numeric_series.to_numpy()
 
-def detrend_loess(x, y, frac=0.5):
+def detrend_loess(x, y, **kwargs):
     """
     Removes a non-linear trend from a time series using LOESS.
+
+    This function is a wrapper around `statsmodels.nonparametric.lowess.lowess`.
+    Any additional keyword arguments are passed directly to the statsmodels function.
+
+    Args:
+        x (np.ndarray): The independent variable (time).
+        y (np.ndarray): The dependent variable (data).
+        **kwargs: Additional keyword arguments for `statsmodels.lowess`.
+                  Common arguments include `frac` (default 0.67) and `it` (default 3).
     """
+    # Set a default for `frac` if not provided, consistent with the old signature
+    if 'frac' not in kwargs:
+        kwargs['frac'] = 0.5
+
     valid_indices = ~np.isnan(y)
     if np.sum(valid_indices) < 2:
         return y
@@ -91,24 +104,27 @@ def detrend_loess(x, y, frac=0.5):
     x_valid = x[valid_indices]
     y_valid = y[valid_indices]
 
-    smoothed = sm.nonparametric.lowess(y_valid, x_valid, frac=frac)
+    smoothed = sm.nonparametric.lowess(y_valid, x_valid, **kwargs)
 
     detrended_y = np.full_like(y, np.nan)
     detrended_y[valid_indices] = y_valid - smoothed[:, 1]
 
     return detrended_y
 
-def preprocess_data(data_series, time_numeric, censor_strategy='drop', detrend_method=None, min_length=10):
+def preprocess_data(data_series, time_numeric, censor_strategy='drop', detrend_method=None, detrend_options=None, min_length=10):
     """
     A wrapper function that applies a series of preprocessing steps.
     """
+    if detrend_options is None:
+        detrend_options = {}
+
     processed_data = handle_censored_data(data_series, strategy=censor_strategy)
     _validate_data_length(processed_data, min_length=min_length)
 
     if detrend_method == 'linear':
         processed_data = detrend(processed_data)
     elif detrend_method == 'loess':
-        processed_data = detrend_loess(time_numeric, processed_data)
+        processed_data = detrend_loess(time_numeric, processed_data, **detrend_options)
     elif detrend_method is not None:
         warnings.warn(f"Unknown detrending method '{detrend_method}'. No detrending will be applied.", UserWarning)
 

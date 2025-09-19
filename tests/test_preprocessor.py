@@ -65,6 +65,22 @@ def test_detrend_loess(sample_data):
     detrended = detrend_loess(time, trended_data)
     assert np.var(detrended) < np.var(trended_data)
 
+def test_detrend_loess_with_options(sample_data):
+    """Test that LOESS detrending accepts and uses custom options."""
+    time = np.arange(len(sample_data))
+    # Add an outlier to make the robustness iterations have an effect
+    trended_data = sample_data + np.sin(time)
+    trended_data[5] = 20
+
+    # Detrend with default options (which include robustness iterations)
+    detrended_default = detrend_loess(time, trended_data.copy())
+
+    # Detrend with robustness iterations turned off
+    detrended_no_iter = detrend_loess(time, trended_data.copy(), it=0)
+
+    # The results should be different because the outlier is handled differently
+    assert not np.array_equal(detrended_default, detrended_no_iter)
+
 def test_validate_data_length():
     """Test the data length validation function."""
     _validate_data_length(np.random.rand(20), min_length=10)

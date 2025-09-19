@@ -255,3 +255,15 @@ By including an automated interpretation module, the package ensures results are
 2.  **Move Logic:** Move the frequency grid generation logic from `src/waterSpec/workflow.py` to a new function `generate_log_spaced_grid` in the new module.
 3.  **Update Workflow:** Update `src/waterSpec/workflow.py` to use the new function.
 4.  **Verify:** Run the test suite to ensure no regressions were introduced.
+
+---
+
+### Task: Add Flexible LOESS Detrending Options
+
+**Goal:** Allow users to have more control over the non-linear LOESS detrending by exposing more parameters from the `statsmodels.lowess` function.
+
+**Plan:**
+
+1.  **Update `detrend_loess`:** Modify the function to accept `**kwargs` and pass them to `statsmodels.lowess`.
+2.  **Update `preprocess_data` and `run_analysis`:** Add a `detrend_options` dictionary parameter to these functions to pass the options down.
+3.  **Update Tests:** Add a test to verify that custom options are correctly passed and have an effect.
