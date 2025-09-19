@@ -1,5 +1,21 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.signal import find_peaks
+
+def _find_significant_peaks(frequency, power, prominence_factor=0.5, max_peaks=5):
+    """
+    Finds significant peaks in a power spectrum.
+    """
+    # The prominence is the vertical distance between a peak and its lowest contour line.
+    # We set a dynamic prominence threshold based on the power range.
+    prominence_threshold = (np.max(power) - np.min(power)) * prominence_factor
+    peaks, properties = find_peaks(power, prominence=prominence_threshold)
+
+    # Sort peaks by prominence in descending order and take the top N
+    sorted_indices = np.argsort(properties['prominences'])[::-1]
+    top_peaks = peaks[sorted_indices][:max_peaks]
+
+    return top_peaks
 
 def plot_spectrum(frequency, power, fit_results, analysis_type='standard', output_path=None, param_name="Parameter"):
     """
@@ -34,6 +50,17 @@ def plot_spectrum(frequency, power, fit_results, analysis_type='standard', outpu
         if model:
             model.plot_fit(fig=plt.gcf(), ax=plt.gca(), plot_data=False, plot_breakpoints=True, linewidth=2)
             plt.legend() # Re-add legend after piecewise-regression plot
+
+    # Find and annotate significant peaks
+    significant_peaks = _find_significant_peaks(frequency, power)
+    for peak_idx in significant_peaks:
+        peak_freq = frequency[peak_idx]
+        peak_power = power[peak_idx]
+        plt.annotate(f'{peak_freq:.2f}',
+                     xy=(peak_freq, peak_power),
+                     xytext=(peak_freq, peak_power * 1.2),
+                     arrowprops=dict(facecolor='black', shrink=0.05, width=1, headwidth=4),
+                     ha='center')
 
     plt.title(f'Power Spectrum for {param_name}')
     plt.xlabel('Frequency')
