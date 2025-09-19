@@ -202,6 +202,45 @@ Outputs: point estimate, 95% CI (bootstrap), optional posterior summary.
 - Add error handling and logging.
 
 ### Extensions (Future Work)
+
+Based on a detailed review of the Lomb-Scargle method and the `astropy` implementation, the following features are recommended to significantly improve the scientific rigor and utility of the `waterSpec` package.
+
+#### 1. Statistical Significance Testing (False Alarm Probability)
+
+-   **Description:** Implement the calculation of the False Alarm Probability (FAP) to determine the statistical significance of detected peaks in the periodogram. A low FAP (e.g., < 0.01) indicates a high confidence that a peak is a true periodic signal and not a result of random noise.
+-   **Value:** This is a critical feature for scientific validity, allowing users to differentiate between meaningful periodicities and statistical artifacts.
+-   **Implementation:**
+    -   Use the `astropy.LombScargle.false_alarm_level` method, preferably with the robust `'bootstrap'` option.
+    -   Add a `fap_threshold` parameter to `run_analysis` to filter for significant peaks.
+    -   Report the FAP of significant peaks in the results dictionary and plot annotations.
+
+#### 2. Support for Measurement Uncertainties (`dy`)
+
+-   **Description:** Allow users to provide per-point measurement errors for their time series data. The Lomb-Scargle algorithm can use these errors (`dy`) to perform a weighted analysis, giving more influence to more certain data points.
+-   **Value:** Most environmental data has associated measurement uncertainty. Incorporating it will lead to more statistically robust and accurate spectral estimates. This is also a prerequisite for PSD normalization.
+-   **Implementation:**
+    -   Add an optional `error_col` argument to the `load_data` function.
+    -   Pass the `dy` array through the `preprocess_data` and `run_analysis` functions to the `LombScargle` constructor.
+
+#### 3. Generalized Lomb-Scargle (Multi-Term Models)
+
+-   **Description:** Expose the `nterms` parameter of the `LombScargle` constructor. This allows the algorithm to fit a more complex model composed of multiple Fourier terms, which can better capture the shape of non-sinusoidal periodic signals.
+-   **Value:** Real-world signals (like seasonal environmental cycles) are often not perfect sine waves. This feature would enable more accurate modeling of such signals.
+-   **Implementation:**
+    -   Add an `nterms` parameter to the `calculate_periodogram` and `run_analysis` functions.
+    -   Document the limitation that Astropy's FAP calculation is not implemented for `nterms > 1`.
+
+#### 4. PSD Normalization and Model Visualization
+
+-   **Description:**
+    -   **PSD Normalization:** Allow the periodogram power to be normalized as a true Power Spectral Density (PSD), giving the y-axis physical units (e.g., `concentration² / frequency`).
+    -   **Model Visualization:** Add a new plotting utility to show the best-fit Lomb-Scargle model overlaid on the original data, phased to a specific peak's frequency.
+-   **Value:** PSD normalization aids in the physical interpretation and comparison of results. Model visualization provides a powerful diagnostic tool to visually confirm the quality of a periodic fit.
+-   **Implementation:**
+    -   Expose the `normalization` parameter in `run_analysis` and `calculate_periodogram`.
+    -   Create a new `plot_phased_model` function that uses the `astropy.LombScargle.model()` method.
+
+---
 - **Advanced Censored Data Methods**: Implement more statistically robust methods for handling censored data, such as distribution fitting or survival analysis techniques.
 - **Wavelet Analysis**: Add wavelet analysis for time-frequency scaling.
 - **Cross-Spectral Analysis**: Implement cross-spectral analysis for comparing pollutant vs. discharge coherence.
