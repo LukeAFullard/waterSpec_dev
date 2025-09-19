@@ -41,9 +41,19 @@ def plot_spectrum(frequency, power, fit_results, analysis_type='standard', outpu
     if analysis_type == 'standard':
         beta = fit_results.get('beta')
         intercept = fit_results.get('intercept')
+        beta_ci_lower = fit_results.get('beta_ci_lower')
+        beta_ci_upper = fit_results.get('beta_ci_upper')
+
         if beta is not None and intercept is not None:
+            # Plot the main fit line
             fit_line = np.exp(intercept - beta * log_freq)
             plt.loglog(np.exp(log_freq), fit_line, 'r-', linewidth=2, label=f'Standard Fit (β ≈ {beta:.2f})')
+
+            # Plot the confidence interval if available
+            if beta_ci_lower is not None and beta_ci_upper is not None:
+                lower_bound = np.exp(intercept - beta_ci_upper * log_freq)
+                upper_bound = np.exp(intercept - beta_ci_lower * log_freq)
+                plt.fill_between(np.exp(log_freq), lower_bound, upper_bound, color='r', alpha=0.2, label='95% CI')
 
     elif analysis_type == 'segmented':
         model = fit_results.get('model_object')
