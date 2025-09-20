@@ -9,6 +9,7 @@ import rpy2.robjects as robjects
 from rpy2.robjects.packages import importr
 from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
+from scipy.stats import linregress
 
 from waterSpec import run_analysis
 
@@ -41,14 +42,29 @@ def create_temp_csv(time, series):
     df.to_csv(temp_file.name, index=False)
     return temp_file.name
 
-def convert_rho_to_beta(rho):
+def estimate_beta_from_spectrum(freq, power, band=(0.01, 0.2)):
     """
-    Converts AR(1) coefficient rho to spectral exponent beta.
-    Using the approximation beta = 2 * rho / (1 - rho).
+    Estimates the spectral exponent beta from a power spectrum by fitting a
+    line to the log-log plot over a specified frequency band.
     """
-    if rho >= 1:
-        return np.inf
-    return 2 * rho / (1 - rho)
+    # Select the frequency band
+    sel = (freq > band[0]) & (freq < band[1])
+    if not np.any(sel):
+        return np.nan
+
+    # Filter out zero or negative power values to avoid log errors
+    valid_power = power[sel] > 0
+    if not np.any(valid_power):
+        return np.nan
+
+    log_f = np.log10(freq[sel][valid_power])
+    log_S = np.log10(power[sel][valid_power])
+
+    # Perform linear regression
+    slope, _, _, _, _ = linregress(log_f, log_S)
+
+    # Beta is the negative of the slope
+    return -slope
 
 def main():
     """
@@ -77,7 +93,7 @@ def main():
                     n_bootstraps=50,
                     do_plot=False
                 )
-                estimated_beta = ws_results.get('beta')
+                waterspec_beta = ws_results.get('beta')
 
                 # dplR analysis
                 if known_beta > 0:
@@ -86,19 +102,20 @@ def main():
                         t=robjects.IntVector(np.arange(len(series))),
                         nsim=100
                     )
-                    # The result is a complex R object. The AR1 coeff is in the 'rho' element.
-                    idx = list(redfit_results.names()).index('rho')
-                    ar1_coeff = redfit_results[idx][0]
-                    redfit_beta = convert_rho_to_beta(ar1_coeff)
+                    freq_idx = list(redfit_results.names()).index('freq')
+                    gxxc_idx = list(redfit_results.names()).index('gxxc')
+
+                    dplr_freq = np.array(redfit_results[freq_idx])
+                    dplr_power = np.array(redfit_results[gxxc_idx])
+
+                    dplr_beta = estimate_beta_from_spectrum(dplr_freq, dplr_power)
                 else:
-                    ar1_coeff = np.nan
-                    redfit_beta = np.nan
+                    dplr_beta = np.nan
 
                 results.append({
                     'known_beta': known_beta,
-                    'waterspec_beta': estimated_beta,
-                    'redfit_ar1': ar1_coeff,
-                    'redfit_beta': redfit_beta
+                    'waterspec_beta': waterspec_beta,
+                    'dplr_beta': dplr_beta
                 })
     finally:
         for f in temp_files:
@@ -108,20 +125,18 @@ def main():
                 pass
 
     print("--- Validation Results: waterSpec vs dplR ---")
-    print(f"| {'Known Beta':<12} | {'waterSpec Beta':<16} | {'dplR AR1':<12} | {'dplR Beta (est.)':<18} |")
-    print(f"|{'-'*14}|{'-'*18}|{'-'*14}|{'-'*20}|")
+    print(f"| {'Known Beta':<12} | {'waterSpec Beta':<16} | {'dplR Beta':<12} |")
+    print(f"|{'-'*14}|{'-'*18}|{'-'*14}|")
     for res in results:
         ws_beta_str = f"{res['waterspec_beta']:.4f}" if res['waterspec_beta'] is not None else "N/A"
-        rf_ar1_str = f"{res['redfit_ar1']:.4f}" if not np.isnan(res['redfit_ar1']) else "N/A"
-        rf_beta_str = f"{res['redfit_beta']:.4f}" if not np.isnan(res['redfit_beta']) else "N/A"
-        print(f"| {res['known_beta']:.2f}{' ':<7} | {ws_beta_str:<16} | {rf_ar1_str:<12} | {rf_beta_str:<18} |")
+        dplr_beta_str = f"{res['dplr_beta']:.4f}" if not np.isnan(res['dplr_beta']) else "N/A"
+        print(f"| {res['known_beta']:.2f}{' ':<7} | {ws_beta_str:<16} | {dplr_beta_str:<12} |")
 
     print("\n--- Comparison Summary ---")
-    print("The `waterSpec` package's beta estimates are close to the known beta values.")
-    print("The `dplR` package's `redfit` function estimates the AR1 coefficient (rho).")
-    print("The conversion from rho to beta is not straightforward and depends on the underlying model assumptions.")
-    print("The estimated beta from dplR does not directly match the known beta, but it shows a monotonic relationship.")
-    print("This validation confirms that both packages are sensitive to the spectral characteristics of the data.")
+    print("This validation compares the spectral exponent (beta) estimated by `waterSpec`")
+    print("with a beta estimated from the bias-corrected spectrum returned by `dplR::redfit`.")
+    print("The `dplR` beta is calculated by fitting a linear regression to the log-log spectrum")
+    print("over a fixed frequency band (0.01 to 0.2).")
 
 
 if __name__ == "__main__":

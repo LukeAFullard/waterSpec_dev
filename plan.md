@@ -349,10 +349,10 @@ This section documents issues and design improvements that were discovered and f
 
 3.  **Log-Spaced Grid for Peak Detection**
     *   **Issue:** It was discovered that using a log-spaced frequency grid, while optimal for fitting the spectral slope (β), can be problematic for peak detection. The high density of points at low frequencies can cause the DC component or minor trends to create a large, spurious peak at or near frequency zero, masking real periodic signals.
-    *   **Fix/Workaround:** The FAP tutorial (`06-advanced_peak_finding.ipynb`) was updated to use a **linear** frequency grid for its example, which is better suited for resolving specific peaks. A note was added explaining this distinction to the user. A proper fix to the `generate_log_spaced_grid` function may be considered in the future to make it more robust for general u
-    *   
-    *    
-    *      feat/dplr-validation
+    *   **Fix/Workaround:** The FAP tutorial (`06-advanced_peak_finding.ipynb`) was updated to use a **linear** frequency grid for its example, which is better suited for resolving specific peaks. A note was added explaining this distinction to the user. A proper fix to the `generate_log_spaced_grid` function may be considered in the future to make it more robust for general use.
+
+---
+
 ## Validation with dplR (Completed Task)
 
 This section documents the setup and comparison process for validating the `waterSpec` package against the `dplR` R package.
@@ -417,20 +417,3 @@ The validation shows that:
 -   This validation increases confidence in `waterSpec` by showing that it is sensitive to the spectral characteristics of the data in a way that is comparable to an established tool in the field.
 
 A full report of a sample run can be found in `validation/dplR_validation_report.md`.
-=======
-## Recently Implemented Enhancements
-
-This section details the latest features added to the `waterSpec` package to improve its analytical capabilities and user experience.
-
-1.  **Enhanced Segmented Analysis Plotting**
-    *   **Description:** The plot for a segmented analysis has been significantly improved. Instead of a generic fit line, the plot now explicitly shows the two distinct regression lines for the low-frequency and high-frequency segments of the power spectrum.
-    *   **Value:** This provides a much clearer and more intuitive visualization of the segmented fit, allowing users to immediately see the two different scaling behaviors (`β1` and `β2`) and the frequency at which the behavior changes.
-
-2.  **Comprehensive Segmented Analysis Reporting**
-    *   **Description:** The results and interpretations for a segmented analysis now include both beta values (`β1` and `β2`) and the breakpoint frequency. The automated summary text provides a distinct interpretation for both the long-term (low-frequency) and short-term (high-frequency) process dynamics.
-    *   **Value:** This ensures that the user receives a complete picture of the segmented analysis, not just a single, potentially misleading, beta value.
-
-3.  **Automatic Model Selection (`analysis_type='auto'`)**
-    *   **Description:** A new analysis mode, `auto`, has been introduced and set as the default. When selected, the package performs both a standard (single-slope) and a segmented (two-slope) regression. It then uses the Bayesian Information Criterion (BIC) to automatically determine which model provides a better fit to the data.
-    *   **Value:** This feature simplifies the workflow for users, as they no longer need to manually decide which analysis type is most appropriate. The package now makes an informed, data-driven decision, providing more robust and objective results.
-

@@ -26,18 +26,17 @@ Davies test for existence of at least 1 breakpoint: p=6.29393e-07 (e.g. p<0.05 m
 
 
 --- Validation Results: waterSpec vs dplR ---
-| Known Beta   | waterSpec Beta   | dplR AR1     | dplR Beta (est.)   |
-|--------------|------------------|--------------|--------------------|
-| 0.00        | 0.0429           | N/A          | N/A                |
-| 0.50        | 0.5125           | 0.3549       | 1.1003             |
-| 1.00        | 1.0208           | 0.7436       | 5.8015             |
-| 1.50        | 1.5342           | 0.9572       | 44.7271            |
-| 2.00        | 2.0312           | 0.0000       | 0.0000             |
-| 2.50        | N/A              | 0.0000       | 0.0000             |
+| Known Beta   | waterSpec Beta   | dplR Beta    |
+|--------------|------------------|--------------|
+| 0.00        | 0.0429           | N/A          |
+| 0.50        | 0.5125           | 0.6001       |
+| 1.00        | 1.0208           | 1.0059       |
+| 1.50        | 1.5342           | 1.5726       |
+| 2.00        | 2.0312           | 2.0753       |
+| 2.50        | N/A              | 2.5684       |
 
 --- Comparison Summary ---
-The `waterSpec` package's beta estimates are close to the known beta values.
-The `dplR` package's `redfit` function estimates the AR1 coefficient (rho).
-The conversion from rho to beta is not straightforward and depends on the underlying model assumptions.
-The estimated beta from dplR does not directly match the known beta, but it shows a monotonic relationship.
-This validation confirms that both packages are sensitive to the spectral characteristics of the data.
+This validation compares the spectral exponent (beta) estimated by `waterSpec`
+with a beta estimated from the bias-corrected spectrum returned by `dplR::redfit`.
+The `dplR` beta is calculated by fitting a linear regression to the log-log spectrum
+over a fixed frequency band (0.01 to 0.2).
