@@ -1,7 +1,7 @@
 import pytest
 import waterSpec
 from waterSpec import (
-    generate_log_spaced_grid,
+    generate_frequency_grid,
     calculate_periodogram,
     run_analysis
 )
@@ -11,7 +11,7 @@ def test_top_level_imports():
     """
     Test that key functions can be imported from the top-level package.
     """
-    assert isinstance(generate_log_spaced_grid, types.FunctionType)
+    assert isinstance(generate_frequency_grid, types.FunctionType)
     assert isinstance(calculate_periodogram, types.FunctionType)
     assert isinstance(run_analysis, types.FunctionType)
 
