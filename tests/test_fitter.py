@@ -50,6 +50,23 @@ def test_fit_spectrum_returns_good_fit_metrics(synthetic_spectrum):
     assert 'r_squared' in fit_results
     assert fit_results['r_squared'] > 0.95
 
+def test_fit_spectrum_theil_sen(synthetic_spectrum):
+    """
+    Test that fit_spectrum with method='theil-sen' correctly estimates beta.
+    """
+    frequency, power, known_beta = synthetic_spectrum
+
+    # Fit the spectrum using the Theil-Sen estimator
+    fit_results = fit_spectrum(frequency, power, method='theil-sen')
+
+    # Check that the returned beta is close to the known beta
+    assert 'beta' in fit_results
+    assert fit_results['beta'] == pytest.approx(known_beta, abs=0.1)
+
+    # Check that the other metrics are NaN as expected
+    assert np.isnan(fit_results['r_squared'])
+    assert np.isnan(fit_results['stderr'])
+
 def test_fit_spectrum_with_bootstrap(synthetic_spectrum):
     """
     Test that fit_spectrum_with_bootstrap returns a confidence interval for beta.

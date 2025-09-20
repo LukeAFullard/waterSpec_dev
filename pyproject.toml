@@ -31,6 +31,10 @@ dependencies = [
 test = [
     "pytest",
 ]
+examples = [
+    "fbm",
+    "jupyter",
+]
 
 [project.urls]
 "Homepage" = "https://github.com/example/waterSpec"
