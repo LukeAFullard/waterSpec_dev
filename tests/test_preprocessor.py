@@ -153,3 +153,41 @@ def test_preprocess_data_with_transforms(sample_data):
     # so we'll just check that the errors were transformed and are not None.
     assert processed_errors is not None
     assert not np.array_equal(processed_errors, error_series.to_numpy())
+
+
+def test_preprocess_data_error_propagation_correctness(sample_data):
+    """
+    Tests the correctness of the error propagation through the full
+    preprocess_data pipeline.
+    """
+    time = np.arange(len(sample_data))
+    data_series = pd.Series(sample_data)
+    initial_errors = np.full_like(sample_data, 0.1)
+    error_series = pd.Series(initial_errors)
+
+    # --- Manually calculate the expected error propagation ---
+    # 1. After log-transform
+    expected_errors_after_log = initial_errors / sample_data
+
+    # 2. After detrending (errors are passed through)
+    # To calculate the std dev for normalization, we need the detrended data
+    log_data, _ = log_transform(sample_data.copy())
+    detrended_log_data, _ = detrend(log_data)
+    expected_errors_after_detrend = expected_errors_after_log
+
+    # 3. After normalization
+    std_dev_of_detrended_log = np.std(detrended_log_data)
+    expected_final_errors = expected_errors_after_detrend / std_dev_of_detrended_log
+
+    # --- Run the full pipeline ---
+    _, processed_errors = preprocess_data(
+        data_series,
+        time,
+        error_series=error_series,
+        log_transform_data=True,
+        detrend_method='linear',
+        normalize_data=True
+    )
+
+    # --- Compare the results ---
+    np.testing.assert_array_almost_equal(processed_errors, expected_final_errors)
