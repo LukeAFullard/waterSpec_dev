@@ -80,3 +80,26 @@ def test_interpret_results_auto_mode():
     # Check that the detailed interpretation for the chosen model is present
     assert "Details for Chosen (Standard) Model:" in summary
     assert "Persistence Level: 🟢 Persistent" in summary
+
+def test_interpret_results_with_peaks():
+    """
+    Test that the summary text includes information about significant peaks.
+    """
+    # Note: 1 / (365.25 * 86400) is the frequency in Hz for a 1-year period
+    yearly_freq_hz = 1 / (365.25 * 86400)
+
+    fit_results = {
+        'beta': 0.8,
+        'significant_peaks': [
+            {'frequency': yearly_freq_hz, 'fap': 0.001},
+            {'frequency': 1 / (30 * 86400), 'fap': 0.005}
+        ]
+    }
+
+    results = interpret_results(fit_results)
+    summary = results['summary_text']
+
+    assert "Significant Periodicities Found:" in summary
+    assert "Period: 365.2 days" in summary
+    assert "Period: 30.0 days" in summary
+    assert "(FAP: 1.00E-03)" in summary

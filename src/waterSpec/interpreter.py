@@ -60,7 +60,6 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
         chosen_model = fit_results['chosen_model']
         bic_comp = fit_results['bic_comparison']
 
-        # Extract results from the nested dictionaries for the report
         standard_fit = fit_results.get('standard_fit', {})
         segmented_fit = fit_results.get('segmented_fit', {})
 
@@ -82,14 +81,8 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
     is_segmented = 'beta2' in fit_results and np.isfinite(fit_results['beta2'])
 
     if is_segmented:
-        # --- Segmented Interpretation ---
-        beta1 = fit_results['beta1']
-        beta2 = fit_results['beta2']
-        breakpoint_freq = fit_results['breakpoint']
-
-        interp1 = get_scientific_interpretation(beta1)
-        interp2 = get_scientific_interpretation(beta2)
-
+        beta1, beta2, breakpoint_freq = fit_results['beta1'], fit_results['beta2'], fit_results['breakpoint']
+        interp1, interp2 = get_scientific_interpretation(beta1), get_scientific_interpretation(beta2)
         summary_text = (
             f"Segmented Analysis for: {param_name}\n"
             f"Breakpoint Frequency ≈ {breakpoint_freq:.4f}\n"
@@ -104,32 +97,12 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
             f"  Interpretation: {interp2}\n"
             f"  Persistence: {get_persistence_traffic_light(beta2)}"
         )
-
-        # Prepend the auto-analysis header if it exists
-        final_summary_text = auto_summary_header + summary_text if auto_summary_header else summary_text
-
-        return {
-            "summary_text": final_summary_text,
-            "analysis_type": "segmented",
-            "beta1": beta1,
-            "beta2": beta2,
-            "breakpoint": breakpoint_freq
-        }
-
+        results_dict = {"analysis_type": "segmented", "beta1": beta1, "beta2": beta2, "breakpoint": breakpoint_freq}
     else:
-        # --- Standard Interpretation ---
         beta = fit_results['beta']
         ci = (fit_results.get('beta_ci_lower'), fit_results.get('beta_ci_upper'))
-
-        sci_interp = get_scientific_interpretation(beta)
-        traffic_light = get_persistence_traffic_light(beta)
-        benchmark_comp = compare_to_benchmarks(beta)
-
-        if ci[0] is not None and ci[1] is not None:
-            beta_str = f"β = {beta:.2f} (95% CI: {ci[0]:.2f}–{ci[1]:.2f})"
-        else:
-            beta_str = f"β = {beta:.2f}"
-
+        sci_interp, traffic_light, benchmark_comp = get_scientific_interpretation(beta), get_persistence_traffic_light(beta), compare_to_benchmarks(beta)
+        beta_str = f"β = {beta:.2f} (95% CI: {ci[0]:.2f}–{ci[1]:.2f})" if ci[0] is not None and ci[1] is not None else f"β = {beta:.2f}"
         summary_text = (
             f"Standard Analysis for: {param_name}\n"
             f"Value: {beta_str}\n"
@@ -137,28 +110,19 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
             f"Scientific Meaning: {sci_interp}\n"
             f"Contextual Comparison: {benchmark_comp}"
         )
-
         uncertainty_warning = None
-        if ci[0] is not None and ci[1] is not None:
-            ci_width = ci[1] - ci[0]
-            if ci_width > uncertainty_threshold:
-                uncertainty_warning = (
-                    f"Warning: The confidence interval width ({ci_width:.2f}) is large, "
-                    "suggesting high uncertainty."
-                )
-                summary_text += f"\n\n{uncertainty_warning}"
+        if ci[0] is not None and ci[1] is not None and (ci[1] - ci[0]) > uncertainty_threshold:
+            uncertainty_warning = f"Warning: The confidence interval width ({ci[1] - ci[0]:.2f}) is large, suggesting high uncertainty."
+            summary_text += f"\n\n{uncertainty_warning}"
+        results_dict = {"analysis_type": "standard", "beta_value": beta, "confidence_interval": ci, "persistence_level": traffic_light, "scientific_interpretation": sci_interp, "benchmark_comparison": benchmark_comp, "uncertainty_warning": uncertainty_warning, "benchmark_table": BENCHMARK_TABLE.to_dict(orient='index')}
 
-        # Prepend the auto-analysis header if it exists
-        final_summary_text = auto_summary_header + summary_text if auto_summary_header else summary_text
+    # --- Append shared sections (peaks) and prepend auto-summary ---
+    if 'significant_peaks' in fit_results and fit_results['significant_peaks']:
+        peaks_summary = "\n\n-----------------------------------\nSignificant Periodicities Found:"
+        for peak in fit_results['significant_peaks']:
+            period_days = 1 / (peak['frequency'] * 86400)
+            peaks_summary += f"\n  - Period: {period_days:.1f} days (FAP: {peak['fap']:.2E})"
+        summary_text += peaks_summary
 
-        return {
-            "summary_text": final_summary_text,
-            "analysis_type": "standard",
-            "beta_value": beta,
-            "confidence_interval": ci,
-            "persistence_level": traffic_light,
-            "scientific_interpretation": sci_interp,
-            "benchmark_comparison": benchmark_comp,
-            "uncertainty_warning": uncertainty_warning,
-            "benchmark_table": BENCHMARK_TABLE.to_dict(orient='index')
-        }
+    results_dict["summary_text"] = auto_summary_header + summary_text if auto_summary_header else summary_text
+    return results_dict
