@@ -52,9 +52,34 @@ def compare_to_benchmarks(beta):
 def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold=0.5):
     """
     Generates a comprehensive, human-readable interpretation of the analysis results.
-    Handles both standard and segmented analysis types.
+    Handles standard, segmented, and auto analysis types.
     """
-    is_segmented = 'beta2' in fit_results and fit_results['beta2'] is not None
+    auto_summary_header = ""
+    # If this was an auto-analysis, generate a special header
+    if fit_results.get('analysis_mode') == 'auto':
+        chosen_model = fit_results['chosen_model']
+        bic_comp = fit_results['bic_comparison']
+
+        # Extract results from the nested dictionaries for the report
+        standard_fit = fit_results.get('standard_fit', {})
+        segmented_fit = fit_results.get('segmented_fit', {})
+
+        standard_beta = standard_fit.get('beta', np.nan)
+        segmented_beta1 = segmented_fit.get('beta1', np.nan)
+        segmented_beta2 = segmented_fit.get('beta2', np.nan)
+
+        auto_summary_header = (
+            f"Automatic Analysis for: {param_name}\n"
+            f"-----------------------------------\n"
+            f"Model Comparison (Lower BIC is better):\n"
+            f"  - Standard Fit:   BIC = {bic_comp['standard']:.2f} (β = {standard_beta:.2f})\n"
+            f"  - Segmented Fit:  BIC = {bic_comp['segmented']:.2f} (β1 = {segmented_beta1:.2f}, β2 = {segmented_beta2:.2f})\n"
+            f"==> Chosen Model: {chosen_model.capitalize()}\n"
+            f"-----------------------------------\n\n"
+            f"Details for Chosen ({chosen_model.capitalize()}) Model:\n"
+        )
+
+    is_segmented = 'beta2' in fit_results and np.isfinite(fit_results['beta2'])
 
     if is_segmented:
         # --- Segmented Interpretation ---
@@ -80,8 +105,11 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
             f"  Persistence: {get_persistence_traffic_light(beta2)}"
         )
 
+        # Prepend the auto-analysis header if it exists
+        final_summary_text = auto_summary_header + summary_text if auto_summary_header else summary_text
+
         return {
-            "summary_text": summary_text,
+            "summary_text": final_summary_text,
             "analysis_type": "segmented",
             "beta1": beta1,
             "beta2": beta2,
@@ -97,7 +125,7 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
         traffic_light = get_persistence_traffic_light(beta)
         benchmark_comp = compare_to_benchmarks(beta)
 
-        if ci[0] is not None:
+        if ci[0] is not None and ci[1] is not None:
             beta_str = f"β = {beta:.2f} (95% CI: {ci[0]:.2f}–{ci[1]:.2f})"
         else:
             beta_str = f"β = {beta:.2f}"
@@ -111,7 +139,7 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
         )
 
         uncertainty_warning = None
-        if ci[0] is not None:
+        if ci[0] is not None and ci[1] is not None:
             ci_width = ci[1] - ci[0]
             if ci_width > uncertainty_threshold:
                 uncertainty_warning = (
@@ -120,8 +148,11 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
                 )
                 summary_text += f"\n\n{uncertainty_warning}"
 
+        # Prepend the auto-analysis header if it exists
+        final_summary_text = auto_summary_header + summary_text if auto_summary_header else summary_text
+
         return {
-            "summary_text": summary_text,
+            "summary_text": final_summary_text,
             "analysis_type": "standard",
             "beta_value": beta,
             "confidence_interval": ci,
