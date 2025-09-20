@@ -83,8 +83,9 @@ def test_plot_spectrum_segmented(spectrum_data, tmp_path):
 
     # A mock model object is needed for the segmented plot
     class MockModel:
-        def plot_fit(self, fig, ax, plot_data, plot_breakpoints, linewidth):
-            pass
+            def plot_fit(self, **kwargs):
+                # This mock just needs to accept any keyword arguments without crashing
+                pass
 
     segmented_fit_results = {
         'beta1': 0.5,

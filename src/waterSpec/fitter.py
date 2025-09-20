@@ -2,20 +2,23 @@ import numpy as np
 from scipy import stats
 import piecewise_regression
 
-def fit_spectrum(frequency, power):
+def fit_spectrum(frequency, power, method='theil-sen'):
     """
     Fits a line to the power spectrum on a log-log plot to find the spectral exponent (beta).
 
     Args:
         frequency (np.ndarray): The frequency array from the periodogram.
         power (np.ndarray): The power array from the periodogram.
+        method (str, optional): The fitting method to use.
+                                'theil-sen' for the robust Theil-Sen estimator (default).
+                                'ols' for Ordinary Least Squares.
 
     Returns:
         dict: A dictionary containing the fit results:
               - 'beta': The spectral exponent (the negative of the slope).
-              - 'r_squared': The R-squared value of the fit.
+              - 'r_squared': The R-squared value of the fit (OLS only).
               - 'intercept': The intercept of the log-log regression.
-              - 'stderr': The standard error of the estimated slope.
+              - 'stderr': The standard error of the slope (OLS only).
     """
     # Ensure there are no zero or negative values before log-transforming
     # This is important as frequency or power can sometimes be zero.
@@ -32,29 +35,45 @@ def fit_spectrum(frequency, power):
     log_freq = np.log(frequency[valid_indices])
     log_power = np.log(power[valid_indices])
 
-    # Perform linear regression on the log-log data
-    lin_reg_result = stats.linregress(log_freq, log_power)
+    if method == 'ols':
+        # Perform linear regression on the log-log data
+        lin_reg_result = stats.linregress(log_freq, log_power)
+        slope = lin_reg_result.slope
+        intercept = lin_reg_result.intercept
+        r_squared = lin_reg_result.rvalue**2
+        stderr = lin_reg_result.stderr
+    elif method == 'theil-sen':
+        # Use the robust Theil-Sen estimator from SciPy
+        res = stats.theilslopes(log_power, log_freq, 0.95)
+        slope = res[0]
+        intercept = res[1]
+        # Theil-Sen does not provide R-squared or standard error directly
+        r_squared = np.nan
+        stderr = np.nan
+    else:
+        raise ValueError(f"Unknown fitting method: '{method}'. Choose 'ols' or 'theil-sen'.")
 
     # The spectral exponent (beta) is the negative of the slope
-    beta = -lin_reg_result.slope
+    beta = -slope
 
     # Store the results in a dictionary
     fit_results = {
         'beta': beta,
-        'r_squared': lin_reg_result.rvalue**2,
-        'intercept': lin_reg_result.intercept,
-        'stderr': lin_reg_result.stderr,
+        'r_squared': r_squared,
+        'intercept': intercept,
+        'stderr': stderr,
     }
 
     return fit_results
 
-def fit_spectrum_with_bootstrap(frequency, power, n_bootstraps=1000, ci=95):
+def fit_spectrum_with_bootstrap(frequency, power, method='theil-sen', n_bootstraps=1000, ci=95):
     """
     Fits the power spectrum and estimates confidence intervals for beta using bootstrap resampling.
 
     Args:
         frequency (np.ndarray): The frequency array.
         power (np.ndarray): The power array.
+        method (str, optional): The fitting method ('theil-sen' or 'ols'). Defaults to 'theil-sen'.
         n_bootstraps (int, optional): The number of bootstrap samples to generate. Defaults to 1000.
         ci (int, optional): The desired confidence interval in percent. Defaults to 95.
 
@@ -68,7 +87,7 @@ def fit_spectrum_with_bootstrap(frequency, power, n_bootstraps=1000, ci=95):
               - 'beta_ci_upper': The upper bound of the confidence interval for beta.
     """
     # Get the initial fit
-    initial_fit = fit_spectrum(frequency, power)
+    initial_fit = fit_spectrum(frequency, power, method=method)
     if np.isnan(initial_fit['beta']):
         # If the initial fit failed, we can't do bootstrap
         initial_fit.update({'beta_ci_lower': np.nan, 'beta_ci_upper': np.nan})
@@ -88,6 +107,7 @@ def fit_spectrum_with_bootstrap(frequency, power, n_bootstraps=1000, ci=95):
     # Perform bootstrap resampling
     beta_estimates = np.zeros(n_bootstraps)
     rng = np.random.default_rng()
+
     for i in range(n_bootstraps):
         # Resample residuals
         resampled_residuals = rng.choice(residuals, size=len(residuals), replace=True)
@@ -95,11 +115,16 @@ def fit_spectrum_with_bootstrap(frequency, power, n_bootstraps=1000, ci=95):
         # Create a new synthetic log-power series
         synthetic_log_power = log_power_fit + resampled_residuals
 
-        # Fit the synthetic data
-        resampled_fit = stats.linregress(log_freq, synthetic_log_power)
+        # Fit the synthetic data using the specified method
+        if method == 'ols':
+            resampled_fit = stats.linregress(log_freq, synthetic_log_power)
+            resampled_slope = resampled_fit.slope
+        elif method == 'theil-sen':
+            resampled_fit = stats.theilslopes(synthetic_log_power, log_freq)
+            resampled_slope = resampled_fit[0]
 
         # Store the new beta estimate
-        beta_estimates[i] = -resampled_fit.slope
+        beta_estimates[i] = -resampled_slope
 
     # Calculate the confidence interval
     lower_percentile = (100 - ci) / 2

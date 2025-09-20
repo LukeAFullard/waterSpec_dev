@@ -21,6 +21,7 @@ def run_analysis(
     normalize_data=False,
     detrend_options=None,
     analysis_type='standard',
+    fit_method='theil-sen',
     n_bootstraps=1000,
     fap_threshold=None,
     grid_type='log',
@@ -29,6 +30,35 @@ def run_analysis(
 ):
     """
     High-level function to run a complete spectral analysis workflow.
+
+    Args:
+        file_path (str): Path to the data file.
+        time_col (str): Name of the time column.
+        data_col (str): Name of the data column.
+        error_col (str, optional): Name of the measurement error column. Defaults to None.
+        param_name (str, optional): Name of the parameter being analyzed (for plots/text).
+                                    Defaults to `data_col`.
+        censor_strategy (str, optional): Strategy for handling censored data.
+                                         Defaults to 'drop'.
+        censor_options (dict, optional): Options for the censoring strategy.
+        log_transform_data (bool, optional): If True, log-transform the data. Defaults to False.
+        detrend_method (str, optional): Method for detrending ('linear' or 'loess').
+                                        Defaults to 'linear'.
+        normalize_data (bool, optional): If True, normalize the data. Defaults to False.
+        detrend_options (dict, optional): Options for the detrending method.
+        analysis_type (str, optional): Type of analysis ('standard' or 'segmented').
+                                       Defaults to 'standard'.
+        fit_method (str, optional): Method for spectral slope fitting ('theil-sen' or 'ols').
+                                    Defaults to 'theil-sen'.
+        n_bootstraps (int, optional): Number of bootstrap samples for CI. Defaults to 1000.
+        fap_threshold (float, optional): False Alarm Probability threshold for peak detection.
+                                         Defaults to None.
+        grid_type (str, optional): Type of frequency grid ('log' or 'linear'). Defaults to 'log'.
+        do_plot (bool, optional): If True, generate and save a plot. Defaults to False.
+        output_path (str, optional): Path to save the plot. Required if `do_plot` is True.
+
+    Returns:
+        dict: A dictionary containing all analysis results.
     """
     time_numeric, data_series, error_series = load_data(
         file_path, time_col, data_col, error_col=error_col
@@ -59,7 +89,9 @@ def run_analysis(
 
     # --- Analysis and Fitting ---
     if analysis_type == 'standard':
-        fit_results = fit_spectrum_with_bootstrap(frequency, power, n_bootstraps=n_bootstraps)
+        fit_results = fit_spectrum_with_bootstrap(
+            frequency, power, method=fit_method, n_bootstraps=n_bootstraps
+        )
         beta = fit_results.get('beta')
         ci = (fit_results.get('beta_ci_lower'), fit_results.get('beta_ci_upper'))
     elif analysis_type == 'segmented':

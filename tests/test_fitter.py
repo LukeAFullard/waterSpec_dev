@@ -39,16 +39,34 @@ def test_fit_spectrum_returns_correct_beta(synthetic_spectrum):
 
 def test_fit_spectrum_returns_good_fit_metrics(synthetic_spectrum):
     """
-    Test that fit_spectrum returns a good R-squared value for a clean signal.
+    Test that fit_spectrum returns a good R-squared value for a clean signal
+    when using the OLS method.
     """
     frequency, power, _ = synthetic_spectrum
 
-    # Fit the spectrum
-    fit_results = fit_spectrum(frequency, power)
+    # Fit the spectrum using OLS specifically for this test
+    fit_results = fit_spectrum(frequency, power, method='ols')
 
     # Check that the R-squared value indicates a good fit
     assert 'r_squared' in fit_results
     assert fit_results['r_squared'] > 0.95
+
+def test_fit_spectrum_theil_sen(synthetic_spectrum):
+    """
+    Test that fit_spectrum with method='theil-sen' correctly estimates beta.
+    """
+    frequency, power, known_beta = synthetic_spectrum
+
+    # Fit the spectrum using the Theil-Sen estimator
+    fit_results = fit_spectrum(frequency, power, method='theil-sen')
+
+    # Check that the returned beta is close to the known beta
+    assert 'beta' in fit_results
+    assert fit_results['beta'] == pytest.approx(known_beta, abs=0.1)
+
+    # Check that the other metrics are NaN as expected
+    assert np.isnan(fit_results['r_squared'])
+    assert np.isnan(fit_results['stderr'])
 
 def test_fit_spectrum_with_bootstrap(synthetic_spectrum):
     """
