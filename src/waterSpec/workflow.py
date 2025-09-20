@@ -4,7 +4,7 @@ from .spectral_analyzer import calculate_periodogram, find_significant_peaks
 from .fitter import fit_spectrum_with_bootstrap, fit_segmented_spectrum
 from .interpreter import interpret_results
 from .plotting import plot_spectrum
-from .frequency_generator import generate_log_spaced_grid
+from .frequency_generator import generate_frequency_grid
 import warnings
 import numpy as np
 
@@ -23,6 +23,7 @@ def run_analysis(
     analysis_type='standard',
     n_bootstraps=1000,
     fap_threshold=None,
+    grid_type='log',
     do_plot=False,
     output_path=None
 ):
@@ -51,7 +52,7 @@ def run_analysis(
     processed_data = processed_data[valid_indices]
     dy = processed_errors[valid_indices] if processed_errors is not None else None
 
-    custom_frequency = generate_log_spaced_grid(time_numeric)
+    custom_frequency = generate_frequency_grid(time_numeric, grid_type=grid_type)
     frequency, power, ls_obj = calculate_periodogram(
         time_numeric, processed_data, frequency=custom_frequency, dy=dy
     )
