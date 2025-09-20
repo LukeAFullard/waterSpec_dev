@@ -18,7 +18,10 @@ def _validate_data_length(data, min_length=10):
 def detrend(data, errors=None):
     """
     Removes the linear trend from a time series.
-    This function currently does not modify the errors, but passes them through.
+
+    Note on error propagation: This function does not modify the input errors.
+    The errors on the detrended signal are assumed to be the same as the
+    original errors, which is a reasonable approximation for linear detrending.
     """
     valid_indices = ~np.isnan(data)
     if np.sum(valid_indices) < 2:
@@ -104,7 +107,11 @@ def detrend_loess(x, y, errors=None, **kwargs):
 
     This function is a wrapper around `statsmodels.nonparametric.lowess.lowess`.
     Any additional keyword arguments are passed directly to the statsmodels function.
-    This function currently does not modify the errors, but passes them through.
+
+    Note on error propagation: This function does not propagate errors. The input
+    error series is passed through unchanged. Proper error propagation for LOESS
+    is a complex topic, and this simplification should be considered when
+    interpreting the results.
 
     Args:
         x (np.ndarray): The independent variable (time).
