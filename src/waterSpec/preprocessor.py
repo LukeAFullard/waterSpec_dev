@@ -133,6 +133,7 @@ def preprocess_data(
     time_numeric,
     error_series=None,
     censor_strategy='drop',
+    censor_options=None,
     log_transform_data=False,
     detrend_method=None,
     normalize_data=False,
@@ -149,8 +150,10 @@ def preprocess_data(
     """
     if detrend_options is None:
         detrend_options = {}
+    if censor_options is None:
+        censor_options = {}
 
-    processed_data = handle_censored_data(data_series, strategy=censor_strategy)
+    processed_data = handle_censored_data(data_series, strategy=censor_strategy, **censor_options)
     _validate_data_length(processed_data, min_length=min_length)
 
     processed_errors = None

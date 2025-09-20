@@ -47,7 +47,11 @@ def plot_spectrum(frequency, power, fit_results, analysis_type='standard', outpu
     # Plot the FAP level and annotate significant peaks if available
     fap_level = fit_results.get('fap_level')
     if fap_level is not None:
-        plt.axhline(fap_level, ls='--', color='k', alpha=0.8, label=f'FAP Threshold ({fit_results.get("fap_threshold", "N/A"):.2f})')
+        fap_threshold_val = fit_results.get('fap_threshold')
+        label = 'FAP Threshold'
+        if isinstance(fap_threshold_val, (float, int)):
+            label += f' ({fap_threshold_val:.2f})'
+        plt.axhline(fap_level, ls='--', color='k', alpha=0.8, label=label)
 
     significant_peaks = fit_results.get('significant_peaks', [])
     for peak in significant_peaks:

@@ -332,3 +332,21 @@ This section outlines the next set of tasks identified during a code audit. The 
 
 4.  **Update Tests:**
     *   **Action:** Update all tests affected by the above changes and add new tests to cover the new functionality (e.g., `dy` support, FAP, new preprocessor options, plot annotations).
+
+---
+
+## Issues Discovered During Development
+
+This section documents issues and design improvements that were discovered and fixed during the development and tutorial-writing process. This is a normal part of building robust software.
+
+1.  **Preprocessor Flexibility (`censor_options`)**
+    *   **Issue:** The main `preprocess_data` wrapper function did not provide a way to pass options (like `lower_multiplier`) to the underlying `handle_censored_data` function.
+    *   **Fix:** Added a `censor_options` dictionary parameter to `preprocess_data` and the main `run_analysis` workflow, allowing users to pass detailed options for the censoring strategy.
+
+2.  **Plotting Label Robustness**
+    *   **Issue:** The plotting function would raise a `ValueError` if it tried to format the FAP threshold for the plot legend when the threshold value was not available.
+    *   **Fix:** Added a check in `plotting.py` to ensure the FAP threshold value is a number before attempting to format it, making the function more robust.
+
+3.  **Log-Spaced Grid for Peak Detection**
+    *   **Issue:** It was discovered that using a log-spaced frequency grid, while optimal for fitting the spectral slope (β), can be problematic for peak detection. The high density of points at low frequencies can cause the DC component or minor trends to create a large, spurious peak at or near frequency zero, masking real periodic signals.
+    *   **Fix/Workaround:** The FAP tutorial (`06-advanced_peak_finding.ipynb`) was updated to use a **linear** frequency grid for its example, which is better suited for resolving specific peaks. A note was added explaining this distinction to the user. A proper fix to the `generate_log_spaced_grid` function may be considered in the future to make it more robust for general use.
