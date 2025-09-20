@@ -309,13 +309,11 @@ By including an automated interpretation module, the package ensures results are
 
 ---
 
-## Ongoing Tasks (Post-Audit Refinements)
+### Task: Complete Post-Audit Refinements
 
-This section outlines the next set of tasks identified during a code audit. The goal is to improve robustness, enhance features based on the original plan, and improve the overall user experience.
+**Note:** The tasks in this section were originally listed as "Ongoing" but were found to be complete during a subsequent audit.
 
-### Task: Refine Core Modules and Enhance Features
-
-**Goal:** Address key weaknesses and missing features identified in the audit to improve scientific validity and usability.
+**Goal:** Address key weaknesses and missing features identified in a prior audit to improve scientific validity and usability.
 
 **Plan:**
 
