@@ -3,9 +3,22 @@ import numpy as np
 import os
 import warnings
 
-def load_data(file_path, time_col, data_col):
+def load_data(file_path, time_col, data_col, error_col=None):
     """
     Loads time series data from a CSV, JSON, or Excel file.
+
+    Args:
+        file_path (str): The path to the data file.
+        time_col (str): The name of the column containing timestamps.
+        data_col (str): The name of the column containing data values.
+        error_col (str, optional): The name of the column containing measurement
+                                   uncertainties (dy). Defaults to None.
+
+    Returns:
+        tuple: A tuple containing:
+               - np.ndarray: The numeric time array.
+               - pd.Series: The data values.
+               - pd.Series or None: The measurement uncertainties, or None if not provided.
     """
     _, file_extension = os.path.splitext(file_path)
 
@@ -40,8 +53,18 @@ def load_data(file_path, time_col, data_col):
         )
 
     data_values = df[data_col]
+    error_values = None
+
+    if error_col:
+        if error_col not in df.columns:
+            raise ValueError(f"Error column '{error_col}' not found in the file.")
+        error_values = df[error_col]
+        if error_values.isnull().any():
+            warnings.warn("The error column contains NaN or null values.", UserWarning)
+        if (error_values < 0).any():
+            warnings.warn("The error column contains negative values.", UserWarning)
 
     if data_values.isnull().any():
         warnings.warn("The data column contains NaN or null values.", UserWarning)
 
-    return time_numeric.to_numpy(), data_values
+    return time_numeric.to_numpy(), data_values, error_values

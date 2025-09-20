@@ -2,6 +2,7 @@ import pytest
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+from unittest.mock import patch
 from waterSpec.plotting import plot_spectrum
 
 @pytest.fixture
@@ -104,3 +105,22 @@ def test_plot_spectrum_segmented(spectrum_data, tmp_path):
         pytest.fail(f"plot_spectrum raised an exception with segmented data: {e}")
 
     assert os.path.exists(output_file)
+
+@patch('matplotlib.pyplot.text')
+def test_plot_spectrum_with_summary_annotation(mock_plt_text, spectrum_data, tmp_path):
+    """
+    Test that plot_spectrum calls plt.text to add a summary annotation.
+    """
+    frequency, power, fit_results = spectrum_data
+    summary = "This is a test summary."
+    fit_results['summary_text'] = summary
+    output_file = tmp_path / "test_plot_summary.png"
+
+    plot_spectrum(frequency, power, fit_results, output_path=str(output_file))
+
+    # Assert that plt.text was called
+    assert mock_plt_text.called
+    # Assert that the summary text was passed to the call
+    # call_args[0] is the tuple of positional arguments
+    # The text string is the third positional argument (x, y, text)
+    assert summary in mock_plt_text.call_args[0]

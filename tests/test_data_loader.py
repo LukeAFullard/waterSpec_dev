@@ -16,10 +16,11 @@ def test_load_data_from_csv(create_test_csv):
     """
     Test that load_data function loads data correctly from a CSV file.
     """
-    time, concentration = load_data(create_test_csv, time_col='timestamp', data_col='concentration')
+    time, concentration, errors = load_data(create_test_csv, time_col='timestamp', data_col='concentration')
 
     assert isinstance(time, np.ndarray)
     assert isinstance(concentration, pd.Series)
+    assert errors is None
     assert len(time) == 4
     assert len(concentration) == 4
 
@@ -28,7 +29,7 @@ def test_load_data_with_nans(tmp_path):
     file_path = tmp_path / "nan_data.csv"
     file_path.write_text("timestamp,concentration\n2023-01-01,10.1\n2023-01-02,\n2023-01-03,10.3")
     with pytest.warns(UserWarning, match="contains NaN or null values"):
-        time, concentration = load_data(file_path, time_col='timestamp', data_col='concentration')
+        time, concentration, _ = load_data(file_path, time_col='timestamp', data_col='concentration')
     assert len(time) == 3
     assert concentration.isnull().sum() == 1
 
