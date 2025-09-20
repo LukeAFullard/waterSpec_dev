@@ -15,6 +15,7 @@ def run_analysis(
     error_col=None,
     param_name=None,
     censor_strategy='drop',
+    censor_options=None,
     log_transform_data=False,
     detrend_method='linear',
     normalize_data=False,
@@ -36,6 +37,7 @@ def run_analysis(
         time_numeric,
         error_series=error_series,
         censor_strategy=censor_strategy,
+        censor_options=censor_options,
         log_transform_data=log_transform_data,
         detrend_method=detrend_method,
         normalize_data=normalize_data,
@@ -82,6 +84,7 @@ def run_analysis(
         )
         interpretation['significant_peaks'] = significant_peaks
         interpretation['fap_level'] = fap_level
+        interpretation['fap_threshold'] = fap_threshold
 
     if do_plot:
         if output_path is None:
