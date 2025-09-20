@@ -20,7 +20,7 @@ def run_analysis(
     detrend_method='linear',
     normalize_data=False,
     detrend_options=None,
-    analysis_type='standard',
+    analysis_type='auto',
     fit_method='theil-sen',
     n_bootstraps=1000,
     fap_threshold=None,

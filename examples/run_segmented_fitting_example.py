@@ -85,6 +85,29 @@ def main():
     print(f"  Chosen Model: {results_auto.get('chosen_model')}")
     print("\n" + results_auto.get('summary_text', ''))
     print(f"\nPlot saved to: {plot_path_auto}")
+    print("-" * 30)
+
+
+    # --- 3. Run with default analysis type to ensure it's 'auto' ---
+    plot_path_default = os.path.join(output_dir, "test_default_fit_plot.png")
+    print("\n--- Running DEFAULT analysis ---")
+    results_default = run_analysis(
+        file_path=file_path,
+        time_col='timestamp',
+        data_col='value',
+        param_name='Synthetic Signal (Default)',
+        # analysis_type is omitted to test the default
+        do_plot=True,
+        output_path=plot_path_default
+    )
+
+    print("\nDefault Analysis Results:")
+    bic_comp_def = results_default.get('bic_comparison', {})
+    print(f"  BIC (Standard): {bic_comp_def.get('standard'):.2f}")
+    print(f"  BIC (Segmented): {bic_comp_def.get('segmented'):.2f}")
+    print(f"  Chosen Model: {results_default.get('chosen_model')}")
+    print("\n" + results_default.get('summary_text', ''))
+    print(f"\nPlot saved to: {plot_path_default}")
 
 
     # Clean up the temporary data file
