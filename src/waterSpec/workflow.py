@@ -52,8 +52,11 @@ def run_analysis(
     dy = processed_errors[valid_indices] if processed_errors is not None else None
 
     custom_frequency = generate_log_spaced_grid(time_numeric)
-    frequency, power = calculate_periodogram(time_numeric, processed_data, frequency=custom_frequency, dy=dy)
+    frequency, power, ls_obj = calculate_periodogram(
+        time_numeric, processed_data, frequency=custom_frequency, dy=dy
+    )
 
+    # --- Analysis and Fitting ---
     if analysis_type == 'standard':
         fit_results = fit_spectrum_with_bootstrap(frequency, power, n_bootstraps=n_bootstraps)
         beta = fit_results.get('beta')
@@ -65,27 +68,38 @@ def run_analysis(
     else:
         raise ValueError("analysis_type must be 'standard' or 'segmented'")
 
+    # --- Interpretation ---
     if param_name is None:
         param_name = data_col
 
     if beta is None or not np.isfinite(beta):
-        interpretation = {"summary_text": "Analysis failed: Could not determine a valid beta value."}
+        interp_results = {"summary_text": "Analysis failed: Could not determine a valid beta value."}
     else:
-        interpretation = interpret_results(beta, ci=ci, param_name=param_name)
+        interp_results = interpret_results(beta, ci=ci, param_name=param_name)
 
-    interpretation.update(fit_results)
+    # --- Result Aggregation ---
+    results = {}
+    results.update(fit_results)
+    results.update(interp_results)
 
+    # For clarity and backward compatibility, create a specific 'interpretation' key
+    # that holds the main summary text.
+    results['interpretation'] = results.get('summary_text')
+
+
+    # --- Peak Significance ---
     if fap_threshold is not None:
-        # Use the original (non-detrended) data for peak finding for better physical interpretation
-        # Note: This is a design choice. Using processed_data is also valid.
-        # For now, we use processed_data to be consistent with the beta fit.
+        # Note: The LombScargle object `ls_obj` was created with the processed (e.g., detrended)
+        # data. This is consistent with the beta fit and ensures that the FAP calculations
+        # are based on the same data used for the spectral slope analysis.
         significant_peaks, fap_level = find_significant_peaks(
-            time_numeric, processed_data, frequency, dy=dy, fap_threshold=fap_threshold
+            ls_obj, frequency, power, fap_threshold=fap_threshold
         )
-        interpretation['significant_peaks'] = significant_peaks
-        interpretation['fap_level'] = fap_level
-        interpretation['fap_threshold'] = fap_threshold
+        results['significant_peaks'] = significant_peaks
+        results['fap_level'] = fap_level
+        results['fap_threshold'] = fap_threshold
 
+    # --- Plotting ---
     if do_plot:
         if output_path is None:
             warnings.warn("`do_plot` is True but `output_path` is not specified. Plot will not be saved.", UserWarning)
@@ -93,16 +107,10 @@ def run_analysis(
         plot_spectrum(
             frequency,
             power,
-            fit_results=interpretation, # Pass the whole dict now
+            fit_results=results,
             analysis_type=analysis_type,
             output_path=output_path,
             param_name=param_name
         )
 
-    if 'interpretation' not in interpretation:
-        interpretation['interpretation'] = interpretation.get('summary_text', '')
-
-    # The test expects the interpretation text in a specific key.
-    interpretation['interpretation'] = interpretation.get('summary_text')
-
-    return interpretation
+    return results

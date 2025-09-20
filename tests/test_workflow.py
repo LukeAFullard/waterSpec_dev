@@ -237,3 +237,39 @@ def test_workflow_with_fap(tmp_path):
     # Convert known_frequency from cycles/day to Hz for comparison
     known_frequency_hz = known_frequency / 86400.0
     assert found_peak['frequency'] == pytest.approx(known_frequency_hz, abs=1e-6)
+
+
+# --- New test for preprocessing flags ---
+
+def test_workflow_with_preprocessing_flags(tmp_path):
+    """
+    Test that the preprocessing flags in the workflow are functional.
+    """
+    # 1. Generate synthetic data
+    time, series = generate_synthetic_series(n_points=512, beta=1.0)
+    # Ensure data is positive for log transform
+    series = series - np.min(series) + 1
+
+    # 2. Create a temporary data file
+    file_path = create_test_data_file(tmp_path, time, series)
+
+    # 3. Run the analysis with different flags
+    # Base run (no normalization or log transform)
+    base_results = run_analysis(file_path, time_col='time', data_col='value', n_bootstraps=10)
+
+    # Run with normalization
+    norm_results = run_analysis(file_path, time_col='time', data_col='value', normalize_data=True, n_bootstraps=10)
+
+    # Run with log transform
+    log_results = run_analysis(file_path, time_col='time', data_col='value', log_transform_data=True, n_bootstraps=10)
+
+    # 4. Assert that the flags changed the results
+    # Normalizing data changes its variance, which should not change the beta of a power-law signal
+    # However, for a real-world, non-ideal signal, slight changes are expected.
+    # The main test is that it runs and produces a valid, different result object.
+    assert np.isfinite(norm_results['beta'])
+    assert norm_results['beta'] != log_results['beta'] # Log transform should definitely change it
+
+    # Log transform should significantly alter the spectral slope
+    assert np.isfinite(log_results['beta'])
+    assert base_results['beta'] != log_results['beta']

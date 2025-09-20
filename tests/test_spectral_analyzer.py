@@ -35,7 +35,7 @@ def test_calculate_periodogram_finds_peak_frequency(synthetic_signal):
     test_frequency = np.linspace(1/duration, 0.5 / np.median(np.diff(time)), 500)
 
     # Calculate the periodogram
-    frequency, power = calculate_periodogram(time, y, frequency=test_frequency)
+    frequency, power, _ = calculate_periodogram(time, y, frequency=test_frequency)
 
     # Find the frequency with the maximum power
     peak_frequency = frequency[np.argmax(power)]
@@ -58,7 +58,7 @@ def test_calculate_periodogram_with_dy(synthetic_signal):
 
     # Calculate the periodogram
     # The main assertion is that this runs without crashing.
-    frequency, power = calculate_periodogram(time, y, frequency=test_frequency, dy=dy)
+    frequency, power, ls_obj = calculate_periodogram(time, y, frequency=test_frequency, dy=dy)
 
     # Check that the output shapes are correct
     assert frequency.shape == test_frequency.shape
@@ -86,10 +86,13 @@ def test_find_significant_peaks(synthetic_signal):
     duration = np.max(time) - np.min(time)
     frequency = np.linspace(1/duration, 0.5 / np.median(np.diff(time)), 1000)
 
+    # First, calculate the periodogram to get the ls object and power
+    frequency, power, ls_obj = calculate_periodogram(time, y, frequency=frequency)
+
     # Find peaks with a reasonable FAP threshold
     # Note: bootstrap can be slow, so we may want to use a faster method for CI/CD tests
     peaks, fap_level = find_significant_peaks(
-        time, y, frequency, fap_threshold=0.05, fap_method='baluev'
+        ls_obj, frequency, power, fap_threshold=0.05, fap_method='baluev'
     )
 
     assert isinstance(peaks, list)
