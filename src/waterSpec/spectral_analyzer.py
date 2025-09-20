@@ -21,9 +21,10 @@ def calculate_periodogram(time, data, frequency=None, dy=None, normalization='st
                                        Defaults to 'standard'.
 
     Returns:
-        tuple[np.ndarray, np.ndarray]: A tuple containing two numpy arrays:
+        tuple[np.ndarray, np.ndarray, LombScargle]: A tuple containing:
                                        - frequency
                                        - power
+                                       - The LombScargle object instance
     """
     if frequency is None:
         raise ValueError("A frequency grid must be provided. The use of autopower has been removed to prevent incorrect grid generation.")
@@ -32,18 +33,17 @@ def calculate_periodogram(time, data, frequency=None, dy=None, normalization='st
 
     power = ls.power(frequency, normalization=normalization)
 
-    return frequency, power
+    return frequency, power, ls
 
 
-def find_significant_peaks(time, data, frequency, dy=None, fap_threshold=0.01, fap_method='bootstrap', **fap_kwargs):
+def find_significant_peaks(ls, frequency, power, fap_threshold=0.01, fap_method='bootstrap', **fap_kwargs):
     """
     Finds statistically significant peaks in a periodogram using a False Alarm Probability threshold.
 
     Args:
-        time (np.ndarray): The time array.
-        data (np.ndarray): The data values.
+        ls (LombScargle): The LombScargle object instance.
         frequency (np.ndarray): The frequency grid.
-        dy (np.ndarray, optional): Measurement uncertainties. Defaults to None.
+        power (np.ndarray): The power values corresponding to the frequency grid.
         fap_threshold (float, optional): The FAP level for significance. Defaults to 0.01.
         fap_method (str, optional): The method for FAP calculation ('bootstrap', 'baluev', etc.).
                                     Defaults to 'bootstrap'.
@@ -54,9 +54,6 @@ def find_significant_peaks(time, data, frequency, dy=None, fap_threshold=0.01, f
                - list: A list of dictionaries, each describing a significant peak.
                - float: The power level corresponding to the FAP threshold.
     """
-    ls = LombScargle(time, data, dy=dy)
-    power = ls.power(frequency)
-
     # Calculate the power level corresponding to the FAP threshold
     fap_level = ls.false_alarm_level(fap_threshold, method=fap_method, **fap_kwargs)
 
