@@ -150,7 +150,7 @@ def generate_synthetic_series(n_points=1024, beta=0, seed=42):
     time = pd.date_range(start='2000-01-01', periods=n_points, freq='D')
     return time, series
 
-def create_test_data_file(tmp_path, time, series, time_col='time', data_col='value'):
+def create_test_data_file(tmp_path, time, series, errors=None, time_col='time', data_col='value', error_col='error'):
     """
     Creates a temporary CSV file for testing the workflow.
     """
@@ -161,6 +161,79 @@ def create_test_data_file(tmp_path, time, series, time_col='time', data_col='val
     else:
         time_to_write = time
 
-    df = pd.DataFrame({time_col: time_to_write, data_col: series})
+    data_dict = {time_col: time_to_write, data_col: series}
+    if errors is not None:
+        data_dict[error_col] = errors
+
+    df = pd.DataFrame(data_dict)
     df.to_csv(file_path, index=False)
     return str(file_path)
+
+
+# --- New test for error column ---
+
+def test_workflow_with_error_col(tmp_path):
+    """
+    Test that the workflow runs successfully when an error column is provided.
+    """
+    # 1. Generate synthetic data
+    time, series = generate_synthetic_series(n_points=512, beta=1.0)
+    # Generate some plausible errors
+    rng = np.random.default_rng(42)
+    errors = rng.uniform(0.05, 0.2, size=len(series))
+
+    # 2. Create a temporary data file
+    file_path = create_test_data_file(tmp_path, time, series, errors=errors, error_col='dy_val')
+
+    # 3. Run the analysis
+    results = run_analysis(
+        file_path,
+        time_col='time',
+        data_col='value',
+        error_col='dy_val', # Pass the error column name
+        detrend_method=None,
+        n_bootstraps=10
+    )
+
+    # 4. Assert that the analysis completed and returned a valid beta
+    assert 'beta' in results
+    assert np.isfinite(results['beta'])
+    # A weighted fit might be slightly different, so we use a reasonable tolerance
+    assert results['beta'] == pytest.approx(1.0, abs=0.3)
+
+
+# --- New test for FAP ---
+
+def test_workflow_with_fap(tmp_path):
+    """
+    Test that the workflow runs successfully and finds a significant peak
+    when fap_threshold is provided.
+    """
+    # 1. Generate synthetic data with a strong periodic signal
+    n_points = 512
+    time = pd.to_datetime(np.arange(n_points), unit='D', origin='2000-01-01')
+    known_frequency = 1.0 / 20.0  # A period of 20 days
+    rng = np.random.default_rng(42)
+    series = np.sin(2 * np.pi * known_frequency * np.arange(n_points)) + rng.normal(0, 0.2, n_points)
+
+    # 2. Create a temporary data file
+    file_path = create_test_data_file(tmp_path, time, series)
+
+    # 3. Run the analysis with FAP calculation
+    results = run_analysis(
+        file_path,
+        time_col='time',
+        data_col='value',
+        detrend_method=None,  # Do not detrend when testing for a known signal
+        fap_threshold=0.01,
+        n_bootstraps=10 # Keep tests fast
+    )
+
+    # 4. Assert that the results contain FAP info
+    assert 'significant_peaks' in results
+    assert 'fap_level' in results
+    assert len(results['significant_peaks']) > 0
+    found_peak = results['significant_peaks'][0]
+    # Convert known_frequency from cycles/day to Hz for comparison
+    known_frequency_hz = known_frequency / 86400.0
+    assert found_peak['frequency'] == pytest.approx(known_frequency_hz, abs=1e-6)

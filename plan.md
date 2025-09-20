@@ -306,3 +306,29 @@ By including an automated interpretation module, the package ensures results are
 1.  **Update `detrend_loess`:** Modify the function to accept `**kwargs` and pass them to `statsmodels.lowess`.
 2.  **Update `preprocess_data` and `run_analysis`:** Add a `detrend_options` dictionary parameter to these functions to pass the options down.
 3.  **Update Tests:** Add a test to verify that custom options are correctly passed and have an effect.
+
+---
+
+## Ongoing Tasks (Post-Audit Refinements)
+
+This section outlines the next set of tasks identified during a code audit. The goal is to improve robustness, enhance features based on the original plan, and improve the overall user experience.
+
+### Task: Refine Core Modules and Enhance Features
+
+**Goal:** Address key weaknesses and missing features identified in the audit to improve scientific validity and usability.
+
+**Plan:**
+
+1.  **Refine `spectral_analyzer.py`:**
+    *   **Action:** Modify `calculate_periodogram` to remove the unsafe `autopower` default, requiring a frequency grid to be passed explicitly. This prevents misuse and incorrect scientific results.
+    *   **Action:** Add support for measurement uncertainties (`dy`). This involves updating `data_loader.py` to read an error column and passing this information through the `workflow.py` to the `LombScargle` constructor.
+    *   **Action:** Implement False Alarm Probability (FAP) calculations to assess the statistical significance of detected peaks.
+
+2.  **Enhance `preprocessor.py`:**
+    *   **Action:** Integrate `normalize()` and `log_transform()` into the main `preprocess_data` function. This will be done by adding boolean flags (`normalize=False`, `log_transform=False`) to the function signature for easier access.
+
+3.  **Enhance `plotting.py`:**
+    *   **Action:** Add the automated text summary from `interpreter.py` as an annotation on the plot. This will make the visualization a complete, self-contained result.
+
+4.  **Update Tests:**
+    *   **Action:** Update all tests affected by the above changes and add new tests to cover the new functionality (e.g., `dy` support, FAP, new preprocessor options, plot annotations).

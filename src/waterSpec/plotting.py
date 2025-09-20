@@ -1,22 +1,5 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.signal import find_peaks
-
-def _find_significant_peaks(frequency, power, prominence_factor=0.5, max_peaks=5):
-    """
-    Finds significant peaks in a power spectrum.
-    """
-    # The prominence is the vertical distance between a peak and its lowest contour line.
-    # We set a dynamic prominence threshold based on the power range.
-    prominence_threshold = (np.max(power) - np.min(power)) * prominence_factor
-    peaks, properties = find_peaks(power, prominence=prominence_threshold)
-
-    # Sort peaks by prominence in descending order and take the top N
-    sorted_indices = np.argsort(properties['prominences'])[::-1]
-    top_peaks = peaks[sorted_indices][:max_peaks]
-
-    return top_peaks
-
 def plot_spectrum(frequency, power, fit_results, analysis_type='standard', output_path=None, param_name="Parameter"):
     """
     Generates and saves a plot of the power spectrum and its fit.
@@ -24,7 +7,7 @@ def plot_spectrum(frequency, power, fit_results, analysis_type='standard', outpu
     Args:
         frequency (np.ndarray): The frequency array.
         power (np.ndarray): The power array.
-        fit_results (dict): The dictionary of fit results from the fitter module.
+        fit_results (dict): The dictionary of results from the workflow.
         analysis_type (str, optional): The type of analysis ('standard' or 'segmented').
                                        Defaults to 'standard'.
         output_path (str, optional): The path to save the plot image. If None, the plot is displayed.
@@ -61,16 +44,31 @@ def plot_spectrum(frequency, power, fit_results, analysis_type='standard', outpu
             model.plot_fit(fig=plt.gcf(), ax=plt.gca(), plot_data=False, plot_breakpoints=True, linewidth=2)
             plt.legend() # Re-add legend after piecewise-regression plot
 
-    # Find and annotate significant peaks
-    significant_peaks = _find_significant_peaks(frequency, power)
-    for peak_idx in significant_peaks:
-        peak_freq = frequency[peak_idx]
-        peak_power = power[peak_idx]
-        plt.annotate(f'{peak_freq:.2f}',
+    # Plot the FAP level and annotate significant peaks if available
+    fap_level = fit_results.get('fap_level')
+    if fap_level is not None:
+        plt.axhline(fap_level, ls='--', color='k', alpha=0.8, label=f'FAP Threshold ({fit_results.get("fap_threshold", "N/A"):.2f})')
+
+    significant_peaks = fit_results.get('significant_peaks', [])
+    for peak in significant_peaks:
+        peak_freq = peak['frequency']
+        peak_power = peak['power']
+        plt.annotate(f'f={peak_freq:.2f}\n(p={peak["fap"]:.2E})',
                      xy=(peak_freq, peak_power),
-                     xytext=(peak_freq, peak_power * 1.2),
+                     xytext=(peak_freq, peak_power * 1.5),
                      arrowprops=dict(facecolor='black', shrink=0.05, width=1, headwidth=4),
-                     ha='center')
+                     ha='center',
+                     fontsize=9,
+                     bbox=dict(boxstyle="round,pad=0.3", fc="yellow", ec="k", lw=1, alpha=0.8))
+
+    # Add summary text box
+    summary_text = fit_results.get('summary_text')
+    if summary_text:
+        # Position the text box in the bottom left corner
+        props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
+        ax = plt.gca()
+        plt.text(0.03, 0.03, summary_text, transform=ax.transAxes, fontsize=9,
+                 verticalalignment='bottom', bbox=props)
 
     plt.title(f'Power Spectrum for {param_name}')
     plt.xlabel('Frequency')
