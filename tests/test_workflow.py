@@ -11,7 +11,7 @@ def test_run_analysis_workflow():
     """
     file_path = 'examples/sample_data.csv'
 
-    results = run_analysis(file_path, time_col='timestamp', data_col='concentration', n_bootstraps=10)
+    results = run_analysis(file_path, time_col='timestamp', data_col='concentration', n_bootstraps=10, analysis_type='standard')
 
     assert 'scientific_interpretation' in results
     # With the new robust default, the beta is no longer significantly negative
@@ -31,7 +31,8 @@ def test_workflow_with_plotting(tmp_path):
         data_col='concentration',
         do_plot=True,
         output_path=str(output_plot_path),
-        n_bootstraps=10
+        n_bootstraps=10,
+        analysis_type='standard'
     )
 
     # Check that the plot was created and a warning was reported.
@@ -118,7 +119,7 @@ def test_workflow_zero_variance_data(tmp_path):
     # For a zero-variance signal, the analysis should fail gracefully.
     # The exact beta value is less important than the interpretation.
     assert 'beta' in results
-    assert "Could not determine a valid beta value" in results['summary_text']
+    assert "Analysis failed: Could not determine a valid spectral slope." in results['summary_text']
 
 def test_workflow_all_nan_data(tmp_path):
     """
@@ -194,7 +195,8 @@ def test_workflow_with_error_col(tmp_path):
         data_col='value',
         error_col='dy_val', # Pass the error column name
         detrend_method=None,
-        n_bootstraps=10
+        n_bootstraps=10,
+        analysis_type='standard'
     )
 
     # 4. Assert that the analysis completed and returned a valid beta
@@ -257,13 +259,13 @@ def test_workflow_with_preprocessing_flags(tmp_path):
 
     # 3. Run the analysis with different flags
     # Base run (no normalization or log transform)
-    base_results = run_analysis(file_path, time_col='time', data_col='value', n_bootstraps=10)
+    base_results = run_analysis(file_path, time_col='time', data_col='value', n_bootstraps=10, analysis_type='standard')
 
     # Run with normalization
-    norm_results = run_analysis(file_path, time_col='time', data_col='value', normalize_data=True, n_bootstraps=10)
+    norm_results = run_analysis(file_path, time_col='time', data_col='value', normalize_data=True, n_bootstraps=10, analysis_type='standard')
 
     # Run with log transform
-    log_results = run_analysis(file_path, time_col='time', data_col='value', log_transform_data=True, n_bootstraps=10)
+    log_results = run_analysis(file_path, time_col='time', data_col='value', log_transform_data=True, n_bootstraps=10, analysis_type='standard')
 
     # 4. Assert that the flags changed the results
     # Normalizing data changes its variance, which should not change the beta of a power-law signal

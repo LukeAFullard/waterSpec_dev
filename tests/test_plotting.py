@@ -84,14 +84,16 @@ def test_plot_spectrum_segmented(spectrum_data, tmp_path):
     # A mock model object is needed for the segmented plot
     class MockModel:
             def plot_fit(self, **kwargs):
-                # This mock just needs to accept any keyword arguments without crashing
                 pass
+            def predict(self, x):
+                return np.zeros_like(x)
 
     segmented_fit_results = {
         'beta1': 0.5,
         'beta2': 1.8,
         'breakpoint': np.median(frequency),
-        'model_object': MockModel()
+        'model_object': MockModel(),
+        'log_freq': np.log(frequency)
     }
 
     try:
