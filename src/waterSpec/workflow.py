@@ -21,7 +21,7 @@ def run_analysis(
     normalize_data=False,
     detrend_options=None,
     analysis_type='standard',
-    fit_method='ols',
+    fit_method='theil-sen',
     n_bootstraps=1000,
     fap_threshold=None,
     grid_type='log',
@@ -48,8 +48,8 @@ def run_analysis(
         detrend_options (dict, optional): Options for the detrending method.
         analysis_type (str, optional): Type of analysis ('standard' or 'segmented').
                                        Defaults to 'standard'.
-        fit_method (str, optional): Method for spectral slope fitting ('ols' or 'theil-sen').
-                                    Defaults to 'ols'.
+        fit_method (str, optional): Method for spectral slope fitting ('theil-sen' or 'ols').
+                                    Defaults to 'theil-sen'.
         n_bootstraps (int, optional): Number of bootstrap samples for CI. Defaults to 1000.
         fap_threshold (float, optional): False Alarm Probability threshold for peak detection.
                                          Defaults to None.

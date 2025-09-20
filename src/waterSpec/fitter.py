@@ -2,7 +2,7 @@ import numpy as np
 from scipy import stats
 import piecewise_regression
 
-def fit_spectrum(frequency, power, method='ols'):
+def fit_spectrum(frequency, power, method='theil-sen'):
     """
     Fits a line to the power spectrum on a log-log plot to find the spectral exponent (beta).
 
@@ -10,8 +10,8 @@ def fit_spectrum(frequency, power, method='ols'):
         frequency (np.ndarray): The frequency array from the periodogram.
         power (np.ndarray): The power array from the periodogram.
         method (str, optional): The fitting method to use.
-                                'ols' for Ordinary Least Squares (default).
-                                'theil-sen' for the robust Theil-Sen estimator.
+                                'theil-sen' for the robust Theil-Sen estimator (default).
+                                'ols' for Ordinary Least Squares.
 
     Returns:
         dict: A dictionary containing the fit results:
@@ -66,14 +66,14 @@ def fit_spectrum(frequency, power, method='ols'):
 
     return fit_results
 
-def fit_spectrum_with_bootstrap(frequency, power, method='ols', n_bootstraps=1000, ci=95):
+def fit_spectrum_with_bootstrap(frequency, power, method='theil-sen', n_bootstraps=1000, ci=95):
     """
     Fits the power spectrum and estimates confidence intervals for beta using bootstrap resampling.
 
     Args:
         frequency (np.ndarray): The frequency array.
         power (np.ndarray): The power array.
-        method (str, optional): The fitting method ('ols' or 'theil-sen'). Defaults to 'ols'.
+        method (str, optional): The fitting method ('theil-sen' or 'ols'). Defaults to 'theil-sen'.
         n_bootstraps (int, optional): The number of bootstrap samples to generate. Defaults to 1000.
         ci (int, optional): The desired confidence interval in percent. Defaults to 95.
 

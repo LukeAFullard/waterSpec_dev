@@ -39,12 +39,13 @@ def test_fit_spectrum_returns_correct_beta(synthetic_spectrum):
 
 def test_fit_spectrum_returns_good_fit_metrics(synthetic_spectrum):
     """
-    Test that fit_spectrum returns a good R-squared value for a clean signal.
+    Test that fit_spectrum returns a good R-squared value for a clean signal
+    when using the OLS method.
     """
     frequency, power, _ = synthetic_spectrum
 
-    # Fit the spectrum
-    fit_results = fit_spectrum(frequency, power)
+    # Fit the spectrum using OLS specifically for this test
+    fit_results = fit_spectrum(frequency, power, method='ols')
 
     # Check that the R-squared value indicates a good fit
     assert 'r_squared' in fit_results

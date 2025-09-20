@@ -14,7 +14,8 @@ def test_run_analysis_workflow():
     results = run_analysis(file_path, time_col='timestamp', data_col='concentration', n_bootstraps=10)
 
     assert 'scientific_interpretation' in results
-    assert "Warning: Beta value is significantly negative" in results['scientific_interpretation']
+    # With the new robust default, the beta is no longer significantly negative
+    assert "-0.5 < β < 1 (fGn-like)" in results['scientific_interpretation']
 
 def test_workflow_with_plotting(tmp_path):
     """
@@ -36,7 +37,8 @@ def test_workflow_with_plotting(tmp_path):
     # Check that the plot was created and a warning was reported.
     assert os.path.exists(output_plot_path)
     assert 'scientific_interpretation' in results
-    assert "Warning: Beta value is significantly negative" in results['scientific_interpretation']
+    # With the new robust default, the beta is no longer significantly negative
+    assert "-0.5 < β < 1 (fGn-like)" in results['scientific_interpretation']
 
 def test_workflow_segmented(tmp_path):
     """Test the segmented analysis workflow."""
