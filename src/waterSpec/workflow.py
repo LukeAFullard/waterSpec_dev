@@ -88,32 +88,63 @@ def run_analysis(
     )
 
     # --- Analysis and Fitting ---
-    if analysis_type == 'standard':
+    original_analysis_type = analysis_type
+
+    if analysis_type == 'auto':
+        # Perform both analyses
+        standard_results = fit_spectrum_with_bootstrap(
+            frequency, power, method=fit_method, n_bootstraps=n_bootstraps
+        )
+        segmented_results = fit_segmented_spectrum(frequency, power)
+
+        # Compare BIC values
+        # A lower BIC is preferred. We handle NaN cases by treating them as infinitely bad.
+        bic_standard = standard_results.get('bic', np.inf)
+        bic_segmented = segmented_results.get('bic', np.inf)
+
+        if np.isnan(bic_standard): bic_standard = np.inf
+        if np.isnan(bic_segmented): bic_segmented = np.inf
+
+        # Choose the best model
+        if bic_segmented < bic_standard:
+            fit_results = segmented_results
+            analysis_type = 'segmented'
+        else:
+            fit_results = standard_results
+            analysis_type = 'standard'
+
+        # Store comparison info
+        fit_results['bic_comparison'] = {'standard': bic_standard, 'segmented': bic_segmented}
+        fit_results['chosen_model'] = analysis_type
+
+    elif analysis_type == 'standard':
         fit_results = fit_spectrum_with_bootstrap(
             frequency, power, method=fit_method, n_bootstraps=n_bootstraps
         )
-        beta = fit_results.get('beta')
-        ci = (fit_results.get('beta_ci_lower'), fit_results.get('beta_ci_upper'))
     elif analysis_type == 'segmented':
         fit_results = fit_segmented_spectrum(frequency, power)
-        beta = fit_results.get('beta1')
-        ci = None
     else:
-        raise ValueError("analysis_type must be 'standard' or 'segmented'")
+        raise ValueError("analysis_type must be 'standard', 'segmented', or 'auto'")
 
     # --- Interpretation ---
     if param_name is None:
         param_name = data_col
 
-    if beta is None or not np.isfinite(beta):
-        interp_results = {"summary_text": "Analysis failed: Could not determine a valid beta value."}
-    else:
-        interp_results = interpret_results(beta, ci=ci, param_name=param_name)
+    # Check if the fit was successful before interpreting
+    fit_successful = ('beta' in fit_results and np.isfinite(fit_results['beta'])) or \
+                     ('beta1' in fit_results and np.isfinite(fit_results['beta1']))
 
-    # --- Result Aggregation ---
-    results = {}
-    results.update(fit_results)
-    results.update(interp_results)
+    if not fit_successful:
+        interp_results = {"summary_text": "Analysis failed: Could not determine a valid spectral slope."}
+        # Ensure essential keys exist even in failure
+        fit_results.setdefault('summary_text', interp_results["summary_text"])
+        results = fit_results
+    else:
+        interp_results = interpret_results(fit_results, param_name=param_name)
+        # --- Result Aggregation ---
+        results = {}
+        results.update(fit_results)
+        results.update(interp_results)
 
     # For clarity and backward compatibility, create a specific 'interpretation' key
     # that holds the main summary text.

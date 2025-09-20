@@ -66,6 +66,17 @@ def fit_spectrum(frequency, power, method='theil-sen'):
 
     return fit_results
 
+def _calculate_bic(y, y_pred, n_params):
+    """Calculates the Bayesian Information Criterion (BIC)."""
+    n = len(y)
+    if n == 0:
+        return np.nan
+    rss = np.sum((y - y_pred)**2)
+    if rss == 0: # Perfect fit, BIC is -inf
+        return -np.inf
+    bic = n * np.log(rss / n) + n_params * np.log(n)
+    return bic
+
 def fit_spectrum_with_bootstrap(frequency, power, method='theil-sen', n_bootstraps=1000, ci=95):
     """
     Fits the power spectrum and estimates confidence intervals for beta using bootstrap resampling.
@@ -83,6 +94,7 @@ def fit_spectrum_with_bootstrap(frequency, power, method='theil-sen', n_bootstra
               - 'r_squared': The R-squared value of the original fit.
               - 'intercept': The intercept of the original fit.
               - 'stderr': The standard error of the original fit.
+              - 'bic': Bayesian Information Criterion for the fit.
               - 'beta_ci_lower': The lower bound of the confidence interval for beta.
               - 'beta_ci_upper': The upper bound of the confidence interval for beta.
     """
@@ -90,7 +102,7 @@ def fit_spectrum_with_bootstrap(frequency, power, method='theil-sen', n_bootstra
     initial_fit = fit_spectrum(frequency, power, method=method)
     if np.isnan(initial_fit['beta']):
         # If the initial fit failed, we can't do bootstrap
-        initial_fit.update({'beta_ci_lower': np.nan, 'beta_ci_upper': np.nan})
+        initial_fit.update({'beta_ci_lower': np.nan, 'beta_ci_upper': np.nan, 'bic': np.nan})
         return initial_fit
 
     # Log-transform the data
@@ -103,6 +115,10 @@ def fit_spectrum_with_bootstrap(frequency, power, method='theil-sen', n_bootstra
     intercept = initial_fit['intercept']
     log_power_fit = slope * log_freq + intercept
     residuals = log_power - log_power_fit
+
+    # Calculate BIC for the initial fit (2 parameters: slope and intercept)
+    bic = _calculate_bic(log_power, log_power_fit, 2)
+    initial_fit['bic'] = bic
 
     # Perform bootstrap resampling
     beta_estimates = np.zeros(n_bootstraps)
@@ -135,6 +151,10 @@ def fit_spectrum_with_bootstrap(frequency, power, method='theil-sen', n_bootstra
     # Add the confidence interval to the results
     initial_fit['beta_ci_lower'] = beta_ci_lower
     initial_fit['beta_ci_upper'] = beta_ci_upper
+
+    # Store log-transformed data for potential use in auto-mode
+    initial_fit['log_freq'] = log_freq
+    initial_fit['log_power'] = log_power
 
     return initial_fit
 
@@ -172,7 +192,8 @@ def fit_segmented_spectrum(frequency, power):
         }
 
     # Extract the results using the correct API
-    estimates = pw_fit.get_results()["estimates"]
+    fit_summary = pw_fit.get_results()
+    estimates = fit_summary["estimates"]
 
     breakpoint_log_freq = estimates["breakpoint1"]["estimate"]
     breakpoint_freq = np.exp(breakpoint_log_freq)
@@ -183,12 +204,21 @@ def fit_segmented_spectrum(frequency, power):
     beta1 = -alpha1
     beta2 = -alpha2
 
+    # Get additional fit statistics
+    bic = fit_summary.get("bic")
+    r_squared = fit_summary.get("r_squared")
+
     results = {
         'breakpoint': breakpoint_freq,
         'beta1': beta1,
         'beta2': beta2,
+        'bic': bic,
+        'r_squared': r_squared,
         'model_summary': str(pw_fit.summary()),
-        'model_object': pw_fit
+        'model_object': pw_fit,
+        # Store log-transformed data for consistent plotting/calculations
+        'log_freq': log_freq,
+        'log_power': log_power
     }
 
     return results

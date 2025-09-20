@@ -49,44 +49,85 @@ def compare_to_benchmarks(beta):
 
     return closest_match
 
-def interpret_results(beta, ci=None, param_name="Parameter", uncertainty_threshold=0.5):
+def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold=0.5):
     """
     Generates a comprehensive, human-readable interpretation of the analysis results.
+    Handles both standard and segmented analysis types.
     """
-    sci_interp = get_scientific_interpretation(beta)
-    traffic_light = get_persistence_traffic_light(beta)
-    benchmark_comp = compare_to_benchmarks(beta)
+    is_segmented = 'beta2' in fit_results and fit_results['beta2'] is not None
 
-    if ci:
-        beta_str = f"β = {beta:.2f} (95% CI: {ci[0]:.2f}–{ci[1]:.2f})"
+    if is_segmented:
+        # --- Segmented Interpretation ---
+        beta1 = fit_results['beta1']
+        beta2 = fit_results['beta2']
+        breakpoint_freq = fit_results['breakpoint']
+
+        interp1 = get_scientific_interpretation(beta1)
+        interp2 = get_scientific_interpretation(beta2)
+
+        summary_text = (
+            f"Segmented Analysis for: {param_name}\n"
+            f"Breakpoint Frequency ≈ {breakpoint_freq:.4f}\n"
+            f"-----------------------------------\n"
+            f"Low-Frequency (Long-term) Fit:\n"
+            f"  β1 = {beta1:.2f}\n"
+            f"  Interpretation: {interp1}\n"
+            f"  Persistence: {get_persistence_traffic_light(beta1)}\n"
+            f"-----------------------------------\n"
+            f"High-Frequency (Short-term) Fit:\n"
+            f"  β2 = {beta2:.2f}\n"
+            f"  Interpretation: {interp2}\n"
+            f"  Persistence: {get_persistence_traffic_light(beta2)}"
+        )
+
+        return {
+            "summary_text": summary_text,
+            "analysis_type": "segmented",
+            "beta1": beta1,
+            "beta2": beta2,
+            "breakpoint": breakpoint_freq
+        }
+
     else:
-        beta_str = f"β = {beta:.2f}"
+        # --- Standard Interpretation ---
+        beta = fit_results['beta']
+        ci = (fit_results.get('beta_ci_lower'), fit_results.get('beta_ci_upper'))
 
-    summary_text = (
-        f"Analysis for: {param_name}\n"
-        f"Value: {beta_str}\n"
-        f"Persistence Level: {traffic_light}\n"
-        f"Scientific Meaning: {sci_interp}\n"
-        f"Contextual Comparison: {benchmark_comp}"
-    )
+        sci_interp = get_scientific_interpretation(beta)
+        traffic_light = get_persistence_traffic_light(beta)
+        benchmark_comp = compare_to_benchmarks(beta)
 
-    uncertainty_warning = None
-    if ci:
-        ci_width = ci[1] - ci[0]
-        if ci_width > uncertainty_threshold:
-            uncertainty_warning = (
-                f"Warning: The confidence interval width ({ci_width:.2f}) is large, "
-                "suggesting high uncertainty."
-            )
-            summary_text += f"\n\n{uncertainty_warning}"
+        if ci[0] is not None:
+            beta_str = f"β = {beta:.2f} (95% CI: {ci[0]:.2f}–{ci[1]:.2f})"
+        else:
+            beta_str = f"β = {beta:.2f}"
 
-    return {
-        "summary_text": summary_text,
-        "beta_value": beta,
-        "confidence_interval": ci,
-        "persistence_level": traffic_light,
-        "scientific_interpretation": sci_interp,
-        "benchmark_comparison": benchmark_comp,
-        "uncertainty_warning": uncertainty_warning,
-        "benchmark_table": BENCHMARK_TABLE.to_dict(orient='index')
-    }
+        summary_text = (
+            f"Standard Analysis for: {param_name}\n"
+            f"Value: {beta_str}\n"
+            f"Persistence Level: {traffic_light}\n"
+            f"Scientific Meaning: {sci_interp}\n"
+            f"Contextual Comparison: {benchmark_comp}"
+        )
+
+        uncertainty_warning = None
+        if ci[0] is not None:
+            ci_width = ci[1] - ci[0]
+            if ci_width > uncertainty_threshold:
+                uncertainty_warning = (
+                    f"Warning: The confidence interval width ({ci_width:.2f}) is large, "
+                    "suggesting high uncertainty."
+                )
+                summary_text += f"\n\n{uncertainty_warning}"
+
+        return {
+            "summary_text": summary_text,
+            "analysis_type": "standard",
+            "beta_value": beta,
+            "confidence_interval": ci,
+            "persistence_level": traffic_light,
+            "scientific_interpretation": sci_interp,
+            "benchmark_comparison": benchmark_comp,
+            "uncertainty_warning": uncertainty_warning,
+            "benchmark_table": BENCHMARK_TABLE.to_dict(orient='index')
+        }
