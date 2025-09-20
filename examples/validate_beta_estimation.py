@@ -10,8 +10,7 @@ def generate_synthetic_series(n_points=2048, beta=0, seed=42):
     """
     rng = np.random.default_rng(seed)
     freq = np.fft.rfftfreq(n_points)
-    # Avoid division by zero at the DC component
-    freq[0] = 1e-9
+    freq[0] = 1e-9 # Avoid division by zero
 
     power_spectrum = freq ** (-beta)
 
@@ -36,56 +35,52 @@ def create_temp_csv(time, series):
 
 def main():
     """
-    Main function to run the validation analysis and print results for different
-    preprocessing methods on the same underlying dataset.
+    Main function to run the validation analysis, comparing OLS and Theil-Sen
+    fitting methods across different detrending scenarios.
     """
-    betas_to_test = np.linspace(0.0, 3.0, 7)
-    # Use a list of tuples to define the analysis cases
-    analysis_cases = [
-        {'label': 'None', 'detrend_method': None, 'normalize_data': False},
-        {'label': 'Linear Detrend', 'detrend_method': 'linear', 'normalize_data': False},
-        {'label': 'LOESS Detrend', 'detrend_method': 'loess', 'normalize_data': False},
-        {'label': 'Normalize Only', 'detrend_method': None, 'normalize_data': True},
-    ]
+    betas_to_test = np.linspace(0.0, 2.5, 6) # Reduced for speed
+    detrend_methods = [None, 'linear', 'loess']
+    fit_methods = ['ols', 'theil-sen']
 
-    print("## Beta Estimation Accuracy with Different Preprocessing\n")
-    print("This table shows how different preprocessing methods affect the estimation of Beta for the same synthetic time series (generated without an artificial trend).")
-    print("\n| Known Beta | Preprocessing Method | Estimated Beta | Difference |")
-    print("|------------|----------------------|----------------|------------|")
+    print("## Beta Estimation Accuracy: OLS vs. Theil-Sen\n")
+    print("This table compares the performance of the Ordinary Least Squares (OLS) and the robust Theil-Sen fitting methods across different detrending scenarios.")
+    print("\n| Known Beta | Detrend Method | Fit Method  | Estimated Beta | Difference |")
+    print("|------------|----------------|-------------|----------------|------------|")
 
     temp_files = []
     try:
         for i, known_beta in enumerate(betas_to_test):
-            # For each known beta, generate one series
             time, series = generate_synthetic_series(beta=known_beta, seed=i)
             file_path = create_temp_csv(time, series)
             temp_files.append(file_path)
 
-            # Now, test this same series with all analysis cases
-            for case in analysis_cases:
-                try:
-                    results = run_analysis(
-                        file_path,
-                        time_col='time',
-                        data_col='value',
-                        param_name=f"Beta={known_beta:.2f}",
-                        detrend_method=case['detrend_method'],
-                        normalize_data=case['normalize_data'],
-                        n_bootstraps=50,
-                        do_plot=False
-                    )
-                    estimated_beta = results.get('beta')
-                    difference = estimated_beta - known_beta if estimated_beta is not None else 'N/A'
+            for detrend_method in detrend_methods:
+                for fit_method in fit_methods:
+                    try:
+                        results = run_analysis(
+                            file_path,
+                            time_col='time',
+                            data_col='value',
+                            param_name=f"Beta={known_beta:.2f}",
+                            detrend_method=detrend_method,
+                            fit_method=fit_method,
+                            n_bootstraps=50,
+                            do_plot=False
+                        )
+                        estimated_beta = results.get('beta')
+                        difference = estimated_beta - known_beta if estimated_beta is not None else 'N/A'
 
-                    if estimated_beta is not None:
-                         print(f"| {known_beta:10.2f} | {case['label']:20} | {estimated_beta:14.2f} | {difference:10.2f} |")
-                    else:
-                         print(f"| {known_beta:10.2f} | {case['label']:20} | {'Failed':>14} | {'N/A':>10} |")
+                        detrend_str = str(detrend_method) if detrend_method is not None else "None"
 
-                except Exception as e:
-                    print(f"| {known_beta:10.2f} | {case['label']:20} | {'Error':>14} | {'N/A':>10} |")
+                        if estimated_beta is not None:
+                             print(f"| {known_beta:10.2f} | {detrend_str:14} | {fit_method:11} | {estimated_beta:14.2f} | {difference:10.2f} |")
+                        else:
+                             print(f"| {known_beta:10.2f} | {detrend_str:14} | {fit_method:11} | {'Failed':>14} | {'N/A':>10} |")
+
+                    except Exception as e:
+                        detrend_str = str(detrend_method) if detrend_method is not None else "None"
+                        print(f"| {known_beta:10.2f} | {detrend_str:14} | {fit_method:11} | {'Error':>14} | {'N/A':>10} |")
     finally:
-        # Clean up all temporary files at the end
         for f in temp_files:
             try:
                 os.remove(f)

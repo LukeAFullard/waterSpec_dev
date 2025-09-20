@@ -33,7 +33,6 @@ test = [
 ]
 examples = [
     "fbm",
-    "jupyter",
 ]
 
 [project.urls]

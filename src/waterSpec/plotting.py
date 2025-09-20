@@ -41,8 +41,12 @@ def plot_spectrum(frequency, power, fit_results, analysis_type='standard', outpu
     elif analysis_type == 'segmented':
         model = fit_results.get('model_object')
         if model:
-            model.plot_fit(fig=plt.gcf(), ax=plt.gca(), plot_data=False, plot_breakpoints=True, linewidth=2)
-            plt.legend() # Re-add legend after piecewise-regression plot
+            # The plot_fit function automatically uses the current axes.
+            # We only pass kwargs that are valid for matplotlib's plot function.
+            model.plot_fit(linewidth=2)
+            # The piecewise-regression plot function doesn't add labels, so we
+            # can't call plt.legend() here as it will complain.
+            # We will rely on the main legend created later.
 
     # Plot the FAP level and annotate significant peaks if available
     fap_level = fit_results.get('fap_level')
