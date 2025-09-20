@@ -19,7 +19,7 @@ def sample_data():
 def test_detrend(sample_data):
     """Test the detrend function."""
     trended_data = sample_data
-    detrended = detrend(trended_data.copy())
+    detrended, _ = detrend(trended_data.copy())
     assert np.mean(detrended) == pytest.approx(0)
     assert not np.array_equal(detrended, trended_data)
 
@@ -64,7 +64,7 @@ def test_detrend_loess(sample_data):
     """Test the LOESS detrending function."""
     time = np.arange(len(sample_data))
     trended_data = sample_data + np.sin(time)
-    detrended = detrend_loess(time, trended_data)
+    detrended, _ = detrend_loess(time, trended_data)
     assert np.var(detrended) < np.var(trended_data)
 
 def test_detrend_loess_with_options(sample_data):

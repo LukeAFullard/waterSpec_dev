@@ -15,15 +15,16 @@ def _validate_data_length(data, min_length=10):
             f"which is less than the required minimum of {min_length} for analysis."
         )
 
-def detrend(data):
+def detrend(data, errors=None):
     """
     Removes the linear trend from a time series.
+    This function currently does not modify the errors, but passes them through.
     """
     valid_indices = ~np.isnan(data)
     if np.sum(valid_indices) < 2:
-        return data
+        return data, errors
     data[valid_indices] = signal.detrend(data[valid_indices])
-    return data
+    return data, errors
 
 def normalize(data, errors=None):
     """
@@ -97,18 +98,20 @@ def handle_censored_data(data_series, strategy='drop', lower_multiplier=0.5, upp
 
     return numeric_series.to_numpy()
 
-def detrend_loess(x, y, **kwargs):
+def detrend_loess(x, y, errors=None, **kwargs):
     """
     Removes a non-linear trend from a time series using LOESS.
 
     This function is a wrapper around `statsmodels.nonparametric.lowess.lowess`.
     Any additional keyword arguments are passed directly to the statsmodels function.
+    This function currently does not modify the errors, but passes them through.
 
     Args:
         x (np.ndarray): The independent variable (time).
         y (np.ndarray): The dependent variable (data).
+        errors (np.ndarray, optional): The measurement errors. Defaults to None.
         **kwargs: Additional keyword arguments for `statsmodels.lowess`.
-                  Common arguments include `frac` (default 0.67) and `it` (default 3).
+                  Common arguments include `frac` (default 0.5) and `it` (default 3).
     """
     # Set a default for `frac` if not provided, consistent with the old signature
     if 'frac' not in kwargs:
@@ -116,7 +119,7 @@ def detrend_loess(x, y, **kwargs):
 
     valid_indices = ~np.isnan(y)
     if np.sum(valid_indices) < 2:
-        return y
+        return y, errors
 
     x_valid = x[valid_indices]
     y_valid = y[valid_indices]
@@ -126,7 +129,7 @@ def detrend_loess(x, y, **kwargs):
     detrended_y = np.full_like(y, np.nan)
     detrended_y[valid_indices] = y_valid - smoothed[:, 1]
 
-    return detrended_y
+    return detrended_y, errors
 
 def preprocess_data(
     data_series,
@@ -166,9 +169,9 @@ def preprocess_data(
         processed_data, processed_errors = log_transform(processed_data, processed_errors)
 
     if detrend_method == 'linear':
-        processed_data = detrend(processed_data)
+        processed_data, processed_errors = detrend(processed_data, processed_errors)
     elif detrend_method == 'loess':
-        processed_data = detrend_loess(time_numeric, processed_data, **detrend_options)
+        processed_data, processed_errors = detrend_loess(time_numeric, processed_data, errors=processed_errors, **detrend_options)
     elif detrend_method is not None:
         warnings.warn(f"Unknown detrending method '{detrend_method}'. No detrending will be applied.", UserWarning)
 
