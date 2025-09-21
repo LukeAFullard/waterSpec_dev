@@ -92,8 +92,18 @@ def test_analysis_with_known_beta(tmp_path, known_beta, tolerance):
 @patch('waterSpec.analysis.fit_spectrum_with_bootstrap')
 def test_analysis_auto_chooses_segmented_with_mock(mock_fit_standard, mock_fit_segmented, tmp_path):
     """Test that auto mode chooses the segmented model with a better BIC score."""
-    mock_fit_segmented.return_value = {'beta1': 0.5, 'beta2': 1.8, 'breakpoint': 0.01, 'bic': 100.0}
-    mock_fit_standard.return_value = {'beta': 1.2, 'bic': 120.0}
+    # Add required keys for the residual peak finding to the mock return values
+    dummy_array = np.array([1, 2, 3])
+    mock_fit_segmented.return_value = {
+        'beta1': 0.5, 'beta2': 1.8, 'breakpoint': 0.01, 'bic': 100.0,
+        'residuals': dummy_array, 'fitted_log_power': dummy_array,
+        'log_freq': dummy_array, 'log_power': dummy_array
+    }
+    mock_fit_standard.return_value = {
+        'beta': 1.2, 'bic': 120.0,
+        'residuals': dummy_array, 'fitted_log_power': dummy_array,
+        'log_freq': dummy_array, 'log_power': dummy_array
+    }
 
     file_path = create_test_data_file(tmp_path, pd.date_range('2023', periods=100), np.random.rand(100))
     output_dir = tmp_path / "results"
@@ -146,6 +156,7 @@ def test_analysis_fap_threshold_is_configurable(tmp_path):
     results = analyzer.run_full_analysis(
         output_dir=str(output_dir),
         n_bootstraps=10,
+            peak_detection_method='fap',
         fap_threshold=custom_fap
     )
 

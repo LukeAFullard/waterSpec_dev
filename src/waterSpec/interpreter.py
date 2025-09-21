@@ -144,7 +144,13 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
     if 'significant_peaks' in fit_results and fit_results['significant_peaks']:
         peaks_summary = "\n\n-----------------------------------\nSignificant Periodicities Found:"
         for peak in fit_results['significant_peaks']:
-            peaks_summary += f"\n  - Period: {_format_period(peak['frequency'])} (FAP: {peak['fap']:.2E})"
+            period_str = f"\n  - Period: {_format_period(peak['frequency'])}"
+            if 'fap' in peak:
+                peaks_summary += f"{period_str} (FAP: {peak['fap']:.2E})"
+            elif 'residual' in peak:
+                peaks_summary += f"{period_str} (Fit Residual: {peak['residual']:.2f})"
+            else:
+                peaks_summary += period_str
         summary_text += peaks_summary
 
     results_dict["summary_text"] = auto_summary_header + summary_text if auto_summary_header else summary_text

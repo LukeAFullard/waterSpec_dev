@@ -152,9 +152,11 @@ def fit_spectrum_with_bootstrap(frequency, power, method='theil-sen', n_bootstra
     initial_fit['beta_ci_lower'] = beta_ci_lower
     initial_fit['beta_ci_upper'] = beta_ci_upper
 
-    # Store log-transformed data for potential use in auto-mode
+    # Store log-transformed data and residuals for potential use in other functions
     initial_fit['log_freq'] = log_freq
     initial_fit['log_power'] = log_power
+    initial_fit['residuals'] = residuals
+    initial_fit['fitted_log_power'] = log_power_fit
 
     return initial_fit
 
@@ -208,6 +210,10 @@ def fit_segmented_spectrum(frequency, power):
     bic = fit_summary.get("bic")
     r_squared = fit_summary.get("r_squared")
 
+    # Calculate the fitted line and residuals
+    fitted_log_power = pw_fit.predict(log_freq)
+    residuals = log_power - fitted_log_power
+
     results = {
         'breakpoint': breakpoint_freq,
         'beta1': beta1,
@@ -216,9 +222,11 @@ def fit_segmented_spectrum(frequency, power):
         'r_squared': r_squared,
         'model_summary': str(pw_fit.summary()),
         'model_object': pw_fit,
-        # Store log-transformed data for consistent plotting/calculations
+        # Store log-transformed data and residuals for consistent plotting/calculations
         'log_freq': log_freq,
-        'log_power': log_power
+        'log_power': log_power,
+        'residuals': residuals,
+        'fitted_log_power': fitted_log_power
     }
 
     return results

@@ -56,22 +56,22 @@ def main():
     """Main function to run the validation."""
     # --- Setup ---
     dplr = importr('dplR')
-    signal_freq = 0.1  # The known frequency of our injected signal
+    signal_freq_cpd = 0.1  # The known frequency of our injected signal in Cycles Per Day
+    signal_freq_hz = signal_freq_cpd / 86400.0 # Convert to Hz for comparison with waterSpec
     signal_amp = 0.8   # The amplitude of the signal
-    fap_threshold = 0.01 # The significance threshold for waterSpec
 
     temp_dir = None
 
     print("--- Peak Detection Validation: waterSpec vs dplR ---")
-    print(f"Injecting sine wave with freq={signal_freq}, amp={signal_amp}")
-    print(f"waterSpec significance threshold (FAP): {fap_threshold}")
-    print(f"dplR significance threshold: 95% confidence interval")
+    print(f"Injecting sine wave with freq={signal_freq_cpd} cycles/day ({signal_freq_hz:.2E} Hz), amp={signal_amp}")
+    print(f"waterSpec significance method: Residual from spectral fit (95% CI)")
+    print(f"dplR significance method: 95% confidence interval from AR(1) simulations")
     print("-" * 50)
 
     try:
         # --- Data Generation ---
         time, series = generate_synthetic_series_with_peak(
-            signal_freq=signal_freq, signal_amp=signal_amp
+            signal_freq=signal_freq_cpd, signal_amp=signal_amp
         )
         file_path, temp_dir = create_temp_csv(time, series)
 
@@ -81,23 +81,24 @@ def main():
             file_path,
             time_col='time',
             data_col='value',
-            detrend_method=None
+            detrend_method=None # No trend in synthetic data
         )
         # Use a linear grid for better peak resolution
         ws_results = ws_analyzer.run_full_analysis(
             output_dir=temp_dir,
-            fap_threshold=fap_threshold,
             grid_type='linear',
-            n_bootstraps=10 # Use fewer bootstraps to speed up validation
+            n_bootstraps=10, # Use fewer bootstraps to speed up validation
+            peak_detection_method='residual',
+            peak_detection_ci=95
         )
 
         ws_peak_found = False
         if 'significant_peaks' in ws_results and ws_results['significant_peaks']:
             for peak in ws_results['significant_peaks']:
                 # Check if a detected peak is close to our known signal frequency
-                if abs(peak['frequency'] - signal_freq) < 0.01:
+                if abs(peak['frequency'] - signal_freq_hz) < (signal_freq_hz * 0.1): # Check within 10%
                     ws_peak_found = True
-                    print(f"  [SUCCESS] waterSpec found a significant peak at frequency {peak['frequency']:.4f}")
+                    print(f"  [SUCCESS] waterSpec found a significant peak at frequency {peak['frequency']:.2E} Hz")
                     break
         if not ws_peak_found:
             print("  [FAILURE] waterSpec did not find the significant peak.")
@@ -113,7 +114,6 @@ def main():
             )
 
             # Extract results from the R object
-            # Find the index for each named element
             names = list(redfit_results.names())
             freq_idx = names.index('freq')
             power_idx = names.index('gxxc')
@@ -124,13 +124,14 @@ def main():
             ci95 = np.array(redfit_results[ci95_idx])
 
             # Find the index of the frequency closest to our signal
-            peak_idx = np.argmin(np.abs(freq - signal_freq))
+            # dplR uses cycles/time-step, so we use the original signal_freq_cpd
+            peak_idx = np.argmin(np.abs(freq - signal_freq_cpd))
             peak_power = power[peak_idx]
             peak_ci95 = ci95[peak_idx]
 
             if peak_power > peak_ci95:
                 dplr_peak_found = True
-                print(f"  [SUCCESS] dplR found a significant peak at frequency {freq[peak_idx]:.4f}")
+                print(f"  [SUCCESS] dplR found a significant peak at frequency {freq[peak_idx]:.4f} cycles/day")
                 print(f"            (Power={peak_power:.2f} > 95% CI={peak_ci95:.2f})")
             else:
                 print("  [FAILURE] dplR did not find the significant peak.")
