@@ -105,17 +105,27 @@ def run_analysis(
         if np.isnan(bic_standard): bic_standard = np.inf
         if np.isnan(bic_segmented): bic_segmented = np.inf
 
-        # Choose the best model
+        # Choose the best model and create a comprehensive results dictionary
         if bic_segmented < bic_standard:
-            fit_results = segmented_results
+            chosen_model_results = segmented_results
             analysis_type = 'segmented'
         else:
-            fit_results = standard_results
+            chosen_model_results = standard_results
             analysis_type = 'standard'
+
+        # Start with the chosen model's results at the top level for compatibility
+        fit_results = chosen_model_results.copy()
+
+        # Add detailed results from both fits under specific keys
+        fit_results['standard_fit'] = standard_results
+        fit_results['segmented_fit'] = segmented_results
 
         # Store comparison info
         fit_results['bic_comparison'] = {'standard': bic_standard, 'segmented': bic_segmented}
         fit_results['chosen_model'] = analysis_type
+        # Also store the original analysis type requested
+        fit_results['analysis_mode'] = original_analysis_type
+
 
     elif analysis_type == 'standard':
         fit_results = fit_spectrum_with_bootstrap(
@@ -125,6 +135,19 @@ def run_analysis(
         fit_results = fit_segmented_spectrum(frequency, power)
     else:
         raise ValueError("analysis_type must be 'standard', 'segmented', or 'auto'")
+
+    # --- Peak Significance ---
+    if fap_threshold is not None:
+        # Note: The LombScargle object `ls_obj` was created with the processed (e.g., detrended)
+        # data. This is consistent with the beta fit and ensures that the FAP calculations
+        # are based on the same data used for the spectral slope analysis.
+        significant_peaks, fap_level = find_significant_peaks(
+            ls_obj, frequency, power, fap_threshold=fap_threshold
+        )
+        # Add peak info to the fit_results so the interpreter can see it
+        fit_results['significant_peaks'] = significant_peaks
+        fit_results['fap_level'] = fap_level
+        fit_results['fap_threshold'] = fap_threshold
 
     # --- Interpretation ---
     if param_name is None:
@@ -149,19 +172,6 @@ def run_analysis(
     # For clarity and backward compatibility, create a specific 'interpretation' key
     # that holds the main summary text.
     results['interpretation'] = results.get('summary_text')
-
-
-    # --- Peak Significance ---
-    if fap_threshold is not None:
-        # Note: The LombScargle object `ls_obj` was created with the processed (e.g., detrended)
-        # data. This is consistent with the beta fit and ensures that the FAP calculations
-        # are based on the same data used for the spectral slope analysis.
-        significant_peaks, fap_level = find_significant_peaks(
-            ls_obj, frequency, power, fap_threshold=fap_threshold
-        )
-        results['significant_peaks'] = significant_peaks
-        results['fap_level'] = fap_level
-        results['fap_threshold'] = fap_threshold
 
     # --- Plotting ---
     if do_plot:

@@ -87,6 +87,14 @@ def test_workflow_with_known_beta(tmp_path, known_beta, tolerance):
     assert 'beta' in results
     assert results['beta'] == pytest.approx(known_beta, abs=tolerance)
 
+    # 5. Assert that the auto-analysis details are present
+    assert results['analysis_mode'] == 'auto'
+    assert 'standard_fit' in results
+    assert 'segmented_fit' in results
+    assert 'beta' in results['standard_fit']
+    # For this synthetic data, the standard fit should always be chosen
+    assert results['chosen_model'] == 'standard'
+
 
 # --- New Edge Case Tests for the Workflow ---
 

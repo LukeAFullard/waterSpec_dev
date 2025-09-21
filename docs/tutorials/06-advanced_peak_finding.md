@@ -34,7 +34,8 @@ While `run_analysis` can find peaks, for a focused search it's often better to u
 
 ```python
 from waterSpec import load_data
-from waterSpec.spectral_analyzer import find_significant_peaks
+from waterSpec.spectral_analyzer import calculate_periodogram, find_significant_peaks
+from astropy.timeseries import LombScargle
 
 # Load the data
 time_numeric, data_series, _ = load_data(file_path, 'timestamp', 'value')
@@ -45,11 +46,18 @@ min_freq_hz = 1 / duration
 nyquist_freq_hz = 0.5 / np.median(np.diff(time_numeric))
 linear_frequency_grid = np.linspace(min_freq_hz, nyquist_freq_hz, 5000)
 
-# Find significant peaks
-peaks, fap_level = find_significant_peaks(
+# Calculate the periodogram to get the power and the LombScargle object
+_, power, ls_obj = calculate_periodogram(
     time_numeric,
     data_series.to_numpy(),
-    frequency=linear_frequency_grid,
+    frequency=linear_frequency_grid
+)
+
+# Find significant peaks
+peaks, fap_level = find_significant_peaks(
+    ls_obj,
+    linear_frequency_grid,
+    power,
     fap_threshold=0.01,
     fap_method='baluev' # Use a fast method for the tutorial
 )
@@ -85,7 +93,8 @@ run_analysis(
     detrend_method=None, # Important: Don't detrend away the signal we want to find!
     fap_threshold=0.01,
     do_plot=True,
-    output_path=plot_path
+    output_path=plot_path,
+    grid_type='linear' # Use linear grid for better peak resolution
 )
 
 print(f"Plot with FAP annotations saved to: {plot_path}")

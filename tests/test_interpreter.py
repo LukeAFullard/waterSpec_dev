@@ -52,3 +52,95 @@ def test_interpret_results_no_param_name():
     fit_results = {'beta': 0.5}
     results = interpret_results(fit_results)
     assert "Analysis for: Parameter" in results['summary_text']
+
+def test_interpret_results_auto_mode():
+    """
+    Test the interpreter's output when provided with results from an 'auto' analysis.
+    """
+    fit_results = {
+        'analysis_mode': 'auto',
+        'chosen_model': 'standard',
+        'bic_comparison': {'standard': 120.5, 'segmented': 150.2},
+        'standard_fit': {'beta': 1.2, 'beta_ci_lower': 1.1, 'beta_ci_upper': 1.3},
+        'segmented_fit': {'beta1': 0.8, 'beta2': 1.5, 'breakpoint': 0.1},
+        # Add the top-level keys for the chosen model
+        'beta': 1.2, 'beta_ci_lower': 1.1, 'beta_ci_upper': 1.3
+    }
+
+    results = interpret_results(fit_results, param_name="Test Param")
+    summary = results['summary_text']
+
+    # Check for the auto-analysis header and content
+    assert "Automatic Analysis for: Test Param" in summary
+    assert "Model Comparison (Lower BIC is better):" in summary
+    assert "Standard Fit:   BIC = 120.50 (β = 1.20)" in summary
+    assert "Segmented Fit:  BIC = 150.20 (β1 = 0.80, β2 = 1.50)" in summary
+    assert "Chosen Model: Standard" in summary
+
+    # Check that the detailed interpretation for the chosen model is present
+    assert "Details for Chosen (Standard) Model:" in summary
+    assert "Persistence Level: 🟢 Persistent" in summary
+
+def test_interpret_results_with_peaks():
+    """
+    Test that the summary text includes information about significant peaks.
+    """
+    # Note: 1 / (365.25 * 86400) is the frequency in Hz for a 1-year period
+    yearly_freq_hz = 1 / (365.25 * 86400)
+
+    fit_results = {
+        'beta': 0.8,
+        'significant_peaks': [
+            {'frequency': yearly_freq_hz, 'fap': 0.001},
+            {'frequency': 1 / (30 * 86400), 'fap': 0.005}
+        ]
+    }
+
+    results = interpret_results(fit_results)
+    summary = results['summary_text']
+
+    assert "Significant Periodicities Found:" in summary
+    assert "Period: 12.0 months" in summary
+    assert "Period: 30.0 days" in summary
+    assert "(FAP: 1.00E-03)" in summary
+
+# --- New tests for period formatting ---
+
+# Need to import the private function for testing
+from waterSpec.interpreter import _format_period
+
+@pytest.mark.parametrize("frequency_hz, expected_string", [
+    (1 / (10 * 86400), "10.0 days"),      # 10 days
+    (1 / (90 * 86400), "3.0 months"),     # 3 months
+    (1 / (3 * 365.25 * 86400), "3.0 years"), # 3 years
+    (1 / (800 * 365.25 * 86400), "800.0 years"), # Long period
+    (0, "N/A"),                           # Zero frequency
+])
+def test_format_period(frequency_hz, expected_string):
+    """Test the _format_period helper function."""
+    assert _format_period(frequency_hz) == expected_string
+
+def test_interpret_results_segmented():
+    """
+    Test the interpreter output for a segmented fit, checking for the new
+    breakpoint period format.
+    """
+    # Breakpoint corresponds to a ~90 day period
+    breakpoint_freq = 1 / (90 * 86400)
+
+    fit_results = {
+        'beta1': 0.5,
+        'beta2': 1.5,
+        'breakpoint': breakpoint_freq,
+        'significant_peaks': [] # No peaks for this test
+    }
+
+    results = interpret_results(fit_results, param_name="Ortho-P")
+    summary = results['summary_text']
+
+    assert "Segmented Analysis for: Ortho-P" in summary
+    assert "Breakpoint Period ≈ 3.0 months" in summary
+    assert "Low-Frequency (Long-term) Fit" in summary
+    assert "β1 = 0.50" in summary
+    assert "High-Frequency (Short-term) Fit" in summary
+    assert "β2 = 1.50" in summary
