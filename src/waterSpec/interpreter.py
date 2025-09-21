@@ -31,6 +31,21 @@ def get_persistence_traffic_light(beta):
     if beta > 1.0: return "🟢 Persistent / Subsurface Dominated (High Persistence)"
     return "⚪ Unknown"
 
+def _format_period(frequency_hz):
+    """Converts a frequency in Hz to a human-readable period string."""
+    if frequency_hz <= 0:
+        return "N/A"
+
+    period_seconds = 1 / frequency_hz
+    period_days = period_seconds / 86400
+
+    if period_days > 365.25 * 2: # Over 2 years
+        return f"{period_days / 365.25:.1f} years"
+    elif period_days > 30.44 * 2: # Over 2 months
+        return f"{period_days / 30.44:.1f} months"
+    else:
+        return f"{period_days:.1f} days"
+
 def compare_to_benchmarks(beta):
     """Compares a beta value to the benchmark table."""
     closest_match = None
@@ -85,7 +100,7 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
         interp1, interp2 = get_scientific_interpretation(beta1), get_scientific_interpretation(beta2)
         summary_text = (
             f"Segmented Analysis for: {param_name}\n"
-            f"Breakpoint Frequency ≈ {breakpoint_freq:.4f}\n"
+            f"Breakpoint Period ≈ {_format_period(breakpoint_freq)}\n"
             f"-----------------------------------\n"
             f"Low-Frequency (Long-term) Fit:\n"
             f"  β1 = {beta1:.2f}\n"
@@ -120,8 +135,7 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
     if 'significant_peaks' in fit_results and fit_results['significant_peaks']:
         peaks_summary = "\n\n-----------------------------------\nSignificant Periodicities Found:"
         for peak in fit_results['significant_peaks']:
-            period_days = 1 / (peak['frequency'] * 86400)
-            peaks_summary += f"\n  - Period: {period_days:.1f} days (FAP: {peak['fap']:.2E})"
+            peaks_summary += f"\n  - Period: {_format_period(peak['frequency'])} (FAP: {peak['fap']:.2E})"
         summary_text += peaks_summary
 
     results_dict["summary_text"] = auto_summary_header + summary_text if auto_summary_header else summary_text

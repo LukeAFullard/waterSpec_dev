@@ -100,6 +100,47 @@ def test_interpret_results_with_peaks():
     summary = results['summary_text']
 
     assert "Significant Periodicities Found:" in summary
-    assert "Period: 365.2 days" in summary
+    assert "Period: 12.0 months" in summary
     assert "Period: 30.0 days" in summary
     assert "(FAP: 1.00E-03)" in summary
+
+# --- New tests for period formatting ---
+
+# Need to import the private function for testing
+from waterSpec.interpreter import _format_period
+
+@pytest.mark.parametrize("frequency_hz, expected_string", [
+    (1 / (10 * 86400), "10.0 days"),      # 10 days
+    (1 / (90 * 86400), "3.0 months"),     # 3 months
+    (1 / (3 * 365.25 * 86400), "3.0 years"), # 3 years
+    (1 / (800 * 365.25 * 86400), "800.0 years"), # Long period
+    (0, "N/A"),                           # Zero frequency
+])
+def test_format_period(frequency_hz, expected_string):
+    """Test the _format_period helper function."""
+    assert _format_period(frequency_hz) == expected_string
+
+def test_interpret_results_segmented():
+    """
+    Test the interpreter output for a segmented fit, checking for the new
+    breakpoint period format.
+    """
+    # Breakpoint corresponds to a ~90 day period
+    breakpoint_freq = 1 / (90 * 86400)
+
+    fit_results = {
+        'beta1': 0.5,
+        'beta2': 1.5,
+        'breakpoint': breakpoint_freq,
+        'significant_peaks': [] # No peaks for this test
+    }
+
+    results = interpret_results(fit_results, param_name="Ortho-P")
+    summary = results['summary_text']
+
+    assert "Segmented Analysis for: Ortho-P" in summary
+    assert "Breakpoint Period ≈ 3.0 months" in summary
+    assert "Low-Frequency (Long-term) Fit" in summary
+    assert "β1 = 0.50" in summary
+    assert "High-Frequency (Short-term) Fit" in summary
+    assert "β2 = 1.50" in summary
