@@ -92,8 +92,18 @@ def test_analysis_with_known_beta(tmp_path, known_beta, tolerance):
 @patch('waterSpec.analysis.fit_spectrum_with_bootstrap')
 def test_analysis_auto_chooses_segmented_with_mock(mock_fit_standard, mock_fit_segmented, tmp_path):
     """Test that auto mode chooses the segmented model with a better BIC score."""
-    mock_fit_segmented.return_value = {'beta1': 0.5, 'beta2': 1.8, 'breakpoint': 0.01, 'bic': 100.0}
-    mock_fit_standard.return_value = {'beta': 1.2, 'bic': 120.0}
+    # Add required keys for the residual peak finding to the mock return values
+    dummy_array = np.array([1, 2, 3])
+    mock_fit_segmented.return_value = {
+        'beta1': 0.5, 'beta2': 1.8, 'breakpoint': 0.01, 'bic': 100.0,
+        'residuals': dummy_array, 'fitted_log_power': dummy_array,
+        'log_freq': dummy_array, 'log_power': dummy_array
+    }
+    mock_fit_standard.return_value = {
+        'beta': 1.2, 'bic': 120.0,
+        'residuals': dummy_array, 'fitted_log_power': dummy_array,
+        'log_freq': dummy_array, 'log_power': dummy_array
+    }
 
     file_path = create_test_data_file(tmp_path, pd.date_range('2023', periods=100), np.random.rand(100))
     output_dir = tmp_path / "results"
@@ -146,8 +156,40 @@ def test_analysis_fap_threshold_is_configurable(tmp_path):
     results = analyzer.run_full_analysis(
         output_dir=str(output_dir),
         n_bootstraps=10,
+            peak_detection_method='fap',
         fap_threshold=custom_fap
     )
 
     assert 'fap_threshold' in results
     assert results['fap_threshold'] == custom_fap
+
+def test_analysis_residual_method_finds_peak(tmp_path):
+    """Test the full workflow with the residual method on data with a known peak."""
+    # Generate a signal with a strong periodic component
+    n_points = 512
+    time = pd.date_range(start='2000-01-01', periods=n_points, freq='D')
+    rng = np.random.default_rng(42)
+    noise = rng.normal(0, 0.5, n_points)
+    # Add a sine wave with a period of ~50 days
+    known_freq_cpd = 1 / 50 # cycles/day
+    signal = 2 * np.sin(2 * np.pi * known_freq_cpd * np.arange(n_points))
+    series = noise + signal
+
+    file_path = create_test_data_file(tmp_path, time, series)
+    output_dir = tmp_path / "results_residual"
+
+    analyzer = Analysis(file_path, time_col='time', data_col='value', detrend_method='linear')
+    results = analyzer.run_full_analysis(
+        output_dir=str(output_dir),
+        grid_type='linear',
+        peak_detection_method='residual',
+        peak_detection_ci=95
+    )
+
+    assert 'significant_peaks' in results
+    assert len(results['significant_peaks']) > 0
+
+    # The frequency is in Hz, so convert our known frequency
+    known_freq_hz = known_freq_cpd / 86400
+    found_peak_freq = results['significant_peaks'][0]['frequency']
+    assert found_peak_freq == pytest.approx(known_freq_hz, rel=0.05)

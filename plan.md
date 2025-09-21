@@ -440,13 +440,13 @@ A full report of a sample run can be found in `validation/dplR_validation_report
 
 ---
 
-## Audit Finding and Recommendation: Data-Driven Peak Significance Testing
+## Implemented Feature: Data-Driven Peak Significance Testing
 
-**Finding:** A comprehensive audit and validation against the `dplR` package revealed that the current peak significance testing, which relies on `astropy`'s False Alarm Probability (FAP) calculation, is **unreliable for data with colored noise** (i.e., `beta > 0`). The FAP calculation assumes a white noise background, causing it to set an incorrect significance threshold for typical environmental time series, leading to a failure to detect real periodic signals.
+**Problem:** The original peak significance testing, which relied on `astropy`'s False Alarm Probability (FAP) calculation, was found to be unreliable for data with colored noise (i.e., `beta > 0`). The FAP calculation assumes a white noise background, which is often not the case for environmental time series.
 
-**Recommendation:** To address this critical scientific flaw, the following data-driven approach to significance testing should be implemented. This method is robust for any arbitrary spectral slope (`beta`) and also extends naturally to segmented (multifractal) fits.
+**Solution:** To address this, a more robust, data-driven approach to significance testing has been implemented. This method is now the default for peak detection. It is robust for any arbitrary spectral slope (`beta`) and also extends naturally to segmented (multifractal) fits.
 
-### Proposed Methodology
+### Implemented Methodology
 
 The core idea is to use the fitted spectrum itself as the background noise model.
 

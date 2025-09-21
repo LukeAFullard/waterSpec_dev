@@ -83,7 +83,16 @@ def plot_spectrum(frequency, power, fit_results, analysis_type='standard', outpu
     for peak in significant_peaks:
         peak_freq = peak['frequency']
         peak_power = peak['power']
-        plt.annotate(f'Period: {_format_period(peak_freq)}\n(FAP: {peak["fap"]:.2E})',
+
+        # Create annotation text based on which significance info is available
+        if 'fap' in peak:
+            annotation_text = f'Period: {_format_period(peak_freq)}\n(FAP: {peak["fap"]:.2E})'
+        elif 'residual' in peak:
+            annotation_text = f'Period: {_format_period(peak_freq)}\n(Residual: {peak["residual"]:.2f})'
+        else:
+            annotation_text = f'Period: {_format_period(peak_freq)}'
+
+        plt.annotate(annotation_text,
                      xy=(peak_freq, peak_power),
                      xytext=(peak_freq, peak_power * 1.5),
                      arrowprops=dict(facecolor='black', shrink=0.05, width=1, headwidth=4),

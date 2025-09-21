@@ -5,7 +5,7 @@ import os
 from .data_loader import load_data
 from .preprocessor import preprocess_data
 from .frequency_generator import generate_frequency_grid
-from .spectral_analyzer import calculate_periodogram, find_significant_peaks
+from .spectral_analyzer import calculate_periodogram, find_significant_peaks, find_peaks_via_residuals
 from .fitter import fit_spectrum_with_bootstrap, fit_segmented_spectrum
 from .interpreter import interpret_results
 from .plotting import plot_spectrum
@@ -88,7 +88,9 @@ class Analysis:
         fap_threshold=0.01,
         grid_type='log',
         fap_method='bootstrap',
-        normalization='standard'
+        normalization='standard',
+        peak_detection_method='residual',
+        peak_detection_ci=95
     ):
         """
         Runs the complete analysis workflow and saves all outputs to a directory.
@@ -101,10 +103,15 @@ class Analysis:
             output_dir (str): The path to the directory where outputs will be saved.
             fit_method (str, optional): Method for spectral slope fitting. Defaults to 'theil-sen'.
             n_bootstraps (int, optional): Number of bootstrap samples for CI. Defaults to 1000.
-            fap_threshold (float, optional): FAP threshold for peak detection. Defaults to 0.01.
             grid_type (str, optional): Type of frequency grid ('log' or 'linear'). Defaults to 'log'.
+            peak_detection_method (str, optional): Method for peak detection.
+                                                   'residual' (default) uses the new robust method.
+                                                   'fap' uses the old False Alarm Probability method.
+            peak_detection_ci (int, optional): Confidence interval for residual method. Defaults to 95.
+            fap_threshold (float, optional): FAP threshold for 'fap' method. Defaults to 0.01.
             fap_method (str, optional): Method for FAP calculation ('bootstrap', 'baluev', etc.).
                                        Defaults to 'bootstrap'.
+            normalization (str, optional): Normalization for the periodogram. Defaults to 'standard'.
 
         Returns:
             dict: A dictionary containing all analysis results.
@@ -148,20 +155,32 @@ class Analysis:
         fit_results['chosen_model'] = analysis_type
         fit_results['analysis_mode'] = 'auto' # This method always runs in auto mode
 
-        # --- Peak Significance ---
-        if fap_threshold is not None:
-            significant_peaks, fap_level = find_significant_peaks(
-                self.ls_obj, self.frequency, self.power,
-                fap_threshold=fap_threshold, fap_method=fap_method
-            )
-            fit_results['significant_peaks'] = significant_peaks
-            fit_results['fap_level'] = fap_level
-            fit_results['fap_threshold'] = fap_threshold
-
-        # --- Interpretation ---
+        # --- Peak Significance (only if fit was successful) ---
         fit_successful = ('beta' in fit_results and np.isfinite(fit_results['beta'])) or \
                          ('beta1' in fit_results and np.isfinite(fit_results['beta1']))
 
+        if fit_successful:
+            if peak_detection_method == 'residual':
+                significant_peaks, residual_threshold = find_peaks_via_residuals(
+                    fit_results, ci=peak_detection_ci
+                )
+                fit_results['significant_peaks'] = significant_peaks
+                fit_results['residual_threshold'] = residual_threshold
+                fit_results['peak_detection_ci'] = peak_detection_ci
+
+            elif peak_detection_method == 'fap':
+                if fap_threshold is not None:
+                    significant_peaks, fap_level = find_significant_peaks(
+                        self.ls_obj, self.frequency, self.power,
+                        fap_threshold=fap_threshold, fap_method=fap_method
+                    )
+                    fit_results['significant_peaks'] = significant_peaks
+                    fit_results['fap_level'] = fap_level
+                    fit_results['fap_threshold'] = fap_threshold
+            elif peak_detection_method is not None:
+                warnings.warn(f"Unknown peak_detection_method '{peak_detection_method}'. No peak detection will be performed.", UserWarning)
+
+        # --- Interpretation ---
         if not fit_successful:
             interp_results = {"summary_text": "Analysis failed: Could not determine a valid spectral slope."}
             fit_results.setdefault('summary_text', interp_results["summary_text"])

@@ -79,3 +79,56 @@ def find_significant_peaks(ls, frequency, power, fap_threshold=0.01, fap_method=
     significant_peaks.sort(key=lambda p: p['power'], reverse=True)
 
     return significant_peaks, fap_level
+
+
+def find_peaks_via_residuals(fit_results, ci=95):
+    """
+    Finds significant peaks by identifying outliers in the residuals of the spectral fit.
+
+    Args:
+        fit_results (dict): The dictionary returned by the fitting functions.
+                            Must contain 'residuals', 'fitted_log_power', 'log_freq',
+                            and 'log_power'.
+        ci (int, optional): The confidence interval to use for the significance
+                            threshold, in percent. Defaults to 95.
+
+    Returns:
+        tuple: A tuple containing:
+               - list: A list of dictionaries, each describing a significant peak.
+               - float: The residual threshold used for significance.
+    """
+    if 'residuals' not in fit_results or 'fitted_log_power' not in fit_results:
+        raise ValueError("fit_results dictionary must contain 'residuals' and 'fitted_log_power'.")
+
+    residuals = fit_results['residuals']
+    log_freq = fit_results['log_freq']
+    log_power = fit_results['log_power']
+
+    # Calculate the significance threshold from the residuals
+    residual_threshold = np.percentile(residuals, ci)
+
+    # Find indices where the residual exceeds the threshold
+    significant_indices = np.where(residuals > residual_threshold)[0]
+    if len(significant_indices) == 0:
+        return [], residual_threshold
+
+    # Group contiguous significant indices into regions
+    significant_groups = np.split(significant_indices, np.where(np.diff(significant_indices) != 1)[0] + 1)
+
+    significant_peaks = []
+    for group in significant_groups:
+        if len(group) == 0:
+            continue
+        # For each significant region, find the point with the highest power
+        max_power_index_in_group = group[np.argmax(log_power[group])]
+
+        significant_peaks.append({
+            'frequency': np.exp(log_freq[max_power_index_in_group]),
+            'power': np.exp(log_power[max_power_index_in_group]),
+            'residual': residuals[max_power_index_in_group]
+        })
+
+    # Sort peaks by residual in descending order
+    significant_peaks.sort(key=lambda p: p['residual'], reverse=True)
+
+    return significant_peaks, residual_threshold
