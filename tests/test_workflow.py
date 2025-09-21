@@ -96,6 +96,47 @@ def test_workflow_with_known_beta(tmp_path, known_beta, tolerance):
     assert results['chosen_model'] == 'standard'
 
 
+from unittest.mock import patch
+
+@patch('waterSpec.workflow.fit_segmented_spectrum')
+@patch('waterSpec.workflow.fit_spectrum_with_bootstrap')
+def test_workflow_auto_chooses_segmented_with_mock(mock_fit_standard, mock_fit_segmented, tmp_path):
+    """
+    Test that the auto analysis mode correctly chooses the segmented model
+    when its BIC score is more favorable, using mocks to ensure predictable behavior.
+    """
+    # 1. Configure the mock return values
+    # The segmented fit should have a lower (better) BIC
+    mock_fit_segmented.return_value = {
+        'beta1': 0.5, 'beta2': 1.8, 'breakpoint': 0.01, 'bic': 100.0
+    }
+    # The standard fit should have a higher (worse) BIC
+    mock_fit_standard.return_value = {
+        'beta': 1.2, 'bic': 120.0
+    }
+
+    # 2. Create a dummy data file (the mocks will prevent it from being used for fitting)
+    file_path = create_test_data_file(tmp_path, pd.date_range('2023', periods=100), np.random.rand(100))
+
+    # 3. Run the analysis in auto mode
+    results = run_analysis(
+        file_path,
+        time_col='time',
+        data_col='value',
+        analysis_type='auto',
+    )
+
+    # 4. Assert that the segmented model was chosen because its BIC was lower
+    assert 'chosen_model' in results
+    assert results['chosen_model'] == 'segmented'
+    assert results['bic_comparison']['segmented'] == 100.0
+    assert results['bic_comparison']['standard'] == 120.0
+
+    # 5. Assert that the top-level results are from the segmented fit
+    assert 'beta1' in results
+    assert results['beta1'] == 0.5
+
+
 # --- New Edge Case Tests for the Workflow ---
 
 def test_workflow_insufficient_data_after_preprocess(tmp_path):
@@ -142,6 +183,62 @@ def test_workflow_all_nan_data(tmp_path):
         run_analysis(file_path, time_col='time', data_col='value')
 
 # --- Helper functions ---
+
+def generate_synthetic_series_with_breakpoint(n_points=2048, beta1=0.5, beta2=1.8, breakpoint_freq=0.1, seed=42):
+    """
+    Generates a synthetic time series with a known spectral breakpoint.
+    This version creates two independent series and stitches them together in the
+    frequency domain, which creates a more robust breakpoint for testing.
+    """
+    rng = np.random.default_rng(seed)
+    # Generate two independent fGn/fBm series
+    # Use fbm library if available, otherwise use the existing spectral method
+    try:
+        from fbm import fbm
+        # Convert beta to Hurst
+        H1 = (beta1 - 1) / 2
+        H2 = (beta2 - 1) / 2
+        series1 = fbm(n=n_points, hurst=H1, length=1, method='daviesharte')
+        series2 = fbm(n=n_points, hurst=H2, length=1, method='daviesharte')
+    except ImportError:
+        # Fallback to spectral method if fbm is not installed
+        _, series1 = generate_synthetic_series(n_points=n_points, beta=beta1, seed=seed)
+        _, series2 = generate_synthetic_series(n_points=n_points, beta=beta2, seed=seed+1)
+
+
+    # Get their Fourier transforms
+    f_series1 = np.fft.rfft(series1)
+    f_series2 = np.fft.rfft(series2)
+
+    # Filter and combine in the frequency domain
+    freq = np.fft.rfftfreq(n_points)
+    f_combined = np.zeros_like(f_series1)
+
+    low_freq_mask = freq < breakpoint_freq
+    high_freq_mask = freq >= breakpoint_freq
+
+    f_combined[low_freq_mask] = f_series1[low_freq_mask]
+    f_combined[high_freq_mask] = f_series2[high_freq_mask]
+
+    # Transform back to time domain
+    series = np.fft.irfft(f_combined, n=n_points)
+    time = pd.date_range(start='2000-01-01', periods=n_points, freq='D')
+    return time, series
+
+def generate_synthetic_series(n_points=1024, beta=0, seed=42):
+    """
+    Generates a synthetic time series with a known spectral exponent (beta).
+    """
+    rng = np.random.default_rng(seed)
+    freq = np.fft.rfftfreq(n_points)
+    freq[0] = 1e-6
+    power_spectrum = freq ** (-beta)
+    amplitude_spectrum = np.sqrt(power_spectrum)
+    random_phases = rng.uniform(0, 2 * np.pi, len(freq))
+    fourier_spectrum = amplitude_spectrum * np.exp(1j * random_phases)
+    series = np.fft.irfft(fourier_spectrum, n=n_points)
+    time = pd.date_range(start='2000-01-01', periods=n_points, freq='D')
+    return time, series
 
 def generate_synthetic_series(n_points=1024, beta=0, seed=42):
     """
