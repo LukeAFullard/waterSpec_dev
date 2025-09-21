@@ -135,3 +135,19 @@ def test_deprecation_warning_for_old_workflow():
         # We need to import it here to isolate the test
         from waterSpec.workflow import run_analysis
         run_analysis(file_path, time_col='timestamp', data_col='concentration', n_bootstraps=10, analysis_type='standard')
+
+def test_analysis_fap_threshold_is_configurable(tmp_path):
+    """Test that the fap_threshold can be configured in run_full_analysis."""
+    file_path = 'examples/sample_data.csv'
+    output_dir = tmp_path / "results"
+    custom_fap = 0.05
+
+    analyzer = Analysis(file_path, time_col='timestamp', data_col='concentration')
+    results = analyzer.run_full_analysis(
+        output_dir=str(output_dir),
+        n_bootstraps=10,
+        fap_threshold=custom_fap
+    )
+
+    assert 'fap_threshold' in results
+    assert results['fap_threshold'] == custom_fap
