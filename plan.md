@@ -203,6 +203,8 @@ Outputs: point estimate, 95% CI (bootstrap), optional posterior summary.
 
 ### Extensions (Future Work)
 
+- **Advanced Significance Testing (Surrogate Method)**: To achieve the highest level of scientific rigor for peak detection, a surrogate data testing method could be implemented. This involves generating a large number of surrogate time series that mimic the noise properties of the original data (including multifractal properties, using a method like IAAFT) but contain no periodic signals. A confidence interval is then derived from the periodograms of these surrogates. A peak in the real data is significant if it rises above this interval. This method is extremely robust but was postponed due to its high computational cost and the lack of permissively licensed third-party libraries for IAAFT surrogate generation.
+
 Based on a detailed review of the Lomb-Scargle method and the `astropy` implementation, the following features are recommended to significantly improve the scientific rigor and utility of the `waterSpec` package.
 
 #### 1. Statistical Significance Testing (False Alarm Probability)
