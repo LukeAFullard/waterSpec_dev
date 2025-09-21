@@ -105,7 +105,7 @@ def main():
 
     print("\n--- Validation Sweep Summary ---")
     df = pd.DataFrame(results_data)
-    print(df)
+    print(df.to_markdown(index=False))
 
 
 if __name__ == "__main__":
