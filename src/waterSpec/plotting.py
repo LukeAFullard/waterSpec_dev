@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from .interpreter import _format_period
+
 def plot_spectrum(frequency, power, fit_results, analysis_type='standard', output_path=None, param_name="Parameter"):
     """
     Generates and saves a plot of the power spectrum and its fit.
@@ -66,7 +68,7 @@ def plot_spectrum(frequency, power, fit_results, analysis_type='standard', outpu
                        color='m', linestyle='-', linewidth=2, label=f'High-Freq Fit (β2 ≈ {beta2:.2f})')
 
             # Add a vertical line for the breakpoint
-            plt.axvline(x=breakpoint_freq, color='k', linestyle='--', alpha=0.7, label=f'Breakpoint ≈ {breakpoint_freq:.2f}')
+            plt.axvline(x=breakpoint_freq, color='k', linestyle='--', alpha=0.7, label=f'Breakpoint ≈ {_format_period(breakpoint_freq)}')
 
     # Plot the FAP level and annotate significant peaks if available
     fap_level = fit_results.get('fap_level')
@@ -81,7 +83,7 @@ def plot_spectrum(frequency, power, fit_results, analysis_type='standard', outpu
     for peak in significant_peaks:
         peak_freq = peak['frequency']
         peak_power = peak['power']
-        plt.annotate(f'f={peak_freq:.2f}\n(p={peak["fap"]:.2E})',
+        plt.annotate(f'Period: {_format_period(peak_freq)}\n(FAP: {peak["fap"]:.2E})',
                      xy=(peak_freq, peak_power),
                      xytext=(peak_freq, peak_power * 1.5),
                      arrowprops=dict(facecolor='black', shrink=0.05, width=1, headwidth=4),
