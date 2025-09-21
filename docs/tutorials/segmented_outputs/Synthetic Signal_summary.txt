@@ -1,0 +1,27 @@
+Automatic Analysis for: Synthetic Signal
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard Fit:   BIC = 149.57 (β = 0.66)
+  - Segmented Fit:  BIC = 112.94 (β1 = 1.34, β2 = -0.12)
+==> Chosen Model: Segmented
+-----------------------------------
+
+Details for Chosen (Segmented) Model:
+Segmented Analysis for: Synthetic Signal
+Breakpoint Period ≈ 22.6 days
+-----------------------------------
+Low-Frequency (Long-term) Fit:
+  β1 = 1.34
+  Interpretation: 1 < β < 3 (fBm-like): Strong persistence, suggesting transport is damped by storage.
+  Persistence: 🟢 Persistent / Subsurface Dominated (High Persistence)
+-----------------------------------
+High-Frequency (Short-term) Fit:
+  β2 = -0.12
+  Interpretation: β ≈ 0: White noise (uncorrelated).
+  Persistence: 🔴 Event-driven (Low Persistence)
+
+-----------------------------------
+Significant Periodicities Found:
+  - Period: 6.4 months (FAP: 0.00E+00)
+  - Period: 13.6 months (FAP: 0.00E+00)
+  - Period: 2.4 months (FAP: 0.00E+00)

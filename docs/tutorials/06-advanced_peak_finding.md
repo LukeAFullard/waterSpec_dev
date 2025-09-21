@@ -26,82 +26,67 @@ df = pd.DataFrame({'timestamp': time, 'value': series})
 df.to_csv(file_path, index=False)
 ```
 
-### Step 2: Manually Run Peak Detection
+### Step 2: Run the Analysis with FAP Detection
 
-While `run_analysis` can find peaks, for a focused search it's often better to use the lower-level `find_significant_peaks` function. This also lets us choose the best type of frequency grid for the job.
+With the new `Analysis` class, finding significant peaks is incredibly simple. You just pass the `fap_threshold` argument to the `run_full_analysis` method. A common threshold is `0.01` (a 1% chance of a false alarm).
 
-**Pro-Tip:** For finding specific peaks, a **linear** frequency grid is often better than the log-spaced grid used for fitting beta. Let's create one.
-
-```python
-from waterSpec import load_data
-from waterSpec.spectral_analyzer import calculate_periodogram, find_significant_peaks
-from astropy.timeseries import LombScargle
-
-# Load the data
-time_numeric, data_series, _ = load_data(file_path, 'timestamp', 'value')
-
-# Generate a LINEAR frequency grid
-duration = np.max(time_numeric) - np.min(time_numeric)
-min_freq_hz = 1 / duration
-nyquist_freq_hz = 0.5 / np.median(np.diff(time_numeric))
-linear_frequency_grid = np.linspace(min_freq_hz, nyquist_freq_hz, 5000)
-
-# Calculate the periodogram to get the power and the LombScargle object
-_, power, ls_obj = calculate_periodogram(
-    time_numeric,
-    data_series.to_numpy(),
-    frequency=linear_frequency_grid
-)
-
-# Find significant peaks
-peaks, fap_level = find_significant_peaks(
-    ls_obj,
-    linear_frequency_grid,
-    power,
-    fap_threshold=0.01,
-    fap_method='baluev' # Use a fast method for the tutorial
-)
-
-print("Found significant peaks:")
-for peak in peaks:
-    freq_cpd = peak['frequency'] * 86400 # Convert from Hz to cycles/day
-    print(f"  - Frequency: {freq_cpd:.4f} cycles/day, Power: {peak['power']:.2f}, FAP: {peak['fap']:.2E}")
-```
-
-**Output:**
-```text
---- Manual Peak Detection ---
-Found significant peaks:
-  - Frequency: 0.0333 cycles/day, Power: 1.00, FAP: 0.00E+00
-```
-
-Success! The analysis found a peak right at our known frequency of `1/30 = 0.0333` cycles/day.
-
-### Step 3: Visualize the FAP
-
-Now, let's use the main `run_analysis` function just to generate the plot, which will automatically include the FAP threshold and annotate the significant peaks.
+**Pro-Tip:** For finding specific peaks, a **linear** frequency grid is often better than the default log-spaced grid. We can specify this with the `grid_type` argument.
 
 ```python
-from waterSpec import run_analysis
+from waterSpec import Analysis
 
-plot_path = 'docs/tutorials/06_fap_plot.png'
-
-run_analysis(
-    file_path=file_path,
+# Initialize the analyzer
+analyzer = Analysis(
+    file_path='examples/periodic_data.csv',
     time_col='timestamp',
     data_col='value',
-    detrend_method=None, # Important: Don't detrend away the signal we want to find!
-    fap_threshold=0.01,
-    do_plot=True,
-    output_path=plot_path,
-    grid_type='linear' # Use linear grid for better peak resolution
+    detrend_method=None # Important: Don't detrend away the signal!
 )
 
-print(f"Plot with FAP annotations saved to: {plot_path}")
+# Run the analysis with FAP detection
+results = analyzer.run_full_analysis(
+    output_dir='docs/tutorials/fap_outputs',
+    fap_threshold=0.01,
+    grid_type='linear' # Use linear grid for better peak resolution
+)
 ```
 
-Here is the resulting plot:
+### Step 3: Review the Outputs
 
-![FAP Plot](06_fap_plot.png)
+The `run_full_analysis` command automatically generates a plot and a text summary with the FAP results included.
 
-The dashed line shows the 1% FAP threshold. Any peak rising above this line is considered statistically significant, and our 30-day signal clearly does!
+Here is the plot. The dashed red line shows the 1% FAP threshold. Any peak rising above this line is considered statistically significant, and our 30-day signal clearly does!
+
+![FAP Plot](fap_outputs/value_spectrum_plot.png)
+
+The text summary also lists the significant peaks that were found:
+
+```text
+Automatic Analysis for: value
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard Fit:   BIC = 139.10 (β = 1.79)
+  - Segmented Fit:  BIC = 98.28 (β1 = -1.66, β2 = 2.35)
+==> Chosen Model: Segmented
+-----------------------------------
+
+Details for Chosen (Segmented) Model:
+Segmented Analysis for: value
+Breakpoint Period ≈ 47.4 days
+-----------------------------------
+Low-Frequency (Long-term) Fit:
+  β1 = -1.66
+  Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.
+  Persistence: 🔴 Event-driven (Low Persistence)
+-----------------------------------
+High-Frequency (Short-term) Fit:
+  β2 = 2.35
+  Interpretation: 1 < β < 3 (fBm-like): Strong persistence, suggesting transport is damped by storage.
+  Persistence: 🟢 Persistent / Subsurface Dominated (High Persistence)
+
+-----------------------------------
+Significant Periodicities Found:
+  - Period: 30.6 days (FAP: 0.00E+00)
+```
+
+By setting one simple parameter, you've performed a statistically robust search for periodic signals in your data.

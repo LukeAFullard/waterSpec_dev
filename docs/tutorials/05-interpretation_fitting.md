@@ -1,110 +1,67 @@
-# Tutorial 5: Interpreting Fits and Results
+# Tutorial 5: Understanding the Results
 
-After calculating the power spectrum, the next step is to fit a model to it and interpret the results. This tutorial covers the fitting and interpretation functions in `waterSpec`.
+After running an analysis, `waterSpec` provides a rich dictionary of results and a detailed text summary. This tutorial explains how to access and interpret these outputs.
 
-### Part 1: Standard Fit with Confidence Intervals
+### The `results` Dictionary
 
-For most use cases, you'll want to fit a single straight line to your spectrum on a log-log plot. The slope of this line gives us the spectral exponent, β. `waterSpec` provides a function that not only does this but also calculates a confidence interval for β using a bootstrap method.
+The `run_full_analysis()` method returns a Python dictionary that contains all the quantitative results of the analysis. This dictionary is also stored in the `analyzer.results` attribute.
 
-Let's continue from where the last tutorial left off, assuming we have our `frequency` and `power` arrays.
-
-```python
-# First, let's regenerate the frequency and power from the previous tutorial
-from waterSpec import load_data, preprocess_data, generate_log_spaced_grid, calculate_periodogram
-import numpy as np
-
-time_numeric, data_series, _ = load_data('examples/sample_data.csv', 'timestamp', 'concentration')
-processed_data, _ = preprocess_data(data_series, time_numeric, detrend_method='linear')
-valid_indices = ~np.isnan(processed_data)
-time_final = time_numeric[valid_indices]
-data_final = processed_data[valid_indices]
-frequency_grid = generate_log_spaced_grid(time_final)
-frequency, power = calculate_periodogram(time_final, data_final, frequency=frequency_grid)
-```
-
-Now, let's fit the spectrum and see the results.
+Let's run an analysis and inspect the results.
 
 ```python
-from waterSpec.fitter import fit_spectrum_with_bootstrap
+from waterSpec import Analysis
+import pprint
 
-fit_results = fit_spectrum_with_bootstrap(frequency, power, n_bootstraps=100) # Use fewer bootstraps for speed
+# 1. Create and run the analysis
+analyzer = Analysis(
+    file_path='examples/sample_data.csv',
+    time_col='timestamp',
+    data_col='concentration'
+)
+results = analyzer.run_full_analysis(output_dir='docs/tutorials/interpretation_outputs')
 
-print("--- Fit Results ---")
-for key, value in fit_results.items():
-    print(f"{key}: {value}")
+# 2. Print the full results dictionary
+print("--- Full Results Dictionary ---")
+pprint.pprint(results)
 ```
 
-**Output:**
-```text
---- Fit Results ---
-beta: -0.6140110702805378
-r_squared: 0.19599359983335085
-intercept: 2.7608601805043547
-stderr: 0.088379677863569
-beta_ci_lower: -0.7719592923998391
-beta_ci_upper: -0.44278049117381124
-```
+### Key Results Explained
 
-The dictionary above gives you the key quantitative results:
-- `beta`: The spectral exponent. This is the main value of interest.
-- `r_squared`: How well the line fits the data (a value closer to 1 is better).
-- `intercept`: The intercept of the log-log linear fit.
-- `stderr`: The standard error of the slope estimate.
-- `beta_ci_lower` & `beta_ci_upper`: The 95% confidence interval for your beta value.
+While the dictionary is comprehensive, here are the most important keys to understand:
 
-Now, let's turn these numbers into a human-readable interpretation.
+- **`summary_text`**: A full, human-readable interpretation of the analysis. This is the same text that gets saved to the summary file.
+- **`analysis_mode`**: Will always be `'auto'` when using `run_full_analysis`.
+- **`chosen_model`**: The model selected by the automatic analysis (`'standard'` or `'segmented'`).
+- **`bic_comparison`**: A dictionary showing the Bayesian Information Criterion (BIC) for both the standard and segmented fits. The model with the *lower* BIC is chosen.
+
+#### If the chosen model is `standard`:
+- **`beta`**: The main result. The spectral exponent calculated from the best-fit line.
+- **`beta_ci_lower` / `beta_ci_upper`**: The lower and upper bounds of the 95% confidence interval for beta.
+- **`r_squared`**: The R-squared value of the fit.
+
+#### If the chosen model is `segmented`:
+- **`beta1` / `beta2`**: The spectral exponents for the first (low-frequency) and second (high-frequency) segments of the spectrum.
+- **`breakpoint`**: The frequency (in Hz) at which the spectrum "breaks".
+
+- **`significant_peaks`**: A list of any statistically significant periodicities found in the data, along with their False Alarm Probability (FAP).
+
+### Accessing Specific Results
+
+You can easily access any specific value from the results dictionary.
 
 ```python
-from waterSpec.interpreter import interpret_results
+# Check which model was chosen
+chosen_model = results['chosen_model']
+print(f"The best-fitting model was: {chosen_model}")
 
-beta = fit_results.get('beta')
-ci = (fit_results.get('beta_ci_lower'), fit_results.get('beta_ci_upper'))
-
-interpretation = interpret_results(beta, ci=ci, param_name='Concentration')
-
-print(interpretation['summary_text'])
+# Get the primary beta value(s)
+if chosen_model == 'standard':
+    beta = results['beta']
+    print(f"The spectral exponent is: {beta:.2f}")
+else:
+    beta1 = results['beta1']
+    beta2 = results['beta2']
+    print(f"The spectral exponents are: β1={beta1:.2f}, β2={beta2:.2f}")
 ```
 
-**Output:**
-```text
---- Interpretation ---
-Analysis for: Concentration
-Value: β = -0.61 (95% CI: -0.77–-0.44)
-Persistence Level: 🔴 Event-driven (Low Persistence)
-Scientific Meaning: Warning: Beta value is significantly negative, which is physically unrealistic.
-Contextual Comparison: Closest to E. coli (Surface runoff-dominated).
-```
-
-### Part 2: Segmented Regression
-
-Sometimes, a single line isn't enough. The transport processes in a watershed might behave differently at different timescales (frequencies). This shows up as a "knee" or a break in the power spectrum. To analyze this, you can use segmented regression.
-
-Let's create a synthetic spectrum with a known breakpoint to see how it works.
-
-```python
-from waterSpec.fitter import fit_segmented_spectrum
-
-# Create a synthetic spectrum with a breakpoint at frequency=0.1
-synth_freq = np.logspace(-2, 1, 100)
-power1 = synth_freq**-0.5
-power2 = (0.1**-0.5 / 0.1**-1.8) * synth_freq**-1.8 # Scale to connect smoothly
-synth_power = np.where(synth_freq < 0.1, power1, power2) + np.random.rand(100) * 0.1
-
-# Fit the segmented spectrum
-segmented_results = fit_segmented_spectrum(synth_freq, synth_power)
-
-print("--- Segmented Fit Results ---")
-print(f"Breakpoint found at frequency: {segmented_results.get('breakpoint'):.3f}")
-print(f"Beta 1 (low frequency): {segmented_results.get('beta1'):.2f}")
-print(f"Beta 2 (high frequency): {segmented_results.get('beta2'):.2f}")
-```
-
-**Output:**
-```text
---- Segmented Fit Results ---
-Breakpoint found at frequency: 2.271
-Beta 1 (low frequency): 1.13
-Beta 2 (high frequency): 0.04
-```
-
-The function automatically finds the breakpoint and calculates a separate beta value for each segment, allowing you to analyze complex systems with multiple dominant processes.
+By exploring this dictionary, you have full programmatic access to every detail of the analysis for your own custom reports and workflows.

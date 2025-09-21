@@ -1,0 +1,25 @@
+Automatic Analysis for: value
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard Fit:   BIC = 139.10 (β = 1.79)
+  - Segmented Fit:  BIC = 98.28 (β1 = -1.66, β2 = 2.35)
+==> Chosen Model: Segmented
+-----------------------------------
+
+Details for Chosen (Segmented) Model:
+Segmented Analysis for: value
+Breakpoint Period ≈ 47.4 days
+-----------------------------------
+Low-Frequency (Long-term) Fit:
+  β1 = -1.66
+  Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.
+  Persistence: 🔴 Event-driven (Low Persistence)
+-----------------------------------
+High-Frequency (Short-term) Fit:
+  β2 = 2.35
+  Interpretation: 1 < β < 3 (fBm-like): Strong persistence, suggesting transport is damped by storage.
+  Persistence: 🟢 Persistent / Subsurface Dominated (High Persistence)
+
+-----------------------------------
+Significant Periodicities Found:
+  - Period: 30.6 days (FAP: 0.00E+00)
