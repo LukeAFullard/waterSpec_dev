@@ -86,7 +86,9 @@ class Analysis:
         fit_method='theil-sen',
         n_bootstraps=1000,
         fap_threshold=0.01,
-        grid_type='log'
+        grid_type='log',
+        fap_method='bootstrap',
+        normalization='standard'
     ):
         """
         Runs the complete analysis workflow and saves all outputs to a directory.
@@ -101,6 +103,8 @@ class Analysis:
             n_bootstraps (int, optional): Number of bootstrap samples for CI. Defaults to 1000.
             fap_threshold (float, optional): FAP threshold for peak detection. Defaults to 0.01.
             grid_type (str, optional): Type of frequency grid ('log' or 'linear'). Defaults to 'log'.
+            fap_method (str, optional): Method for FAP calculation ('bootstrap', 'baluev', etc.).
+                                       Defaults to 'bootstrap'.
 
         Returns:
             dict: A dictionary containing all analysis results.
@@ -111,7 +115,8 @@ class Analysis:
         # --- Periodogram Calculation ---
         self.frequency = generate_frequency_grid(self.time, grid_type=grid_type)
         self.frequency, self.power, self.ls_obj = calculate_periodogram(
-            self.time, self.data, frequency=self.frequency, dy=self.errors
+            self.time, self.data, frequency=self.frequency, dy=self.errors,
+            normalization=normalization
         )
 
         # --- Auto-Analysis Mode ---
@@ -146,7 +151,8 @@ class Analysis:
         # --- Peak Significance ---
         if fap_threshold is not None:
             significant_peaks, fap_level = find_significant_peaks(
-                self.ls_obj, self.frequency, self.power, fap_threshold=fap_threshold
+                self.ls_obj, self.frequency, self.power,
+                fap_threshold=fap_threshold, fap_method=fap_method
             )
             fit_results['significant_peaks'] = significant_peaks
             fit_results['fap_level'] = fap_level

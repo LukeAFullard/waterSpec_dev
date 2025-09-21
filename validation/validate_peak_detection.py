@@ -81,7 +81,7 @@ def main():
             file_path,
             time_col='time',
             data_col='value',
-            detrend_method='linear'
+            detrend_method=None
         )
         # Use a linear grid for better peak resolution
         ws_results = ws_analyzer.run_full_analysis(
@@ -95,9 +95,9 @@ def main():
         if 'significant_peaks' in ws_results and ws_results['significant_peaks']:
             for peak in ws_results['significant_peaks']:
                 # Check if a detected peak is close to our known signal frequency
-                if abs(peak['freq'] - signal_freq) < 0.01:
+                if abs(peak['frequency'] - signal_freq) < 0.01:
                     ws_peak_found = True
-                    print(f"  [SUCCESS] waterSpec found a significant peak at frequency {peak['freq']:.4f}")
+                    print(f"  [SUCCESS] waterSpec found a significant peak at frequency {peak['frequency']:.4f}")
                     break
         if not ws_peak_found:
             print("  [FAILURE] waterSpec did not find the significant peak.")
@@ -113,9 +113,15 @@ def main():
             )
 
             # Extract results from the R object
-            freq = np.array(redfit_results.rx2('freq'))
-            power = np.array(redfit_results.rx2('gxxc'))
-            ci95 = np.array(redfit_results.rx2('ci95'))
+            # Find the index for each named element
+            names = list(redfit_results.names())
+            freq_idx = names.index('freq')
+            power_idx = names.index('gxxc')
+            ci95_idx = names.index('ci95')
+
+            freq = np.array(redfit_results[freq_idx])
+            power = np.array(redfit_results[power_idx])
+            ci95 = np.array(redfit_results[ci95_idx])
 
             # Find the index of the frequency closest to our signal
             peak_idx = np.argmin(np.abs(freq - signal_freq))
