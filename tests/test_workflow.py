@@ -162,3 +162,34 @@ def test_analysis_fap_threshold_is_configurable(tmp_path):
 
     assert 'fap_threshold' in results
     assert results['fap_threshold'] == custom_fap
+
+def test_analysis_residual_method_finds_peak(tmp_path):
+    """Test the full workflow with the residual method on data with a known peak."""
+    # Generate a signal with a strong periodic component
+    n_points = 512
+    time = pd.date_range(start='2000-01-01', periods=n_points, freq='D')
+    rng = np.random.default_rng(42)
+    noise = rng.normal(0, 0.5, n_points)
+    # Add a sine wave with a period of ~50 days
+    known_freq_cpd = 1 / 50 # cycles/day
+    signal = 2 * np.sin(2 * np.pi * known_freq_cpd * np.arange(n_points))
+    series = noise + signal
+
+    file_path = create_test_data_file(tmp_path, time, series)
+    output_dir = tmp_path / "results_residual"
+
+    analyzer = Analysis(file_path, time_col='time', data_col='value', detrend_method='linear')
+    results = analyzer.run_full_analysis(
+        output_dir=str(output_dir),
+        grid_type='linear',
+        peak_detection_method='residual',
+        peak_detection_ci=95
+    )
+
+    assert 'significant_peaks' in results
+    assert len(results['significant_peaks']) > 0
+
+    # The frequency is in Hz, so convert our known frequency
+    known_freq_hz = known_freq_cpd / 86400
+    found_peak_freq = results['significant_peaks'][0]['frequency']
+    assert found_peak_freq == pytest.approx(known_freq_hz, rel=0.05)

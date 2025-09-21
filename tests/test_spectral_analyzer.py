@@ -104,3 +104,54 @@ def test_find_significant_peaks(synthetic_signal):
     assert peaks[0]['frequency'] == pytest.approx(known_frequency, abs=0.01)
     # The FAP of the peak should be very low
     assert peaks[0]['fap'] < 1e-5
+
+
+# --- Tests for the new find_peaks_via_residuals function ---
+
+@pytest.fixture
+def sample_fit_results():
+    """
+    Creates a deterministic sample fit_results dictionary for testing.
+    """
+    log_freq = np.linspace(np.log(1e-4), np.log(0.5), 100)
+    fitted_log_power = -1.5 * log_freq + 2
+
+    # Create a deterministic set of residuals with one clear peak
+    residuals = np.full(100, 0.1)
+    residuals[50] = 3.0 # This is the only point that should be significant
+
+    log_power = fitted_log_power + residuals
+    return {
+        'log_freq': log_freq,
+        'log_power': log_power,
+        'residuals': residuals,
+        'fitted_log_power': fitted_log_power
+    }
+
+def test_find_peaks_via_residuals_finds_peak(sample_fit_results):
+    """Test that the residual method finds the known injected peak."""
+    from waterSpec.spectral_analyzer import find_peaks_via_residuals
+    # With ci=95, the 95th percentile of our deterministic residuals will be 0.1,
+    # so the peak with residual 3.0 should be found.
+    peaks, threshold = find_peaks_via_residuals(sample_fit_results, ci=95)
+
+    assert len(peaks) == 1
+    assert peaks[0]['residual'] == pytest.approx(3.0)
+    # Check that the returned frequency matches the one at index 50
+    expected_freq = np.exp(sample_fit_results['log_freq'][50])
+    assert peaks[0]['frequency'] == pytest.approx(expected_freq)
+
+def test_find_peaks_via_residuals_no_significant_peak(sample_fit_results):
+    """Test that the method returns an empty list if no residual crosses the threshold."""
+    from waterSpec.spectral_analyzer import find_peaks_via_residuals
+    # With our deterministic data, ci=99.9 will set a threshold > 0.1 but < 3.0.
+    # The test is to see if we can set a threshold so high that nothing is found.
+    # With ci=100, the threshold will be 3.0, and `>` comparison will fail.
+    peaks, threshold = find_peaks_via_residuals(sample_fit_results, ci=100)
+    assert len(peaks) == 0
+
+def test_find_peaks_via_residuals_raises_error_on_missing_keys():
+    """Test that the function raises a ValueError if required keys are missing."""
+    from waterSpec.spectral_analyzer import find_peaks_via_residuals
+    with pytest.raises(ValueError, match="must contain 'residuals'"):
+        find_peaks_via_residuals({'log_freq': [1,2,3]})
