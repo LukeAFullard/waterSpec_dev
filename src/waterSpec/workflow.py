@@ -28,8 +28,15 @@ def run_analysis(
     do_plot=False,
     output_path=None
 ):
+    warnings.warn(
+        "The 'run_analysis' function is deprecated and will be removed in a future version. "
+        "Please use the `waterSpec.Analysis` class for a more robust and flexible workflow.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     """
-    High-level function to run a complete spectral analysis workflow.
+    [DEPRECATED] High-level function to run a complete spectral analysis workflow.
+    This function will be removed in a future version. Please use the `waterSpec.Analysis` class instead.
 
     Args:
         file_path (str): Path to the data file.

@@ -12,8 +12,10 @@ from .fitter import fit_spectrum, fit_spectrum_with_bootstrap, fit_segmented_spe
 from .interpreter import interpret_results
 from .plotting import plot_spectrum
 from .workflow import run_analysis
+from .analysis import Analysis
 
 __all__ = [
+    "Analysis",
     "load_data",
     "preprocess_data",
     "calculate_periodogram",
