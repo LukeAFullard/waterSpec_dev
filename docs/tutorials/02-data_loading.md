@@ -1,90 +1,66 @@
 # Tutorial 2: A Guide to Data Loading
 
-The `load_data` function is your trusty crane for bringing data aboard from all sorts of places. This tutorial will show you how to load data from the most common file formats and how to include measurement errors for a more precise analysis.
+In the new `waterSpec` workflow, data loading is the first and most fundamental step, handled automatically when you create an `Analysis` object. This tutorial will show you how to load data from the most common file formats and how to include measurement errors for a more precise analysis.
+
+### The `Analysis` Class Constructor
+
+Everything starts with the `Analysis` class. Its constructor (`__init__`) is designed to be your single point of entry for data. It's smart enough to figure out the file type from its extension.
 
 ### Step 1: Loading a Classic CSV File
 
-The most common format is the humble CSV file. Let's start by loading our `sample_data.csv`. All you need to do is provide the file path and tell the function which columns contain your timestamps and data.
+Let's start by creating an `Analysis` object from our `sample_data.csv`. All you need to do is provide the file path and tell the constructor which columns contain your timestamps and data.
 
 ```python
-from waterSpec import load_data
+from waterSpec import Analysis
 
-time, data, errors = load_data(
+analyzer_csv = Analysis(
     file_path='examples/sample_data.csv',
     time_col='timestamp',
     data_col='concentration'
 )
 
-print(f"Loaded {len(time)} data points from CSV.")
-print(f"Errors column is: {errors}")
-```
-
-**Output:**
-```text
---- CSV Loading ---
-Loaded 50 data points from CSV.
-Errors column is: None
+print(f"Successfully created an Analysis object from a CSV file.")
+print(f"Number of data points loaded: {len(analyzer_csv.data)}")
 ```
 
 ### Step 2: Handling Other Formats (JSON and Excel)
 
-The `load_data` function is smart enough to figure out the file type from its extension. You don't need to change anything in your code to load a `.json` or `.xlsx` file. Let's try it!
+You don't need to change anything in your code to load a `.json` or `.xlsx` file. Just point the `file_path` to the right file.
 
 ```python
 # Load from a JSON file
-time_json, data_json, _ = load_data(
+analyzer_json = Analysis(
     file_path='examples/sample_data.json',
     time_col='timestamp',
     data_col='concentration'
 )
-print(f"Loaded {len(time_json)} data points from JSON.")
+print(f"Successfully loaded from JSON. Points: {len(analyzer_json.data)}")
 
 # Load from an Excel file
-time_excel, data_excel, _ = load_data(
+analyzer_excel = Analysis(
     file_path='examples/sample_data.xlsx',
     time_col='timestamp',
     data_col='concentration'
 )
-print(f"Loaded {len(time_excel)} data points from Excel.")
-```
-
-**Output:**
-```text
---- Other Format Loading ---
-Loaded 4 data points from JSON.
-Loaded 50 data points from Excel.
+print(f"Successfully loaded from Excel. Points: {len(analyzer_excel.data)}")
 ```
 
 ### Step 3: Including Measurement Errors
 
-Real-world data often comes with measurement uncertainties. Providing these errors (`dy`) to the analysis functions can lead to more robust and statistically sound results. To do this, simply add the `error_col` argument to the `load_data` function, pointing it to the column containing your error values.
+Real-world data often comes with measurement uncertainties. Providing these errors (`dy`) can lead to more robust and statistically sound results. To do this, simply add the `error_col` argument to the constructor, pointing it to the column containing your error values.
 
 ```python
-time_err, data_err, errors_err = load_data(
+analyzer_with_errors = Analysis(
     file_path='examples/sample_data_with_errors.csv',
     time_col='timestamp',
     data_col='concentration',
     error_col='concentration_error'  # Here's the new argument!
 )
 
-print(f"Loaded {len(time_err)} data points with errors.")
-print("First 5 error values:")
-print(errors_err.head())
-```
-
-**Output:**
-```text
---- Loading with Errors ---
-Loaded 50 data points with errors.
-First 5 error values:
-0    0.41
-1    0.28
-2    0.44
-3    0.38
-4    0.14
-Name: concentration_error, dtype: float64
+print(f"Successfully loaded data with an error column.")
+print(f"Number of error values loaded: {len(analyzer_with_errors.errors)}")
 ```
 
 ### Onward!
 
-You're now a master of loading cargo. In the next tutorial, we'll look at what to do with the data once it's aboard: preprocessing.
+You're now a master of loading cargo. The `Analysis` object has already preprocessed this data for you. In the next tutorial, we'll look at the different preprocessing options you can control during this initialization step.

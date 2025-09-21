@@ -68,25 +68,31 @@ A text file containing a comprehensive, human-readable interpretation of the ana
 **Example `summary.txt` content:**
 
 ```
-Automatic Analysis for: concentration
+Automatic Analysis for: Nitrate Concentration
 -----------------------------------
 Model Comparison (Lower BIC is better):
-  - Standard Fit:   BIC = -287.41 (β = 0.58)
-  - Segmented Fit:  BIC = N/A ()
-==> Chosen Model: Standard
+  - Standard Fit:   BIC = 90.05 (β = -0.37)
+  - Segmented Fit:  BIC = 47.73 (β1 = 0.36, β2 = -1.52)
+==> Chosen Model: Segmented
 -----------------------------------
 
-Details for Chosen (Standard) Model:
-Standard Analysis for: concentration
-Value: β = 0.58 (95% CI: 0.44–0.72)
-Persistence Level: 🟡 Mixed / Weak Persistence
-Scientific Meaning: -0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, suggesting event-driven transport.
-Contextual Comparison: Closest to TSS (Surface runoff-dominated).
+Details for Chosen (Segmented) Model:
+Segmented Analysis for: Nitrate Concentration
+Breakpoint Period ≈ 10.3 days
+-----------------------------------
+Low-Frequency (Long-term) Fit:
+  β1 = 0.36
+  Interpretation: -0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, suggesting event-driven transport.
+  Persistence: 🔴 Event-driven (Low Persistence)
+-----------------------------------
+High-Frequency (Short-term) Fit:
+  β2 = -1.52
+  Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.
+  Persistence: 🔴 Event-driven (Low Persistence)
 
 -----------------------------------
 Significant Periodicities Found:
-  - Period: 1.0 years (FAP: 1.23E-04)
-  - Period: 6.0 months (FAP: 2.50E-02)
+  - Period: 3.0 days (FAP: 0.00E+00)
 ```
 ---
 

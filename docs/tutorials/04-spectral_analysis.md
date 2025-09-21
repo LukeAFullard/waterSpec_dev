@@ -1,87 +1,60 @@
-# Tutorial 4: Under the Hood (Core Spectral Analysis)
+# Tutorial 4: Accessing the Core Spectral Analysis
 
-The `run_analysis` function is a powerful, all-in-one tool. However, advanced users may want more control over the analysis by using the core functions directly. This tutorial will show you how to build a custom workflow.
+The `run_full_analysis` method is a powerful, all-in-one tool. However, advanced users may want to access the results of the core spectral analysis for custom plotting or further calculations.
 
-### The Manual Analysis Pipeline
+The `Analysis` object conveniently stores these results for you after you run an analysis.
 
-When you use the core functions, you are essentially performing the steps of `run_analysis` one by one:
+### The Analysis Pipeline
 
-1.  **Load Data**: Use `load_data`.
-2.  **Preprocess Data**: Use `preprocess_data`.
-3.  **Generate a Frequency Grid**: Use `generate_log_spaced_grid`.
-4.  **Calculate the Periodogram**: Use `calculate_periodogram`.
-5.  **Fit the Spectrum**: Use functions like `fit_spectrum`.
-6.  **Interpret the Results**: Use `interpret_results`.
+The `run_full_analysis` method performs these steps internally:
 
-In this tutorial, we will focus on **steps 3 and 4**.
+1.  **Generates a Frequency Grid**: Creates an appropriate grid of frequencies for the analysis.
+2.  **Calculates the Periodogram**: Computes the Lomb-Scargle periodogram to get the power at each frequency.
+3.  **Fits and Interprets**: Fits the spectrum and interprets the results.
+
+This tutorial focuses on how to access the outputs of **steps 1 and 2**.
 
 ### Step-by-Step Example
 
-First, let's get some data loaded and preprocessed so we have something to work with.
+First, let's create an `Analysis` object and run the analysis, just like in the quickstart.
 
 ```python
-from waterSpec import load_data, preprocess_data
-import numpy as np
+from waterSpec import Analysis
 
-# 1. Load Data
-time_numeric, data_series, _ = load_data('examples/sample_data.csv', 'timestamp', 'concentration')
-
-# 2. Preprocess Data (let's just detrend for this example)
-processed_data, _ = preprocess_data(data_series, time_numeric, detrend_method='linear')
-
-# 3. Remove NaNs (important step before analysis!)
-valid_indices = ~np.isnan(processed_data)
-time_final = time_numeric[valid_indices]
-data_final = processed_data[valid_indices]
-```
-
-### Step 3: Generate a Frequency Grid
-
-The `calculate_periodogram` function requires a grid of frequencies at which to calculate the power. A logarithmically spaced grid is best for finding the spectral exponent. We provide a handy helper function for this.
-
-```python
-from waterSpec import generate_log_spaced_grid
-
-frequency_grid = generate_log_spaced_grid(time_final)
-
-print(f"Generated a grid of {len(frequency_grid)} frequencies.")
-print(f"First 5 frequencies (Hz): {frequency_grid[:5]}")
-```
-
-**Output:**
-```text
---- Step 3: Generate Frequency Grid ---
-Generated a grid of 200 frequencies.
-First 5 frequencies (Hz): [2.36205593e-07 2.40032977e-07 2.43922378e-07 2.47874802e-07
- 2.51891269e-07]
-```
-
-### Step 4: Calculate the Periodogram
-
-Now we have all the ingredients to calculate the Lomb-Scargle periodogram. We pass our final time and data arrays, along with our new frequency grid, to the `calculate_periodogram` function.
-
-```python
-from waterSpec import calculate_periodogram
-
-frequency, power = calculate_periodogram(
-    time=time_final,
-    data=data_final,
-    frequency=frequency_grid
+# 1. Create the analyzer object
+analyzer = Analysis(
+    file_path='examples/sample_data.csv',
+    time_col='timestamp',
+    data_col='concentration'
 )
 
-print("Calculated power for each frequency.")
-print("First 5 power values:")
-print(power[:5])
+# 2. Run the analysis
+analyzer.run_full_analysis(output_dir='docs/tutorials/spectral_analysis_outputs')
 ```
 
-**Output:**
-```text
---- Step 4: Calculate Periodogram ---
-Calculated power for each frequency.
-First 5 power values:
-[0.00371392 0.0037753  0.00383515 0.00389199 0.0039441 ]
+### Accessing the Results
+
+After the analysis has run, the `analyzer` object now contains the core spectral data as attributes.
+
+- `analyzer.frequency`: A NumPy array of the frequencies (in Hz) used for the periodogram.
+- `analyzer.power`: A NumPy array of the corresponding power values.
+
+You can now use these arrays for any custom work you need to do.
+
+```python
+# Access the frequency and power arrays
+frequency_array = analyzer.frequency
+power_array = analyzer.power
+
+print(f"The frequency array has {len(frequency_array)} points.")
+print(f"First 5 frequencies (Hz): {frequency_array[:5]}")
+
+print(f"\nThe power array has {len(power_array)} points.")
+print(f"First 5 power values: {power_array[:5]}")
 ```
 
 ### Full Control
 
-You now have the `frequency` and `power` arrays, ready to be passed to the fitting and interpretation functions, which we will cover in the next tutorial. This manual, step-by-step approach gives you full control over your analysis.
+By accessing these attributes, you have the raw materials of the spectral analysis at your fingertips. You could, for example, pass them to a different plotting library or perform your own custom fitting routines.
+
+In the next tutorial, we'll look at the rich dictionary of results returned by the analysis, which contains the outputs of the fitting and interpretation steps.

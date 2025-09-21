@@ -20,7 +20,7 @@ This package is inspired by the methods described in Liang et al. (2021).
 - **Interpretation and Plotting**:
     - Scientific interpretation of the β value.
     - Publication-quality plotting of the power spectrum.
-- **Simple Workflow**: A high-level `run_analysis` function to perform a full analysis in one step.
+- **Simple Workflow**: A class-based workflow that performs a full analysis, including generating plots and summaries, with a single command.
 
 ## Installation
 
@@ -32,41 +32,32 @@ pip install .
 
 ## Quick Start
 
-Here is a quick example of how to use `waterSpec` to analyze a time series from a CSV file using the high-level `run_analysis` function.
+The new class-based workflow makes running a complete analysis simple and intuitive.
 
 ```python
-import waterSpec as ws
-import os
+from waterSpec import Analysis
 import pprint
 
-# Define the path to your data file
-file_path = 'examples/sample_data.csv'
-
-# Create a directory for the plots if it doesn't exist
-if not os.path.exists('plots'):
-    os.makedirs('plots')
-output_plot_path = 'plots/spectrum_plot.png'
-
-# Run the full analysis with a single function call
-# The run_analysis function can also handle censored data, segmented regression, and different detrending methods, e.g.:
-# results = ws.run_analysis(..., censor_strategy='multiplier', analysis_type='segmented', detrend_method='loess')
-results = ws.run_analysis(
-    file_path,
+# 1. Initialize the Analysis object with your data.
+#    This step loads and preprocesses the data internally.
+analyzer = Analysis(
+    file_path='examples/sample_data.csv',
     time_col='timestamp',
-    data_col='concentration',
-    do_plot=True,
-    output_path=output_plot_path
+    data_col='concentration'
 )
 
-# Print the results
+# 2. Run the full analysis with a single command.
+#    This performs the analysis and saves all outputs to the specified directory.
+results = analyzer.run_full_analysis(output_dir='readme_output')
+
+# The method returns a dictionary with all the numerical results.
 print("Analysis Results:")
 pprint.pprint(results)
-
-print(f"\nSpectrum plot saved to: {output_plot_path}")
-
 ```
 
-This will print a dictionary of results and produce a plot of the power spectrum and its fit, saved to `plots/spectrum_plot.png`.
+This single command will create an `readme_output` directory with two files:
+- `concentration_spectrum_plot.png`: A publication-quality plot of the power spectrum.
+- `concentration_summary.txt`: A text file with a detailed interpretation of the results.
 
 ---
 *Liang X, Schilling KE, Jones CS, Zhang Y-K. 2021. Temporal scaling of long-term co-occurring agricultural contaminants and the implications for conservation planning. Environmental Research Letters 16:094015.*
