@@ -82,12 +82,21 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
         segmented_beta1 = segmented_fit.get('beta1', np.nan)
         segmented_beta2 = segmented_fit.get('beta2', np.nan)
 
+        def format_bic(val):
+            return f"{val:.2f}" if val is not None and np.isfinite(val) else "N/A"
+
+        standard_bic_str = format_bic(bic_comp.get('standard'))
+        segmented_bic_str = format_bic(bic_comp.get('segmented'))
+
+        standard_beta_str = f"β = {standard_beta:.2f}" if np.isfinite(standard_beta) else ""
+        segmented_beta_str = f"β1 = {segmented_beta1:.2f}, β2 = {segmented_beta2:.2f}" if np.isfinite(segmented_beta1) else ""
+
         auto_summary_header = (
             f"Automatic Analysis for: {param_name}\n"
             f"-----------------------------------\n"
             f"Model Comparison (Lower BIC is better):\n"
-            f"  - Standard Fit:   BIC = {bic_comp['standard']:.2f} (β = {standard_beta:.2f})\n"
-            f"  - Segmented Fit:  BIC = {bic_comp['segmented']:.2f} (β1 = {segmented_beta1:.2f}, β2 = {segmented_beta2:.2f})\n"
+            f"  - Standard Fit:   BIC = {standard_bic_str} ({standard_beta_str})\n"
+            f"  - Segmented Fit:  BIC = {segmented_bic_str} ({segmented_beta_str})\n"
             f"==> Chosen Model: {chosen_model.capitalize()}\n"
             f"-----------------------------------\n\n"
             f"Details for Chosen ({chosen_model.capitalize()}) Model:\n"

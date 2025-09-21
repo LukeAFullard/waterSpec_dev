@@ -28,8 +28,15 @@ def run_analysis(
     do_plot=False,
     output_path=None
 ):
+    warnings.warn(
+        "The 'run_analysis' function is deprecated and will be removed in a future version. "
+        "Please use the `waterSpec.Analysis` class for a more robust and flexible workflow.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     """
-    High-level function to run a complete spectral analysis workflow.
+    [DEPRECATED] High-level function to run a complete spectral analysis workflow.
+    This function will be removed in a future version. Please use the `waterSpec.Analysis` class instead.
 
     Args:
         file_path (str): Path to the data file.
@@ -91,39 +98,42 @@ def run_analysis(
     original_analysis_type = analysis_type
 
     if analysis_type == 'auto':
-        # Perform both analyses
+        # --- Auto-Analysis Mode ---
+        # Perform both standard and segmented analyses
         standard_results = fit_spectrum_with_bootstrap(
             frequency, power, method=fit_method, n_bootstraps=n_bootstraps
         )
         segmented_results = fit_segmented_spectrum(frequency, power)
 
-        # Compare BIC values
-        # A lower BIC is preferred. We handle NaN cases by treating them as infinitely bad.
-        bic_standard = standard_results.get('bic', np.inf)
-        bic_segmented = segmented_results.get('bic', np.inf)
+        # Determine if the segmented fit is valid before comparing
+        # A valid segmented fit must have found a significant breakpoint.
+        is_segmented_valid = 'beta1' in segmented_results and np.isfinite(segmented_results['beta1'])
 
-        if np.isnan(bic_standard): bic_standard = np.inf
-        if np.isnan(bic_segmented): bic_segmented = np.inf
+        # Default to standard analysis
+        chosen_model_results = standard_results
+        analysis_type = 'standard'
 
-        # Choose the best model and create a comprehensive results dictionary
-        if bic_segmented < bic_standard:
-            chosen_model_results = segmented_results
-            analysis_type = 'segmented'
-        else:
-            chosen_model_results = standard_results
-            analysis_type = 'standard'
+        # If segmented is valid, compare BIC values to see if it's a better model
+        if is_segmented_valid:
+            bic_standard = standard_results.get('bic', np.inf)
+            bic_segmented = segmented_results.get('bic', np.inf)
 
-        # Start with the chosen model's results at the top level for compatibility
+            if np.isnan(bic_standard): bic_standard = np.inf
+            if np.isnan(bic_segmented): bic_segmented = np.inf
+
+            if bic_segmented < bic_standard:
+                chosen_model_results = segmented_results
+                analysis_type = 'segmented'
+
+        # Create a comprehensive results dictionary
         fit_results = chosen_model_results.copy()
-
-        # Add detailed results from both fits under specific keys
         fit_results['standard_fit'] = standard_results
         fit_results['segmented_fit'] = segmented_results
-
-        # Store comparison info
-        fit_results['bic_comparison'] = {'standard': bic_standard, 'segmented': bic_segmented}
+        fit_results['bic_comparison'] = {
+            'standard': standard_results.get('bic'),
+            'segmented': segmented_results.get('bic')
+        }
         fit_results['chosen_model'] = analysis_type
-        # Also store the original analysis type requested
         fit_results['analysis_mode'] = original_analysis_type
 
 

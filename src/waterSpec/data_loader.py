@@ -6,24 +6,11 @@ import warnings
 def load_data(file_path, time_col, data_col, error_col=None):
     """
     Loads time series data from a CSV, JSON, or Excel file.
-
-    Args:
-        file_path (str): The path to the data file.
-        time_col (str): The name of the column containing timestamps.
-        data_col (str): The name of the column containing data values.
-        error_col (str, optional): The name of the column containing measurement
-                                   uncertainties (dy). Defaults to None.
-
-    Returns:
-        tuple: A tuple containing:
-               - np.ndarray: The numeric time array.
-               - pd.Series: The data values.
-               - pd.Series or None: The measurement uncertainties, or None if not provided.
     """
+    # 1. Load data from file
     _, file_extension = os.path.splitext(file_path)
-
     if file_extension.lower() == '.csv':
-        df = pd.read_csv(file_path)
+        df = pd.read_csv(file_path, low_memory=False, index_col=False)
     elif file_extension.lower() == '.xlsx':
         df = pd.read_excel(file_path)
     elif file_extension.lower() == '.json':
@@ -34,37 +21,65 @@ def load_data(file_path, time_col, data_col, error_col=None):
     if df.empty:
         raise ValueError("The provided file is empty or contains only a header.")
 
+    # 2. Check for column existence
     if time_col not in df.columns:
         raise ValueError(f"Time column '{time_col}' not found in the file.")
     if data_col not in df.columns:
         raise ValueError(f"Data column '{data_col}' not found in the file.")
 
-    df[time_col] = pd.to_datetime(df[time_col])
-    df = df.sort_values(by=time_col).reset_index(drop=True)
-    time_numeric = df[time_col].astype(np.int64) // 10**9
+    # 3. Perform validation and type coercion on copies of the series
+    # Time column
+    original_time_na = df[time_col].isna().sum()
+    time_series = pd.to_datetime(df[time_col], errors='coerce')
+    if time_series.isna().sum() > original_time_na:
+        raise ValueError(f"Time column '{time_col}' could not be parsed as datetime objects.")
 
-    # Check for strict monotonicity. np.diff should always be > 0.
-    time_diffs = np.diff(time_numeric)
-    if (time_diffs <= 0).any():
-        first_error_index = np.where(time_diffs <= 0)[0][0]
-        raise ValueError(
-            f"Time column is not strictly monotonic increasing. "
-            f"First violation (duplicate or out-of-order timestamp) found at index {first_error_index+1}."
-        )
+    # Data column
+    original_data_na = df[data_col].isna().sum()
+    data_series = pd.to_numeric(df[data_col], errors='coerce')
+    if data_series.isna().sum() > original_data_na:
+        raise ValueError(f"Data column '{data_col}' could not be converted to a numeric type.")
 
-    data_values = df[data_col]
-    error_values = None
-
+    # Error column
+    error_series = None
     if error_col:
         if error_col not in df.columns:
             raise ValueError(f"Error column '{error_col}' not found in the file.")
-        error_values = df[error_col]
-        if error_values.isnull().any():
-            warnings.warn("The error column contains NaN or null values.", UserWarning)
-        if (error_values < 0).any():
+        original_error_na = df[error_col].isna().sum()
+        error_series = pd.to_numeric(df[error_col], errors='coerce')
+        if error_series.isna().sum() > original_error_na:
+            raise ValueError(f"Error column '{error_col}' could not be converted to a numeric type.")
+        if (error_series.dropna() < 0).any():
             warnings.warn("The error column contains negative values.", UserWarning)
 
-    if data_values.isnull().any():
+    # 4. Issue warnings for any NaNs present in the coerced data
+    if data_series.isnull().any():
         warnings.warn("The data column contains NaN or null values.", UserWarning)
+    if error_series is not None and error_series.isnull().any():
+        warnings.warn("The error column contains NaN or null values.", UserWarning)
 
-    return time_numeric.to_numpy(), data_values, error_values
+    # 5. Create a new, clean DataFrame from the validated series
+    clean_df = pd.DataFrame({
+        'time': time_series,
+        'data': data_series,
+    })
+    if error_series is not None:
+        clean_df['error'] = error_series
+
+    # 6. Drop rows with NaNs in essential columns
+    clean_df = clean_df.dropna(subset=['time', 'data']).reset_index(drop=True)
+
+    # 7. Sort by time and check for monotonicity
+    clean_df = clean_df.sort_values(by='time').reset_index(drop=True)
+    time_numeric = (clean_df['time'].astype(np.int64) // 10**9).to_numpy()
+
+    if len(time_numeric) > 1:
+        time_diffs = np.diff(time_numeric)
+        if (time_diffs <= 0).any():
+            first_error_index = np.where(time_diffs <= 0)[0][0]
+            raise ValueError(
+                f"Time column is not strictly monotonic increasing. "
+                f"First violation (duplicate or out-of-order timestamp) found at index {first_error_index + 1}."
+            )
+
+    return time_numeric, clean_df['data'], clean_df.get('error')
