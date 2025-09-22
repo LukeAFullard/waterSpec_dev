@@ -1,0 +1,15 @@
+Segmented Analysis (2 Breakpoints) for: Two Breakpoint Signal
+Breakpoint 1 Period ≈ 0.0 days
+Breakpoint 2 Period ≈ 0.0 days
+-----------------------------------
+Segment 1 (Low-Frequency):
+  β1 = 1.50 | 🟢 Persistent / Subsurface Dominated (High Persistence)
+  Interpretation: 1 < β < 3 (fBm-like): Strong persistence, suggesting transport is damped by storage.
+-----------------------------------
+Segment 2 (Mid-Frequency):
+  β2 = 0.55 | 🟡 Mixed / Weak Persistence
+  Interpretation: -0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, suggesting event-driven transport.
+-----------------------------------
+Segment 3 (High-Frequency):
+  β3 = 2.10 | 🟢 Persistent / Subsurface Dominated (High Persistence)
+  Interpretation: β ≈ 2: Brownian noise (random walk).
