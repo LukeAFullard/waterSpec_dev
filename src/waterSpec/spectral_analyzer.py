@@ -36,7 +36,7 @@ def calculate_periodogram(time, data, frequency=None, dy=None, normalization='st
     return frequency, power, ls
 
 
-def find_significant_peaks(ls, frequency, power, fap_threshold=0.01, fap_method='bootstrap', **fap_kwargs):
+def find_significant_peaks(ls, frequency, power, fap_threshold=0.01, fap_method='baluev', **fap_kwargs):
     """
     Finds statistically significant peaks in a periodogram using a False Alarm Probability threshold.
 

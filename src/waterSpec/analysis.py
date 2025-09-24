@@ -87,9 +87,9 @@ class Analysis:
         n_bootstraps=1000,
         fap_threshold=0.01,
         grid_type='log',
-        fap_method='bootstrap',
+        fap_method='baluev',
         normalization='standard',
-        peak_detection_method='residual',
+        peak_detection_method='fap',
         peak_detection_ci=95
     ):
         """
