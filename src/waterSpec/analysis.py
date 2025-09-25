@@ -80,53 +80,16 @@ class Analysis:
         self.power = None
         self.ls_obj = None
 
-    def run_full_analysis(
-        self,
-        output_dir,
-        fit_method='theil-sen',
-        n_bootstraps=1000,
-        fap_threshold=0.01,
-        grid_type='log',
-        fap_method='baluev',
-        normalization='standard',
-        peak_detection_method='fap',
-        peak_detection_ci=95
-    ):
-        """
-        Runs the complete analysis workflow and saves all outputs to a directory.
-
-        This method performs an automatic analysis to choose the best model
-        (standard or segmented), calculates significant peaks, and saves a
-        plot and a text summary of the results.
-
-        Args:
-            output_dir (str): The path to the directory where outputs will be saved.
-            fit_method (str, optional): Method for spectral slope fitting. Defaults to 'theil-sen'.
-            n_bootstraps (int, optional): Number of bootstrap samples for CI. Defaults to 1000.
-            grid_type (str, optional): Type of frequency grid ('log' or 'linear'). Defaults to 'log'.
-            peak_detection_method (str, optional): Method for peak detection.
-                                                   'residual' (default) uses the new robust method.
-                                                   'fap' uses the old False Alarm Probability method.
-            peak_detection_ci (int, optional): Confidence interval for residual method. Defaults to 95.
-            fap_threshold (float, optional): FAP threshold for 'fap' method. Defaults to 0.01.
-            fap_method (str, optional): Method for FAP calculation ('bootstrap', 'baluev', etc.).
-                                       Defaults to 'bootstrap'.
-            normalization (str, optional): Normalization for the periodogram. Defaults to 'standard'.
-
-        Returns:
-            dict: A dictionary containing all analysis results.
-        """
-        # Ensure the output directory exists
-        os.makedirs(output_dir, exist_ok=True)
-
-        # --- Periodogram Calculation ---
+    def _calculate_periodogram(self, grid_type, normalization):
+        """Generates frequency grid and calculates the Lomb-Scargle periodogram."""
         self.frequency = generate_frequency_grid(self.time, grid_type=grid_type)
         self.frequency, self.power, self.ls_obj = calculate_periodogram(
             self.time, self.data, frequency=self.frequency, dy=self.errors,
             normalization=normalization
         )
 
-        # --- Auto-Analysis Mode ---
+    def _perform_model_selection(self, fit_method, n_bootstraps):
+        """Performs standard and segmented fits and selects the best model using BIC."""
         standard_results = fit_spectrum_with_bootstrap(
             self.frequency, self.power, method=fit_method, n_bootstraps=n_bootstraps
         )
@@ -153,50 +116,46 @@ class Analysis:
             'segmented': segmented_results.get('bic')
         }
         fit_results['chosen_model'] = analysis_type
-        fit_results['analysis_mode'] = 'auto' # This method always runs in auto mode
+        fit_results['analysis_mode'] = 'auto'
+        return fit_results, analysis_type
 
-        # --- Peak Significance (only if fit was successful) ---
+    def _detect_significant_peaks(self, fit_results, peak_detection_method, peak_detection_ci, fap_threshold, fap_method):
+        """Detects significant peaks based on the chosen method."""
         fit_successful = ('beta' in fit_results and np.isfinite(fit_results['beta'])) or \
                          ('beta1' in fit_results and np.isfinite(fit_results['beta1']))
 
-        if fit_successful:
-            if peak_detection_method == 'residual':
-                significant_peaks, residual_threshold = find_peaks_via_residuals(
-                    fit_results, ci=peak_detection_ci
-                )
-                fit_results['significant_peaks'] = significant_peaks
-                fit_results['residual_threshold'] = residual_threshold
-                fit_results['peak_detection_ci'] = peak_detection_ci
-
-            elif peak_detection_method == 'fap':
-                if fap_threshold is not None:
-                    significant_peaks, fap_level = find_significant_peaks(
-                        self.ls_obj, self.frequency, self.power,
-                        fap_threshold=fap_threshold, fap_method=fap_method
-                    )
-                    fit_results['significant_peaks'] = significant_peaks
-                    fit_results['fap_level'] = fap_level
-                    fit_results['fap_threshold'] = fap_threshold
-            elif peak_detection_method is not None:
-                warnings.warn(f"Unknown peak_detection_method '{peak_detection_method}'. No peak detection will be performed.", UserWarning)
-
-        # --- Interpretation ---
         if not fit_successful:
-            interp_results = {"summary_text": "Analysis failed: Could not determine a valid spectral slope."}
-            fit_results.setdefault('summary_text', interp_results["summary_text"])
-            self.results = fit_results
-        else:
-            interp_results = interpret_results(fit_results, param_name=self.param_name)
-            self.results = {**fit_results, **interp_results}
-            self.results['interpretation'] = self.results.get('summary_text')
+            return fit_results
 
-        # --- Generate and Save Outputs ---
+        if peak_detection_method == 'residual':
+            peaks, threshold = find_peaks_via_residuals(fit_results, ci=peak_detection_ci)
+            fit_results['significant_peaks'] = peaks
+            fit_results['residual_threshold'] = threshold
+            fit_results['peak_detection_ci'] = peak_detection_ci
+        elif peak_detection_method == 'fap' and fap_threshold is not None:
+            peaks, level = find_significant_peaks(
+                self.ls_obj, self.frequency, self.power,
+                fap_threshold=fap_threshold, fap_method=fap_method
+            )
+            fit_results['significant_peaks'] = peaks
+            fit_results['fap_level'] = level
+            fit_results['fap_threshold'] = fap_threshold
+        elif peak_detection_method is not None and peak_detection_method != 'fap':
+            warnings.warn(f"Unknown peak_detection_method '{peak_detection_method}'. No peak detection performed.", UserWarning)
+
+        return fit_results
+
+    def _generate_outputs(self, results, analysis_type, output_dir):
+        """Generates and saves the plot and summary text file."""
+        # Ensure the output directory exists
+        os.makedirs(output_dir, exist_ok=True)
+
         # Plot
         plot_path = os.path.join(output_dir, f"{self.param_name}_spectrum_plot.png")
         plot_spectrum(
             self.frequency,
             self.power,
-            fit_results=self.results,
+            fit_results=results,
             analysis_type=analysis_type,
             output_path=plot_path,
             param_name=self.param_name
@@ -205,7 +164,69 @@ class Analysis:
         # Summary Text
         summary_path = os.path.join(output_dir, f"{self.param_name}_summary.txt")
         with open(summary_path, 'w') as f:
-            f.write(self.results['summary_text'])
+            f.write(results['summary_text'])
+
+    def run_full_analysis(
+        self,
+        output_dir,
+        fit_method='theil-sen',
+        n_bootstraps=1000,
+        fap_threshold=0.01,
+        grid_type='log',
+        fap_method='baluev',
+        normalization='standard',
+        peak_detection_method='residual',
+        peak_detection_ci=95
+    ):
+        """
+        Runs the complete analysis workflow and saves all outputs to a directory.
+
+        This method performs an automatic analysis to choose the best model
+        (standard or segmented), calculates significant peaks, and saves a
+        plot and a text summary of the results.
+
+        Args:
+            output_dir (str): The path to the directory where outputs will be saved.
+            fit_method (str, optional): Method for spectral slope fitting. Defaults to 'theil-sen'.
+            n_bootstraps (int, optional): Number of bootstrap samples for CI. Defaults to 1000.
+            grid_type (str, optional): Type of frequency grid ('log' or 'linear'). Defaults to 'log'.
+            peak_detection_method (str, optional): Method for peak detection.
+                                                   'residual' (default) uses the new robust method.
+                                                   'fap' uses the old False Alarm Probability method.
+            peak_detection_ci (int, optional): Confidence interval for residual method. Defaults to 95.
+            fap_threshold (float, optional): FAP threshold for 'fap' method. Defaults to 0.01.
+            fap_method (str, optional): Method for FAP calculation ('bootstrap', 'baluev', etc.).
+                                       Defaults to 'bootstrap'.
+            normalization (str, optional): Normalization for the periodogram. Defaults to 'standard'.
+
+        Returns:
+            dict: A dictionary containing all analysis results.
+        """
+        # 1. Calculate Periodogram
+        self._calculate_periodogram(grid_type, normalization)
+
+        # 2. Fit Spectrum and Select Best Model
+        fit_results, analysis_type = self._perform_model_selection(fit_method, n_bootstraps)
+
+        # 3. Detect Significant Peaks
+        fit_results = self._detect_significant_peaks(
+            fit_results, peak_detection_method, peak_detection_ci, fap_threshold, fap_method
+        )
+
+        # 4. Interpret Results
+        fit_successful = ('beta' in fit_results and np.isfinite(fit_results['beta'])) or \
+                         ('beta1' in fit_results and np.isfinite(fit_results['beta1']))
+
+        if not fit_successful:
+            interp_results = {"summary_text": "Analysis failed: Could not determine a valid spectral slope."}
+            self.results = {**fit_results, **interp_results}
+        else:
+            interp_results = interpret_results(fit_results, param_name=self.param_name)
+            self.results = {**fit_results, **interp_results}
+            self.results['interpretation'] = self.results.get('summary_text')
+
+        # 5. Generate and Save Outputs
+        self._generate_outputs(self.results, analysis_type, output_dir)
 
         print(f"Analysis complete. Outputs saved to '{output_dir}'.")
         return self.results
