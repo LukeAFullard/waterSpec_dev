@@ -1,5 +1,7 @@
 import os
+
 from waterSpec import Analysis
+
 
 def main():
     """
@@ -26,7 +28,10 @@ def main():
         )
     except FileNotFoundError:
         print(f"\nError: Data file not found at '{file_path}'.")
-        print("Please ensure you are running this script from the root of the waterSpec repository.")
+        print(
+            "Please ensure you are running this script from the root of the "
+            "waterSpec repository."
+        )
         return
 
     # --- 1. Default Analysis (max_breakpoints=1) ---
@@ -43,7 +48,10 @@ def main():
 
 
     # --- 2. Two-Breakpoint Analysis (max_breakpoints=2) ---
-    print("\n--- Running Two-Breakpoint Analysis (comparing 0, 1, and 2 breakpoint models) ---")
+    print(
+        "\n--- Running Two-Breakpoint Analysis (comparing 0, 1, and 2 "
+        "breakpoint models) ---"
+    )
 
     # We can reuse the same analyzer object.
     # By setting max_breakpoints=2, the analysis will automatically compare
@@ -58,7 +66,10 @@ def main():
     print(results_2bp['summary_text'])
     print("-" * 40)
 
-    print(f"\nAnalysis complete. Check the '{default_output_path}' and '{twobp_output_path}' directories for plots and summaries.")
+    print(
+        f"\nAnalysis complete. Check the '{default_output_path}' and "
+        f"'{twobp_output_path}' directories for plots and summaries."
+    )
 
 
 if __name__ == "__main__":

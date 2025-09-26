@@ -41,6 +41,9 @@ def calculate_periodogram(
     return frequency, power, ls
 
 
+import warnings
+
+
 def find_significant_peaks(
     ls, frequency, power, fap_threshold=0.01, fap_method="baluev", **fap_kwargs
 ):
@@ -55,7 +58,7 @@ def find_significant_peaks(
         fap_threshold (float, optional): The FAP level for significance.
             Defaults to 0.01.
         fap_method (str, optional): The method for FAP calculation
-            ('bootstrap', 'baluev', etc.). Defaults to 'bootstrap'.
+            ('bootstrap', 'baluev', etc.). Defaults to 'baluev'.
         **fap_kwargs: Additional keyword arguments for
             `astropy.LombScargle.false_alarm_level`.
 
@@ -64,6 +67,15 @@ def find_significant_peaks(
                - list: A list of dictionaries, each describing a significant peak.
                - float: The power level corresponding to the FAP threshold.
     """
+    # Warn the user if they are using the slow bootstrap method
+    if fap_method == "bootstrap":
+        warnings.warn(
+            "Using the 'bootstrap' method for FAP calculation. This can be "
+            "very slow for large datasets. Consider using an analytical method "
+            "like 'baluev' for faster results.",
+            UserWarning,
+        )
+
     # Calculate the power level corresponding to the FAP threshold
     fap_level = ls.false_alarm_level(fap_threshold, method=fap_method, **fap_kwargs)
 

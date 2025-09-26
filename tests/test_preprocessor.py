@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+import statsmodels.api as sm
 
 from waterSpec.preprocessor import (
     _validate_data_length,
@@ -92,10 +93,10 @@ def test_detrend_loess_with_options(sample_data):
     trended_data[5] = 20
 
     # Detrend with default options (which include robustness iterations)
-    detrended_default = detrend_loess(time, trended_data.copy())
+    detrended_default, _ = detrend_loess(time, trended_data.copy())
 
     # Detrend with robustness iterations turned off
-    detrended_no_iter = detrend_loess(time, trended_data.copy(), it=0)
+    detrended_no_iter, _ = detrend_loess(time, trended_data.copy(), it=0)
 
     # The results should be different because the outlier is handled differently
     assert not np.array_equal(detrended_default, detrended_no_iter)
@@ -214,3 +215,78 @@ def test_preprocess_data_error_propagation_correctness(sample_data):
     np.testing.assert_array_almost_equal(
         processed_errors_from_wrapper, errors_manual
     )
+
+
+def test_normalize_zero_std_dev():
+    """Test normalize function when standard deviation is zero."""
+    data = np.array([5.0, 5.0, 5.0, 5.0])
+    errors = np.array([0.1, 0.1, 0.1, 0.1])
+    normalized_data, normalized_errors = normalize(data.copy(), errors.copy())
+    assert np.all(normalized_data == 0)
+    assert np.all(normalized_errors == 0)
+
+
+def test_detrend_loess_with_errors(sample_data):
+    """Test that LOESS detrending correctly propagates errors."""
+    time = np.arange(len(sample_data))
+    # Create some non-linear data with noise
+    trended_data = np.sin(time * 0.5) + time * 0.1
+    errors = np.full_like(trended_data, 0.1)
+
+    # Detrend with LOESS
+    detrended_data, detrended_errors = detrend_loess(
+        time, trended_data.copy(), errors=errors.copy(), frac=0.5
+    )
+
+    # Manually calculate expected error
+    smoothed_y = sm.nonparametric.lowess(trended_data, time, frac=0.5)[:, 1]
+    residuals = trended_data - smoothed_y
+    loess_se = np.std(residuals)
+    expected_errors = np.sqrt(np.square(errors) + np.square(loess_se))
+
+    assert detrended_errors is not None
+    np.testing.assert_array_almost_equal(detrended_errors, expected_errors)
+
+
+def test_detrend_with_nan_in_errors(sample_data):
+    """Test detrend function when the error array contains NaNs."""
+    trended_data = sample_data.copy()
+    time = np.arange(len(trended_data))
+    errors = np.full_like(trended_data, 0.1, dtype=float)
+    errors[3] = np.nan
+
+    with pytest.warns(UserWarning, match="NaNs found in error values"):
+        _, detrended_errors = detrend(time, trended_data.copy(), errors=errors.copy())
+
+    # The output should not contain NaNs.
+    assert not np.isnan(detrended_errors).any()
+
+
+def test_preprocess_data_nan_propagation():
+    """
+    Test that NaNs introduced during censoring are correctly propagated to the
+    error array in the preprocess_data wrapper.
+    """
+    time = np.arange(4)
+    # This series will have 'foo' converted to NaN
+    data_series_censored = pd.Series(["1", "<2", "3", "foo"])
+    error_series = pd.Series([0.1, 0.2, 0.3, 0.4])
+
+    with pytest.warns(UserWarning, match="Non-numeric or unhandled censored values"):
+        processed_data, processed_errors = preprocess_data(
+            data_series_censored,
+            time,
+            error_series=error_series,
+            censor_strategy="drop",
+            min_length=2,
+        )
+
+    # '<2' (with drop strategy) and 'foo' should become NaN
+    assert np.isnan(processed_data[1])
+    assert np.isnan(processed_data[3])
+    # The corresponding errors should also be NaN
+    assert np.isnan(processed_errors[1])
+    assert np.isnan(processed_errors[3])
+    # The valid points should still have their errors
+    assert processed_errors[0] == 0.1
+    assert processed_errors[2] == 0.3

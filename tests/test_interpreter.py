@@ -103,7 +103,9 @@ def test_interpret_results_auto_mode():
 
     # Check for the correctly formatted model comparison lines
     expected_line_1 = f"  - {'Standard':<15} BIC = {120.5:<8.2f} (β = 1.20)"
-    expected_line_2 = f"  - {'Segmented (1 BP)':<15} BIC = {150.2:<8.2f} (β1=0.80, β2=1.50)"
+    expected_line_2 = (
+        f"  - {'Segmented (1 BP)':<15} BIC = {150.2:<8.2f} (β1=0.80, β2=1.50)"
+    )
 
     assert expected_line_1 in summary
     assert expected_line_2 in summary

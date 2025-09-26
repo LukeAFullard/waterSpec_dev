@@ -153,7 +153,8 @@ def main():
 
         # Print the markdown row
         print(
-            f"| {beta:<6.1f} | {amp:<10.2f} | {ws_resid_str:<22} | {ws_redfit_str:<20} |"
+            f"| {beta:<6.1f} | {amp:<10.2f} | {ws_resid_str:<22} | "
+            f"{ws_redfit_str:<20} |"
         )
 
     finally:

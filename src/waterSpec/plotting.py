@@ -83,7 +83,9 @@ def plot_spectrum(
                     mask = log_freq_full > log_bps[i-1]
                     label = f"High-Freq Fit (β{i+1} ≈ {fit_results['betas'][i]:.2f})"
                 else: # Middle segment(s)
-                    mask = (log_freq_full > log_bps[i-1]) & (log_freq_full <= log_bps[i])
+                    mask = (log_freq_full > log_bps[i - 1]) & (
+                        log_freq_full <= log_bps[i]
+                    )
                     label = f"Mid-Freq Fit (β{i+1} ≈ {fit_results['betas'][i]:.2f})"
 
                 plt.loglog(

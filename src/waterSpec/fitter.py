@@ -83,8 +83,11 @@ def _calculate_bic(y, y_pred, n_params):
     return bic
 
 
+import warnings
+
+
 def fit_spectrum_with_bootstrap(
-    frequency, power, method="theil-sen", n_bootstraps=1000, ci=95
+    frequency, power, method="theil-sen", n_bootstraps=1000, ci=95, seed=None
 ):
     """
     Fits the power spectrum and estimates confidence intervals for beta using
@@ -99,6 +102,8 @@ def fit_spectrum_with_bootstrap(
             generate. Defaults to 1000.
         ci (int, optional): The desired confidence interval in percent.
             Defaults to 95.
+        seed (int, optional): A seed for the random number generator to ensure
+            reproducibility. Defaults to None.
 
     Returns:
         dict: A dictionary containing the fit results, including the bootstrap
@@ -137,7 +142,7 @@ def fit_spectrum_with_bootstrap(
 
     # Perform bootstrap resampling
     beta_estimates = np.zeros(n_bootstraps)
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(seed)
 
     for i in range(n_bootstraps):
         # Resample residuals
@@ -204,13 +209,24 @@ def fit_segmented_spectrum(frequency, power, n_breakpoints=1, p_threshold=0.05):
     log_power = np.log(power[valid_indices])
 
     # Fit the piecewise regression model
-    pw_fit = piecewise_regression.Fit(log_freq, log_power, n_breakpoints=n_breakpoints)
+    try:
+        pw_fit = piecewise_regression.Fit(
+            log_freq, log_power, n_breakpoints=n_breakpoints
+        )
+        fit_summary = pw_fit.get_results()
+        converged = fit_summary["converged"]
+    except Exception as e:
+        warnings.warn(
+            f"Segmented regression failed with an unexpected error: {e}", UserWarning
+        )
+        return {
+            "model_summary": "Segmented regression failed with an unexpected error.",
+            "n_breakpoints": n_breakpoints,
+        }
 
     # Check for convergence and statistical significance
     davies_p_value = pw_fit.davies if n_breakpoints == 1 else None
-    if not pw_fit.get_results()["converged"] or (
-        davies_p_value is not None and davies_p_value > p_threshold
-    ):
+    if not converged or (davies_p_value is not None and davies_p_value > p_threshold):
         summary = "Model did not converge"
         if davies_p_value is not None and davies_p_value > p_threshold:
             summary = f"No significant breakpoint found (Davies test p > {p_threshold})"

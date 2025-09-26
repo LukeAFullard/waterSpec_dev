@@ -5,7 +5,9 @@ import numpy as np
 import pandas as pd
 
 
-def load_data(file_path, time_col, data_col, error_col=None):
+def load_data(
+    file_path, time_col, data_col, error_col=None, time_format=None, sheet_name=0
+):
     """
     Loads time series data from a CSV, JSON, or Excel file.
     """
@@ -13,8 +15,8 @@ def load_data(file_path, time_col, data_col, error_col=None):
     _, file_extension = os.path.splitext(file_path)
     if file_extension.lower() == ".csv":
         df = pd.read_csv(file_path, low_memory=False, index_col=False)
-    elif file_extension.lower() == ".xlsx":
-        df = pd.read_excel(file_path)
+    elif file_extension.lower() in [".xlsx", ".xls"]:
+        df = pd.read_excel(file_path, sheet_name=sheet_name)
     elif file_extension.lower() == ".json":
         df = pd.read_json(file_path)
     else:
@@ -32,11 +34,16 @@ def load_data(file_path, time_col, data_col, error_col=None):
     # 3. Perform validation and type coercion on copies of the series
     # Time column
     original_time_na = df[time_col].isna().sum()
-    time_series = pd.to_datetime(df[time_col], errors="coerce")
+    try:
+        time_series = pd.to_datetime(df[time_col], format=time_format, errors="coerce")
+    except Exception as e:
+        raise ValueError(f"Time format error: {e}")
+
     if time_series.isna().sum() > original_time_na:
-        raise ValueError(
-            f"Time column '{time_col}' could not be parsed as datetime objects."
-        )
+        msg = f"Time column '{time_col}' could not be parsed as datetime objects."
+        if time_format:
+            msg += f" Please check that the format string '{time_format}' is correct."
+        raise ValueError(msg)
 
     # Data column
     # We do not coerce to numeric here. The preprocessor will handle this,

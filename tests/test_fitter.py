@@ -205,3 +205,53 @@ def test_fit_spectrum_bootstrap_insufficient_data():
     assert np.isnan(results["r_squared"])
     assert np.isnan(results["beta_ci_lower"])
     assert np.isnan(results["beta_ci_upper"])
+
+
+def test_fit_spectrum_with_bootstrap_is_reproducible(synthetic_spectrum):
+    """
+    Test that the bootstrap function produces the same results when the same
+    seed is provided.
+    """
+    frequency, power, _ = synthetic_spectrum
+
+    # Fit twice with the same seed
+    results1 = fit_spectrum_with_bootstrap(
+        frequency, power, n_bootstraps=50, seed=123
+    )
+    results2 = fit_spectrum_with_bootstrap(
+        frequency, power, n_bootstraps=50, seed=123
+    )
+
+    # Fit once with a different seed
+    results3 = fit_spectrum_with_bootstrap(
+        frequency, power, n_bootstraps=50, seed=456
+    )
+
+    # The first two results should be identical
+    assert results1["beta_ci_lower"] == results2["beta_ci_lower"]
+    assert results1["beta_ci_upper"] == results2["beta_ci_upper"]
+
+    # The third result should be different
+    assert results1["beta_ci_lower"] != results3["beta_ci_lower"]
+
+
+def test_fit_segmented_spectrum_handles_exceptions(
+    multifractal_spectrum, mocker
+):
+    """
+    Test that fit_segmented_spectrum catches exceptions from the underlying
+    library and returns a meaningful summary.
+    """
+    frequency, power, _, _, _ = multifractal_spectrum
+
+    # Mock the Fit class to raise an exception upon initialization
+    mocker.patch(
+        "waterSpec.fitter.piecewise_regression.Fit",
+        side_effect=RuntimeError("Test Exception"),
+    )
+
+    with pytest.warns(UserWarning, match="Segmented regression failed"):
+        results = fit_segmented_spectrum(frequency, power)
+
+    assert "model_summary" in results
+    assert "failed with an unexpected error" in results["model_summary"]

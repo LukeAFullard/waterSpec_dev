@@ -1,8 +1,7 @@
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
 
-from waterSpec.preprocessor import preprocess_data, detrend, normalize
+from waterSpec.preprocessor import detrend, normalize, preprocess_data
 
 
 def test_error_propagation_with_detrend_and_normalize():
