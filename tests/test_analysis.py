@@ -185,3 +185,31 @@ def test_analysis_residual_method_finds_peak(tmp_path):
     known_freq_hz = known_freq_cpd / 86400
     found_peak_freq = results['significant_peaks'][0]['frequency']
     assert found_peak_freq == pytest.approx(known_freq_hz, rel=0.05)
+
+
+def test_analysis_with_censored_data(tmp_path):
+    """Test the full workflow with a data file containing censored values."""
+    # The data file is in the repo, not a temporary path
+    file_path = 'tests/data/censored_data.csv'
+    output_dir = tmp_path / "results_censored"
+
+    # Run the analysis with a strategy to handle censored data
+    analyzer = Analysis(
+        file_path,
+        time_col='date',
+        data_col='concentration',
+        censor_strategy='use_detection_limit'
+    )
+    results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=10)
+
+    # Check that the analysis ran successfully and produced valid results
+    assert 'summary_text' in results
+    assert "Analysis failed" not in results['summary_text']
+    assert ('beta' in results or 'beta1' in results)
+    assert np.isfinite(results.get('beta', np.nan)) or np.isfinite(results.get('beta1', np.nan))
+
+    # Check that the output files were created
+    expected_plot = output_dir / "concentration_spectrum_plot.png"
+    expected_summary = output_dir / "concentration_summary.txt"
+    assert expected_plot.exists()
+    assert expected_summary.exists()

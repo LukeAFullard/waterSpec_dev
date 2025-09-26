@@ -160,47 +160,36 @@ def fit_spectrum_with_bootstrap(frequency, power, method='theil-sen', n_bootstra
 
     return initial_fit
 
-def fit_segmented_spectrum(frequency, power, n_breakpoints=1):
+def fit_segmented_spectrum(frequency, power):
     """
-    Fits a segmented regression to the power spectrum to find breakpoints.
+    Fits a segmented regression with one breakpoint to the power spectrum.
 
     Args:
         frequency (np.ndarray): The frequency array.
         power (np.ndarray): The power array.
-        n_breakpoints (int, optional): The number of breakpoints to fit (1 or 2). Defaults to 1.
-                                       The maximum is 2.
 
     Returns:
         dict: A dictionary containing the fit results.
     """
-    if n_breakpoints not in [1, 2]:
-        raise ValueError("n_breakpoints must be 1 or 2.")
-
     # Log-transform the data
     valid_indices = (frequency > 0) & (power > 0)
-    min_points = 7 if n_breakpoints == 2 else 5
+    min_points = 5
     if np.sum(valid_indices) < min_points:
-        summary = f"Not enough data points for {n_breakpoints} breakpoint(s) regression."
-        if n_breakpoints == 1:
-            return {'breakpoint': np.nan, 'beta1': np.nan, 'beta2': np.nan, 'model_summary': summary, 'n_breakpoints': 1}
-        else: # n_breakpoints == 2
-            return {'breakpoint1': np.nan, 'breakpoint2': np.nan, 'beta1': np.nan, 'beta2': np.nan, 'beta3': np.nan, 'model_summary': summary, 'n_breakpoints': 2}
+        summary = "Not enough data points for segmented regression."
+        return {'breakpoint': np.nan, 'beta1': np.nan, 'beta2': np.nan, 'model_summary': summary, 'n_breakpoints': 1}
 
 
     log_freq = np.log(frequency[valid_indices])
     log_power = np.log(power[valid_indices])
 
-    # Fit the piecewise regression model
-    pw_fit = piecewise_regression.Fit(log_freq, log_power, n_breakpoints=n_breakpoints)
+    # Fit the piecewise regression model with one breakpoint
+    pw_fit = piecewise_regression.Fit(log_freq, log_power, n_breakpoints=1)
 
     # Check for convergence and statistical significance
     davies_p_value = pw_fit.davies
     if not pw_fit.get_results()["converged"] or davies_p_value > 0.05:
         summary = "No significant breakpoint found (Davies test p > 0.05) or model did not converge."
-        if n_breakpoints == 1:
-            return {'breakpoint': np.nan, 'beta1': np.nan, 'beta2': np.nan, 'model_summary': summary, 'n_breakpoints': 1}
-        else: # n_breakpoints == 2
-            return {'breakpoint1': np.nan, 'breakpoint2': np.nan, 'beta1': np.nan, 'beta2': np.nan, 'beta3': np.nan, 'model_summary': summary, 'n_breakpoints': 2}
+        return {'breakpoint': np.nan, 'beta1': np.nan, 'beta2': np.nan, 'model_summary': summary, 'n_breakpoints': 1}
 
 
     # Extract results
@@ -220,46 +209,19 @@ def fit_segmented_spectrum(frequency, power, n_breakpoints=1):
         'log_power': log_power,
         'residuals': residuals,
         'fitted_log_power': fitted_log_power,
-        'n_breakpoints': n_breakpoints
+        'n_breakpoints': 1
     }
 
-    if n_breakpoints == 1:
-        breakpoint_log_freq = estimates["breakpoint1"]["estimate"]
-        breakpoint_freq = np.exp(breakpoint_log_freq)
-        alpha1 = estimates["alpha1"]["estimate"]
-        alpha2 = estimates["alpha2"]["estimate"]
-        beta1 = -alpha1
-        beta2 = -alpha2
-        results.update({
-            'breakpoint': breakpoint_freq,
-            'beta1': beta1,
-            'beta2': beta2,
-        })
-    elif n_breakpoints == 2:
-        bp1_log = estimates["breakpoint1"]["estimate"]
-        bp2_log = estimates["breakpoint2"]["estimate"]
-
-        # Ensure breakpoints are ordered
-        bp1_log_freq = min(bp1_log, bp2_log)
-        bp2_log_freq = max(bp1_log, bp2_log)
-
-        breakpoint1_freq = np.exp(bp1_log_freq)
-        breakpoint2_freq = np.exp(bp2_log_freq)
-
-        alpha1 = estimates["alpha1"]["estimate"]
-        alpha2 = estimates["alpha2"]["estimate"]
-        alpha3 = estimates["alpha3"]["estimate"]
-
-        beta1 = -alpha1
-        beta2 = -alpha2
-        beta3 = -alpha3
-
-        results.update({
-            'breakpoint1': breakpoint1_freq,
-            'breakpoint2': breakpoint2_freq,
-            'beta1': beta1,
-            'beta2': beta2,
-            'beta3': beta3
-        })
+    breakpoint_log_freq = estimates["breakpoint1"]["estimate"]
+    breakpoint_freq = np.exp(breakpoint_log_freq)
+    alpha1 = estimates["alpha1"]["estimate"]
+    alpha2 = estimates["alpha2"]["estimate"]
+    beta1 = -alpha1
+    beta2 = -alpha2
+    results.update({
+        'breakpoint': breakpoint_freq,
+        'beta1': beta1,
+        'beta2': beta2,
+    })
 
     return results

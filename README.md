@@ -59,5 +59,9 @@ This single command will create an `readme_output` directory with two files:
 - `concentration_spectrum_plot.png`: A publication-quality plot of the power spectrum.
 - `concentration_summary.txt`: A text file with a detailed interpretation of the results.
 
+## Limitations
+
+*   **Error Propagation in Detrending**: While `waterSpec` supports measurement uncertainties (`dy`) and propagates them through normalization and log-transformation, error propagation is **not** currently implemented for the `linear` or `loess` detrending functions. The uncertainty of the detrended signal is assumed to be the same as the original signal's uncertainty. This is a common simplification but should be considered when analyzing data with large trends.
+
 ---
 *Liang X, Schilling KE, Jones CS, Zhang Y-K. 2021. Temporal scaling of long-term co-occurring agricultural contaminants and the implications for conservation planning. Environmental Research Letters 16:094015.*
