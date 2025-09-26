@@ -1,0 +1,26 @@
+Automatic Analysis for: Nitrate Concentration
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard Fit:   BIC = 90.05 (β = -0.37)
+  - Segmented Fit:  BIC = 47.73 (β1 = 0.36, β2 = -1.52)
+==> Chosen Model: Segmented
+-----------------------------------
+
+Details for Chosen (Segmented) Model:
+Segmented Analysis for: Nitrate Concentration
+Breakpoint Period ≈ 10.3 days
+-----------------------------------
+Low-Frequency (Long-term) Fit:
+  β1 = 0.36
+  Interpretation: -0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, suggesting event-driven transport.
+  Persistence: 🔴 Event-driven
+-----------------------------------
+High-Frequency (Short-term) Fit:
+  β2 = -1.52
+  Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.
+  Persistence: 🔴 Event-driven
+
+-----------------------------------
+Significant Periodicities Found:
+  - Period: 3.0 days (Fit Residual: 4.29)
+  - Period: 5.9 days (Fit Residual: 2.51)

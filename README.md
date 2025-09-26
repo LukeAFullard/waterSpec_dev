@@ -108,16 +108,17 @@ Breakpoint Period ≈ 10.3 days
 Low-Frequency (Long-term) Fit:
   β1 = 0.36
   Interpretation: -0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, suggesting event-driven transport.
-  Persistence: 🔴 Event-driven (Low Persistence)
+  Persistence: 🔴 Event-driven
 -----------------------------------
 High-Frequency (Short-term) Fit:
   β2 = -1.52
   Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.
-  Persistence: 🔴 Event-driven (Low Persistence)
+  Persistence: 🔴 Event-driven
 
 -----------------------------------
 Significant Periodicities Found:
-  - Period: 3.0 days (Residual: 2.51)
+  - Period: 3.0 days (Fit Residual: 4.29)
+  - Period: 5.9 days (Fit Residual: 2.51)
 ```
 
 ## Limitations
