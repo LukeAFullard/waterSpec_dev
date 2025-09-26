@@ -1,11 +1,8 @@
-import pytest
-import waterSpec
-from waterSpec import (
-    generate_frequency_grid,
-    calculate_periodogram,
-    Analysis
-)
 import types
+
+import waterSpec
+from waterSpec import Analysis, calculate_periodogram, generate_frequency_grid
+
 
 def test_top_level_imports():
     """
@@ -15,9 +12,10 @@ def test_top_level_imports():
     assert isinstance(calculate_periodogram, types.FunctionType)
     assert issubclass(Analysis, object)
 
+
 def test_version_is_present():
     """
     Test that the package has a __version__ attribute.
     """
-    assert hasattr(waterSpec, '__version__')
+    assert hasattr(waterSpec, "__version__")
     assert isinstance(waterSpec.__version__, str)

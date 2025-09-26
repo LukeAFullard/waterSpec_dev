@@ -1,6 +1,12 @@
 import numpy as np
 import pytest
-from waterSpec.fitter import fit_spectrum, fit_spectrum_with_bootstrap, fit_segmented_spectrum
+
+from waterSpec.fitter import (
+    fit_segmented_spectrum,
+    fit_spectrum,
+    fit_spectrum_with_bootstrap,
+)
+
 
 @pytest.fixture
 def synthetic_spectrum():
@@ -24,6 +30,7 @@ def synthetic_spectrum():
 
     return frequency, power, known_beta
 
+
 def test_fit_spectrum_returns_correct_beta(synthetic_spectrum):
     """
     Test that fit_spectrum correctly estimates the spectral exponent (beta).
@@ -34,8 +41,11 @@ def test_fit_spectrum_returns_correct_beta(synthetic_spectrum):
     fit_results = fit_spectrum(frequency, power)
 
     # Check that the returned beta is close to the known beta
-    assert 'beta' in fit_results
-    assert fit_results['beta'] == pytest.approx(known_beta, abs=0.1) # Allow some tolerance due to noise
+    assert "beta" in fit_results
+    assert fit_results["beta"] == pytest.approx(
+        known_beta, abs=0.1
+    )  # Allow some tolerance due to noise
+
 
 def test_fit_spectrum_returns_good_fit_metrics(synthetic_spectrum):
     """
@@ -45,11 +55,12 @@ def test_fit_spectrum_returns_good_fit_metrics(synthetic_spectrum):
     frequency, power, _ = synthetic_spectrum
 
     # Fit the spectrum using OLS specifically for this test
-    fit_results = fit_spectrum(frequency, power, method='ols')
+    fit_results = fit_spectrum(frequency, power, method="ols")
 
     # Check that the R-squared value indicates a good fit
-    assert 'r_squared' in fit_results
-    assert fit_results['r_squared'] > 0.95
+    assert "r_squared" in fit_results
+    assert fit_results["r_squared"] > 0.95
+
 
 def test_fit_spectrum_theil_sen(synthetic_spectrum):
     """
@@ -58,15 +69,16 @@ def test_fit_spectrum_theil_sen(synthetic_spectrum):
     frequency, power, known_beta = synthetic_spectrum
 
     # Fit the spectrum using the Theil-Sen estimator
-    fit_results = fit_spectrum(frequency, power, method='theil-sen')
+    fit_results = fit_spectrum(frequency, power, method="theil-sen")
 
     # Check that the returned beta is close to the known beta
-    assert 'beta' in fit_results
-    assert fit_results['beta'] == pytest.approx(known_beta, abs=0.1)
+    assert "beta" in fit_results
+    assert fit_results["beta"] == pytest.approx(known_beta, abs=0.1)
 
     # Check that the other metrics are NaN as expected
-    assert np.isnan(fit_results['r_squared'])
-    assert np.isnan(fit_results['stderr'])
+    assert np.isnan(fit_results["r_squared"])
+    assert np.isnan(fit_results["stderr"])
+
 
 def test_fit_spectrum_with_bootstrap(synthetic_spectrum):
     """
@@ -78,21 +90,33 @@ def test_fit_spectrum_with_bootstrap(synthetic_spectrum):
     frequency, power, known_beta = synthetic_spectrum
 
     # Fit the spectrum with bootstrap
-    fit_results = fit_spectrum_with_bootstrap(frequency, power, n_bootstraps=100) # Use a small number for testing
+    fit_results = fit_spectrum_with_bootstrap(
+        frequency, power, n_bootstraps=100
+    )  # Use a small number for testing
 
     # Check that the results dictionary contains the required keys
-    assert 'beta' in fit_results
-    assert 'beta_ci_lower' in fit_results
-    assert 'beta_ci_upper' in fit_results
+    assert "beta" in fit_results
+    assert "beta_ci_lower" in fit_results
+    assert "beta_ci_upper" in fit_results
 
     # Check that the main beta estimate is within the confidence interval
-    assert fit_results['beta_ci_lower'] <= fit_results['beta'] <= fit_results['beta_ci_upper']
+    assert (
+        fit_results["beta_ci_lower"]
+        <= fit_results["beta"]
+        <= fit_results["beta_ci_upper"]
+    )
 
-    # Check that the known beta is within the confidence interval (it should be, most of the time)
-    assert (fit_results['beta_ci_lower'] - 0.01) <= known_beta <= (fit_results['beta_ci_upper'] + 0.01)
+    # Check that the known beta is within the confidence interval
+    # (it should be, most of the time)
+    assert (
+        (fit_results["beta_ci_lower"] - 0.01)
+        <= known_beta
+        <= (fit_results["beta_ci_upper"] + 0.01)
+    )
 
     # Check that the confidence interval is not excessively wide
-    assert (fit_results['beta_ci_upper'] - fit_results['beta_ci_lower']) < 1.0
+    assert (fit_results["beta_ci_upper"] - fit_results["beta_ci_lower"]) < 1.0
+
 
 @pytest.fixture
 def multifractal_spectrum():
@@ -112,12 +136,12 @@ def multifractal_spectrum():
 
     # First segment
     mask1 = frequency < breakpoint_freq
-    power[mask1] = (frequency[mask1] ** -beta1)
+    power[mask1] = frequency[mask1] ** -beta1
 
     # Second segment
     mask2 = frequency >= breakpoint_freq
     # We need to scale the second segment to connect smoothly at the breakpoint
-    scale_factor = (breakpoint_freq ** -beta1) / (breakpoint_freq ** -beta2)
+    scale_factor = (breakpoint_freq**-beta1) / (breakpoint_freq**-beta2)
     power[mask2] = scale_factor * (frequency[mask2] ** -beta2)
 
     # Add some noise
@@ -127,6 +151,7 @@ def multifractal_spectrum():
     power = np.exp(log_power)
 
     return frequency, power, breakpoint_freq, beta1, beta2
+
 
 def test_fit_segmented_spectrum(multifractal_spectrum):
     """
@@ -138,19 +163,23 @@ def test_fit_segmented_spectrum(multifractal_spectrum):
     results = fit_segmented_spectrum(frequency, power)
 
     # Check that the results contain the expected keys
-    assert 'breakpoint' in results
-    assert 'beta1' in results
-    assert 'beta2' in results
+    assert "breakpoint" in results
+    assert "beta1" in results
+    assert "beta2" in results
 
     # Check that the identified breakpoint is close to the known breakpoint
     # The breakpoint is on a log scale, so we check the log values
-    assert np.log10(results['breakpoint']) == pytest.approx(np.log10(known_breakpoint), abs=0.5)
+    assert np.log10(results["breakpoint"]) == pytest.approx(
+        np.log10(known_breakpoint), abs=0.5
+    )
 
     # Check that the estimated betas are close to the known betas
-    assert results['beta1'] == pytest.approx(known_beta1, abs=0.3)
-    assert results['beta2'] == pytest.approx(known_beta2, abs=0.3)
+    assert results["beta1"] == pytest.approx(known_beta1, abs=0.3)
+    assert results["beta2"] == pytest.approx(known_beta2, abs=0.3)
+
 
 # --- Edge Case Tests ---
+
 
 def test_fit_spectrum_white_noise():
     """Test fitting a flat spectrum (white noise), where beta should be ~0."""
@@ -160,7 +189,8 @@ def test_fit_spectrum_white_noise():
     power = np.ones_like(frequency) + rng.normal(0, 0.1, len(frequency))
 
     fit_results = fit_spectrum(frequency, power)
-    assert fit_results['beta'] == pytest.approx(0.0, abs=0.1)
+    assert fit_results["beta"] == pytest.approx(0.0, abs=0.1)
+
 
 def test_fit_spectrum_bootstrap_insufficient_data():
     """Test bootstrap function when the initial fit fails."""
@@ -171,7 +201,7 @@ def test_fit_spectrum_bootstrap_insufficient_data():
     results = fit_spectrum_with_bootstrap(frequency, power)
 
     # Check that all results are NaN
-    assert np.isnan(results['beta'])
-    assert np.isnan(results['r_squared'])
-    assert np.isnan(results['beta_ci_lower'])
-    assert np.isnan(results['beta_ci_upper'])
+    assert np.isnan(results["beta"])
+    assert np.isnan(results["r_squared"])
+    assert np.isnan(results["beta_ci_lower"])
+    assert np.isnan(results["beta_ci_upper"])

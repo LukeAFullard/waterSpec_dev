@@ -1,7 +1,9 @@
-import pandas as pd
-import numpy as np
 import os
 import warnings
+
+import numpy as np
+import pandas as pd
+
 
 def load_data(file_path, time_col, data_col, error_col=None):
     """
@@ -9,11 +11,11 @@ def load_data(file_path, time_col, data_col, error_col=None):
     """
     # 1. Load data from file
     _, file_extension = os.path.splitext(file_path)
-    if file_extension.lower() == '.csv':
+    if file_extension.lower() == ".csv":
         df = pd.read_csv(file_path, low_memory=False, index_col=False)
-    elif file_extension.lower() == '.xlsx':
+    elif file_extension.lower() == ".xlsx":
         df = pd.read_excel(file_path)
-    elif file_extension.lower() == '.json':
+    elif file_extension.lower() == ".json":
         df = pd.read_json(file_path)
     else:
         raise ValueError(f"Unsupported file format: {file_extension}")
@@ -30,9 +32,11 @@ def load_data(file_path, time_col, data_col, error_col=None):
     # 3. Perform validation and type coercion on copies of the series
     # Time column
     original_time_na = df[time_col].isna().sum()
-    time_series = pd.to_datetime(df[time_col], errors='coerce')
+    time_series = pd.to_datetime(df[time_col], errors="coerce")
     if time_series.isna().sum() > original_time_na:
-        raise ValueError(f"Time column '{time_col}' could not be parsed as datetime objects.")
+        raise ValueError(
+            f"Time column '{time_col}' could not be parsed as datetime objects."
+        )
 
     # Data column
     # We do not coerce to numeric here. The preprocessor will handle this,
@@ -45,9 +49,11 @@ def load_data(file_path, time_col, data_col, error_col=None):
         if error_col not in df.columns:
             raise ValueError(f"Error column '{error_col}' not found in the file.")
         original_error_na = df[error_col].isna().sum()
-        error_series = pd.to_numeric(df[error_col], errors='coerce')
+        error_series = pd.to_numeric(df[error_col], errors="coerce")
         if error_series.isna().sum() > original_error_na:
-            raise ValueError(f"Error column '{error_col}' could not be converted to a numeric type.")
+            raise ValueError(
+                f"Error column '{error_col}' could not be converted to a numeric type."
+            )
         if (error_series.dropna() < 0).any():
             warnings.warn("The error column contains negative values.", UserWarning)
 
@@ -58,27 +64,30 @@ def load_data(file_path, time_col, data_col, error_col=None):
         warnings.warn("The error column contains NaN or null values.", UserWarning)
 
     # 5. Create a new, clean DataFrame from the validated series
-    clean_df = pd.DataFrame({
-        'time': time_series,
-        'data': data_series,
-    })
+    clean_df = pd.DataFrame(
+        {
+            "time": time_series,
+            "data": data_series,
+        }
+    )
     if error_series is not None:
-        clean_df['error'] = error_series
+        clean_df["error"] = error_series
 
     # 6. Drop rows with NaNs in essential columns
-    clean_df = clean_df.dropna(subset=['time', 'data']).reset_index(drop=True)
+    clean_df = clean_df.dropna(subset=["time", "data"]).reset_index(drop=True)
 
     # 7. Sort by time and check for monotonicity
-    clean_df = clean_df.sort_values(by='time').reset_index(drop=True)
-    time_numeric = (clean_df['time'].astype(np.int64) // 10**9).to_numpy()
+    clean_df = clean_df.sort_values(by="time").reset_index(drop=True)
+    time_numeric = (clean_df["time"].astype(np.int64) // 10**9).to_numpy()
 
     if len(time_numeric) > 1:
         time_diffs = np.diff(time_numeric)
         if (time_diffs <= 0).any():
             first_error_index = np.where(time_diffs <= 0)[0][0]
             raise ValueError(
-                f"Time column is not strictly monotonic increasing. "
-                f"First violation (duplicate or out-of-order timestamp) found at index {first_error_index + 1}."
+                "Time column is not strictly monotonic increasing. "
+                "First violation (duplicate or out-of-order timestamp) "
+                f"found at index {first_error_index + 1}."
             )
 
-    return time_numeric, clean_df['data'], clean_df.get('error')
+    return time_numeric, clean_df["data"], clean_df.get("error")

@@ -1,9 +1,11 @@
 """
 This module provides functions for generating frequency grids for spectral analysis.
 """
+
 import numpy as np
 
-def generate_frequency_grid(time_numeric, num_points=200, grid_type='log'):
+
+def generate_frequency_grid(time_numeric, num_points=200, grid_type="log"):
     """
     Generates a frequency grid, either logarithmically or linearly spaced.
 
@@ -30,9 +32,11 @@ def generate_frequency_grid(time_numeric, num_points=200, grid_type='log'):
     if min_freq >= nyquist_freq:
         min_freq = nyquist_freq / 100  # Adjust if duration is too short
 
-    if grid_type == 'log':
-        frequency_grid = np.logspace(np.log10(min_freq), np.log10(nyquist_freq), num=num_points)
-    elif grid_type == 'linear':
+    if grid_type == "log":
+        frequency_grid = np.logspace(
+            np.log10(min_freq), np.log10(nyquist_freq), num=num_points
+        )
+    elif grid_type == "linear":
         frequency_grid = np.linspace(min_freq, nyquist_freq, num=num_points)
     else:
         raise ValueError("grid_type must be either 'log' or 'linear'")

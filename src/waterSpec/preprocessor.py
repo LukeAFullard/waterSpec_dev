@@ -1,8 +1,10 @@
+import warnings
+
 import numpy as np
 import pandas as pd
-from scipy import signal
 import statsmodels.api as sm
-import warnings
+from scipy import signal
+
 
 def _validate_data_length(data, min_length=10):
     """
@@ -14,6 +16,7 @@ def _validate_data_length(data, min_length=10):
             f"The time series has only {valid_points} valid data points, "
             f"which is less than the required minimum of {min_length} for analysis."
         )
+
 
 def detrend(data, errors=None):
     """
@@ -28,6 +31,7 @@ def detrend(data, errors=None):
         return data, errors
     data[valid_indices] = signal.detrend(data[valid_indices])
     return data, errors
+
 
 def normalize(data, errors=None):
     """
@@ -49,10 +53,11 @@ def normalize(data, errors=None):
     else:
         # If std_dev is 0, the data is constant. Center it at 0.
         data[valid_indices] = 0
-        # Errors remain unchanged in scale, but if data is constant, maybe they should be 0?
+        # Errors are unchanged. If data is constant, should errors be 0?
         # For now, we leave them as they are.
 
     return data, errors
+
 
 def log_transform(data, errors=None):
     """
@@ -75,13 +80,19 @@ def log_transform(data, errors=None):
 
     return data, errors
 
-def handle_censored_data(data_series, strategy='drop', lower_multiplier=0.5, upper_multiplier=1.1):
+
+def handle_censored_data(
+    data_series, strategy="drop", lower_multiplier=0.5, upper_multiplier=1.1
+):
     """
     Handles censored data in a pandas Series by replacing censor marks before
     coercing the series to a numeric type.
     """
-    if strategy not in ['drop', 'use_detection_limit', 'multiplier']:
-        raise ValueError("Invalid strategy. Choose from ['drop', 'use_detection_limit', 'multiplier']")
+    if strategy not in ["drop", "use_detection_limit", "multiplier"]:
+        raise ValueError(
+            "Invalid strategy. Choose from "
+            "['drop', 'use_detection_limit', 'multiplier']"
+        )
 
     # Work on a copy to avoid modifying the original DataFrame's slice
     series = data_series.copy()
@@ -90,40 +101,45 @@ def handle_censored_data(data_series, strategy='drop', lower_multiplier=0.5, upp
     str_series = series.astype(str)
 
     # --- Handle left-censored data (e.g., "<5") ---
-    left_censored_mask = str_series.str.startswith('<', na=False)
+    left_censored_mask = str_series.str.startswith("<", na=False)
     if left_censored_mask.any():
         # Get the numeric value of the detection limit
-        left_values = pd.to_numeric(str_series[left_censored_mask].str.lstrip('<'), errors='coerce')
+        left_values = pd.to_numeric(
+            str_series[left_censored_mask].str.lstrip("<"), errors="coerce"
+        )
 
         # Replace the string value (e.g., "<5") with the appropriate numeric value
-        if strategy == 'drop':
+        if strategy == "drop":
             series.loc[left_censored_mask] = np.nan
-        elif strategy == 'use_detection_limit':
+        elif strategy == "use_detection_limit":
             series.loc[left_censored_mask] = left_values
-        elif strategy == 'multiplier':
+        elif strategy == "multiplier":
             series.loc[left_censored_mask] = left_values * lower_multiplier
 
     # --- Handle right-censored data (e.g., ">50") ---
-    right_censored_mask = str_series.str.startswith('>', na=False)
+    right_censored_mask = str_series.str.startswith(">", na=False)
     if right_censored_mask.any():
         # Get the numeric value of the detection limit
-        right_values = pd.to_numeric(str_series[right_censored_mask].str.lstrip('>'), errors='coerce')
+        right_values = pd.to_numeric(
+            str_series[right_censored_mask].str.lstrip(">"), errors="coerce"
+        )
 
         # Replace the string value (e.g., ">50") with the appropriate numeric value
-        if strategy == 'drop':
+        if strategy == "drop":
             series.loc[right_censored_mask] = np.nan
-        elif strategy == 'use_detection_limit':
+        elif strategy == "use_detection_limit":
             series.loc[right_censored_mask] = right_values
-        elif strategy == 'multiplier':
+        elif strategy == "multiplier":
             series.loc[right_censored_mask] = right_values * upper_multiplier
 
     # --- Final conversion to numeric ---
     # Now that censor marks are handled, convert the entire series to numeric.
     # Any remaining non-numeric strings (e.g., "apple") or values that could
     # not be coerced from the censor marks will become NaN.
-    numeric_series = pd.to_numeric(series, errors='coerce')
+    numeric_series = pd.to_numeric(series, errors="coerce")
 
     return numeric_series.to_numpy()
+
 
 def detrend_loess(x, y, errors=None, **kwargs):
     """
@@ -145,8 +161,8 @@ def detrend_loess(x, y, errors=None, **kwargs):
                   Common arguments include `frac` (default 0.5) and `it` (default 3).
     """
     # Set a default for `frac` if not provided, consistent with the old signature
-    if 'frac' not in kwargs:
-        kwargs['frac'] = 0.5
+    if "frac" not in kwargs:
+        kwargs["frac"] = 0.5
 
     valid_indices = ~np.isnan(y)
     if np.sum(valid_indices) < 2:
@@ -162,17 +178,18 @@ def detrend_loess(x, y, errors=None, **kwargs):
 
     return detrended_y, errors
 
+
 def preprocess_data(
     data_series,
     time_numeric,
     error_series=None,
-    censor_strategy='drop',
+    censor_strategy="drop",
     censor_options=None,
     log_transform_data=False,
     detrend_method=None,
     normalize_data=False,
     detrend_options=None,
-    min_length=10
+    min_length=10,
 ):
     """
     A wrapper function that applies a series of preprocessing steps.
@@ -187,7 +204,9 @@ def preprocess_data(
     if censor_options is None:
         censor_options = {}
 
-    processed_data = handle_censored_data(data_series, strategy=censor_strategy, **censor_options)
+    processed_data = handle_censored_data(
+        data_series, strategy=censor_strategy, **censor_options
+    )
     _validate_data_length(processed_data, min_length=min_length)
 
     processed_errors = None
@@ -197,14 +216,22 @@ def preprocess_data(
         processed_errors[nan_mask] = np.nan
 
     if log_transform_data:
-        processed_data, processed_errors = log_transform(processed_data, processed_errors)
+        processed_data, processed_errors = log_transform(
+            processed_data, processed_errors
+        )
 
-    if detrend_method == 'linear':
+    if detrend_method == "linear":
         processed_data, processed_errors = detrend(processed_data, processed_errors)
-    elif detrend_method == 'loess':
-        processed_data, processed_errors = detrend_loess(time_numeric, processed_data, errors=processed_errors, **detrend_options)
+    elif detrend_method == "loess":
+        processed_data, processed_errors = detrend_loess(
+            time_numeric, processed_data, errors=processed_errors, **detrend_options
+        )
     elif detrend_method is not None:
-        warnings.warn(f"Unknown detrending method '{detrend_method}'. No detrending will be applied.", UserWarning)
+        warnings.warn(
+            f"Unknown detrending method '{detrend_method}'. "
+            "No detrending will be applied.",
+            UserWarning,
+        )
 
     if normalize_data:
         processed_data, processed_errors = normalize(processed_data, processed_errors)
