@@ -54,14 +54,20 @@ def load_data(
     error_series = None
     if error_col:
         if error_col not in df.columns:
-            raise ValueError(f"Error column '{error_col}' not found in the file.")
-        original_error_na = df[error_col].isna().sum()
-        error_series = pd.to_numeric(df[error_col], errors="coerce")
-        if error_series.isna().sum() > original_error_na:
-            raise ValueError(
-                f"Error column '{error_col}' could not be converted to a numeric type."
+            warnings.warn(
+                f"Error column '{error_col}' not found in the file. "
+                "No errors will be used.",
+                UserWarning,
             )
-        if (error_series.dropna() < 0).any():
+            error_series = None
+        else:
+            original_error_na = df[error_col].isna().sum()
+            error_series = pd.to_numeric(df[error_col], errors="coerce")
+            if error_series.isna().sum() > original_error_na:
+                raise ValueError(
+                    f"Error column '{error_col}' could not be converted to a numeric type."
+                )
+        if error_series is not None and (error_series.dropna() < 0).any():
             warnings.warn("The error column contains negative values.", UserWarning)
 
     # 4. Issue warnings for any NaNs present in the coerced data

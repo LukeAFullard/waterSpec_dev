@@ -175,7 +175,7 @@ def test_interpret_results_segmented():
     summary = results["summary_text"]
 
     assert "Segmented Analysis for: Ortho-P" in summary
-    assert "Breakpoint @ ~3.0 months" in summary
+    assert "--- Breakpoint 1 @ ~3.0 months ---" in summary
     assert "Low-Frequency (Long-term) Fit" in summary
     assert "β1 = 0.50" in summary
     assert "High-Frequency (Short-term) Fit" in summary
