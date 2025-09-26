@@ -189,8 +189,8 @@ def test_load_data_unsupported_format(tmp_path):
 
 
 def test_load_data_missing_error_column(create_test_csv):
-    """Test that a missing error column, when specified, raises a ValueError."""
-    with pytest.raises(ValueError, match="Error column 'bad_error_col' not found"):
+    """Test that a missing error column, when specified, issues a UserWarning."""
+    with pytest.warns(UserWarning, match="Error column 'bad_error_col' not found"):
         load_data(
             create_test_csv,
             time_col="timestamp",

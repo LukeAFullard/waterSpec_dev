@@ -115,30 +115,38 @@ def log_transform(data, errors=None):
 
 
 def handle_censored_data(
-    data_series, strategy="drop", lower_multiplier=0.5, upper_multiplier=1.1
+    data_series,
+    strategy="drop",
+    lower_multiplier=0.5,
+    upper_multiplier=1.1,
+    censor_symbol="<",
+    **kwargs,  # To gracefully accept other options
 ):
     """
     Handles censored data in a pandas Series by replacing censor marks before
     coercing the series to a numeric type.
     """
+    # Ensure we are working with a pandas Series for string operations
+    if not isinstance(data_series, pd.Series):
+        series = pd.Series(data_series).copy()
+    else:
+        series = data_series.copy()
+
     if strategy not in ["drop", "use_detection_limit", "multiplier"]:
         raise ValueError(
             "Invalid strategy. Choose from "
             "['drop', 'use_detection_limit', 'multiplier']"
         )
 
-    # Work on a copy to avoid modifying the original DataFrame's slice
-    series = data_series.copy()
-
     # Convert to string to safely find censor marks
     str_series = series.astype(str)
 
     # --- Handle left-censored data (e.g., "<5") ---
-    left_censored_mask = str_series.str.startswith("<", na=False)
+    left_censored_mask = str_series.str.startswith(censor_symbol, na=False)
     if left_censored_mask.any():
         # Get the numeric value of the detection limit
         left_values = pd.to_numeric(
-            str_series[left_censored_mask].str.lstrip("<"), errors="coerce"
+            str_series[left_censored_mask].str.lstrip(censor_symbol), errors="coerce"
         )
 
         # Replace the string value (e.g., "<5") with the appropriate numeric value
@@ -171,11 +179,15 @@ def handle_censored_data(
     # not be coerced from the censor marks will become NaN.
     numeric_series = pd.to_numeric(series, errors="coerce")
     if numeric_series.isnull().any():
-        warnings.warn(
-            "Non-numeric or unhandled censored values found in data column, "
-            "which will be treated as NaNs.",
-            UserWarning,
-        )
+        # Find the original values that are now null
+        original_nan_mask = series[numeric_series.isnull()].notna()
+        original_offenders = series[numeric_series.isnull()][original_nan_mask]
+        if not original_offenders.empty:
+            warnings.warn(
+                "Non-numeric or unhandled censored values found in data column, "
+                "which will be treated as NaNs.",
+                UserWarning,
+            )
 
     return numeric_series.to_numpy()
 

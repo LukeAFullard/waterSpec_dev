@@ -183,7 +183,7 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
                 # This is a middle segment
                 name = f"Mid-Frequency Segment {i+1}"
 
-            summary_parts.append(f"--- Breakpoint @ ~{_format_period(bp_freq)} ---")
+            summary_parts.append(f"--- Breakpoint {i+1} @ ~{_format_period(bp_freq)} ---")
             summary_parts.extend([
                 f"{name} Fit:",
                 f"  β{i+2} = {beta_next:.2f}",
@@ -240,16 +240,26 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
 
     # --- Append shared sections (peaks) and prepend auto-summary ---
     if "significant_peaks" in fit_results and fit_results["significant_peaks"]:
-        peaks_summary = (
-            "\n\n-----------------------------------\nSignificant Periodicities Found:"
-        )
+        peaks_summary = "\n\n-----------------------------------\n"
+        if "fap_level" in fit_results:
+            peaks_summary += (
+                "Significant Periodicities Found "
+                f"(at {fit_results['fap_threshold']*100:.1f}% FAP Level):\n"
+            )
+        else:
+            peaks_summary += "Significant Periodicities Found:\n"
+
         for peak in fit_results["significant_peaks"]:
-            period_str = f"\n  - Period: {_format_period(peak['frequency'])}"
+            period_str = f"  - Period: {_format_period(peak['frequency'])}"
             if "residual" in peak:
-                peaks_summary += f"{period_str} (Fit Residual: {peak['residual']:.2f})"
+                peaks_summary += (
+                    f"{period_str} (Fit Residual: {peak['residual']:.2f})\n"
+                )
             else:
-                peaks_summary += period_str
-        summary_text += peaks_summary
+                peaks_summary += f"{period_str}\n"
+        summary_text += peaks_summary.rstrip()
+    else:
+        summary_text += "\n\nNo significant periodicities were found."
 
     results_dict["summary_text"] = auto_summary_header + summary_text
     return results_dict
