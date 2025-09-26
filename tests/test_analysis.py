@@ -138,14 +138,6 @@ def test_analysis_zero_variance_data(tmp_path):
 
     assert "Analysis failed" in results['summary_text']
 
-def test_deprecation_warning_for_old_workflow():
-    """Test that the old run_analysis function issues a DeprecationWarning."""
-    file_path = 'examples/sample_data.csv'
-    with pytest.warns(DeprecationWarning, match="The 'run_analysis' function is deprecated"):
-        # We need to import it here to isolate the test
-        from waterSpec.workflow import run_analysis
-        run_analysis(file_path, time_col='timestamp', data_col='concentration', n_bootstraps=10, analysis_type='standard')
-
 def test_analysis_fap_threshold_is_configurable(tmp_path):
     """Test that the fap_threshold can be configured in run_full_analysis."""
     file_path = 'examples/sample_data.csv'

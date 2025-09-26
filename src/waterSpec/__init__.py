@@ -11,7 +11,6 @@ from .frequency_generator import generate_frequency_grid
 from .fitter import fit_spectrum, fit_spectrum_with_bootstrap, fit_segmented_spectrum
 from .interpreter import interpret_results
 from .plotting import plot_spectrum
-from .workflow import run_analysis
 from .analysis import Analysis
 
 __all__ = [
@@ -25,5 +24,4 @@ __all__ = [
     "fit_segmented_spectrum",
     "interpret_results",
     "plot_spectrum",
-    "run_analysis",
 ]
