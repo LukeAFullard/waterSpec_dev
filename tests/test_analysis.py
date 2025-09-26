@@ -115,25 +115,28 @@ def test_analysis_auto_chooses_segmented_with_mock(
     mock_fit_standard, mock_fit_segmented, tmp_path
 ):
     """Test that auto mode chooses the segmented model with a better BIC score."""
-    # Add required keys for the residual peak finding to the mock return values
-    dummy_array = np.array([1, 2, 3])
+    # Configure mocks to return data with the new structure
     mock_fit_segmented.return_value = {
-        "beta1": 0.5,
-        "beta2": 1.8,
-        "breakpoint": 0.01,
+        "betas": [0.5, 1.8],
+        "breakpoints": [0.01],
         "bic": 100.0,
-        "residuals": dummy_array,
-        "fitted_log_power": dummy_array,
-        "log_freq": dummy_array,
-        "log_power": dummy_array,
+        "n_breakpoints": 1,
+        # Add required keys for the residual peak finding
+        "residuals": np.array([1, 2, 3]),
+        "fitted_log_power": np.array([1, 2, 3]),
+        "log_freq": np.array([1, 2, 3]),
+        "log_power": np.array([1, 2, 3]),
     }
     mock_fit_standard.return_value = {
         "beta": 1.2,
+        "betas": [1.2],
         "bic": 120.0,
-        "residuals": dummy_array,
-        "fitted_log_power": dummy_array,
-        "log_freq": dummy_array,
-        "log_power": dummy_array,
+        "n_breakpoints": 0,
+        # Add required keys for the residual peak finding
+        "residuals": np.array([1, 2, 3]),
+        "fitted_log_power": np.array([1, 2, 3]),
+        "log_freq": np.array([1, 2, 3]),
+        "log_power": np.array([1, 2, 3]),
     }
 
     file_path = create_test_data_file(
@@ -144,9 +147,9 @@ def test_analysis_auto_chooses_segmented_with_mock(
     analyzer = Analysis(file_path, time_col="time", data_col="value")
     results = analyzer.run_full_analysis(output_dir=str(output_dir))
 
-    assert results["chosen_model"] == "segmented"
-    assert results["bic_comparison"]["segmented"] == 100.0
-    assert "beta1" in results
+    assert results["chosen_model"] == "segmented_1bp"
+    assert results["bic"] == 100.0
+    assert results["n_breakpoints"] == 1
 
 
 def test_analysis_insufficient_data(tmp_path):
@@ -249,8 +252,8 @@ def test_analysis_with_censored_data(tmp_path):
     assert "summary_text" in results
     assert "Analysis failed" not in results["summary_text"]
     assert "beta" in results or "beta1" in results
-    assert np.isfinite(results.get("beta", np.nan)) or np.isfinite(
-        results.get("beta1", np.nan)
+    assert np.isfinite(results.get("beta", np.nan)) or (
+        "betas" in results and np.isfinite(results["betas"][0])
     )
 
     # Check that the output files were created
@@ -258,3 +261,59 @@ def test_analysis_with_censored_data(tmp_path):
     expected_summary = output_dir / "concentration_summary.txt"
     assert expected_plot.exists()
     assert expected_summary.exists()
+
+
+@patch("waterSpec.analysis.fit_segmented_spectrum")
+@patch("waterSpec.analysis.fit_spectrum_with_bootstrap")
+def test_analysis_max_breakpoints_selects_best_model(
+    mock_fit_standard, mock_fit_segmented, tmp_path
+):
+    """
+    Test that the model selection logic correctly chooses the model with the
+    lowest BIC when max_breakpoints > 1.
+    """
+    # --- Mock Configuration ---
+    # Mock the standard fit (0 breakpoints)
+    mock_fit_standard.return_value = {"beta": 1.0, "bic": 200.0, "n_breakpoints": 0}
+
+    # Mock the segmented fits (1 and 2 breakpoints) to return different BICs
+    def segmented_side_effect(frequency, power, n_breakpoints, p_threshold):
+        if n_breakpoints == 1:
+            return {
+                "betas": [0.5, 1.5],
+                "breakpoints": [0.1],
+                "bic": 150.0,
+                "n_breakpoints": 1,
+            }
+        elif n_breakpoints == 2:
+            return {
+                "betas": [0.2, 1.8, 0.5],
+                "breakpoints": [0.01, 0.1],
+                "bic": 100.0,
+                "n_breakpoints": 2,
+            }
+        return {}
+
+    mock_fit_segmented.side_effect = segmented_side_effect
+
+    # --- Test Execution ---
+    file_path = create_test_data_file(
+        tmp_path, pd.date_range("2023", periods=100), np.random.rand(100)
+    )
+    output_dir = tmp_path / "results"
+    analyzer = Analysis(file_path, time_col="time", data_col="value")
+    results = analyzer.run_full_analysis(
+        output_dir=str(output_dir), max_breakpoints=2, n_bootstraps=0
+    )
+
+    # --- Assertions ---
+    # Check that the best model (lowest BIC) was chosen
+    assert results["chosen_model"] == "segmented_2bp"
+    assert results["n_breakpoints"] == 2
+    assert len(results["betas"]) == 3
+    assert results["bic"] == 100.0
+
+    # Check that all models were considered
+    assert len(results["all_models"]) == 3
+    bics = [m["bic"] for m in results["all_models"]]
+    assert sorted(bics) == [100.0, 150.0, 200.0]

@@ -115,37 +115,60 @@ class Analysis:
             normalization=normalization,
         )
 
-    def _perform_model_selection(self, fit_method, n_bootstraps, p_threshold):
-        """Performs standard and segmented fits and selects the best model using BIC."""
+    def _perform_model_selection(
+        self, fit_method, n_bootstraps, p_threshold, max_breakpoints
+    ):
+        """
+        Performs fits for models with different numbers of breakpoints and
+        selects the best one using BIC.
+        """
+        # --- Fit all candidate models ---
+        all_models = []
+        # Standard fit (0 breakpoints)
         standard_results = fit_spectrum_with_bootstrap(
             self.frequency, self.power, method=fit_method, n_bootstraps=n_bootstraps
         )
-        segmented_results = fit_segmented_spectrum(
-            self.frequency, self.power, p_threshold=p_threshold
-        )
+        if "bic" in standard_results and np.isfinite(standard_results["bic"]):
+            standard_results["model_type"] = "standard"
+            standard_results["n_breakpoints"] = 0
+            all_models.append(standard_results)
 
-        # Determine if the segmented fit is valid and better than the standard one
-        is_segmented_preferred = False
-        if "bic" in segmented_results and np.isfinite(segmented_results["bic"]):
-            bic_standard = standard_results.get("bic", np.inf)
-            if segmented_results["bic"] < bic_standard:
-                is_segmented_preferred = True
+        # Segmented fits (1 and possibly 2 breakpoints)
+        for n_bp in range(1, max_breakpoints + 1):
+            seg_results = fit_segmented_spectrum(
+                self.frequency,
+                self.power,
+                n_breakpoints=n_bp,
+                p_threshold=p_threshold,
+            )
+            if "bic" in seg_results and np.isfinite(seg_results["bic"]):
+                seg_results["model_type"] = f"segmented_{n_bp}bp"
+                all_models.append(seg_results)
 
-        chosen_model_results = (
-            segmented_results if is_segmented_preferred else standard_results
-        )
-        analysis_type = "segmented" if is_segmented_preferred else "standard"
+        if not all_models:
+            # If no models converged, return a failure structure that can be
+            # handled gracefully by the rest of the pipeline.
+            return {
+                "betas": [np.nan],
+                "n_breakpoints": 0,
+                "chosen_model_type": "standard",
+            }
 
-        # Consolidate results
-        fit_results = chosen_model_results.copy()
-        fit_results["standard_fit"] = standard_results
-        fit_results["segmented_fit"] = segmented_results
-        fit_results["bic_comparison"] = {
-            "standard": standard_results.get("bic"),
-            "segmented": segmented_results.get("bic"),
-        }
-        fit_results["chosen_model"] = analysis_type
+        # --- Select the best model based on BIC ---
+        best_model = min(all_models, key=lambda x: x["bic"])
+
+        # --- Consolidate results ---
+        fit_results = best_model.copy()
+        fit_results["all_models"] = all_models
+        fit_results["chosen_model"] = best_model["model_type"]
         fit_results["analysis_mode"] = "auto"
+
+        # For backward compatibility and simpler interpretation logic
+        if best_model["n_breakpoints"] == 0:
+            fit_results["chosen_model_type"] = "standard"
+        else:
+            fit_results["chosen_model_type"] = "segmented"
+
         return fit_results
 
     def _detect_significant_peaks(
@@ -204,7 +227,7 @@ class Analysis:
             self.frequency,
             self.power,
             fit_results=results,
-            analysis_type=results["chosen_model"],
+            analysis_type=results["chosen_model_type"],
             output_path=plot_path,
             param_name=self.param_name,
         )
@@ -226,6 +249,7 @@ class Analysis:
         peak_detection_method="residual",
         peak_detection_ci=95,
         p_threshold_davies=0.05,
+        max_breakpoints=1,
     ):
         """
         Runs the complete analysis workflow and saves all outputs to a directory.
@@ -255,7 +279,9 @@ class Analysis:
                 Defaults to 'standard'.
             p_threshold_davies (float, optional): The p-value threshold for the
                 Davies test for a significant breakpoint in segmented
-                regression. Defaults to 0.05.
+                regression (only used for 1-breakpoint models). Defaults to 0.05.
+            max_breakpoints (int, optional): The maximum number of breakpoints
+                to consider in segmented regression (0, 1, or 2). Defaults to 1.
 
         Returns:
             dict: A dictionary containing all analysis results.
@@ -265,7 +291,7 @@ class Analysis:
 
         # 2. Fit Spectrum and Select Best Model
         fit_results = self._perform_model_selection(
-            fit_method, n_bootstraps, p_threshold_davies
+            fit_method, n_bootstraps, p_threshold_davies, max_breakpoints
         )
 
         # 3. Detect Significant Peaks
@@ -279,9 +305,10 @@ class Analysis:
 
         # 4. Interpret Results
         fit_successful = (
-            "beta" in fit_results and np.isfinite(fit_results["beta"])
-        ) or ("beta1" in fit_results and np.isfinite(fit_results["beta1"]))
-
+            "betas" in fit_results
+            and len(fit_results["betas"]) > 0
+            and np.isfinite(fit_results["betas"][0])
+        )
         if not fit_successful:
             interp_results = {
                 "summary_text": "Analysis failed: Could not determine a valid spectral slope."

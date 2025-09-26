@@ -176,62 +176,56 @@ def fit_spectrum_with_bootstrap(
     return initial_fit
 
 
-def fit_segmented_spectrum(frequency, power, p_threshold=0.05):
+def fit_segmented_spectrum(frequency, power, n_breakpoints=1, p_threshold=0.05):
     """
-    Fits a segmented regression with one breakpoint to the power spectrum.
+    Fits a segmented regression with n breakpoints to the power spectrum.
 
     Args:
         frequency (np.ndarray): The frequency array.
         power (np.ndarray): The power array.
+        n_breakpoints (int, optional): The number of breakpoints to fit.
+            Defaults to 1.
         p_threshold (float, optional): The p-value threshold for the Davies
-            test for a significant breakpoint. Defaults to 0.05.
+            test for a significant breakpoint (only used when n_breakpoints=1).
+            Defaults to 0.05.
 
     Returns:
         dict: A dictionary containing the fit results.
     """
     # Log-transform the data
     valid_indices = (frequency > 0) & (power > 0)
-    min_points = 5
+    # Require at least 5 points per segment
+    min_points = 5 * (n_breakpoints + 1)
     if np.sum(valid_indices) < min_points:
-        summary = "Not enough data points for segmented regression."
-        return {
-            "breakpoint": np.nan,
-            "beta1": np.nan,
-            "beta2": np.nan,
-            "model_summary": summary,
-            "n_breakpoints": 1,
-        }
+        summary = f"Not enough data points for {n_breakpoints}-breakpoint regression."
+        return {"model_summary": summary, "n_breakpoints": n_breakpoints}
 
     log_freq = np.log(frequency[valid_indices])
     log_power = np.log(power[valid_indices])
 
-    # Fit the piecewise regression model with one breakpoint
-    pw_fit = piecewise_regression.Fit(log_freq, log_power, n_breakpoints=1)
+    # Fit the piecewise regression model
+    pw_fit = piecewise_regression.Fit(log_freq, log_power, n_breakpoints=n_breakpoints)
 
     # Check for convergence and statistical significance
-    davies_p_value = pw_fit.davies
-    if not pw_fit.get_results()["converged"] or davies_p_value > p_threshold:
-        summary = (
-            f"No significant breakpoint found (Davies test p > {p_threshold}) or "
-            "model did not converge."
-        )
+    davies_p_value = pw_fit.davies if n_breakpoints == 1 else None
+    if not pw_fit.get_results()["converged"] or (
+        davies_p_value is not None and davies_p_value > p_threshold
+    ):
+        summary = "Model did not converge"
+        if davies_p_value is not None and davies_p_value > p_threshold:
+            summary = f"No significant breakpoint found (Davies test p > {p_threshold})"
         return {
-            "breakpoint": np.nan,
-            "beta1": np.nan,
-            "beta2": np.nan,
             "model_summary": summary,
-            "n_breakpoints": 1,
+            "n_breakpoints": n_breakpoints,
             "davies_p_value": davies_p_value,
         }
 
-    # Extract results
+    # --- Extract results ---
     fit_summary = pw_fit.get_results()
     estimates = fit_summary["estimates"]
-
-    # Calculate the fitted line and residuals
     fitted_log_power = pw_fit.predict(log_freq)
-    residuals = log_power - fitted_log_power
 
+    # Store base results
     results = {
         "bic": fit_summary.get("bic"),
         "r_squared": fit_summary.get("r_squared"),
@@ -239,23 +233,37 @@ def fit_segmented_spectrum(frequency, power, p_threshold=0.05):
         "model_object": pw_fit,
         "log_freq": log_freq,
         "log_power": log_power,
-        "residuals": residuals,
+        "residuals": log_power - fitted_log_power,
         "fitted_log_power": fitted_log_power,
-        "n_breakpoints": 1,
+        "n_breakpoints": n_breakpoints,
+        "davies_p_value": davies_p_value,
     }
 
-    breakpoint_log_freq = estimates["breakpoint1"]["estimate"]
-    breakpoint_freq = np.exp(breakpoint_log_freq)
-    alpha1 = estimates["alpha1"]["estimate"]
-    alpha2 = estimates["alpha2"]["estimate"]
-    beta1 = -alpha1
-    beta2 = -alpha2
-    results.update(
-        {
-            "breakpoint": breakpoint_freq,
-            "beta1": beta1,
-            "beta2": beta2,
-        }
-    )
+    # --- Extract breakpoints and betas (slopes) ---
+    # The library returns slope `alpha1` and changes in slope `beta1`, `beta2`, etc.
+    # We must sum them to get the slope of each subsequent segment.
+    breakpoints = []
+    for i in range(1, n_breakpoints + 1):
+        bp_log_freq = estimates[f"breakpoint{i}"]["estimate"]
+        breakpoints.append(np.exp(bp_log_freq))
+
+    slopes = []
+    current_slope = estimates["alpha1"]["estimate"]
+    slopes.append(current_slope)
+    for i in range(1, n_breakpoints + 1):
+        current_slope += estimates[f"beta{i}"]["estimate"]
+        slopes.append(current_slope)
+
+    # Spectral exponent (beta) is the negative of the slope
+    betas = [-s for s in slopes]
+
+    # For backward compatibility, add single values if only one breakpoint
+    if n_breakpoints == 1:
+        results["breakpoint"] = breakpoints[0]
+        results["beta1"] = betas[0]
+        results["beta2"] = betas[1]
+
+    results["breakpoints"] = breakpoints
+    results["betas"] = betas
 
     return results

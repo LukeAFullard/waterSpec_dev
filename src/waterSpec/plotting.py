@@ -68,98 +68,43 @@ def plot_spectrum(
         model = fit_results.get("model_object")
         log_freq_full = fit_results.get("log_freq")
 
-        if model and log_freq_full is not None:
-            # Predict power values across the full frequency range using the
-            # fitted model
+        if model and log_freq_full is not None and n_breakpoints > 0:
             log_power_fit = model.predict(log_freq_full)
+            log_bps = [np.log(bp) for bp in fit_results["breakpoints"]]
+            colors = ["r", "m", "g"]
 
-            if n_breakpoints == 1:
-                breakpoint_freq = fit_results.get("breakpoint")
-                beta1 = fit_results.get("beta1")
-                beta2 = fit_results.get("beta2")
-                if all(v is not None for v in [breakpoint_freq, beta1, beta2]):
-                    log_breakpoint = np.log(breakpoint_freq)
-                    mask1 = log_freq_full <= log_breakpoint
-                    mask2 = log_freq_full > log_breakpoint
+            # Plot each segment
+            for i in range(n_breakpoints + 1):
+                # Define the mask for this segment
+                if i == 0:
+                    mask = log_freq_full <= log_bps[0]
+                    label = f"Low-Freq Fit (β1 ≈ {fit_results['betas'][0]:.2f})"
+                elif i == n_breakpoints:
+                    mask = log_freq_full > log_bps[i-1]
+                    label = f"High-Freq Fit (β{i+1} ≈ {fit_results['betas'][i]:.2f})"
+                else: # Middle segment(s)
+                    mask = (log_freq_full > log_bps[i-1]) & (log_freq_full <= log_bps[i])
+                    label = f"Mid-Freq Fit (β{i+1} ≈ {fit_results['betas'][i]:.2f})"
 
-                    plt.loglog(
-                        np.exp(log_freq_full[mask1]),
-                        np.exp(log_power_fit[mask1]),
-                        color="r",
-                        linestyle="-",
-                        linewidth=2,
-                        label=f"Low-Freq Fit (β1 ≈ {beta1:.2f})",
-                    )
-                    plt.loglog(
-                        np.exp(log_freq_full[mask2]),
-                        np.exp(log_power_fit[mask2]),
-                        color="m",
-                        linestyle="-",
-                        linewidth=2,
-                        label=f"High-Freq Fit (β2 ≈ {beta2:.2f})",
-                    )
-                    plt.axvline(
-                        x=breakpoint_freq,
-                        color="k",
-                        linestyle="--",
-                        alpha=0.7,
-                        label=f"Breakpoint ≈ {_format_period(breakpoint_freq)}",
-                    )
+                plt.loglog(
+                    np.exp(log_freq_full[mask]),
+                    np.exp(log_power_fit[mask]),
+                    color=colors[i % len(colors)],
+                    linestyle="-",
+                    linewidth=2,
+                    label=label,
+                )
 
-            elif n_breakpoints == 2:
-                bp1 = fit_results.get("breakpoint1")
-                bp2 = fit_results.get("breakpoint2")
-                beta1 = fit_results.get("beta1")
-                beta2 = fit_results.get("beta2")
-                beta3 = fit_results.get("beta3")
-
-                if all(v is not None for v in [bp1, bp2, beta1, beta2, beta3]):
-                    log_bp1 = np.log(bp1)
-                    log_bp2 = np.log(bp2)
-
-                    mask1 = log_freq_full <= log_bp1
-                    mask2 = (log_freq_full > log_bp1) & (log_freq_full <= log_bp2)
-                    mask3 = log_freq_full > log_bp2
-
-                    plt.loglog(
-                        np.exp(log_freq_full[mask1]),
-                        np.exp(log_power_fit[mask1]),
-                        color="r",
-                        linestyle="-",
-                        linewidth=2,
-                        label=f"Seg 1 (β1 ≈ {beta1:.2f})",
-                    )
-                    plt.loglog(
-                        np.exp(log_freq_full[mask2]),
-                        np.exp(log_power_fit[mask2]),
-                        color="m",
-                        linestyle="-",
-                        linewidth=2,
-                        label=f"Seg 2 (β2 ≈ {beta2:.2f})",
-                    )
-                    plt.loglog(
-                        np.exp(log_freq_full[mask3]),
-                        np.exp(log_power_fit[mask3]),
-                        color="g",
-                        linestyle="-",
-                        linewidth=2,
-                        label=f"Seg 3 (β3 ≈ {beta3:.2f})",
-                    )
-
-                    plt.axvline(
-                        x=bp1,
-                        color="k",
-                        linestyle="--",
-                        alpha=0.7,
-                        label=f"BP 1 ≈ {_format_period(bp1)}",
-                    )
-                    plt.axvline(
-                        x=bp2,
-                        color="c",
-                        linestyle=":",
-                        alpha=0.7,
-                        label=f"BP 2 ≈ {_format_period(bp2)}",
-                    )
+            # Plot breakpoint vertical lines
+            linestyles = ['--', ':', '-.']
+            for i, bp_freq in enumerate(fit_results["breakpoints"]):
+                plt.axvline(
+                    x=bp_freq,
+                    color="k",
+                    linestyle=linestyles[i % len(linestyles)],
+                    alpha=0.7,
+                    label=f"Breakpoint {i+1} ≈ {_format_period(bp_freq)}",
+                )
 
     # Plot the FAP level and annotate significant peaks if available
     fap_level = fit_results.get("fap_level")
