@@ -77,12 +77,12 @@ def get_scientific_interpretation(beta):
 def get_persistence_traffic_light(beta):
     """Returns a traffic-light style summary of persistence."""
     if beta < 0.5:
-        return "(L) Event-driven (Low Persistence)"
+        return "🔴 Event-driven"
     if 0.5 <= beta <= 1.0:
-        return "(M) Mixed / Weak Persistence"
+        return "🟡 Mixed / weak persistence"
     if beta > 1.0:
-        return "(H) Persistent / Subsurface Dominated (High Persistence)"
-    return "(?) Unknown"
+        return "🟢 Persistent / subsurface dominated"
+    return "⚪ Unknown"
 
 
 def _format_period(frequency_hz):
