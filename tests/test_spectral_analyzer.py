@@ -1,6 +1,8 @@
 import numpy as np
 import pytest
+
 from waterSpec.spectral_analyzer import calculate_periodogram, find_significant_peaks
+
 
 @pytest.fixture
 def synthetic_signal():
@@ -22,6 +24,7 @@ def synthetic_signal():
 
     return time, y, known_frequency
 
+
 def test_calculate_periodogram_finds_peak_frequency(synthetic_signal):
     """
     Test that calculate_periodogram correctly identifies the peak frequency
@@ -32,7 +35,7 @@ def test_calculate_periodogram_finds_peak_frequency(synthetic_signal):
     # Generate a frequency grid for the test. The function now requires it.
     # The grid must span the known frequency.
     duration = np.max(time) - np.min(time)
-    test_frequency = np.linspace(1/duration, 0.5 / np.median(np.diff(time)), 500)
+    test_frequency = np.linspace(1 / duration, 0.5 / np.median(np.diff(time)), 500)
 
     # Calculate the periodogram
     frequency, power, _ = calculate_periodogram(time, y, frequency=test_frequency)
@@ -54,11 +57,13 @@ def test_calculate_periodogram_with_dy(synthetic_signal):
 
     # Generate a frequency grid
     duration = np.max(time) - np.min(time)
-    test_frequency = np.linspace(1/duration, 0.5 / np.median(np.diff(time)), 500)
+    test_frequency = np.linspace(1 / duration, 0.5 / np.median(np.diff(time)), 500)
 
     # Calculate the periodogram
     # The main assertion is that this runs without crashing.
-    frequency, power, ls_obj = calculate_periodogram(time, y, frequency=test_frequency, dy=dy)
+    frequency, power, ls_obj = calculate_periodogram(
+        time, y, frequency=test_frequency, dy=dy
+    )
 
     # Check that the output shapes are correct
     assert frequency.shape == test_frequency.shape
@@ -84,7 +89,7 @@ def test_find_significant_peaks(synthetic_signal):
 
     # Generate a frequency grid
     duration = np.max(time) - np.min(time)
-    frequency = np.linspace(1/duration, 0.5 / np.median(np.diff(time)), 1000)
+    frequency = np.linspace(1 / duration, 0.5 / np.median(np.diff(time)), 1000)
 
     # First, calculate the periodogram to get the ls object and power
     frequency, power, ls_obj = calculate_periodogram(time, y, frequency=frequency)
@@ -92,7 +97,7 @@ def test_find_significant_peaks(synthetic_signal):
     # Find peaks with a reasonable FAP threshold
     # Note: bootstrap can be slow, so we may want to use a faster method for CI/CD tests
     peaks, fap_level = find_significant_peaks(
-        ls_obj, frequency, power, fap_threshold=0.05, fap_method='baluev'
+        ls_obj, frequency, power, fap_threshold=0.05, fap_method="baluev"
     )
 
     assert isinstance(peaks, list)
@@ -101,12 +106,13 @@ def test_find_significant_peaks(synthetic_signal):
     # With the strong synthetic signal, we should find at least one peak
     assert len(peaks) > 0
     # The most significant peak should be our known frequency
-    assert peaks[0]['frequency'] == pytest.approx(known_frequency, abs=0.01)
+    assert peaks[0]["frequency"] == pytest.approx(known_frequency, abs=0.01)
     # The FAP of the peak should be very low
-    assert peaks[0]['fap'] < 1e-5
+    assert peaks[0]["fap"] < 1e-5
 
 
 # --- Tests for the new find_peaks_via_residuals function ---
+
 
 @pytest.fixture
 def sample_fit_results():
@@ -118,40 +124,49 @@ def sample_fit_results():
 
     # Create a deterministic set of residuals with one clear peak
     residuals = np.full(100, 0.1)
-    residuals[50] = 3.0 # This is the only point that should be significant
+    residuals[50] = 3.0  # This is the only point that should be significant
 
     log_power = fitted_log_power + residuals
     return {
-        'log_freq': log_freq,
-        'log_power': log_power,
-        'residuals': residuals,
-        'fitted_log_power': fitted_log_power
+        "log_freq": log_freq,
+        "log_power": log_power,
+        "residuals": residuals,
+        "fitted_log_power": fitted_log_power,
     }
+
 
 def test_find_peaks_via_residuals_finds_peak(sample_fit_results):
     """Test that the residual method finds the known injected peak."""
     from waterSpec.spectral_analyzer import find_peaks_via_residuals
+
     # With ci=95, the 95th percentile of our deterministic residuals will be 0.1,
     # so the peak with residual 3.0 should be found.
     peaks, threshold = find_peaks_via_residuals(sample_fit_results, ci=95)
 
     assert len(peaks) == 1
-    assert peaks[0]['residual'] == pytest.approx(3.0)
+    assert peaks[0]["residual"] == pytest.approx(3.0)
     # Check that the returned frequency matches the one at index 50
-    expected_freq = np.exp(sample_fit_results['log_freq'][50])
-    assert peaks[0]['frequency'] == pytest.approx(expected_freq)
+    expected_freq = np.exp(sample_fit_results["log_freq"][50])
+    assert peaks[0]["frequency"] == pytest.approx(expected_freq)
+
 
 def test_find_peaks_via_residuals_no_significant_peak(sample_fit_results):
-    """Test that the method returns an empty list if no residual crosses the threshold."""
+    """
+    Test that the method returns an empty list if no residual crosses the
+    threshold.
+    """
     from waterSpec.spectral_analyzer import find_peaks_via_residuals
+
     # With our deterministic data, ci=99.9 will set a threshold > 0.1 but < 3.0.
     # The test is to see if we can set a threshold so high that nothing is found.
     # With ci=100, the threshold will be 3.0, and `>` comparison will fail.
     peaks, threshold = find_peaks_via_residuals(sample_fit_results, ci=100)
     assert len(peaks) == 0
 
+
 def test_find_peaks_via_residuals_raises_error_on_missing_keys():
     """Test that the function raises a ValueError if required keys are missing."""
     from waterSpec.spectral_analyzer import find_peaks_via_residuals
+
     with pytest.raises(ValueError, match="must contain 'residuals'"):
-        find_peaks_via_residuals({'log_freq': [1,2,3]})
+        find_peaks_via_residuals({"log_freq": [1, 2, 3]})

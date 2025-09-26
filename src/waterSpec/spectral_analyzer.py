@@ -1,9 +1,11 @@
 import numpy as np
 from astropy.timeseries import LombScargle
-
 from scipy.signal import find_peaks
 
-def calculate_periodogram(time, data, frequency=None, dy=None, normalization='standard'):
+
+def calculate_periodogram(
+    time, data, frequency=None, dy=None, normalization="standard"
+):
     """
     Calculates the Lomb-Scargle periodogram for a time series.
 
@@ -27,7 +29,10 @@ def calculate_periodogram(time, data, frequency=None, dy=None, normalization='st
                                        - The LombScargle object instance
     """
     if frequency is None:
-        raise ValueError("A frequency grid must be provided. The use of autopower has been removed to prevent incorrect grid generation.")
+        raise ValueError(
+            "A frequency grid must be provided. The use of autopower has been "
+            "removed to prevent incorrect grid generation."
+        )
 
     ls = LombScargle(time, data, dy=dy)
 
@@ -36,18 +41,23 @@ def calculate_periodogram(time, data, frequency=None, dy=None, normalization='st
     return frequency, power, ls
 
 
-def find_significant_peaks(ls, frequency, power, fap_threshold=0.01, fap_method='baluev', **fap_kwargs):
+def find_significant_peaks(
+    ls, frequency, power, fap_threshold=0.01, fap_method="baluev", **fap_kwargs
+):
     """
-    Finds statistically significant peaks in a periodogram using a False Alarm Probability threshold.
+    Finds statistically significant peaks in a periodogram using a False Alarm
+    Probability threshold.
 
     Args:
         ls (LombScargle): The LombScargle object instance.
         frequency (np.ndarray): The frequency grid.
         power (np.ndarray): The power values corresponding to the frequency grid.
-        fap_threshold (float, optional): The FAP level for significance. Defaults to 0.01.
-        fap_method (str, optional): The method for FAP calculation ('bootstrap', 'baluev', etc.).
-                                    Defaults to 'bootstrap'.
-        **fap_kwargs: Additional keyword arguments for `astropy.LombScargle.false_alarm_level`.
+        fap_threshold (float, optional): The FAP level for significance.
+            Defaults to 0.01.
+        fap_method (str, optional): The method for FAP calculation
+            ('bootstrap', 'baluev', etc.). Defaults to 'bootstrap'.
+        **fap_kwargs: Additional keyword arguments for
+            `astropy.LombScargle.false_alarm_level`.
 
     Returns:
         tuple: A tuple containing:
@@ -68,22 +78,23 @@ def find_significant_peaks(ls, frequency, power, fap_threshold=0.01, fap_method=
         peak_freq = frequency[peak_idx]
         peak_power = power[peak_idx]
         # Calculate the FAP of this specific peak
-        peak_fap = ls.false_alarm_probability(peak_power, method=fap_method, **fap_kwargs)
-        significant_peaks.append({
-            'frequency': peak_freq,
-            'power': peak_power,
-            'fap': peak_fap
-        })
+        peak_fap = ls.false_alarm_probability(
+            peak_power, method=fap_method, **fap_kwargs
+        )
+        significant_peaks.append(
+            {"frequency": peak_freq, "power": peak_power, "fap": peak_fap}
+        )
 
     # Sort peaks by power in descending order
-    significant_peaks.sort(key=lambda p: p['power'], reverse=True)
+    significant_peaks.sort(key=lambda p: p["power"], reverse=True)
 
     return significant_peaks, fap_level
 
 
 def find_peaks_via_residuals(fit_results, ci=95):
     """
-    Finds significant peaks by identifying outliers in the residuals of the spectral fit.
+    Finds significant peaks by identifying outliers in the residuals of the
+    spectral fit.
 
     Args:
         fit_results (dict): The dictionary returned by the fitting functions.
@@ -97,12 +108,14 @@ def find_peaks_via_residuals(fit_results, ci=95):
                - list: A list of dictionaries, each describing a significant peak.
                - float: The residual threshold used for significance.
     """
-    if 'residuals' not in fit_results or 'fitted_log_power' not in fit_results:
-        raise ValueError("fit_results dictionary must contain 'residuals' and 'fitted_log_power'.")
+    if "residuals" not in fit_results or "fitted_log_power" not in fit_results:
+        raise ValueError(
+            "fit_results must contain 'residuals' and 'fitted_log_power'."
+        )
 
-    residuals = fit_results['residuals']
-    log_freq = fit_results['log_freq']
-    log_power = fit_results['log_power']
+    residuals = fit_results["residuals"]
+    log_freq = fit_results["log_freq"]
+    log_power = fit_results["log_power"]
 
     # Calculate the significance threshold from the residuals
     residual_threshold = np.percentile(residuals, ci)
@@ -113,7 +126,9 @@ def find_peaks_via_residuals(fit_results, ci=95):
         return [], residual_threshold
 
     # Group contiguous significant indices into regions
-    significant_groups = np.split(significant_indices, np.where(np.diff(significant_indices) != 1)[0] + 1)
+    significant_groups = np.split(
+        significant_indices, np.where(np.diff(significant_indices) != 1)[0] + 1
+    )
 
     significant_peaks = []
     for group in significant_groups:
@@ -122,13 +137,15 @@ def find_peaks_via_residuals(fit_results, ci=95):
         # For each significant region, find the point with the highest power
         max_power_index_in_group = group[np.argmax(log_power[group])]
 
-        significant_peaks.append({
-            'frequency': np.exp(log_freq[max_power_index_in_group]),
-            'power': np.exp(log_power[max_power_index_in_group]),
-            'residual': residuals[max_power_index_in_group]
-        })
+        significant_peaks.append(
+            {
+                "frequency": np.exp(log_freq[max_power_index_in_group]),
+                "power": np.exp(log_power[max_power_index_in_group]),
+                "residual": residuals[max_power_index_in_group],
+            }
+        )
 
     # Sort peaks by residual in descending order
-    significant_peaks.sort(key=lambda p: p['residual'], reverse=True)
+    significant_peaks.sort(key=lambda p: p["residual"], reverse=True)
 
     return significant_peaks, residual_threshold

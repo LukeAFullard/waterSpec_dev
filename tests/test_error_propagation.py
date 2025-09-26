@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
-import pytest
 from scipy import signal
+
 from src.waterSpec.preprocessor import preprocess_data
+
 
 def test_error_propagation_with_detrend_and_normalize():
     """
@@ -43,8 +44,8 @@ def test_error_propagation_with_detrend_and_normalize():
         data_series,
         time,
         error_series=error_series,
-        detrend_method='linear',
-        normalize_data=True
+        detrend_method="linear",
+        normalize_data=True,
     )
 
     # 4. Verify the results

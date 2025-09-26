@@ -1,11 +1,13 @@
-import numpy as np
-from waterSpec.interpreter import (
-    get_scientific_interpretation,
-    get_persistence_traffic_light,
-    compare_to_benchmarks,
-    interpret_results
-)
 import pytest
+
+from waterSpec.interpreter import (
+    _format_period,
+    compare_to_benchmarks,
+    get_persistence_traffic_light,
+    get_scientific_interpretation,
+    interpret_results,
+)
+
 
 def test_get_scientific_interpretation():
     assert "White noise" in get_scientific_interpretation(0)
@@ -15,10 +17,12 @@ def test_get_scientific_interpretation():
     assert "Brownian noise" in get_scientific_interpretation(2.0)
     assert "Warning" in get_scientific_interpretation(-1.0)
 
+
 def test_get_persistence_traffic_light():
     assert "Event-driven" in get_persistence_traffic_light(0.2)
     assert "Mixed" in get_persistence_traffic_light(0.7)
     assert "Persistent" in get_persistence_traffic_light(1.5)
+
 
 def test_compare_to_benchmarks():
     assert "E. coli" in compare_to_benchmarks(0.3)
@@ -26,49 +30,56 @@ def test_compare_to_benchmarks():
     # A beta of 0.9 falls directly in the Ortho-P range (0.6-1.2)
     assert "Ortho-P" in compare_to_benchmarks(0.9)
 
+
 def test_interpret_results_basic():
-    fit_results = {'beta': 1.7}
+    fit_results = {"beta": 1.7}
     results = interpret_results(fit_results, param_name="Nitrate")
-    assert "Analysis for: Nitrate" in results['summary_text']
-    assert "β = 1.70" in results['summary_text']
-    assert "Persistent" in results['persistence_level']
-    assert "fBm-like" in results['scientific_interpretation']
-    assert "Chloride" in results['benchmark_comparison']
-    assert results['uncertainty_warning'] is None
+    assert "Analysis for: Nitrate" in results["summary_text"]
+    assert "β = 1.70" in results["summary_text"]
+    assert "Persistent" in results["persistence_level"]
+    assert "fBm-like" in results["scientific_interpretation"]
+    assert "Chloride" in results["benchmark_comparison"]
+    assert results["uncertainty_warning"] is None
+
 
 def test_interpret_results_with_ci():
-    fit_results = {'beta': 1.7, 'beta_ci_lower': 1.5, 'beta_ci_upper': 1.9}
+    fit_results = {"beta": 1.7, "beta_ci_lower": 1.5, "beta_ci_upper": 1.9}
     results = interpret_results(fit_results, param_name="Nitrate")
-    assert "95% CI: 1.50–1.90" in results['summary_text']
-    assert results['uncertainty_warning'] is None
+    assert "95% CI: 1.50–1.90" in results["summary_text"]
+    assert results["uncertainty_warning"] is None
+
 
 def test_interpret_results_with_wide_ci():
-    fit_results = {'beta': 1.7, 'beta_ci_lower': 1.0, 'beta_ci_upper': 2.4}
+    fit_results = {"beta": 1.7, "beta_ci_lower": 1.0, "beta_ci_upper": 2.4}
     results = interpret_results(fit_results, param_name="Nitrate")
-    assert "Warning: The confidence interval width" in results['uncertainty_warning']
-    assert "large" in results['summary_text']
+    assert "Warning: The confidence interval width" in results["uncertainty_warning"]
+    assert "large" in results["summary_text"]
+
 
 def test_interpret_results_no_param_name():
-    fit_results = {'beta': 0.5}
+    fit_results = {"beta": 0.5}
     results = interpret_results(fit_results)
-    assert "Analysis for: Parameter" in results['summary_text']
+    assert "Analysis for: Parameter" in results["summary_text"]
+
 
 def test_interpret_results_auto_mode():
     """
     Test the interpreter's output when provided with results from an 'auto' analysis.
     """
     fit_results = {
-        'analysis_mode': 'auto',
-        'chosen_model': 'standard',
-        'bic_comparison': {'standard': 120.5, 'segmented': 150.2},
-        'standard_fit': {'beta': 1.2, 'beta_ci_lower': 1.1, 'beta_ci_upper': 1.3},
-        'segmented_fit': {'beta1': 0.8, 'beta2': 1.5, 'breakpoint': 0.1},
+        "analysis_mode": "auto",
+        "chosen_model": "standard",
+        "bic_comparison": {"standard": 120.5, "segmented": 150.2},
+        "standard_fit": {"beta": 1.2, "beta_ci_lower": 1.1, "beta_ci_upper": 1.3},
+        "segmented_fit": {"beta1": 0.8, "beta2": 1.5, "breakpoint": 0.1},
         # Add the top-level keys for the chosen model
-        'beta': 1.2, 'beta_ci_lower': 1.1, 'beta_ci_upper': 1.3
+        "beta": 1.2,
+        "beta_ci_lower": 1.1,
+        "beta_ci_upper": 1.3,
     }
 
     results = interpret_results(fit_results, param_name="Test Param")
-    summary = results['summary_text']
+    summary = results["summary_text"]
 
     # Check for the auto-analysis header and content
     assert "Automatic Analysis for: Test Param" in summary
@@ -81,6 +92,7 @@ def test_interpret_results_auto_mode():
     assert "Details for Chosen (Standard) Model:" in summary
     assert "Persistence Level: 🟢 Persistent" in summary
 
+
 def test_interpret_results_with_peaks():
     """
     Test that the summary text includes information about significant peaks.
@@ -89,36 +101,39 @@ def test_interpret_results_with_peaks():
     yearly_freq_hz = 1 / (365.25 * 86400)
 
     fit_results = {
-        'beta': 0.8,
-        'significant_peaks': [
-            {'frequency': yearly_freq_hz, 'fap': 0.001},
-            {'frequency': 1 / (30 * 86400), 'fap': 0.005}
-        ]
+        "beta": 0.8,
+        "significant_peaks": [
+            {"frequency": yearly_freq_hz, "fap": 0.001},
+            {"frequency": 1 / (30 * 86400), "fap": 0.005},
+        ],
     }
 
     results = interpret_results(fit_results)
-    summary = results['summary_text']
+    summary = results["summary_text"]
 
     assert "Significant Periodicities Found:" in summary
     assert "Period: 12.0 months" in summary
     assert "Period: 30.0 days" in summary
     assert "(FAP: 1.00E-03)" in summary
 
+
 # --- New tests for period formatting ---
 
-# Need to import the private function for testing
-from waterSpec.interpreter import _format_period
 
-@pytest.mark.parametrize("frequency_hz, expected_string", [
-    (1 / (10 * 86400), "10.0 days"),      # 10 days
-    (1 / (90 * 86400), "3.0 months"),     # 3 months
-    (1 / (3 * 365.25 * 86400), "3.0 years"), # 3 years
-    (1 / (800 * 365.25 * 86400), "800.0 years"), # Long period
-    (0, "N/A"),                           # Zero frequency
-])
+@pytest.mark.parametrize(
+    "frequency_hz, expected_string",
+    [
+        (1 / (10 * 86400), "10.0 days"),  # 10 days
+        (1 / (90 * 86400), "3.0 months"),  # 3 months
+        (1 / (3 * 365.25 * 86400), "3.0 years"),  # 3 years
+        (1 / (800 * 365.25 * 86400), "800.0 years"),  # Long period
+        (0, "N/A"),  # Zero frequency
+    ],
+)
 def test_format_period(frequency_hz, expected_string):
     """Test the _format_period helper function."""
     assert _format_period(frequency_hz) == expected_string
+
 
 def test_interpret_results_segmented():
     """
@@ -129,14 +144,14 @@ def test_interpret_results_segmented():
     breakpoint_freq = 1 / (90 * 86400)
 
     fit_results = {
-        'beta1': 0.5,
-        'beta2': 1.5,
-        'breakpoint': breakpoint_freq,
-        'significant_peaks': [] # No peaks for this test
+        "beta1": 0.5,
+        "beta2": 1.5,
+        "breakpoint": breakpoint_freq,
+        "significant_peaks": [],  # No peaks for this test
     }
 
     results = interpret_results(fit_results, param_name="Ortho-P")
-    summary = results['summary_text']
+    summary = results["summary_text"]
 
     assert "Segmented Analysis for: Ortho-P" in summary
     assert "Breakpoint Period ≈ 3.0 months" in summary
