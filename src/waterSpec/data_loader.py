@@ -83,11 +83,15 @@ def load_data(file_path, time_col, data_col, error_col=None):
     if len(time_numeric) > 1:
         time_diffs = np.diff(time_numeric)
         if (time_diffs <= 0).any():
-            first_error_index = np.where(time_diffs <= 0)[0][0]
+            # Find the first index where the time difference is not positive
+            first_error_idx = np.where(time_diffs <= 0)[0][0]
+            # The violation is at the next timestamp in the original series
+            violating_timestamp = clean_df["time"].iloc[first_error_idx + 1]
             raise ValueError(
                 "Time column is not strictly monotonic increasing. "
                 "First violation (duplicate or out-of-order timestamp) "
-                f"found at index {first_error_index + 1}."
+                f"found at index {first_error_idx + 1} "
+                f"with value: {violating_timestamp}"
             )
 
     return time_numeric, clean_df["data"], clean_df.get("error")

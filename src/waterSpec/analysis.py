@@ -115,12 +115,14 @@ class Analysis:
             normalization=normalization,
         )
 
-    def _perform_model_selection(self, fit_method, n_bootstraps):
+    def _perform_model_selection(self, fit_method, n_bootstraps, p_threshold):
         """Performs standard and segmented fits and selects the best model using BIC."""
         standard_results = fit_spectrum_with_bootstrap(
             self.frequency, self.power, method=fit_method, n_bootstraps=n_bootstraps
         )
-        segmented_results = fit_segmented_spectrum(self.frequency, self.power)
+        segmented_results = fit_segmented_spectrum(
+            self.frequency, self.power, p_threshold=p_threshold
+        )
 
         # Determine if the segmented fit is valid and better than the standard one
         is_segmented_preferred = False
@@ -223,6 +225,7 @@ class Analysis:
         normalization="standard",
         peak_detection_method="residual",
         peak_detection_ci=95,
+        p_threshold_davies=0.05,
     ):
         """
         Runs the complete analysis workflow and saves all outputs to a directory.
@@ -250,6 +253,9 @@ class Analysis:
                 ('bootstrap', 'baluev', etc.). Defaults to 'bootstrap'.
             normalization (str, optional): Normalization for the periodogram.
                 Defaults to 'standard'.
+            p_threshold_davies (float, optional): The p-value threshold for the
+                Davies test for a significant breakpoint in segmented
+                regression. Defaults to 0.05.
 
         Returns:
             dict: A dictionary containing all analysis results.
@@ -258,7 +264,9 @@ class Analysis:
         self._calculate_periodogram(grid_type, normalization)
 
         # 2. Fit Spectrum and Select Best Model
-        fit_results = self._perform_model_selection(fit_method, n_bootstraps)
+        fit_results = self._perform_model_selection(
+            fit_method, n_bootstraps, p_threshold_davies
+        )
 
         # 3. Detect Significant Peaks
         fit_results = self._detect_significant_peaks(

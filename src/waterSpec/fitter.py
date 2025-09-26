@@ -176,13 +176,15 @@ def fit_spectrum_with_bootstrap(
     return initial_fit
 
 
-def fit_segmented_spectrum(frequency, power):
+def fit_segmented_spectrum(frequency, power, p_threshold=0.05):
     """
     Fits a segmented regression with one breakpoint to the power spectrum.
 
     Args:
         frequency (np.ndarray): The frequency array.
         power (np.ndarray): The power array.
+        p_threshold (float, optional): The p-value threshold for the Davies
+            test for a significant breakpoint. Defaults to 0.05.
 
     Returns:
         dict: A dictionary containing the fit results.
@@ -208,9 +210,9 @@ def fit_segmented_spectrum(frequency, power):
 
     # Check for convergence and statistical significance
     davies_p_value = pw_fit.davies
-    if not pw_fit.get_results()["converged"] or davies_p_value > 0.05:
+    if not pw_fit.get_results()["converged"] or davies_p_value > p_threshold:
         summary = (
-            "No significant breakpoint found (Davies test p > 0.05) or "
+            f"No significant breakpoint found (Davies test p > {p_threshold}) or "
             "model did not converge."
         )
         return {
@@ -219,6 +221,7 @@ def fit_segmented_spectrum(frequency, power):
             "beta2": np.nan,
             "model_summary": summary,
             "n_breakpoints": 1,
+            "davies_p_value": davies_p_value,
         }
 
     # Extract results

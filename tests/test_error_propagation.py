@@ -1,22 +1,17 @@
 import numpy as np
 import pandas as pd
-from scipy import signal
+import statsmodels.api as sm
 
-from src.waterSpec.preprocessor import preprocess_data
+from waterSpec.preprocessor import preprocess_data, detrend, normalize
 
 
 def test_error_propagation_with_detrend_and_normalize():
     """
     Tests that errors are correctly propagated when both detrending and
-    normalization are applied.
-
-    This test verifies that the `errors` array is correctly passed through
-    the `detrend` step and then scaled correctly by the `normalize` step.
-    The normalization should be based on the standard deviation of the
-    *detrended* data, not the original data.
+    normalization are applied, using the new error propagation logic.
     """
     # 1. Create Sample Data
-    time = np.arange(100)
+    time = np.arange(100, dtype=float)
     trend = 2 * time + 50
     np.random.seed(0)
     noise = np.random.randn(100) * 5
@@ -26,28 +21,27 @@ def test_error_propagation_with_detrend_and_normalize():
     data_series = pd.Series(data_with_noise)
     error_series = pd.Series(errors)
 
-    # 2. Calculate the correct expected value
-    # To avoid floating point discrepancies, we must replicate the exact
-    # operations that occur inside the function being tested.
-
-    # First, the data is detrended using scipy.signal.detrend.
-    actual_detrended_data = signal.detrend(data_with_noise)
-
-    # Second, the `normalize` function calculates the std dev of this detrended data.
-    std_dev_of_actual_detrended_data = np.std(actual_detrended_data)
-
-    # Finally, the errors are divided by this standard deviation.
-    expected_errors = 10.0 / std_dev_of_actual_detrended_data
-
-    # 3. Run the function to get the actual processed errors
+    # 2. Run the full pipeline to get the actual processed errors
     _, processed_errors = preprocess_data(
         data_series,
         time,
-        error_series=error_series,
+        error_series=error_series.copy(),
         detrend_method="linear",
         normalize_data=True,
     )
 
+    # 3. Manually calculate the expected error propagation
+    manual_data = data_with_noise.copy()
+    manual_errors = errors.copy()
+
+    # Step 1: Detrending
+    # This now returns modified errors that include uncertainty from the fit
+    manual_data, manual_errors = detrend(time, manual_data, manual_errors)
+
+    # Step 2: Normalization
+    # This takes the already-modified errors and scales them
+    _, manual_errors = normalize(manual_data, manual_errors)
+
     # 4. Verify the results
     assert processed_errors is not None
-    assert np.allclose(processed_errors, expected_errors)
+    assert np.allclose(processed_errors, manual_errors)

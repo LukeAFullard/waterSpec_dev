@@ -3,7 +3,6 @@ import warnings
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
-from scipy import signal
 
 
 def _validate_data_length(data, min_length=10):
@@ -18,18 +17,51 @@ def _validate_data_length(data, min_length=10):
         )
 
 
-def detrend(data, errors=None):
+def detrend(x, data, errors=None):
     """
-    Removes the linear trend from a time series.
+    Removes the linear trend from a time series using Ordinary Least Squares.
+    This function is designed for unevenly spaced data and correctly handles
+    error propagation.
 
-    Note on error propagation: This function does not modify the input errors.
-    The errors on the detrended signal are assumed to be the same as the
-    original errors, which is a reasonable approximation for linear detrending.
+    Note on error propagation: If errors are provided, this function propagates
+    the uncertainty from the original measurement and the uncertainty from the
+    linear fit. The final error is the quadrature sum of the original error
+    and the standard error of the trend line prediction.
     """
     valid_indices = ~np.isnan(data)
     if np.sum(valid_indices) < 2:
         return data, errors
-    data[valid_indices] = signal.detrend(data[valid_indices])
+
+    x_valid = x[valid_indices]
+    y_valid = data[valid_indices]
+
+    # Fit a linear trend using statsmodels OLS
+    X_with_const = sm.add_constant(x_valid)
+    model = sm.OLS(y_valid, X_with_const)
+    results = model.fit()
+
+    # Subtract the trend
+    trend = results.predict(X_with_const)
+    data[valid_indices] = y_valid - trend
+
+    # Propagate errors if provided
+    if errors is not None:
+        # Ensure errors are valid where data is valid
+        errors_valid = errors[valid_indices]
+        if np.any(np.isnan(errors_valid)):
+            warnings.warn(
+                "NaNs found in error values corresponding to valid data points. "
+                "These will be treated as having zero error for propagation.",
+                UserWarning,
+            )
+            errors_valid = np.nan_to_num(errors_valid)
+
+        # Get the standard error of the mean prediction
+        prediction_se = results.get_prediction(X_with_const).se_mean
+        # Combine in quadrature: var_new = var_old + var_pred
+        new_err_sq = np.square(errors_valid) + np.square(prediction_se)
+        errors[valid_indices] = np.sqrt(new_err_sq)
+
     return data, errors
 
 
@@ -137,6 +169,12 @@ def handle_censored_data(
     # Any remaining non-numeric strings (e.g., "apple") or values that could
     # not be coerced from the censor marks will become NaN.
     numeric_series = pd.to_numeric(series, errors="coerce")
+    if numeric_series.isnull().any():
+        warnings.warn(
+            "Non-numeric or unhandled censored values found in data column, "
+            "which will be treated as NaNs.",
+            UserWarning,
+        )
 
     return numeric_series.to_numpy()
 
@@ -148,10 +186,11 @@ def detrend_loess(x, y, errors=None, **kwargs):
     This function is a wrapper around `statsmodels.nonparametric.lowess.lowess`.
     Any additional keyword arguments are passed directly to the statsmodels function.
 
-    Note on error propagation: This function does not propagate errors. The input
-    error series is passed through unchanged. Proper error propagation for LOESS
-    is a complex topic, and this simplification should be considered when
-    interpreting the results.
+    .. warning::
+        This function does not propagate errors. The input error series is
+        passed through unchanged. Proper error propagation for non-linear
+        methods like LOESS is a complex, unsolved problem, and this simplification
+        should be carefully considered when interpreting results.
 
     Args:
         x (np.ndarray): The independent variable (time).
@@ -221,7 +260,9 @@ def preprocess_data(
         )
 
     if detrend_method == "linear":
-        processed_data, processed_errors = detrend(processed_data, processed_errors)
+        processed_data, processed_errors = detrend(
+            time_numeric, processed_data, errors=processed_errors
+        )
     elif detrend_method == "loess":
         processed_data, processed_errors = detrend_loess(
             time_numeric, processed_data, errors=processed_errors, **detrend_options
