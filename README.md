@@ -4,23 +4,17 @@
   <img src="assets/logo.png" alt="waterSpec Logo" width="90%"/>
 </p>
 
-`waterSpec` is a Python package for performing spectral analysis on environmental time series, particularly those that are irregularly sampled. It provides tools to load data, calculate the Lomb-Scargle periodogram, fit the power spectrum to determine the spectral exponent (β), and interpret the results in a hydrological context.
+`waterSpec` is a Python package for performing spectral analysis on environmental time series, particularly those that are irregularly sampled. It provides a simple, powerful workflow to characterize the temporal scaling and periodic behavior of environmental data.
 
-This package is inspired by the methods described in Liang et al. (2021).
+The methods used in this package are inspired by the work of *Liang et al. (2021)*.
 
-## Features
+## Core Features
 
-- **Flexible Data Loading**: Load time series data from `.csv`, `.xlsx`, and `.json` files.
-- **Censored Data Handling**: Strategies to handle left-censored (`<`) and right-censored (`>`) data.
-- **Advanced Preprocessing**: Includes linear and non-linear (LOESS) detrending options.
-- **Core Spectral Analysis**:
-    - Lomb-Scargle Periodogram for unevenly spaced data.
-    - **Standard and Segmented Regression**: Fit a single slope (standard) or detect changes in scaling with a two-slope segmented regression for multifractal analysis.
-    - **Uncertainty Analysis**: Bootstrap resampling for confidence intervals on β.
-- **Interpretation and Plotting**:
-    - Scientific interpretation of the β value.
-    - Publication-quality plotting of the power spectrum.
-- **Simple Workflow**: A class-based workflow that performs a full analysis, including generating plots and summaries, with a single command.
+`waterSpec` is designed to do two things well:
+
+1.  **Determine the Spectral Slope (β)**: It calculates the Lomb-Scargle periodogram of a time series and fits a regression to the power spectrum. It can automatically compare models with 0, 1, or 2 breakpoints to find the best fit, providing one or more β values that describe the temporal scaling (e.g., persistence, memory) of the system.
+
+2.  **Find Significant Peaks**: It identifies statistically significant periodicities (peaks) in the periodogram, which correspond to recurring cycles in the time series data (e.g., seasonal or weekly patterns).
 
 ## Installation
 
@@ -32,88 +26,53 @@ cd waterSpec
 pip install -e .
 ```
 
-## Quick Start: A Class-Based Workflow
+## Quick Start
 
-The recommended workflow is centered around the `waterSpec.Analysis` object. You initialize this object with your dataset, and it handles all the data loading and preprocessing internally. You can then run a complete analysis with a single command.
-
-### Step 1: Initialize the Analysis
-
-First, import the `Analysis` class and create an instance. You only need to provide your file path and column names once.
+The recommended workflow is centered around the `waterSpec.Analysis` object. You can run a complete analysis, generating a plot and a detailed text summary, with just a few lines of code.
 
 ```python
 from waterSpec import Analysis
 
-# Define the path to your data file
+# 1. Define the path to your data file
 file_path = 'examples/sample_data.csv'
 
-# Create the analyzer object
+# 2. Create the analyzer object
 # This loads and preprocesses the data immediately.
 analyzer = Analysis(
     file_path=file_path,
     time_col='timestamp',
     data_col='concentration',
-    param_name='Sample Concentration' # Optional: for better plot titles and summaries
+    param_name='Sample Concentration' # Used for plot titles and summaries
 )
 
-print("Analysis object created and data preprocessed.")
+# 3. Run the full analysis
+# This command runs the analysis, saves the outputs, and returns the results.
+results = analyzer.run_full_analysis(output_dir='example_output')
+
+# The summary text is available in the returned dictionary
+print(results['summary_text'])
 ```
 
-### Step 2: Run the Full Analysis
+## Example Output
 
-Now, simply call the `run_full_analysis()` method. You just need to tell it where to save the outputs.
-
-This single command will:
-1.  Run the automated analysis to find the best-fitting model (standard or segmented).
-2.  Calculate significant periodicities using a robust, data-driven method.
-3.  Generate and save a publication-quality plot of the power spectrum.
-4.  Generate and save a detailed text summary of the results.
-
-```python
-# Define an output directory
-output_dir = 'example_output'
-
-# Run the entire workflow
-results_dict = analyzer.run_full_analysis(output_dir=output_dir)
-
-# You can inspect the full results dictionary
-# import pprint
-# pprint.pprint(results_dict)
-```
-
-### Step 3: Review the Outputs
-
-After the command finishes, your specified output directory (`example_output/` in this case) will contain a plot and a text summary. Below are the assets generated for our example data.
-
-**1. The Spectrum Plot**
-
-A plot showing the log-log power spectrum, the best-fit line(s), the estimated spectral exponent (β), and any significant peaks.
-
-<p align="center">
-  <img src="assets/readme_spec_plot.png" alt="Example waterSpec Plot" width="80%"/>
-</p>
-
-**2. The Summary File**
-
-A text file containing a comprehensive, human-readable interpretation of the analysis.
+Running the code above will produce a plot (`example_output/Sample_Concentration_spectrum_plot.png`) and the following text summary in `example_output/Sample_Concentration_summary.txt`:
 
 ```
-Automatic Analysis for: readme_example
+Automatic Analysis for: Sample Concentration
 -----------------------------------
 Model Comparison (Lower BIC is better):
-  - Standard Fit:   BIC = 90.05 (β = -0.37)
-  - Segmented Fit:  BIC = 47.73 (β1 = 0.36, β2 = -1.52)
-==> Chosen Model: Segmented
+  - Standard         BIC = 90.05    (β = -0.37)
+  - Segmented (1 BP)   BIC = 47.73    (β1=0.36, β2=-1.52)
+==> Chosen Model: Segmented 1bp
 -----------------------------------
 
-Details for Chosen (Segmented) Model:
-Segmented Analysis for: readme_example
-Breakpoint Period ≈ 10.3 days
------------------------------------
+Details for Chosen (Segmented 1bp) Model:
+Segmented Analysis for: Sample Concentration
+--- Breakpoint @ ~10.3 days ---
 Low-Frequency (Long-term) Fit:
   β1 = 0.36
   Interpretation: -0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, suggesting event-driven transport.
   Persistence: 🔴 Event-driven
------------------------------------
 High-Frequency (Short-term) Fit:
   β2 = -1.52
   Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.
@@ -125,9 +84,25 @@ Significant Periodicities Found:
   - Period: 5.9 days (Fit Residual: 2.51)
 ```
 
-## Limitations
+This output shows the two core features in action:
+*   **Spectral Slope (β) Analysis**: The `Model Comparison` section shows that a segmented model with one breakpoint (1 BP) was the best fit for this data (lower BIC is better). The `Details` section provides the two resulting β values for the low-frequency and high-frequency parts of the spectrum.
+*   **Peak Detection**: The `Significant Periodicities Found` section lists the two recurring cycles that were identified in the data.
 
-*   **Error Propagation in Detrending**: While `waterSpec` supports measurement uncertainties (`dy`) and propagates them through normalization and log-transformation, error propagation is **not** currently implemented for the `linear` or `loess` detrending functions. The uncertainty of the detrended signal is assumed to be the same as the original signal's uncertainty. This is a common simplification but should be considered when analyzing data with large trends.
+## Advanced Usage: Two-Breakpoint Analysis
 
----
+By default, `waterSpec` compares a standard model (0 breakpoints) with a 1-breakpoint model. To have the analysis also consider a 2-breakpoint model, set `max_breakpoints=2`:
+
+```python
+# The analysis will now compare 0, 1, and 2 breakpoint models
+results = analyzer.run_full_analysis(
+    output_dir='example_output_2bp',
+    max_breakpoints=2
+)
+print(results['summary_text'])
+```
+
+## Citation
+
+If you use `waterSpec` in your research, please consider citing the original work that inspired its methods:
+
 *Liang X, Schilling KE, Jones CS, Zhang Y-K. 2021. Temporal scaling of long-term co-occurring agricultural contaminants and the implications for conservation planning. Environmental Research Letters 16:094015.*
