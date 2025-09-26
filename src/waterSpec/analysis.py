@@ -1,6 +1,7 @@
 import numpy as np
 import warnings
 import os
+import re
 
 from .data_loader import load_data
 from .preprocessor import preprocess_data
@@ -80,6 +81,12 @@ class Analysis:
         self.power = None
         self.ls_obj = None
 
+    def _sanitize_filename(self, filename):
+        """Sanitizes a string to be a valid filename."""
+        s = str(filename).strip().replace(" ", "_")
+        s = re.sub(r"(?u)[^-\w.]", "", s)
+        return s
+
     def _calculate_periodogram(self, grid_type, normalization):
         """Generates frequency grid and calculates the Lomb-Scargle periodogram."""
         self.frequency = generate_frequency_grid(self.time, grid_type=grid_type)
@@ -95,19 +102,17 @@ class Analysis:
         )
         segmented_results = fit_segmented_spectrum(self.frequency, self.power)
 
-        is_segmented_valid = 'beta1' in segmented_results and np.isfinite(segmented_results['beta1'])
-        chosen_model_results = standard_results
-        analysis_type = 'standard'
-
-        if is_segmented_valid:
+        # Determine if the segmented fit is valid and better than the standard one
+        is_segmented_preferred = False
+        if 'bic' in segmented_results and np.isfinite(segmented_results['bic']):
             bic_standard = standard_results.get('bic', np.inf)
-            bic_segmented = segmented_results.get('bic', np.inf)
-            if np.isnan(bic_standard): bic_standard = np.inf
-            if np.isnan(bic_segmented): bic_segmented = np.inf
-            if bic_segmented < bic_standard:
-                chosen_model_results = segmented_results
-                analysis_type = 'segmented'
+            if segmented_results['bic'] < bic_standard:
+                is_segmented_preferred = True
 
+        chosen_model_results = segmented_results if is_segmented_preferred else standard_results
+        analysis_type = 'segmented' if is_segmented_preferred else 'standard'
+
+        # Consolidate results
         fit_results = chosen_model_results.copy()
         fit_results['standard_fit'] = standard_results
         fit_results['segmented_fit'] = segmented_results
@@ -117,7 +122,7 @@ class Analysis:
         }
         fit_results['chosen_model'] = analysis_type
         fit_results['analysis_mode'] = 'auto'
-        return fit_results, analysis_type
+        return fit_results
 
     def _detect_significant_peaks(self, fit_results, peak_detection_method, peak_detection_ci, fap_threshold, fap_method):
         """Detects significant peaks based on the chosen method."""
@@ -145,24 +150,24 @@ class Analysis:
 
         return fit_results
 
-    def _generate_outputs(self, results, analysis_type, output_dir):
+    def _generate_outputs(self, results, output_dir):
         """Generates and saves the plot and summary text file."""
-        # Ensure the output directory exists
         os.makedirs(output_dir, exist_ok=True)
+        sanitized_name = self._sanitize_filename(self.param_name)
 
         # Plot
-        plot_path = os.path.join(output_dir, f"{self.param_name}_spectrum_plot.png")
+        plot_path = os.path.join(output_dir, f"{sanitized_name}_spectrum_plot.png")
         plot_spectrum(
             self.frequency,
             self.power,
             fit_results=results,
-            analysis_type=analysis_type,
+            analysis_type=results['chosen_model'],
             output_path=plot_path,
             param_name=self.param_name
         )
 
         # Summary Text
-        summary_path = os.path.join(output_dir, f"{self.param_name}_summary.txt")
+        summary_path = os.path.join(output_dir, f"{sanitized_name}_summary.txt")
         with open(summary_path, 'w') as f:
             f.write(results['summary_text'])
 
@@ -206,7 +211,7 @@ class Analysis:
         self._calculate_periodogram(grid_type, normalization)
 
         # 2. Fit Spectrum and Select Best Model
-        fit_results, analysis_type = self._perform_model_selection(fit_method, n_bootstraps)
+        fit_results = self._perform_model_selection(fit_method, n_bootstraps)
 
         # 3. Detect Significant Peaks
         fit_results = self._detect_significant_peaks(
@@ -223,10 +228,9 @@ class Analysis:
         else:
             interp_results = interpret_results(fit_results, param_name=self.param_name)
             self.results = {**fit_results, **interp_results}
-            self.results['interpretation'] = self.results.get('summary_text')
 
         # 5. Generate and Save Outputs
-        self._generate_outputs(self.results, analysis_type, output_dir)
+        self._generate_outputs(self.results, output_dir)
 
         print(f"Analysis complete. Outputs saved to '{output_dir}'.")
         return self.results
