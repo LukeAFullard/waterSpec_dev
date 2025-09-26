@@ -4,6 +4,7 @@ Validation script to compare waterSpec with dplR's redfit function.
 
 import os
 import tempfile
+import shutil
 
 import numpy as np
 import pandas as pd
@@ -13,7 +14,7 @@ from rpy2.robjects.conversion import localconverter
 from rpy2.robjects.packages import importr
 from scipy.stats import linregress
 
-from waterSpec import run_analysis
+from waterSpec import Analysis
 
 
 def generate_synthetic_series(n_points=2048, beta=0, seed=42):
@@ -82,6 +83,7 @@ def main():
     betas_to_test = np.linspace(0.0, 2.5, 6)
     results = []
     temp_files = []
+    output_dir = "validation/temp_dplr_output"
 
     try:
         with localconverter(robjects.default_converter + pandas2ri.converter):
@@ -91,15 +93,18 @@ def main():
                 temp_files.append(file_path)
 
                 # waterSpec analysis
-                ws_results = run_analysis(
+                analyzer = Analysis(
                     file_path,
                     time_col="time",
                     data_col="value",
                     param_name=f"Beta={known_beta:.2f}",
                     detrend_method="linear",
+                )
+                ws_results = analyzer.run_full_analysis(
+                    output_dir=output_dir,
                     fit_method="theil-sen",
                     n_bootstraps=50,
-                    do_plot=False,
+                    max_breakpoints=0 # Force standard fit to match dplR
                 )
                 waterspec_beta = ws_results.get("beta")
 
@@ -133,6 +138,9 @@ def main():
                 os.remove(f)
             except OSError:
                 pass
+        if os.path.exists(output_dir):
+            shutil.rmtree(output_dir)
+
 
     print("--- Validation Results: waterSpec vs dplR ---")
     print(f"| {'Known Beta':<12} | {'waterSpec Beta':<16} | {'dplR Beta':<12} |")
