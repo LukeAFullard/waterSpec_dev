@@ -255,3 +255,55 @@ def test_fit_segmented_spectrum_handles_exceptions(
 
     assert "model_summary" in results
     assert "failed with an unexpected error" in results["model_summary"]
+
+
+def test_fit_segmented_spectrum_p_threshold(multifractal_spectrum, mocker):
+    """
+    Test that the p_threshold for the Davies test is correctly used to
+    determine if a segmented fit is statistically significant.
+    """
+    frequency, power, _, _, _ = multifractal_spectrum
+
+    # Mock the result of the piecewise_regression fit to control the Davies p-value
+    mock_fit_result = mocker.MagicMock()
+    mock_fit_result.davies = 0.1  # Let's say the p-value is 0.1
+    mock_fit_result.get_results.return_value = {
+        "converged": True,
+        "bic": 100,
+        "r_squared": 0.9,
+        "estimates": {
+            "breakpoint1": {"estimate": np.log(0.1)},
+            "alpha1": {"estimate": -0.5},
+            "beta1": {"estimate": -1.3},
+        },
+    }
+    mock_fit_result.summary.return_value = "Mock Summary"
+    # The predict method needs to return something with the correct shape
+    valid_indices = (frequency > 0) & (power > 0)
+    log_freq = np.log(frequency[valid_indices])
+    mock_fit_result.predict.return_value = np.zeros_like(log_freq)
+
+    mocker.patch(
+        "waterSpec.fitter.piecewise_regression.Fit", return_value=mock_fit_result
+    )
+
+    # --- Case 1: p_threshold is lower than the p-value (e.g., 0.05 < 0.1) ---
+    # The fit should be rejected.
+    results_rejected = fit_segmented_spectrum(
+        frequency, power, n_breakpoints=1, p_threshold=0.05
+    )
+
+    assert "model_summary" in results_rejected
+    assert "No significant breakpoint found" in results_rejected["model_summary"]
+    assert "breakpoint" not in results_rejected  # The fit details should not be present
+
+    # --- Case 2: p_threshold is higher than the p-value (e.g., 0.15 > 0.1) ---
+    # The fit should be accepted.
+    results_accepted = fit_segmented_spectrum(
+        frequency, power, n_breakpoints=1, p_threshold=0.15
+    )
+
+    assert "model_summary" in results_accepted
+    assert "No significant breakpoint found" not in results_accepted["model_summary"]
+    assert "breakpoint" in results_accepted  # The fit details should be present
+    assert results_accepted["davies_p_value"] == 0.1
