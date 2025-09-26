@@ -1,4 +1,4 @@
-Automatic Analysis for: Nitrate Concentration
+Automatic Analysis for: readme_example
 -----------------------------------
 Model Comparison (Lower BIC is better):
   - Standard Fit:   BIC = 90.05 (β = -0.37)
@@ -7,7 +7,7 @@ Model Comparison (Lower BIC is better):
 -----------------------------------
 
 Details for Chosen (Segmented) Model:
-Segmented Analysis for: Nitrate Concentration
+Segmented Analysis for: readme_example
 Breakpoint Period ≈ 10.3 days
 -----------------------------------
 Low-Frequency (Long-term) Fit:
