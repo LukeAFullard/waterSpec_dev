@@ -128,113 +128,101 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
     auto_summary_header = ""
     # If this was an auto-analysis, generate a special header
     if fit_results.get("analysis_mode") == "auto":
-        chosen_model = fit_results["chosen_model"]
-        bic_comp = fit_results["bic_comparison"]
+        model_summaries = []
+        for model in fit_results["all_models"]:
+            n_bp = model["n_breakpoints"]
+            bic_str = f"{model['bic']:.2f}"
+            if n_bp == 0:
+                name = "Standard"
+                beta_str = f"β = {model['beta']:.2f}"
+            else:
+                name = f"Segmented ({n_bp} BP)"
+                betas = ", ".join([f"β{i+1}={b:.2f}" for i, b in enumerate(model["betas"])])
+                beta_str = f"{betas}"
+            model_summaries.append(f"  - {name:<15} BIC = {bic_str:<8} ({beta_str})")
 
-        standard_fit = fit_results.get("standard_fit", {})
-        segmented_fit = fit_results.get("segmented_fit", {})
-
-        standard_beta = standard_fit.get("beta", np.nan)
-        segmented_beta1 = segmented_fit.get("beta1", np.nan)
-        segmented_beta2 = segmented_fit.get("beta2", np.nan)
-
-        def format_bic(val):
-            return f"{val:.2f}" if val is not None and np.isfinite(val) else "N/A"
-
-        standard_bic_str = format_bic(bic_comp.get("standard"))
-        segmented_bic_str = format_bic(bic_comp.get("segmented"))
-
-        standard_beta_str = (
-            f"β = {standard_beta:.2f}" if np.isfinite(standard_beta) else ""
-        )
-        segmented_beta_str = (
-            f"β1 = {segmented_beta1:.2f}, β2 = {segmented_beta2:.2f}"
-            if np.isfinite(segmented_beta1)
-            else ""
-        )
-
+        chosen_model_name = fit_results["chosen_model"].replace("_", " ").capitalize()
         auto_summary_header = (
             f"Automatic Analysis for: {param_name}\n"
-            f"-----------------------------------\n"
-            f"Model Comparison (Lower BIC is better):\n"
-            f"  - Standard Fit:   BIC = {standard_bic_str} ({standard_beta_str})\n"
-            f"  - Segmented Fit:  BIC = {segmented_bic_str} ({segmented_beta_str})\n"
-            f"==> Chosen Model: {chosen_model.capitalize()}\n"
-            f"-----------------------------------\n\n"
-            f"Details for Chosen ({chosen_model.capitalize()}) Model:\n"
+            "-----------------------------------\n"
+            "Model Comparison (Lower BIC is better):\n"
+            + "\n".join(model_summaries)
+            + f"\n==> Chosen Model: {chosen_model_name}\n"
+            "-----------------------------------\n\n"
+            f"Details for Chosen ({chosen_model_name}) Model:\n"
         )
 
-    is_segmented = "beta2" in fit_results and np.isfinite(fit_results["beta2"])
+    # --- Generate the main summary for the chosen model ---
+    n_breakpoints = fit_results.get("n_breakpoints", 0)
 
-    if is_segmented:
-        beta1, beta2, breakpoint_freq = (
-            fit_results["beta1"],
-            fit_results["beta2"],
-            fit_results["breakpoint"],
-        )
-        interp1, interp2 = get_scientific_interpretation(
-            beta1
-        ), get_scientific_interpretation(beta2)
-        summary_text = (
-            f"Segmented Analysis for: {param_name}\n"
-            f"Breakpoint Period ≈ {_format_period(breakpoint_freq)}\n"
-            f"-----------------------------------\n"
-            f"Low-Frequency (Long-term) Fit:\n"
-            f"  β1 = {beta1:.2f}\n"
-            f"  Interpretation: {interp1}\n"
-            f"  Persistence: {get_persistence_traffic_light(beta1)}\n"
-            f"-----------------------------------\n"
-            f"High-Frequency (Short-term) Fit:\n"
-            f"  β2 = {beta2:.2f}\n"
-            f"  Interpretation: {interp2}\n"
-            f"  Persistence: {get_persistence_traffic_light(beta2)}"
-        )
+    if n_breakpoints > 0:
+        # --- Segmented Model Summary ---
+        segment_names = ["Low-Frequency (Long-term)", "Mid-Frequency", "High-Frequency (Short-term)"]
+        summary_parts = [f"Segmented Analysis for: {param_name}"]
+
+        for i in range(n_breakpoints + 1):
+            beta = fit_results["betas"][i]
+
+            # Determine segment name
+            if i == 0:
+                name = segment_names[0]
+            elif i == n_breakpoints:
+                name = segment_names[-1]
+            else:
+                name = segment_names[1]
+
+            # Format breakpoint text
+            if i > 0:
+                bp_freq = fit_results["breakpoints"][i - 1]
+                summary_parts.append(f"--- Breakpoint @ ~{_format_period(bp_freq)} ---")
+
+            summary_parts.extend([
+                f"{name} Fit:",
+                f"  β{i+1} = {beta:.2f}",
+                f"  Interpretation: {get_scientific_interpretation(beta)}",
+                f"  Persistence: {get_persistence_traffic_light(beta)}",
+            ])
+
+        summary_text = "\n".join(summary_parts)
         results_dict = {
             "analysis_type": "segmented",
-            "beta1": beta1,
-            "beta2": beta2,
-            "breakpoint": breakpoint_freq,
+            "n_breakpoints": n_breakpoints,
+            "betas": fit_results["betas"],
+            "breakpoints": fit_results["breakpoints"],
         }
     else:
+        # --- Standard Model Summary ---
         beta = fit_results["beta"]
         ci = (fit_results.get("beta_ci_lower"), fit_results.get("beta_ci_upper"))
-        sci_interp, traffic_light, benchmark_comp = (
-            get_scientific_interpretation(beta),
-            get_persistence_traffic_light(beta),
-            compare_to_benchmarks(beta),
-        )
         beta_str = (
             f"β = {beta:.2f} (95% CI: {ci[0]:.2f}–{ci[1]:.2f})"
-            if ci[0] is not None and ci[1] is not None
+            if ci[0] is not None and np.isfinite(ci[0]) and ci[1] is not None and np.isfinite(ci[1])
             else f"β = {beta:.2f}"
         )
-        summary_text = (
-            f"Standard Analysis for: {param_name}\n"
-            f"Value: {beta_str}\n"
-            f"Persistence Level: {traffic_light}\n"
-            f"Scientific Meaning: {sci_interp}\n"
-            f"Contextual Comparison: {benchmark_comp}"
-        )
+        summary_text = "\n".join([
+            f"Standard Analysis for: {param_name}",
+            f"Value: {beta_str}",
+            f"Persistence Level: {get_persistence_traffic_light(beta)}",
+            f"Scientific Meaning: {get_scientific_interpretation(beta)}",
+            f"Contextual Comparison: {compare_to_benchmarks(beta)}",
+        ])
+
         uncertainty_warning = None
         if (
-            ci[0] is not None
-            and ci[1] is not None
-            and (ci[1] - ci[0]) > uncertainty_threshold
+            ci[0] is not None and ci[1] is not None and
+            (ci[1] - ci[0]) > uncertainty_threshold
         ):
             uncertainty_warning = (
                 f"Warning: The confidence interval width ({ci[1] - ci[0]:.2f}) is "
                 "large, suggesting high uncertainty."
             )
             summary_text += f"\n\n{uncertainty_warning}"
+
         results_dict = {
             "analysis_type": "standard",
             "beta_value": beta,
             "confidence_interval": ci,
-            "persistence_level": traffic_light,
-            "scientific_interpretation": sci_interp,
-            "benchmark_comparison": benchmark_comp,
             "uncertainty_warning": uncertainty_warning,
-            "benchmark_table": BENCHMARK_TABLE.to_dict(orient="index"),
         }
 
     # --- Append shared sections (peaks) and prepend auto-summary ---
@@ -244,15 +232,11 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
         )
         for peak in fit_results["significant_peaks"]:
             period_str = f"\n  - Period: {_format_period(peak['frequency'])}"
-            if "fap" in peak:
-                peaks_summary += f"{period_str} (FAP: {peak['fap']:.2E})"
-            elif "residual" in peak:
+            if "residual" in peak:
                 peaks_summary += f"{period_str} (Fit Residual: {peak['residual']:.2f})"
             else:
                 peaks_summary += period_str
         summary_text += peaks_summary
 
-    results_dict["summary_text"] = (
-        auto_summary_header + summary_text if auto_summary_header else summary_text
-    )
+    results_dict["summary_text"] = auto_summary_header + summary_text
     return results_dict

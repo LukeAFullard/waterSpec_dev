@@ -32,32 +32,45 @@ def test_compare_to_benchmarks():
 
 
 def test_interpret_results_basic():
-    fit_results = {"beta": 1.7}
+    fit_results = {"beta": 1.7, "betas": [1.7], "n_breakpoints": 0}
     results = interpret_results(fit_results, param_name="Nitrate")
-    assert "Analysis for: Nitrate" in results["summary_text"]
-    assert "β = 1.70" in results["summary_text"]
-    assert "Persistent" in results["persistence_level"]
-    assert "fBm-like" in results["scientific_interpretation"]
-    assert "Chloride" in results["benchmark_comparison"]
+    summary = results["summary_text"]
+    assert "Analysis for: Nitrate" in summary
+    assert "β = 1.70" in summary
+    assert "Persistent" in summary
+    assert "fBm-like" in summary
+    assert "Chloride" in summary
     assert results["uncertainty_warning"] is None
 
 
 def test_interpret_results_with_ci():
-    fit_results = {"beta": 1.7, "beta_ci_lower": 1.5, "beta_ci_upper": 1.9}
+    fit_results = {
+        "beta": 1.7,
+        "betas": [1.7],
+        "n_breakpoints": 0,
+        "beta_ci_lower": 1.5,
+        "beta_ci_upper": 1.9,
+    }
     results = interpret_results(fit_results, param_name="Nitrate")
     assert "95% CI: 1.50–1.90" in results["summary_text"]
     assert results["uncertainty_warning"] is None
 
 
 def test_interpret_results_with_wide_ci():
-    fit_results = {"beta": 1.7, "beta_ci_lower": 1.0, "beta_ci_upper": 2.4}
+    fit_results = {
+        "beta": 1.7,
+        "betas": [1.7],
+        "n_breakpoints": 0,
+        "beta_ci_lower": 1.0,
+        "beta_ci_upper": 2.4,
+    }
     results = interpret_results(fit_results, param_name="Nitrate")
     assert "Warning: The confidence interval width" in results["uncertainty_warning"]
     assert "large" in results["summary_text"]
 
 
 def test_interpret_results_no_param_name():
-    fit_results = {"beta": 0.5}
+    fit_results = {"beta": 0.5, "betas": [0.5], "n_breakpoints": 0}
     results = interpret_results(fit_results)
     assert "Analysis for: Parameter" in results["summary_text"]
 
@@ -66,16 +79,19 @@ def test_interpret_results_auto_mode():
     """
     Test the interpreter's output when provided with results from an 'auto' analysis.
     """
+    standard_model = {"beta": 1.2, "betas": [1.2], "bic": 120.5, "n_breakpoints": 0}
+    segmented_model = {
+        "betas": [0.8, 1.5],
+        "breakpoints": [0.1],
+        "bic": 150.2,
+        "n_breakpoints": 1,
+    }
+
     fit_results = {
         "analysis_mode": "auto",
         "chosen_model": "standard",
-        "bic_comparison": {"standard": 120.5, "segmented": 150.2},
-        "standard_fit": {"beta": 1.2, "beta_ci_lower": 1.1, "beta_ci_upper": 1.3},
-        "segmented_fit": {"beta1": 0.8, "beta2": 1.5, "breakpoint": 0.1},
-        # Add the top-level keys for the chosen model
-        "beta": 1.2,
-        "beta_ci_lower": 1.1,
-        "beta_ci_upper": 1.3,
+        "all_models": [standard_model, segmented_model],
+        **standard_model,  # The chosen model's results are at the top level
     }
 
     results = interpret_results(fit_results, param_name="Test Param")
@@ -84,8 +100,13 @@ def test_interpret_results_auto_mode():
     # Check for the auto-analysis header and content
     assert "Automatic Analysis for: Test Param" in summary
     assert "Model Comparison (Lower BIC is better):" in summary
-    assert "Standard Fit:   BIC = 120.50 (β = 1.20)" in summary
-    assert "Segmented Fit:  BIC = 150.20 (β1 = 0.80, β2 = 1.50)" in summary
+
+    # Check for the correctly formatted model comparison lines
+    expected_line_1 = f"  - {'Standard':<15} BIC = {120.5:<8.2f} (β = 1.20)"
+    expected_line_2 = f"  - {'Segmented (1 BP)':<15} BIC = {150.2:<8.2f} (β1=0.80, β2=1.50)"
+
+    assert expected_line_1 in summary
+    assert expected_line_2 in summary
     assert "Chosen Model: Standard" in summary
 
     # Check that the detailed interpretation for the chosen model is present
@@ -97,14 +118,14 @@ def test_interpret_results_with_peaks():
     """
     Test that the summary text includes information about significant peaks.
     """
-    # Note: 1 / (365.25 * 86400) is the frequency in Hz for a 1-year period
     yearly_freq_hz = 1 / (365.25 * 86400)
-
     fit_results = {
         "beta": 0.8,
+        "betas": [0.8],
+        "n_breakpoints": 0,
         "significant_peaks": [
-            {"frequency": yearly_freq_hz, "fap": 0.001},
-            {"frequency": 1 / (30 * 86400), "fap": 0.005},
+            {"frequency": yearly_freq_hz, "residual": 5.5},
+            {"frequency": 1 / (30 * 86400), "residual": 4.2},
         ],
     }
 
@@ -114,7 +135,8 @@ def test_interpret_results_with_peaks():
     assert "Significant Periodicities Found:" in summary
     assert "Period: 12.0 months" in summary
     assert "Period: 30.0 days" in summary
-    assert "(FAP: 1.00E-03)" in summary
+    assert "(Fit Residual: 5.50)" in summary
+    assert "(Fit Residual: 4.20)" in summary
 
 
 # --- New tests for period formatting ---
@@ -123,15 +145,14 @@ def test_interpret_results_with_peaks():
 @pytest.mark.parametrize(
     "frequency_hz, expected_string",
     [
-        (1 / (10 * 86400), "10.0 days"),  # 10 days
-        (1 / (90 * 86400), "3.0 months"),  # 3 months
-        (1 / (3 * 365.25 * 86400), "3.0 years"),  # 3 years
-        (1 / (800 * 365.25 * 86400), "800.0 years"),  # Long period
-        (0, "N/A"),  # Zero frequency
+        (1 / (10 * 86400), "10.0 days"),
+        (1 / (90 * 86400), "3.0 months"),
+        (1 / (3 * 365.25 * 86400), "3.0 years"),
+        (1 / (800 * 365.25 * 86400), "800.0 years"),
+        (0, "N/A"),
     ],
 )
 def test_format_period(frequency_hz, expected_string):
-    """Test the _format_period helper function."""
     assert _format_period(frequency_hz) == expected_string
 
 
@@ -140,21 +161,19 @@ def test_interpret_results_segmented():
     Test the interpreter output for a segmented fit, checking for the new
     breakpoint period format.
     """
-    # Breakpoint corresponds to a ~90 day period
     breakpoint_freq = 1 / (90 * 86400)
-
     fit_results = {
-        "beta1": 0.5,
-        "beta2": 1.5,
-        "breakpoint": breakpoint_freq,
-        "significant_peaks": [],  # No peaks for this test
+        "betas": [0.5, 1.5],
+        "breakpoints": [breakpoint_freq],
+        "n_breakpoints": 1,
+        "significant_peaks": [],
     }
 
     results = interpret_results(fit_results, param_name="Ortho-P")
     summary = results["summary_text"]
 
     assert "Segmented Analysis for: Ortho-P" in summary
-    assert "Breakpoint Period ≈ 3.0 months" in summary
+    assert "Breakpoint @ ~3.0 months" in summary
     assert "Low-Frequency (Long-term) Fit" in summary
     assert "β1 = 0.50" in summary
     assert "High-Frequency (Short-term) Fit" in summary
