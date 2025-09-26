@@ -85,7 +85,7 @@ The `run_full_analysis` method offers several parameters to fine-tune the spectr
 *   `max_breakpoints`: Set the maximum number of breakpoints to consider for the segmented regression (e.g., `2` to compare 0, 1, and 2 breakpoint models).
 *   `num_grid_points`: Control the resolution of the frequency grid (default is `200`).
 *   `seed`: Provide an integer seed to ensure the bootstrap analysis for confidence intervals is reproducible.
-*   `fap_method`: Choose the method for False Alarm Probability calculation. The default, `'baluev'`, is fast and recommended. The `'bootstrap'` method is available but can be very slow.
+*   `fap_method`: Choose the method for False Alarm Probability calculation. The default is `'baluev'`, which is a fast and robust analytical approximation. The `'bootstrap'` method is also available for a more traditional (but much slower) calculation.
 
 ```python
 # This example runs a more detailed and reproducible analysis
