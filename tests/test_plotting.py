@@ -138,3 +138,42 @@ def test_plot_spectrum_with_summary_annotation(mock_plt_text, spectrum_data, tmp
     # call_args[0] is the tuple of positional arguments
     # The text string is the third positional argument (x, y, text)
     assert summary in mock_plt_text.call_args[0]
+
+
+def test_plot_spectrum_multi_breakpoint(spectrum_data, tmp_path):
+    """
+    Test that plot_spectrum can handle multi-breakpoint (n>1) segmented fit
+    results without crashing.
+    """
+    frequency, power, _ = spectrum_data
+    output_file = tmp_path / "test_plot_multi_segmented.png"
+
+    # A mock model object is needed for the segmented plot
+    class MockModel:
+        def predict(self, x):
+            # Return a simple sloped line for prediction
+            return -1.0 * x
+
+    # Create a fit result dictionary that simulates a 2-breakpoint fit
+    multi_segmented_fit_results = {
+        "n_breakpoints": 2,
+        "betas": [0.2, 1.5, 0.8],
+        "breakpoints": [frequency[10], frequency[30]],
+        "model_object": MockModel(),
+        "log_freq": np.log(frequency),
+    }
+
+    try:
+        plot_spectrum(
+            frequency,
+            power,
+            fit_results=multi_segmented_fit_results,
+            analysis_type="segmented",
+            output_path=str(output_file),
+        )
+    except Exception as e:
+        pytest.fail(
+            f"plot_spectrum raised an exception with multi-breakpoint data: {e}"
+        )
+
+    assert os.path.exists(output_file)

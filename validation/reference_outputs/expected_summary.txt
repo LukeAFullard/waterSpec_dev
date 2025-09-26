@@ -1,20 +1,18 @@
 Automatic Analysis for: Validation Reference
 -----------------------------------
 Model Comparison (Lower BIC is better):
-  - Standard Fit:   BIC = 90.05 (β = -0.37)
-  - Segmented Fit:  BIC = 47.73 (β1 = 0.36, β2 = -1.52)
-==> Chosen Model: Segmented
+  - Standard        BIC = 90.05    (β = -0.37)
+  - Segmented (1 BP) BIC = 47.73    (β1=0.36, β2=-1.52)
+==> Chosen Model: Segmented 1bp
 -----------------------------------
 
-Details for Chosen (Segmented) Model:
+Details for Chosen (Segmented 1bp) Model:
 Segmented Analysis for: Validation Reference
-Breakpoint Period ≈ 10.3 days
------------------------------------
 Low-Frequency (Long-term) Fit:
   β1 = 0.36
   Interpretation: -0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, suggesting event-driven transport.
   Persistence: 🔴 Event-driven
------------------------------------
+--- Breakpoint @ ~10.3 days ---
 High-Frequency (Short-term) Fit:
   β2 = -1.52
   Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.

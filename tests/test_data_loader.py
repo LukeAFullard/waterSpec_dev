@@ -113,17 +113,24 @@ def test_load_data_unparseable_time(tmp_path):
 
 
 def test_load_non_monotonic_time(tmp_path):
-    """Test that non-monotonic time raises a ValueError."""
+    """
+    Test that non-monotonic time (a duplicate timestamp) raises a ValueError
+    with a detailed error message.
+    """
     file_path = tmp_path / "non_monotonic.csv"
-    file_path.write_text(
-        "timestamp,concentration\n2023-01-03,10.3\n2023-01-01,10.1\n2023-01-02,10.5"
-    )
-    # The loader now sorts the data, so this should pass without error.
-    # We will add a duplicate timestamp to test the strict monotonicity check.
+    # Create a file with a duplicate timestamp.
     file_path.write_text(
         "timestamp,concentration\n2023-01-01,10.3\n2023-01-01,10.1\n2023-01-02,10.5"
     )
-    with pytest.raises(ValueError, match="not strictly monotonic increasing"):
+
+    # After sorting, the duplicate '2023-01-01' will be at index 1.
+    # The error message should identify this specific timestamp.
+    expected_error_msg = (
+        "Time column is not strictly monotonic increasing. "
+        "First violation .* found at index 1 "
+        "with value: 2023-01-01 00:00:00"
+    )
+    with pytest.raises(ValueError, match=expected_error_msg):
         load_data(file_path, time_col="timestamp", data_col="concentration")
 
 

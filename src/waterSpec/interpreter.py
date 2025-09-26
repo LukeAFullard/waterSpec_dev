@@ -159,34 +159,36 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
 
     if n_breakpoints > 0:
         # --- Segmented Model Summary ---
-        segment_names = [
-            "Low-Frequency (Long-term)",
-            "Mid-Frequency",
-            "High-Frequency (Short-term)",
-        ]
         summary_parts = [f"Segmented Analysis for: {param_name}"]
 
-        for i in range(n_breakpoints + 1):
-            beta = fit_results["betas"][i]
+        # --- Handle the first segment (always "Low-Frequency") ---
+        beta1 = fit_results["betas"][0]
+        summary_parts.extend([
+            "Low-Frequency (Long-term) Fit:",
+            f"  β1 = {beta1:.2f}",
+            f"  Interpretation: {get_scientific_interpretation(beta1)}",
+            f"  Persistence: {get_persistence_traffic_light(beta1)}",
+        ])
+
+        # --- Loop through each breakpoint and the segment that follows it ---
+        for i in range(n_breakpoints):
+            beta_next = fit_results["betas"][i + 1]
+            bp_freq = fit_results["breakpoints"][i]
 
             # Determine segment name
-            if i == 0:
-                name = segment_names[0]
-            elif i == n_breakpoints:
-                name = segment_names[-1]
+            if (i + 1) == n_breakpoints:
+                # This is the last segment
+                name = "High-Frequency (Short-term)"
             else:
-                name = segment_names[1]
+                # This is a middle segment
+                name = f"Mid-Frequency Segment {i+1}"
 
-            # Format breakpoint text
-            if i > 0:
-                bp_freq = fit_results["breakpoints"][i - 1]
-                summary_parts.append(f"--- Breakpoint @ ~{_format_period(bp_freq)} ---")
-
+            summary_parts.append(f"--- Breakpoint @ ~{_format_period(bp_freq)} ---")
             summary_parts.extend([
                 f"{name} Fit:",
-                f"  β{i+1} = {beta:.2f}",
-                f"  Interpretation: {get_scientific_interpretation(beta)}",
-                f"  Persistence: {get_persistence_traffic_light(beta)}",
+                f"  β{i+2} = {beta_next:.2f}",
+                f"  Interpretation: {get_scientific_interpretation(beta_next)}",
+                f"  Persistence: {get_persistence_traffic_light(beta_next)}",
             ])
 
         summary_text = "\n".join(summary_parts)
