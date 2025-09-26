@@ -83,13 +83,6 @@ def test_load_data_missing_column(create_test_csv):
     with pytest.raises(ValueError, match="Data column 'bad_col' not found"):
         load_data(create_test_csv, time_col='timestamp', data_col='bad_col')
 
-def test_load_data_non_numeric_data(tmp_path):
-    """Test that a non-numeric data column raises a ValueError."""
-    file_path = tmp_path / "non_numeric.csv"
-    file_path.write_text("time,value\n2023-01-01,10.1\n2023-01-02,apple\n2023-01-03,10.3")
-    with pytest.raises(ValueError, match="Data column 'value' could not be converted to a numeric type."):
-        load_data(file_path, time_col='time', data_col='value')
-
 def test_load_data_unparseable_time(tmp_path):
     """Test that an unparseable time column raises a ValueError."""
     file_path = tmp_path / "bad_time.csv"

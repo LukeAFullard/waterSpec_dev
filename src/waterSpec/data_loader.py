@@ -35,10 +35,9 @@ def load_data(file_path, time_col, data_col, error_col=None):
         raise ValueError(f"Time column '{time_col}' could not be parsed as datetime objects.")
 
     # Data column
-    original_data_na = df[data_col].isna().sum()
-    data_series = pd.to_numeric(df[data_col], errors='coerce')
-    if data_series.isna().sum() > original_data_na:
-        raise ValueError(f"Data column '{data_col}' could not be converted to a numeric type.")
+    # We do not coerce to numeric here. The preprocessor will handle this,
+    # as it needs to parse strings for censored data marks (e.g., "<5").
+    data_series = df[data_col]
 
     # Error column
     error_series = None

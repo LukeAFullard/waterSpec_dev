@@ -77,27 +77,51 @@ def log_transform(data, errors=None):
 
 def handle_censored_data(data_series, strategy='drop', lower_multiplier=0.5, upper_multiplier=1.1):
     """
-    Handles censored data in a pandas Series.
+    Handles censored data in a pandas Series by replacing censor marks before
+    coercing the series to a numeric type.
     """
-    numeric_series = pd.to_numeric(data_series, errors='coerce')
-    str_series = data_series.astype(str)
-
-    left_censored_mask = str_series.str.startswith('<', na=False)
-    left_values = pd.to_numeric(str_series[left_censored_mask].str.lstrip('<'), errors='coerce')
-
-    right_censored_mask = str_series.str.startswith('>', na=False)
-    right_values = pd.to_numeric(str_series[right_censored_mask].str.lstrip('>'), errors='coerce')
-
-    if strategy == 'drop':
-        pass
-    elif strategy == 'use_detection_limit':
-        numeric_series[left_censored_mask] = left_values
-        numeric_series[right_censored_mask] = right_values
-    elif strategy == 'multiplier':
-        numeric_series[left_censored_mask] = left_values * lower_multiplier
-        numeric_series[right_censored_mask] = right_values * upper_multiplier
-    else:
+    if strategy not in ['drop', 'use_detection_limit', 'multiplier']:
         raise ValueError("Invalid strategy. Choose from ['drop', 'use_detection_limit', 'multiplier']")
+
+    # Work on a copy to avoid modifying the original DataFrame's slice
+    series = data_series.copy()
+
+    # Convert to string to safely find censor marks
+    str_series = series.astype(str)
+
+    # --- Handle left-censored data (e.g., "<5") ---
+    left_censored_mask = str_series.str.startswith('<', na=False)
+    if left_censored_mask.any():
+        # Get the numeric value of the detection limit
+        left_values = pd.to_numeric(str_series[left_censored_mask].str.lstrip('<'), errors='coerce')
+
+        # Replace the string value (e.g., "<5") with the appropriate numeric value
+        if strategy == 'drop':
+            series.loc[left_censored_mask] = np.nan
+        elif strategy == 'use_detection_limit':
+            series.loc[left_censored_mask] = left_values
+        elif strategy == 'multiplier':
+            series.loc[left_censored_mask] = left_values * lower_multiplier
+
+    # --- Handle right-censored data (e.g., ">50") ---
+    right_censored_mask = str_series.str.startswith('>', na=False)
+    if right_censored_mask.any():
+        # Get the numeric value of the detection limit
+        right_values = pd.to_numeric(str_series[right_censored_mask].str.lstrip('>'), errors='coerce')
+
+        # Replace the string value (e.g., ">50") with the appropriate numeric value
+        if strategy == 'drop':
+            series.loc[right_censored_mask] = np.nan
+        elif strategy == 'use_detection_limit':
+            series.loc[right_censored_mask] = right_values
+        elif strategy == 'multiplier':
+            series.loc[right_censored_mask] = right_values * upper_multiplier
+
+    # --- Final conversion to numeric ---
+    # Now that censor marks are handled, convert the entire series to numeric.
+    # Any remaining non-numeric strings (e.g., "apple") or values that could
+    # not be coerced from the censor marks will become NaN.
+    numeric_series = pd.to_numeric(series, errors='coerce')
 
     return numeric_series.to_numpy()
 
