@@ -60,18 +60,18 @@ def main():
         else:
             print("\n❌ Validation Failed: Output does not match the reference output.")
             # Optional: print diff
-            # import difflib
-            # with open(generated_file) as f1, open(reference_file) as f2:
-            #     diff = difflib.unified_diff(
-            #         f2.readlines(),
-            #         f1.readlines(),
-            #         fromfile="expected",
-            #         tofile="generated",
-            #     )
-            #     print("--- DIFF ---")
-            #     for line in diff:
-            #         sys.stdout.write(line)
-            #     print("------------")
+            import difflib
+            with open(generated_file) as f1, open(reference_file) as f2:
+                diff = difflib.unified_diff(
+                    f2.readlines(),
+                    f1.readlines(),
+                    fromfile="expected",
+                    tofile="generated",
+                )
+                print("--- DIFF ---")
+                for line in diff:
+                    sys.stdout.write(line)
+                print("------------")
 
     except Exception as e:
         print(f"Validation failed: An error occurred during execution: {e}")
