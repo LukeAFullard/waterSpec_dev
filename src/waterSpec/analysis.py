@@ -45,27 +45,36 @@ class Analysis:
         Initializes the Analysis object by loading and preprocessing the data.
 
         Args:
-            file_path (str): Path to the data file.
-            time_col (str): Name of the time column.
-            data_col (str): Name of the data column.
-            error_col (str, optional): Name of the measurement error column.
-                Defaults to None.
-            time_format (str, optional): The strptime format for parsing time.
-                Improves performance. Defaults to None (inferred).
-            sheet_name (str or int, optional): The name or index of the sheet
-                to read from an Excel file. Defaults to 0.
-            param_name (str, optional): Name of the parameter for plots/text.
-                Defaults to data_col.
-            censor_strategy (str, optional): Strategy for handling censored data.
+            file_path (str): The full path to the data file (CSV or Excel).
+            time_col (str): The name of the column containing timestamps.
+            data_col (str): The name of the column containing data values.
+            error_col (str, optional): The name of the column for measurement
+                errors. If provided, these will be used for weighted periodogram
+                calculation. Defaults to None.
+            time_format (str, optional): The specific `strptime` format of the
+                time column to speed up parsing (e.g., `"%Y-%m-%d %H:%M:%S"`).
+                If None, the format is inferred automatically. Defaults to None.
+            sheet_name (str or int, optional): If loading an Excel file, specify
+                the sheet name or index. Defaults to 0 (the first sheet).
+            param_name (str, optional): A descriptive name for the data parameter
+                being analyzed (e.g., "Nitrate Concentration"). Used for plot
+                titles and summaries. If None, defaults to `data_col`.
+            censor_strategy (str, optional): The strategy for handling censored
+                (non-detect) data. See `preprocess.py` for options.
                 Defaults to 'drop'.
-            censor_options (dict, optional): Options for the censoring strategy.
-            log_transform_data (bool, optional): If True, log-transform the data.
+            censor_options (dict, optional): A dictionary of options for the
+                chosen censoring strategy. Defaults to None.
+            log_transform_data (bool, optional): If True, the data is
+                log-transformed before analysis. This is often recommended for
+                environmental data. Defaults to False.
+            detrend_method (str, optional): The method used to detrend the
+                time series. Can be `'linear'`, `'loess'`, or None to disable.
+                Defaults to 'linear'.
+            normalize_data (bool, optional): If True, the data is normalized
+                (centered and scaled) after other preprocessing.
                 Defaults to False.
-            detrend_method (str, optional): Method for detrending ('linear' or
-                'loess'). Defaults to 'linear'.
-            normalize_data (bool, optional): If True, normalize the data.
-                Defaults to False.
-            detrend_options (dict, optional): Options for the detrending method.
+            detrend_options (dict, optional): A dictionary of options for the
+                chosen detrending method. Defaults to None.
         """
         self.param_name = param_name if param_name is not None else data_col
 
@@ -135,9 +144,12 @@ class Analysis:
         Performs fits for models with different numbers of breakpoints and
         selects the best one using BIC.
         """
-        # --- Fit all candidate models ---
+        # --- Step 1: Fit all candidate models ---
+        # We fit a standard linear model (0 breakpoints) and then fit segmented
+        # models for each number of breakpoints up to `max_breakpoints`.
         all_models = []
-        # Standard fit (0 breakpoints)
+
+        # Fit the standard model (0 breakpoints)
         standard_results = fit_spectrum_with_bootstrap(
             self.frequency,
             self.power,
@@ -150,7 +162,7 @@ class Analysis:
             standard_results["n_breakpoints"] = 0
             all_models.append(standard_results)
 
-        # Segmented fits (1 and possibly 2 breakpoints)
+        # Fit segmented models (1 and possibly 2 breakpoints)
         for n_bp in range(1, max_breakpoints + 1):
             seg_results = fit_segmented_spectrum(
                 self.frequency,
@@ -158,29 +170,32 @@ class Analysis:
                 n_breakpoints=n_bp,
                 p_threshold=p_threshold,
             )
+            # Only include the model if the fit was successful (returned a valid BIC)
             if "bic" in seg_results and np.isfinite(seg_results["bic"]):
                 seg_results["model_type"] = f"segmented_{n_bp}bp"
                 all_models.append(seg_results)
 
+        # Handle the case where no models could be successfully fitted
         if not all_models:
-            # If no models converged, return a failure structure that can be
-            # handled gracefully by the rest of the pipeline.
             return {
                 "betas": [np.nan],
                 "n_breakpoints": 0,
                 "chosen_model_type": "standard",
+                "summary_text": "Model fitting failed for all model types.",
             }
 
-        # --- Select the best model based on BIC ---
+        # --- Step 2: Select the best model based on the lowest BIC ---
         best_model = min(all_models, key=lambda x: x["bic"])
 
-        # --- Consolidate results ---
+        # --- Step 3: Consolidate results for output ---
+        # The final results dictionary includes the best model's parameters,
+        # a record of all models considered, and metadata about the choice.
         fit_results = best_model.copy()
         fit_results["all_models"] = all_models
         fit_results["chosen_model"] = best_model["model_type"]
         fit_results["analysis_mode"] = "auto"
 
-        # For backward compatibility and simpler interpretation logic
+        # Add a simplified type for easier downstream processing
         if best_model["n_breakpoints"] == 0:
             fit_results["chosen_model_type"] = "standard"
         else:
@@ -205,6 +220,16 @@ class Analysis:
             return fit_results
 
         if peak_detection_method == "residual":
+            # If the user provides FAP parameters with the residual method,
+            # they will be ignored. Warn them to avoid confusion.
+            if fap_method != "baluev" or fap_threshold != 0.01:
+                warnings.warn(
+                    (
+                        "Warning: 'peak_detection_method' is 'residual', so "
+                        "'fap_method' and 'fap_threshold' are ignored."
+                    ),
+                    UserWarning,
+                )
             peaks, threshold = find_peaks_via_residuals(
                 fit_results, ci=peak_detection_ci
             )
@@ -262,7 +287,7 @@ class Analysis:
         fap_threshold=0.01,
         grid_type="log",
         num_grid_points=200,
-        fap_method="bootstrap",
+        fap_method="baluev",
         normalization="standard",
         peak_detection_method="residual",
         peak_detection_ci=95,
@@ -288,14 +313,22 @@ class Analysis:
             num_grid_points (int, optional): The number of points to generate
                 for the frequency grid. Defaults to 200.
             peak_detection_method (str, optional): Method for peak detection.
-                'residual' (default) uses the new robust method.
-                'fap' uses the old False Alarm Probability method.
-            peak_detection_ci (int, optional): Confidence interval for residual
-                method. Defaults to 95.
-            fap_threshold (float, optional): FAP threshold for 'fap' method.
-                Defaults to 0.01.
-            fap_method (str, optional): Method for FAP calculation
-                ('bootstrap', 'baluev', etc.). Defaults to 'bootstrap'.
+                - `'residual'` (default): Identifies peaks that are significant
+                  outliers from the fitted spectral model. Recommended.
+                - `'fap'`: Uses the traditional False Alarm Probability (FAP)
+                  method.
+                When using `'residual'`, the `fap_method` and `fap_threshold`
+                parameters are ignored. Defaults to 'residual'.
+            peak_detection_ci (int, optional): The confidence interval (in %)
+                to use for the residual-based peak detection method.
+                Defaults to 95.
+            fap_threshold (float, optional): The significance level for the FAP
+                peak detection method. Only used when `peak_detection_method`
+                is `'fap'`. Defaults to 0.01.
+            fap_method (str, optional): The method for calculating the FAP.
+                The default, `'baluev'`, is a fast and recommended approximation.
+                The `'bootstrap'` method is slower but also available. Only used
+                when `peak_detection_method` is `'fap'`. Defaults to 'baluev'.
             normalization (str, optional): Normalization for the periodogram.
                 Defaults to 'standard'.
             p_threshold_davies (float, optional): The p-value threshold for the
