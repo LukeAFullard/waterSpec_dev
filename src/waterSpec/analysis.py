@@ -31,6 +31,8 @@ class Analysis:
         time_col,
         data_col,
         error_col=None,
+        time_format=None,
+        sheet_name=0,
         param_name=None,
         censor_strategy="drop",
         censor_options=None,
@@ -48,6 +50,10 @@ class Analysis:
             data_col (str): Name of the data column.
             error_col (str, optional): Name of the measurement error column.
                 Defaults to None.
+            time_format (str, optional): The strptime format for parsing time.
+                Improves performance. Defaults to None (inferred).
+            sheet_name (str or int, optional): The name or index of the sheet
+                to read from an Excel file. Defaults to 0.
             param_name (str, optional): Name of the parameter for plots/text.
                 Defaults to data_col.
             censor_strategy (str, optional): Strategy for handling censored data.
@@ -65,7 +71,12 @@ class Analysis:
 
         # Load and preprocess data
         time_numeric, data_series, error_series = load_data(
-            file_path, time_col, data_col, error_col=error_col
+            file_path,
+            time_col,
+            data_col,
+            error_col=error_col,
+            time_format=time_format,
+            sheet_name=sheet_name,
         )
         processed_data, processed_errors = preprocess_data(
             data_series,
@@ -104,9 +115,11 @@ class Analysis:
         s = re.sub(r"(?u)[^-\w.]", "", s)
         return s
 
-    def _calculate_periodogram(self, grid_type, normalization):
+    def _calculate_periodogram(self, grid_type, normalization, num_grid_points):
         """Generates frequency grid and calculates the Lomb-Scargle periodogram."""
-        self.frequency = generate_frequency_grid(self.time, grid_type=grid_type)
+        self.frequency = generate_frequency_grid(
+            self.time, num_points=num_grid_points, grid_type=grid_type
+        )
         self.frequency, self.power, self.ls_obj = calculate_periodogram(
             self.time,
             self.data,
@@ -116,7 +129,7 @@ class Analysis:
         )
 
     def _perform_model_selection(
-        self, fit_method, n_bootstraps, p_threshold, max_breakpoints
+        self, fit_method, n_bootstraps, p_threshold, max_breakpoints, seed
     ):
         """
         Performs fits for models with different numbers of breakpoints and
@@ -126,7 +139,11 @@ class Analysis:
         all_models = []
         # Standard fit (0 breakpoints)
         standard_results = fit_spectrum_with_bootstrap(
-            self.frequency, self.power, method=fit_method, n_bootstraps=n_bootstraps
+            self.frequency,
+            self.power,
+            method=fit_method,
+            n_bootstraps=n_bootstraps,
+            seed=seed,
         )
         if "bic" in standard_results and np.isfinite(standard_results["bic"]):
             standard_results["model_type"] = "standard"
@@ -244,12 +261,14 @@ class Analysis:
         n_bootstraps=1000,
         fap_threshold=0.01,
         grid_type="log",
+        num_grid_points=200,
         fap_method="bootstrap",
         normalization="standard",
         peak_detection_method="residual",
         peak_detection_ci=95,
         p_threshold_davies=0.05,
         max_breakpoints=1,
+        seed=None,
     ):
         """
         Runs the complete analysis workflow and saves all outputs to a directory.
@@ -266,6 +285,8 @@ class Analysis:
                 Defaults to 1000.
             grid_type (str, optional): Type of frequency grid ('log' or 'linear').
                 Defaults to 'log'.
+            num_grid_points (int, optional): The number of points to generate
+                for the frequency grid. Defaults to 200.
             peak_detection_method (str, optional): Method for peak detection.
                 'residual' (default) uses the new robust method.
                 'fap' uses the old False Alarm Probability method.
@@ -282,16 +303,18 @@ class Analysis:
                 regression (only used for 1-breakpoint models). Defaults to 0.05.
             max_breakpoints (int, optional): The maximum number of breakpoints
                 to consider in segmented regression (0, 1, or 2). Defaults to 1.
+            seed (int, optional): A seed for the random number generator to
+                ensure reproducibility of bootstrap analysis. Defaults to None.
 
         Returns:
             dict: A dictionary containing all analysis results.
         """
         # 1. Calculate Periodogram
-        self._calculate_periodogram(grid_type, normalization)
+        self._calculate_periodogram(grid_type, normalization, num_grid_points)
 
         # 2. Fit Spectrum and Select Best Model
         fit_results = self._perform_model_selection(
-            fit_method, n_bootstraps, p_threshold_davies, max_breakpoints
+            fit_method, n_bootstraps, p_threshold_davies, max_breakpoints, seed
         )
 
         # 3. Detect Significant Peaks
@@ -311,7 +334,9 @@ class Analysis:
         )
         if not fit_successful:
             interp_results = {
-                "summary_text": "Analysis failed: Could not determine a valid spectral slope."
+                "summary_text": (
+                    "Analysis failed: Could not determine a valid spectral slope."
+                )
             }
             self.results = {**fit_results, **interp_results}
         else:

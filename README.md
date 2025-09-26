@@ -55,48 +55,45 @@ print(results['summary_text'])
 
 ## Example Output
 
-Running the code above will produce a plot (`example_output/Sample_Concentration_spectrum_plot.png`) and the following text summary in `example_output/Sample_Concentration_summary.txt`:
+Running the code above will produce a plot (`example_output/Sample_Concentration_spectrum_plot.png`) and a text summary (`example_output/Sample_Concentration_summary.txt`). The summary text provides a comprehensive overview of the analysis, including a comparison of different spectral models and a list of any significant periodicities found in the data.
 
-```
-Automatic Analysis for: Sample Concentration
------------------------------------
-Model Comparison (Lower BIC is better):
-  - Standard         BIC = 90.05    (β = -0.37)
-  - Segmented (1 BP)   BIC = 47.73    (β1=0.36, β2=-1.52)
-==> Chosen Model: Segmented 1bp
------------------------------------
+## Advanced Usage
 
-Details for Chosen (Segmented 1bp) Model:
-Segmented Analysis for: Sample Concentration
---- Breakpoint @ ~10.3 days ---
-Low-Frequency (Long-term) Fit:
-  β1 = 0.36
-  Interpretation: -0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, suggesting event-driven transport.
-  Persistence: 🔴 Event-driven
-High-Frequency (Short-term) Fit:
-  β2 = -1.52
-  Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.
-  Persistence: 🔴 Event-driven
+`waterSpec` provides several options to customize the analysis.
 
------------------------------------
-Significant Periodicities Found:
-  - Period: 3.0 days (Fit Residual: 4.29)
-  - Period: 5.9 days (Fit Residual: 2.51)
-```
+### Data Loading Options
 
-This output shows the two core features in action:
-*   **Spectral Slope (β) Analysis**: The `Model Comparison` section shows that a segmented model with one breakpoint (1 BP) was the best fit for this data (lower BIC is better). The `Details` section provides the two resulting β values for the low-frequency and high-frequency parts of the spectrum.
-*   **Peak Detection**: The `Significant Periodicities Found` section lists the two recurring cycles that were identified in the data.
+You can control how data is loaded by passing optional arguments to the `Analysis` constructor:
 
-## Advanced Usage: Two-Breakpoint Analysis
-
-By default, `waterSpec` compares a standard model (0 breakpoints) with a 1-breakpoint model. To have the analysis also consider a 2-breakpoint model, set `max_breakpoints=2`:
+*   `time_format`: To speed up date parsing, provide the specific format of your time column (e.g., `"%Y-%m-%d %H:%M:%S"`).
+*   `sheet_name`: If you are loading an Excel file, you can specify the sheet to load by its name (e.g., `"Sheet2"`) or index (e.g., `1`).
 
 ```python
-# The analysis will now compare 0, 1, and 2 breakpoint models
+analyzer = Analysis(
+    file_path='path/to/your/data.xlsx',
+    time_col='date',
+    data_col='value',
+    sheet_name='Water Quality Data',
+    time_format='%Y-%m-%d'
+)
+```
+
+### Analysis Options
+
+The `run_full_analysis` method offers several parameters to fine-tune the spectral analysis:
+
+*   `max_breakpoints`: Set the maximum number of breakpoints to consider for the segmented regression (e.g., `2` to compare 0, 1, and 2 breakpoint models).
+*   `num_grid_points`: Control the resolution of the frequency grid (default is `200`).
+*   `seed`: Provide an integer seed to ensure the bootstrap analysis for confidence intervals is reproducible.
+*   `fap_method`: Choose the method for False Alarm Probability calculation. The default, `'baluev'`, is fast and recommended. The `'bootstrap'` method is available but can be very slow.
+
+```python
+# This example runs a more detailed and reproducible analysis
 results = analyzer.run_full_analysis(
-    output_dir='example_output_2bp',
-    max_breakpoints=2
+    output_dir='advanced_output',
+    max_breakpoints=2,
+    num_grid_points=500,
+    seed=42
 )
 print(results['summary_text'])
 ```

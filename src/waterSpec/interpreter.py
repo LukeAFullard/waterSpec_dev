@@ -137,7 +137,9 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
                 beta_str = f"β = {model['beta']:.2f}"
             else:
                 name = f"Segmented ({n_bp} BP)"
-                betas = ", ".join([f"β{i+1}={b:.2f}" for i, b in enumerate(model["betas"])])
+                betas = ", ".join(
+                    [f"β{i+1}={b:.2f}" for i, b in enumerate(model["betas"])]
+                )
                 beta_str = f"{betas}"
             model_summaries.append(f"  - {name:<15} BIC = {bic_str:<8} ({beta_str})")
 
@@ -157,7 +159,11 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
 
     if n_breakpoints > 0:
         # --- Segmented Model Summary ---
-        segment_names = ["Low-Frequency (Long-term)", "Mid-Frequency", "High-Frequency (Short-term)"]
+        segment_names = [
+            "Low-Frequency (Long-term)",
+            "Mid-Frequency",
+            "High-Frequency (Short-term)",
+        ]
         summary_parts = [f"Segmented Analysis for: {param_name}"]
 
         for i in range(n_breakpoints + 1):
@@ -196,7 +202,12 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
         ci = (fit_results.get("beta_ci_lower"), fit_results.get("beta_ci_upper"))
         beta_str = (
             f"β = {beta:.2f} (95% CI: {ci[0]:.2f}–{ci[1]:.2f})"
-            if ci[0] is not None and np.isfinite(ci[0]) and ci[1] is not None and np.isfinite(ci[1])
+            if (
+                ci[0] is not None
+                and np.isfinite(ci[0])
+                and ci[1] is not None
+                and np.isfinite(ci[1])
+            )
             else f"β = {beta:.2f}"
         )
         summary_text = "\n".join([

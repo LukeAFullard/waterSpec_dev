@@ -125,3 +125,84 @@ def test_load_non_monotonic_time(tmp_path):
     )
     with pytest.raises(ValueError, match="not strictly monotonic increasing"):
         load_data(file_path, time_col="timestamp", data_col="concentration")
+
+
+def test_load_data_from_excel_sheet_by_name():
+    """Test loading data from a specific sheet of an .xlsx file by name."""
+    file_path = "tests/data/multi_sheet_data.xlsx"
+    # Load from the second sheet, which has different values
+    time, value, _ = load_data(
+        file_path, time_col="timestamp", data_col="value", sheet_name="Data_Sheet_2"
+    )
+    assert len(time) == 3
+    # Check a value from the second sheet
+    assert value.iloc[0] == 100
+
+
+def test_load_data_from_excel_sheet_by_index():
+    """Test loading data from a specific sheet of an .xlsx file by index."""
+    file_path = "tests/data/multi_sheet_data.xlsx"
+    # Load from the second sheet (index 1)
+    time, value, _ = load_data(
+        file_path, time_col="timestamp", data_col="value", sheet_name=1
+    )
+    assert len(time) == 3
+    # Check a value from the second sheet
+    assert value.iloc[0] == 100
+
+
+def test_load_data_with_time_format(tmp_path):
+    """Test loading data with a specific time format string."""
+    file_path = tmp_path / "formatted_time.csv"
+    file_path.write_text("day,value\n01/01/2023,1\n02/01/2023,2")
+    time, _, _ = load_data(
+        file_path, time_col="day", data_col="value", time_format="%d/%m/%Y"
+    )
+    assert len(time) == 2
+    # The first timestamp should correspond to Jan 1, 2023
+    assert pd.to_datetime("2023-01-01").timestamp() == (time[0])
+
+
+def test_load_data_with_incorrect_time_format(tmp_path):
+    """Test that an incorrect time format string raises a ValueError."""
+    file_path = tmp_path / "formatted_time.csv"
+    file_path.write_text("day,value\n2023-01-01,1\n2023-01-02,2")
+    with pytest.raises(ValueError, match="Please check that the format string"):
+        load_data(
+            file_path, time_col="day", data_col="value", time_format="%d-%m-%Y"
+        )
+
+
+def test_load_data_unsupported_format(tmp_path):
+    """Test that an unsupported file format raises a ValueError."""
+    file_path = tmp_path / "test.txt"
+    file_path.write_text("data")
+    with pytest.raises(ValueError, match="Unsupported file format: .txt"):
+        load_data(file_path, time_col="time", data_col="value")
+
+
+def test_load_data_missing_error_column(create_test_csv):
+    """Test that a missing error column, when specified, raises a ValueError."""
+    with pytest.raises(ValueError, match="Error column 'bad_error_col' not found"):
+        load_data(
+            create_test_csv,
+            time_col="timestamp",
+            data_col="concentration",
+            error_col="bad_error_col",
+        )
+
+
+def test_load_data_bad_error_column(tmp_path):
+    """Test that a non-numeric error column raises a ValueError."""
+    file_path = tmp_path / "bad_error.csv"
+    file_path.write_text("time,value,error\n2023-01-01,10,1\n2023-01-02,11,foo")
+    with pytest.raises(ValueError, match="could not be converted to a numeric type"):
+        load_data(file_path, time_col="time", data_col="value", error_col="error")
+
+
+def test_load_data_negative_error_column(tmp_path):
+    """Test that a negative value in the error column raises a warning."""
+    file_path = tmp_path / "neg_error.csv"
+    file_path.write_text("time,value,error\n2023-01-01,10,1\n2023-01-02,11,-0.5")
+    with pytest.warns(UserWarning, match="error column contains negative values"):
+        load_data(file_path, time_col="time", data_col="value", error_col="error")

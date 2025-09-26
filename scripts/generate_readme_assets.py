@@ -1,6 +1,8 @@
 import os
 import shutil
+
 from waterSpec import Analysis
+
 
 def main():
     """

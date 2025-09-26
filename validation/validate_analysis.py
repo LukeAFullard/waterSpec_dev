@@ -1,8 +1,10 @@
-import os
-import sys
 import filecmp
+import os
 import shutil
+import sys
+
 from waterSpec import Analysis
+
 
 def main():
     """
@@ -41,10 +43,16 @@ def main():
         print(f"Comparing '{generated_file}' with '{reference_file}'...")
 
         if not os.path.exists(generated_file):
-            print(f"Validation failed: Output file '{generated_file}' was not generated.")
+            print(
+                f"Validation failed: Output file '{generated_file}' was not "
+                "generated."
+            )
 
         elif not os.path.exists(reference_file):
-            print(f"Validation failed: Reference file '{reference_file}' does not exist.")
+            print(
+                f"Validation failed: Reference file '{reference_file}' does not "
+                "exist."
+            )
 
         elif filecmp.cmp(generated_file, reference_file, shallow=False):
             print("\n✅ Validation Successful: Output matches the reference output.")
@@ -54,7 +62,12 @@ def main():
             # Optional: print diff
             # import difflib
             # with open(generated_file) as f1, open(reference_file) as f2:
-            #     diff = difflib.unified_diff(f2.readlines(), f1.readlines(), fromfile='expected', tofile='generated')
+            #     diff = difflib.unified_diff(
+            #         f2.readlines(),
+            #         f1.readlines(),
+            #         fromfile="expected",
+            #         tofile="generated",
+            #     )
             #     print("--- DIFF ---")
             #     for line in diff:
             #         sys.stdout.write(line)

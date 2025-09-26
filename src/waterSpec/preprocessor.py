@@ -85,8 +85,9 @@ def normalize(data, errors=None):
     else:
         # If std_dev is 0, the data is constant. Center it at 0.
         data[valid_indices] = 0
-        # Errors are unchanged. If data is constant, should errors be 0?
-        # For now, we leave them as they are.
+        # If data is constant, there is no variance to scale, so errors become 0.
+        if errors is not None:
+            errors[valid_indices] = 0
 
     return data, errors
 
@@ -186,11 +187,12 @@ def detrend_loess(x, y, errors=None, **kwargs):
     This function is a wrapper around `statsmodels.nonparametric.lowess.lowess`.
     Any additional keyword arguments are passed directly to the statsmodels function.
 
-    .. warning::
-        This function does not propagate errors. The input error series is
-        passed through unchanged. Proper error propagation for non-linear
-        methods like LOESS is a complex, unsolved problem, and this simplification
-        should be carefully considered when interpreting results.
+    Note on error propagation: If errors are provided, this function propagates
+    the uncertainty from the original measurement and the uncertainty from the
+    LOESS fit. The final error is the quadrature sum of the original error
+    and the standard deviation of the LOESS residuals, which serves as an
+    estimate of the model's prediction uncertainty. This is an approximation
+    and should be used with caution.
 
     Args:
         x (np.ndarray): The independent variable (time).
@@ -210,10 +212,30 @@ def detrend_loess(x, y, errors=None, **kwargs):
     x_valid = x[valid_indices]
     y_valid = y[valid_indices]
 
-    smoothed = sm.nonparametric.lowess(y_valid, x_valid, **kwargs)
+    # Perform LOESS smoothing
+    smoothed_y = sm.nonparametric.lowess(y_valid, x_valid, **kwargs)[:, 1]
 
+    # Detrend the data
     detrended_y = np.full_like(y, np.nan)
-    detrended_y[valid_indices] = y_valid - smoothed[:, 1]
+    residuals = y_valid - smoothed_y
+    detrended_y[valid_indices] = residuals
+
+    # Propagate errors if provided
+    if errors is not None:
+        errors_valid = errors[valid_indices]
+        if np.any(np.isnan(errors_valid)):
+            warnings.warn(
+                "NaNs found in error values corresponding to valid data points. "
+                "These will be treated as having zero error for propagation.",
+                UserWarning,
+            )
+            errors_valid = np.nan_to_num(errors_valid)
+
+        # Estimate LOESS fit uncertainty as the std of the residuals
+        loess_se = np.std(residuals)
+        # Combine in quadrature
+        new_err_sq = np.square(errors_valid) + np.square(loess_se)
+        errors[valid_indices] = np.sqrt(new_err_sq)
 
     return detrended_y, errors
 

@@ -55,5 +55,5 @@ pythonpath = [
 line-length = 88
 
 [tool.ruff]
+line-length = 88
 lint.select = ["E", "F", "W", "I", "UP"]
-lint.line-length = 88
