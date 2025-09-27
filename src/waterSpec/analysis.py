@@ -16,6 +16,10 @@ from .spectral_analyzer import (
     find_significant_peaks,
 )
 
+# Define a constant for the minimum number of valid data points required to
+# proceed with an analysis.
+MIN_VALID_DATA_POINTS = 10
+
 
 class Analysis:
     """
@@ -100,7 +104,7 @@ class Analysis:
         )
 
         valid_indices = ~np.isnan(processed_data)
-        if np.sum(valid_indices) < 10:
+        if np.sum(valid_indices) < MIN_VALID_DATA_POINTS:
             raise ValueError(
                 "Not enough valid data points remaining after preprocessing."
             )
@@ -169,6 +173,8 @@ class Analysis:
                 self.power,
                 n_breakpoints=n_bp,
                 p_threshold=p_threshold,
+                n_bootstraps=n_bootstraps,
+                seed=seed,
             )
             # Only include the model if the fit was successful (returned a valid BIC)
             if "bic" in seg_results and np.isfinite(seg_results["bic"]):
@@ -291,7 +297,7 @@ class Analysis:
         normalization="standard",
         peak_detection_method="residual",
         peak_detection_ci=95,
-        p_threshold_davies=0.05,
+        p_threshold=0.05,
         max_breakpoints=1,
         seed=None,
     ):
@@ -331,7 +337,7 @@ class Analysis:
                 when `peak_detection_method` is `'fap'`. Defaults to 'baluev'.
             normalization (str, optional): Normalization for the periodogram.
                 Defaults to 'standard'.
-            p_threshold_davies (float, optional): The p-value threshold for the
+            p_threshold (float, optional): The p-value threshold for the
                 Davies test for a significant breakpoint in segmented
                 regression (only used for 1-breakpoint models). Defaults to 0.05.
             max_breakpoints (int, optional): The maximum number of breakpoints
@@ -347,7 +353,7 @@ class Analysis:
 
         # 2. Fit Spectrum and Select Best Model
         fit_results = self._perform_model_selection(
-            fit_method, n_bootstraps, p_threshold_davies, max_breakpoints, seed
+            fit_method, n_bootstraps, p_threshold, max_breakpoints, seed
         )
 
         # 3. Detect Significant Peaks

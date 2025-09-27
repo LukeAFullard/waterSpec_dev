@@ -181,9 +181,111 @@ def fit_spectrum_with_bootstrap(
     return initial_fit
 
 
-def fit_segmented_spectrum(frequency, power, n_breakpoints=1, p_threshold=0.05):
+# Define a constant for the minimum number of data points required per
+# segment in a regression to ensure stable fits.
+MIN_POINTS_PER_SEGMENT = 5
+
+
+def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed):
     """
-    Fits a segmented regression with n breakpoints to the power spectrum.
+    Performs bootstrap resampling for a fitted piecewise regression model.
+
+    Args:
+        pw_fit: A fitted `piecewise_regression.Fit` object.
+        log_freq (np.ndarray): The log-transformed frequency data.
+        log_power (np.ndarray): The log-transformed power data.
+        n_bootstraps (int): The number of bootstrap samples to generate.
+        ci (int): The desired confidence interval in percent.
+        seed (int): A seed for the random number generator.
+
+    Returns:
+        dict: A dictionary containing the confidence intervals for betas and
+              breakpoints. Returns empty dict if bootstrapping fails.
+    """
+    n_breakpoints = pw_fit.n_breakpoints
+    log_power_fit = pw_fit.predict(log_freq)
+    residuals = log_power - log_power_fit
+    rng = np.random.default_rng(seed)
+
+    # Store estimates from each bootstrap iteration
+    bootstrap_betas = [[] for _ in range(n_breakpoints + 1)]
+    bootstrap_breakpoints = [[] for _ in range(n_breakpoints)]
+
+    for _ in range(n_bootstraps):
+        resampled_residuals = rng.choice(residuals, size=len(residuals), replace=True)
+        synthetic_log_power = log_power_fit + resampled_residuals
+
+        try:
+            # Fit the synthetic data, using the original fit's breakpoints
+            # as a starting point to speed up convergence.
+            bootstrap_pw_fit = piecewise_regression.Fit(
+                log_freq,
+                synthetic_log_power,
+                n_breakpoints=n_breakpoints,
+                start_values=pw_fit.get_results()["estimates"]["breakpoint1"][
+                    "estimate"
+                ],
+            )
+            if not bootstrap_pw_fit.get_results()["converged"]:
+                continue
+
+            # --- Extract estimates from the bootstrap fit ---
+            estimates = bootstrap_pw_fit.get_results()["estimates"]
+            # Breakpoints
+            for i in range(n_breakpoints):
+                bp_val = np.exp(estimates[f"breakpoint{i+1}"]["estimate"])
+                bootstrap_breakpoints[i].append(bp_val)
+            # Betas
+            slopes = []
+            current_slope = estimates["alpha1"]["estimate"]
+            slopes.append(current_slope)
+            for i in range(1, n_breakpoints + 1):
+                current_slope += estimates[f"beta{i}"]["estimate"]
+                slopes.append(current_slope)
+            betas = [-s for s in slopes]
+            for i in range(n_breakpoints + 1):
+                bootstrap_betas[i].append(betas[i])
+        except Exception:
+            # If a bootstrap fit fails, just skip it.
+            continue
+
+    # --- Calculate confidence intervals ---
+    lower_p = (100 - ci) / 2
+    upper_p = 100 - lower_p
+    ci_results = {"betas_ci": [], "breakpoints_ci": []}
+
+    # Beta CIs
+    for i in range(n_breakpoints + 1):
+        if bootstrap_betas[i]:
+            lower = np.percentile(bootstrap_betas[i], lower_p)
+            upper = np.percentile(bootstrap_betas[i], upper_p)
+            ci_results["betas_ci"].append((lower, upper))
+        else:
+            ci_results["betas_ci"].append((np.nan, np.nan))
+
+    # Breakpoint CIs
+    for i in range(n_breakpoints):
+        if bootstrap_breakpoints[i]:
+            lower = np.percentile(bootstrap_breakpoints[i], lower_p)
+            upper = np.percentile(bootstrap_breakpoints[i], upper_p)
+            ci_results["breakpoints_ci"].append((lower, upper))
+        else:
+            ci_results["breakpoints_ci"].append((np.nan, np.nan))
+
+    return ci_results
+
+
+def fit_segmented_spectrum(
+    frequency,
+    power,
+    n_breakpoints=1,
+    p_threshold=0.05,
+    n_bootstraps=1000,
+    ci=95,
+    seed=None,
+):
+    """
+    Fits a segmented regression and estimates confidence intervals via bootstrap.
 
     Args:
         frequency (np.ndarray): The frequency array.
@@ -191,19 +293,24 @@ def fit_segmented_spectrum(frequency, power, n_breakpoints=1, p_threshold=0.05):
         n_breakpoints (int, optional): The number of breakpoints to fit.
             Defaults to 1.
         p_threshold (float, optional): The p-value threshold for the Davies
-            test for a significant breakpoint (only used when n_breakpoints=1).
+            test for a significant breakpoint (only for 1-breakpoint models).
             Defaults to 0.05.
+        n_bootstraps (int, optional): Number of bootstrap samples for CI.
+            Set to 0 to disable. Defaults to 1000.
+        ci (int, optional): The desired confidence interval in percent.
+            Defaults to 95.
+        seed (int, optional): A seed for the random number generator.
+            Defaults to None.
 
     Returns:
-        dict: A dictionary containing the fit results.
+        dict: A dictionary containing the fit results, including CIs.
     """
     # Log-transform the data
     valid_indices = (frequency > 0) & (power > 0)
-    # Require at least 5 points per segment
-    min_points = 5 * (n_breakpoints + 1)
+    min_points = MIN_POINTS_PER_SEGMENT * (n_breakpoints + 1)
     if np.sum(valid_indices) < min_points:
         summary = f"Not enough data points for {n_breakpoints}-breakpoint regression."
-        return {"model_summary": summary, "n_breakpoints": n_breakpoints}
+        return {"model_summary": summary, "n_breakpoints": n_breakpoints, "bic": np.inf}
 
     log_freq = np.log(frequency[valid_indices])
     log_power = np.log(power[valid_indices])
@@ -234,6 +341,7 @@ def fit_segmented_spectrum(frequency, power, n_breakpoints=1, p_threshold=0.05):
             "model_summary": summary,
             "n_breakpoints": n_breakpoints,
             "davies_p_value": davies_p_value,
+            "bic": np.inf,  # Return infinite BIC for failed fits
         }
 
     # --- Extract results ---
@@ -256,8 +364,6 @@ def fit_segmented_spectrum(frequency, power, n_breakpoints=1, p_threshold=0.05):
     }
 
     # --- Extract breakpoints and betas (slopes) ---
-    # The library returns slope `alpha1` and changes in slope `beta1`, `beta2`, etc.
-    # We must sum them to get the slope of each subsequent segment.
     breakpoints = []
     for i in range(1, n_breakpoints + 1):
         bp_log_freq = estimates[f"breakpoint{i}"]["estimate"]
@@ -270,7 +376,6 @@ def fit_segmented_spectrum(frequency, power, n_breakpoints=1, p_threshold=0.05):
         current_slope += estimates[f"beta{i}"]["estimate"]
         slopes.append(current_slope)
 
-    # Spectral exponent (beta) is the negative of the slope
     betas = [-s for s in slopes]
 
     # For backward compatibility, add single values if only one breakpoint
@@ -281,5 +386,16 @@ def fit_segmented_spectrum(frequency, power, n_breakpoints=1, p_threshold=0.05):
 
     results["breakpoints"] = breakpoints
     results["betas"] = betas
+
+    # --- Perform bootstrap if requested ---
+    if n_bootstraps > 0:
+        ci_results = _bootstrap_segmented_fit(
+            pw_fit, log_freq, log_power, n_bootstraps, ci, seed
+        )
+        results.update(ci_results)
+    else:
+        # Ensure CI keys exist even when bootstrap is skipped
+        results["betas_ci"] = [(np.nan, np.nan)] * (n_breakpoints + 1)
+        results["breakpoints_ci"] = [(np.nan, np.nan)] * n_breakpoints
 
     return results

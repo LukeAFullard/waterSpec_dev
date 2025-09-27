@@ -277,7 +277,13 @@ def test_analysis_max_breakpoints_selects_best_model(
     mock_fit_standard.return_value = {"beta": 1.0, "bic": 200.0, "n_breakpoints": 0}
 
     # Mock the segmented fits (1 and 2 breakpoints) to return different BICs
-    def segmented_side_effect(frequency, power, n_breakpoints, p_threshold):
+    def segmented_side_effect(
+        frequency, power, n_breakpoints, p_threshold, **kwargs
+    ):
+        """
+        A side effect function for the mock that mimics the behavior of
+        `fit_segmented_spectrum`, accepting the new bootstrap arguments.
+        """
         if n_breakpoints == 1:
             return {
                 "betas": [0.5, 1.5],
