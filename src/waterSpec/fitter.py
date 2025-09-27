@@ -3,7 +3,7 @@ import piecewise_regression
 from scipy import stats
 
 
-def fit_spectrum(frequency, power, method="theil-sen"):
+def fit_spectrum(frequency, power, method="theil-sen", ci=95):
     """
     Fits a line to the power spectrum on a log-log plot to find the spectral
     exponent (beta).
@@ -14,6 +14,8 @@ def fit_spectrum(frequency, power, method="theil-sen"):
         method (str, optional): The fitting method to use.
             'theil-sen' for the robust Theil-Sen estimator (default).
             'ols' for Ordinary Least Squares.
+        ci (int, optional): The desired confidence interval in percent, used
+            for the Theil-Sen estimator. Defaults to 95.
 
     Returns:
         dict: A dictionary containing the fit results:
@@ -21,6 +23,7 @@ def fit_spectrum(frequency, power, method="theil-sen"):
               - 'r_squared': The R-squared value of the fit (OLS only).
               - 'intercept': The intercept of the log-log regression.
               - 'stderr': The standard error of the slope (OLS only).
+              - 'slope_ci_lower', 'slope_ci_upper': CI for Theil-Sen slope.
     """
     # Ensure there are no zero or negative values before log-transforming
     # This is important as frequency or power can sometimes be zero.
@@ -46,9 +49,8 @@ def fit_spectrum(frequency, power, method="theil-sen"):
         stderr = lin_reg_result.stderr
     elif method == "theil-sen":
         # Use the robust Theil-Sen estimator from SciPy
-        res = stats.theilslopes(log_power, log_freq, 0.95)
-        slope = res[0]
-        intercept = res[1]
+        res = stats.theilslopes(log_power, log_freq, alpha=1 - (ci / 100))
+        slope, intercept, low_slope, high_slope = res
         # Theil-Sen does not provide R-squared or standard error directly
         r_squared = np.nan
         stderr = np.nan
@@ -67,6 +69,9 @@ def fit_spectrum(frequency, power, method="theil-sen"):
         "intercept": intercept,
         "stderr": stderr,
     }
+    if method == "theil-sen":
+        fit_results["slope_ci_lower"] = low_slope
+        fit_results["slope_ci_upper"] = high_slope
 
     return fit_results
 
@@ -87,45 +92,45 @@ import warnings
 
 
 def fit_spectrum_with_bootstrap(
-    frequency, power, method="theil-sen", n_bootstraps=1000, ci=95, seed=None
+    frequency,
+    power,
+    method="theil-sen",
+    ci_method="bootstrap",
+    n_bootstraps=1000,
+    ci=95,
+    seed=None,
 ):
     """
-    Fits the power spectrum and estimates confidence intervals for beta using
-    bootstrap resampling.
+    Fits the power spectrum and estimates confidence intervals for beta.
 
     Args:
         frequency (np.ndarray): The frequency array.
         power (np.ndarray): The power array.
         method (str, optional): The fitting method ('theil-sen' or 'ols').
             Defaults to 'theil-sen'.
+        ci_method (str, optional): The method for calculating confidence
+            intervals ('bootstrap' or 'parametric'). Defaults to 'bootstrap'.
         n_bootstraps (int, optional): The number of bootstrap samples to
-            generate. Defaults to 1000.
+            generate. Only used if ci_method is 'bootstrap'. Defaults to 1000.
         ci (int, optional): The desired confidence interval in percent.
             Defaults to 95.
         seed (int, optional): A seed for the random number generator to ensure
             reproducibility. Defaults to None.
 
     Returns:
-        dict: A dictionary containing the fit results, including the bootstrap
-              confidence interval:
-              - 'beta': The spectral exponent from the original data.
-              - 'r_squared': The R-squared value of the original fit.
-              - 'intercept': The intercept of the original fit.
-              - 'stderr': The standard error of the original fit.
-              - 'bic': Bayesian Information Criterion for the fit.
-              - 'beta_ci_lower': The lower bound of the confidence interval for beta.
-              - 'beta_ci_upper': The upper bound of the confidence interval for beta.
+        dict: A dictionary containing the fit results, including the confidence
+              interval for beta.
     """
     # Get the initial fit
-    initial_fit = fit_spectrum(frequency, power, method=method)
+    initial_fit = fit_spectrum(frequency, power, method=method, ci=ci)
     if np.isnan(initial_fit["beta"]):
-        # If the initial fit failed, we can't do bootstrap
+        # If the initial fit failed, we can't get CIs or BIC
         initial_fit.update(
             {"beta_ci_lower": np.nan, "beta_ci_upper": np.nan, "bic": np.nan}
         )
         return initial_fit
 
-    # Log-transform the data
+    # Log-transform the data for BIC and CI calculations
     valid_indices = (frequency > 0) & (power > 0)
     log_freq = np.log(frequency[valid_indices])
     log_power = np.log(power[valid_indices])
@@ -140,39 +145,55 @@ def fit_spectrum_with_bootstrap(
     bic = _calculate_bic(log_power, log_power_fit, 2)
     initial_fit["bic"] = bic
 
-    # Perform bootstrap resampling
-    beta_estimates = np.zeros(n_bootstraps)
-    rng = np.random.default_rng(seed)
+    # --- Calculate Confidence Intervals ---
+    if ci_method == "bootstrap":
+        # Perform bootstrap resampling
+        beta_estimates = np.zeros(n_bootstraps)
+        rng = np.random.default_rng(seed)
 
-    for i in range(n_bootstraps):
-        # Resample residuals
-        resampled_residuals = rng.choice(residuals, size=len(residuals), replace=True)
+        for i in range(n_bootstraps):
+            resampled_residuals = rng.choice(
+                residuals, size=len(residuals), replace=True
+            )
+            synthetic_log_power = log_power_fit + resampled_residuals
 
-        # Create a new synthetic log-power series
-        synthetic_log_power = log_power_fit + resampled_residuals
+            if method == "ols":
+                resampled_fit = stats.linregress(log_freq, synthetic_log_power)
+                resampled_slope = resampled_fit.slope
+            elif method == "theil-sen":
+                resampled_fit = stats.theilslopes(synthetic_log_power, log_freq)
+                resampled_slope = resampled_fit[0]
+            beta_estimates[i] = -resampled_slope
 
-        # Fit the synthetic data using the specified method
+        lower_percentile = (100 - ci) / 2
+        upper_percentile = 100 - lower_percentile
+        beta_ci_lower = np.percentile(beta_estimates, lower_percentile)
+        beta_ci_upper = np.percentile(beta_estimates, upper_percentile)
+
+    elif ci_method == "parametric":
         if method == "ols":
-            resampled_fit = stats.linregress(log_freq, synthetic_log_power)
-            resampled_slope = resampled_fit.slope
+            stderr = initial_fit.get("stderr", np.nan)
+            if np.isfinite(stderr):
+                t_val = stats.t.ppf((1 + ci / 100) / 2, len(log_freq) - 2)
+                half_width = t_val * stderr
+                slope_ci_lower = slope - half_width
+                slope_ci_upper = slope + half_width
+                beta_ci_lower, beta_ci_upper = -slope_ci_upper, -slope_ci_lower
+            else:
+                beta_ci_lower, beta_ci_upper = np.nan, np.nan
         elif method == "theil-sen":
-            resampled_fit = stats.theilslopes(synthetic_log_power, log_freq)
-            resampled_slope = resampled_fit[0]
-
-        # Store the new beta estimate
-        beta_estimates[i] = -resampled_slope
-
-    # Calculate the confidence interval
-    lower_percentile = (100 - ci) / 2
-    upper_percentile = 100 - lower_percentile
-    beta_ci_lower = np.percentile(beta_estimates, lower_percentile)
-    beta_ci_upper = np.percentile(beta_estimates, upper_percentile)
+            # Theil-Sen CIs are calculated directly in fit_spectrum
+            slope_ci_lower = initial_fit.get("slope_ci_lower", np.nan)
+            slope_ci_upper = initial_fit.get("slope_ci_upper", np.nan)
+            beta_ci_lower, beta_ci_upper = -slope_ci_upper, -slope_ci_lower
+    else:
+        raise ValueError(f"Unknown ci_method: '{ci_method}'")
 
     # Add the confidence interval to the results
     initial_fit["beta_ci_lower"] = beta_ci_lower
     initial_fit["beta_ci_upper"] = beta_ci_upper
 
-    # Store log-transformed data and residuals for potential use in other functions
+    # Store log-transformed data and residuals for potential use
     initial_fit["log_freq"] = log_freq
     initial_fit["log_power"] = log_power
     initial_fit["residuals"] = residuals
@@ -275,17 +296,48 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
     return ci_results
 
 
+def _extract_parametric_segmented_cis(estimates, n_breakpoints):
+    """
+    Extracts parametric CIs from a fitted piecewise_regression model summary.
+
+    Note: The library provides CIs for the first slope (alpha1) and the
+    breakpoints, but not directly for the slopes of subsequent segments, as
+    these are sums of correlated variables. This function returns NaNs for
+    the CIs of subsequent slopes. Bootstrap CIs do not have this limitation.
+    """
+    betas_ci = []
+    breakpoints_ci = []
+
+    # CI for the first slope (alpha1)
+    # Beta is the negative of the slope, so the CI is inverted.
+    alpha1_ci = estimates["alpha1"]["confidence_interval"]
+    betas_ci.append((-alpha1_ci[1], -alpha1_ci[0]))
+
+    # For subsequent slopes, parametric CIs are not directly available.
+    for _ in range(n_breakpoints):
+        betas_ci.append((np.nan, np.nan))
+
+    # CIs for the breakpoints
+    for i in range(1, n_breakpoints + 1):
+        bp_ci_log = estimates[f"breakpoint{i}"]["confidence_interval"]
+        # Convert from log space back to frequency space
+        breakpoints_ci.append((np.exp(bp_ci_log[0]), np.exp(bp_ci_log[1])))
+
+    return {"betas_ci": betas_ci, "breakpoints_ci": breakpoints_ci}
+
+
 def fit_segmented_spectrum(
     frequency,
     power,
     n_breakpoints=1,
     p_threshold=0.05,
+    ci_method="bootstrap",
     n_bootstraps=1000,
     ci=95,
     seed=None,
 ):
     """
-    Fits a segmented regression and estimates confidence intervals via bootstrap.
+    Fits a segmented regression and estimates confidence intervals.
 
     Args:
         frequency (np.ndarray): The frequency array.
@@ -295,8 +347,10 @@ def fit_segmented_spectrum(
         p_threshold (float, optional): The p-value threshold for the Davies
             test for a significant breakpoint (only for 1-breakpoint models).
             Defaults to 0.05.
+        ci_method (str, optional): The method for calculating confidence
+            intervals ('bootstrap' or 'parametric'). Defaults to 'bootstrap'.
         n_bootstraps (int, optional): Number of bootstrap samples for CI.
-            Set to 0 to disable. Defaults to 1000.
+            Only used if `ci_method` is `'bootstrap'`. Defaults to 1000.
         ci (int, optional): The desired confidence interval in percent.
             Defaults to 95.
         seed (int, optional): A seed for the random number generator.
@@ -387,15 +441,19 @@ def fit_segmented_spectrum(
     results["breakpoints"] = breakpoints
     results["betas"] = betas
 
-    # --- Perform bootstrap if requested ---
-    if n_bootstraps > 0:
-        ci_results = _bootstrap_segmented_fit(
-            pw_fit, log_freq, log_power, n_bootstraps, ci, seed
-        )
+    # --- Calculate Confidence Intervals based on the chosen method ---
+    if ci_method == "bootstrap":
+        if n_bootstraps > 0:
+            ci_results = _bootstrap_segmented_fit(
+                pw_fit, log_freq, log_power, n_bootstraps, ci, seed
+            )
+            results.update(ci_results)
+        else:
+            # If bootstrap is chosen but n_bootstraps is 0, return NaNs.
+            results["betas_ci"] = [(np.nan, np.nan)] * (n_breakpoints + 1)
+            results["breakpoints_ci"] = [(np.nan, np.nan)] * n_breakpoints
+    elif ci_method == "parametric":
+        ci_results = _extract_parametric_segmented_cis(estimates, n_breakpoints)
         results.update(ci_results)
-    else:
-        # Ensure CI keys exist even when bootstrap is skipped
-        results["betas_ci"] = [(np.nan, np.nan)] * (n_breakpoints + 1)
-        results["breakpoints_ci"] = [(np.nan, np.nan)] * n_breakpoints
 
     return results

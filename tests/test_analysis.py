@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import numpy as np
 import pandas as pd
@@ -274,7 +274,18 @@ def test_analysis_max_breakpoints_selects_best_model(
     """
     # --- Mock Configuration ---
     # Mock the standard fit (0 breakpoints)
-    mock_fit_standard.return_value = {"beta": 1.0, "bic": 200.0, "n_breakpoints": 0}
+    dummy_data = {
+        "residuals": np.array([1, 2, 3]),
+        "fitted_log_power": np.array([1, 2, 3]),
+        "log_freq": np.array([1, 2, 3]),
+        "log_power": np.array([1, 2, 3]),
+    }
+    mock_fit_standard.return_value = {
+        "beta": 1.0,
+        "bic": 200.0,
+        "n_breakpoints": 0,
+        **dummy_data,
+    }
 
     # Mock the segmented fits (1 and 2 breakpoints) to return different BICs
     def segmented_side_effect(
@@ -290,6 +301,7 @@ def test_analysis_max_breakpoints_selects_best_model(
                 "breakpoints": [0.1],
                 "bic": 150.0,
                 "n_breakpoints": 1,
+                **dummy_data,
             }
         elif n_breakpoints == 2:
             return {
@@ -297,6 +309,7 @@ def test_analysis_max_breakpoints_selects_best_model(
                 "breakpoints": [0.01, 0.1],
                 "bic": 100.0,
                 "n_breakpoints": 2,
+                **dummy_data,
             }
         return {}
 
@@ -323,3 +336,41 @@ def test_analysis_max_breakpoints_selects_best_model(
     assert len(results["all_models"]) == 3
     bics = [m["bic"] for m in results["all_models"]]
     assert sorted(bics) == [100.0, 150.0, 200.0]
+
+    # Check that the mocks were called with the correct default ci_method
+    mock_fit_standard.assert_called_with(
+        ANY,  # frequency
+        ANY,  # power
+        method="theil-sen",
+        ci_method="bootstrap",
+        n_bootstraps=0,
+        seed=None,
+    )
+    mock_fit_segmented.assert_any_call(
+        ANY,
+        ANY,
+        n_breakpoints=1,
+        p_threshold=0.05,
+        ci_method="bootstrap",
+        n_bootstraps=0,
+        seed=None,
+    )
+
+
+def test_analysis_parametric_ci_is_propagated(tmp_path):
+    """
+    Test that the `ci_method='parametric'` option is correctly propagated
+    through the analysis and reflected in the output.
+    """
+    time, series = generate_synthetic_series(n_points=100, beta=1.0)
+    file_path = create_test_data_file(tmp_path, time, series)
+
+    analyzer = Analysis(file_path, time_col="time", data_col="value")
+    results = analyzer.run_full_analysis(
+        output_dir=tmp_path, ci_method="parametric"
+    )
+
+    assert "summary_text" in results
+    assert "(parametric)" in results["summary_text"]
+    assert "ci_method" in results
+    assert results["ci_method"] == "parametric"
