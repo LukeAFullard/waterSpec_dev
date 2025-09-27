@@ -74,7 +74,10 @@ def test_analysis_raises_error_for_insufficient_data_post_processing(tmp_path):
     series = [1, 2, 3, 4, 5] + ["<1"] * 15
     file_path = create_test_data_file(tmp_path, time, series)
 
-    with pytest.raises(ValueError, match="The time series has only 5 valid data points"):
+    with pytest.raises(
+        ValueError,
+        match=r"Not enough valid data points \(5\) remaining after preprocessing. Minimum required: 10.",
+    ):
         Analysis(
             file_path,
             time_col="time",
@@ -229,14 +232,19 @@ def test_preprocess_handles_non_numeric_censored_values(tmp_path):
     Test that non-numeric censored values are handled and that the analysis
     fails if the number of valid points drops below the minimum.
     """
-    time = np.arange(5)
-    series = pd.Series([1, 2, "<1", "ND", 5])
-    with pytest.raises(ValueError, match="The time series has only 4 valid data points"):
-        preprocess_data(
-            series,
-            time,
-            censor_strategy="use_detection_limit",
-            censor_options={"censor_symbol": "<"},
+    time = pd.date_range("2023-01-01", periods=5)
+    # The value "ND" will be converted to NaN, leaving 4 valid points.
+    series = pd.Series([1, 2, 1, "ND", 5])
+    file_path = create_test_data_file(tmp_path, time, series.astype(str))
+
+    with pytest.raises(
+        ValueError,
+        match=r"Not enough valid data points \(4\) remaining after preprocessing. Minimum required: 10.",
+    ):
+        Analysis(
+            file_path,
+            time_col="time",
+            data_col="value",
         )
 
 def test_load_data_all_nan_data(tmp_path):

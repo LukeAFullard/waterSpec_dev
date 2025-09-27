@@ -17,11 +17,6 @@ from .spectral_analyzer import (
     find_significant_peaks,
 )
 
-# Define a constant for the minimum number of valid data points required to
-# proceed with an analysis.
-MIN_VALID_DATA_POINTS = 10
-
-
 class Analysis:
     """
     A class to perform a complete spectral analysis of a time series.
@@ -45,6 +40,7 @@ class Analysis:
         detrend_method="linear",
         normalize_data=False,
         detrend_options=None,
+        min_valid_data_points=10,
         verbose=False,
     ):
         """
@@ -72,11 +68,17 @@ class Analysis:
                 ('linear', 'loess', or None). Defaults to 'linear'.
             normalize_data (bool, optional): If True, normalize the data.
             detrend_options (dict, optional): Options for the detrending method.
+            min_valid_data_points (int, optional): The minimum number of valid
+                data points required to proceed with an analysis. Defaults to 10.
             verbose (bool, optional): If True, sets logging level to INFO.
                 Defaults to False (logging level WARNING).
         """
         self.param_name = param_name if param_name is not None else data_col
         self._setup_logger(level=logging.INFO if verbose else logging.WARNING)
+
+        if not isinstance(min_valid_data_points, int) or min_valid_data_points <= 0:
+            raise ValueError("`min_valid_data_points` must be a positive integer.")
+        self.min_valid_data_points = min_valid_data_points
 
         # Load and preprocess data
         self.logger.info("Loading and preprocessing data...")
@@ -101,9 +103,11 @@ class Analysis:
         )
 
         valid_indices = ~np.isnan(processed_data)
-        if np.sum(valid_indices) < MIN_VALID_DATA_POINTS:
+        if np.sum(valid_indices) < self.min_valid_data_points:
             raise ValueError(
-                "Not enough valid data points remaining after preprocessing."
+                f"Not enough valid data points ({np.sum(valid_indices)}) "
+                f"remaining after preprocessing. Minimum required: "
+                f"{self.min_valid_data_points}."
             )
 
         self.time = time_numeric[valid_indices]

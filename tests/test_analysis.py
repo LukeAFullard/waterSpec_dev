@@ -161,9 +161,44 @@ def test_analysis_insufficient_data(tmp_path):
     file_path = create_test_data_file(tmp_path, time, series)
 
     with pytest.raises(
-        ValueError, match="The time series has only 5 valid data points"
+        ValueError,
+        match=r"Not enough valid data points \(5\) remaining after preprocessing. Minimum required: 10.",
     ):
         Analysis(file_path, time_col="time", data_col="value")
+
+
+def test_analysis_min_valid_data_points_configurable(tmp_path):
+    """Test that the minimum data points threshold can be configured."""
+    time = pd.date_range(start="2000-01-01", periods=8, freq="D")
+    series = np.random.rand(8)
+    file_path = create_test_data_file(tmp_path, time, series)
+
+    # This should fail with the default of 10
+    with pytest.raises(ValueError, match="Minimum required: 10"):
+        Analysis(file_path, time_col="time", data_col="value")
+
+    # This should pass with a custom threshold of 8
+    analyzer = Analysis(
+        file_path, time_col="time", data_col="value", min_valid_data_points=8
+    )
+    assert len(analyzer.data) == 8
+
+
+@pytest.mark.parametrize("invalid_value", [-10, 0, 9.5, "abc"])
+def test_analysis_min_valid_data_points_invalid(tmp_path, invalid_value):
+    """Test that invalid values for min_valid_data_points raise an error."""
+    time, series = generate_synthetic_series(n_points=20)
+    file_path = create_test_data_file(tmp_path, time, series)
+
+    with pytest.raises(
+        ValueError, match="`min_valid_data_points` must be a positive integer."
+    ):
+        Analysis(
+            file_path,
+            time_col="time",
+            data_col="value",
+            min_valid_data_points=invalid_value,
+        )
 
 
 def test_analysis_zero_variance_data(tmp_path):
