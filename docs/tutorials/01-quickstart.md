@@ -18,7 +18,8 @@ The new workflow is centered around an `Analysis` object. You create it by point
 analyzer = Analysis(
     file_path='examples/sample_data.csv',
     time_col='timestamp',
-    data_col='concentration'
+    data_col='concentration',
+    param_name='Sample Concentration' # A descriptive name for plots
 )
 ```
 
@@ -27,7 +28,10 @@ analyzer = Analysis(
 Now for the main event. We'll call the `run_full_analysis()` method and tell it where to save the outputs. This single command runs the entire best-practice workflow.
 
 ```python
-results = analyzer.run_full_analysis(output_dir='docs/tutorials/quickstart_outputs')
+results = analyzer.run_full_analysis(
+    output_dir='docs/tutorials/quickstart_outputs',
+    seed=42 # Use a seed for reproducible results
+)
 
 # The method returns a dictionary with all the numerical results.
 # Let's look at the main interpretation text.
