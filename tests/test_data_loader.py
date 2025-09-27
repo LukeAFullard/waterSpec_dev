@@ -76,7 +76,7 @@ def test_load_data_with_nans(tmp_path):
     file_path.write_text(
         "timestamp,concentration\n2023-01-01,10.1\n2023-01-02,\n2023-01-03,10.3"
     )
-    with pytest.warns(UserWarning, match="contains NaN or null values"):
+    with pytest.warns(UserWarning, match="1 rows were dropped"):
         time, concentration, _ = load_data(
             file_path, time_col="timestamp", data_col="concentration"
         )
@@ -90,7 +90,7 @@ def test_load_data_empty_file(tmp_path):
     """Test that loading an empty file raises a ValueError."""
     file_path = tmp_path / "empty.csv"
     file_path.write_text("timestamp,concentration\n")
-    with pytest.raises(ValueError, match="The provided file is empty"):
+    with pytest.raises(ValueError, match="The provided data file is empty"):
         load_data(file_path, time_col="timestamp", data_col="concentration")
 
 
@@ -107,7 +107,7 @@ def test_load_data_unparseable_time(tmp_path):
         "time,value\nJan 1, 2023,10.1\nNOT A DATE,10.5\n2023-01-03,10.3"
     )
     with pytest.raises(
-        ValueError, match="Time column 'time' could not be parsed as datetime objects."
+        ValueError, match="2 value\\(s\\) in the time column 'time' could not be parsed"
     ):
         load_data(file_path, time_col="time", data_col="value")
 
@@ -127,8 +127,8 @@ def test_load_non_monotonic_time(tmp_path):
     # The error message should identify this specific timestamp.
     expected_error_msg = (
         "Time column is not strictly monotonic increasing. "
-        "First violation .* found at index 1 "
-        "with value: 2023-01-01 00:00:00"
+        "Duplicate or out-of-order timestamps found. First violation "
+        "at index 1 with value: 2023-01-01 00:00:00"
     )
     with pytest.raises(ValueError, match=expected_error_msg):
         load_data(file_path, time_col="timestamp", data_col="concentration")
@@ -181,10 +181,10 @@ def test_load_data_with_incorrect_time_format(tmp_path):
 
 
 def test_load_data_unsupported_format(tmp_path):
-    """Test that an unsupported file format raises a ValueError."""
+    """Test that an unsupported file format raises an IOError."""
     file_path = tmp_path / "test.txt"
     file_path.write_text("data")
-    with pytest.raises(ValueError, match="Unsupported file format: .txt"):
+    with pytest.raises(IOError, match="Failed to read the file"):
         load_data(file_path, time_col="time", data_col="value")
 
 
@@ -200,10 +200,10 @@ def test_load_data_missing_error_column(create_test_csv):
 
 
 def test_load_data_bad_error_column(tmp_path):
-    """Test that a non-numeric error column raises a ValueError."""
+    """Test that a non-numeric error column issues a UserWarning."""
     file_path = tmp_path / "bad_error.csv"
     file_path.write_text("time,value,error\n2023-01-01,10,1\n2023-01-02,11,foo")
-    with pytest.raises(ValueError, match="could not be converted to a numeric type"):
+    with pytest.warns(UserWarning, match="could not be converted to a numeric type"):
         load_data(file_path, time_col="time", data_col="value", error_col="error")
 
 

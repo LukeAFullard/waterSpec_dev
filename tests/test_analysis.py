@@ -110,7 +110,7 @@ def test_analysis_with_known_beta(tmp_path, known_beta, tolerance):
 
 
 @patch("waterSpec.analysis.fit_segmented_spectrum")
-@patch("waterSpec.analysis.fit_spectrum_with_bootstrap")
+@patch("waterSpec.analysis.fit_standard_model")
 def test_analysis_auto_chooses_segmented_with_mock(
     mock_fit_standard, mock_fit_segmented, tmp_path
 ):
@@ -264,7 +264,7 @@ def test_analysis_with_censored_data(tmp_path):
 
 
 @patch("waterSpec.analysis.fit_segmented_spectrum")
-@patch("waterSpec.analysis.fit_spectrum_with_bootstrap")
+@patch("waterSpec.analysis.fit_standard_model")
 def test_analysis_max_breakpoints_selects_best_model(
     mock_fit_standard, mock_fit_segmented, tmp_path
 ):
@@ -345,6 +345,7 @@ def test_analysis_max_breakpoints_selects_best_model(
         ci_method="bootstrap",
         n_bootstraps=0,
         seed=None,
+        logger=ANY,
     )
     mock_fit_segmented.assert_any_call(
         ANY,
@@ -354,6 +355,7 @@ def test_analysis_max_breakpoints_selects_best_model(
         ci_method="bootstrap",
         n_bootstraps=0,
         seed=None,
+        logger=ANY,
     )
 
 

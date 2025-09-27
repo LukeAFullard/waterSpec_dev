@@ -1,11 +1,7 @@
 import numpy as np
 import pytest
 
-from waterSpec.fitter import (
-    fit_segmented_spectrum,
-    fit_spectrum,
-    fit_spectrum_with_bootstrap,
-)
+from waterSpec.fitter import fit_segmented_spectrum, fit_standard_model
 
 
 @pytest.fixture
@@ -31,14 +27,14 @@ def synthetic_spectrum():
     return frequency, power, known_beta
 
 
-def test_fit_spectrum_returns_correct_beta(synthetic_spectrum):
+def test_fit_standard_model_returns_correct_beta(synthetic_spectrum):
     """
-    Test that fit_spectrum correctly estimates the spectral exponent (beta).
+    Test that fit_standard_model correctly estimates the spectral exponent (beta).
     """
     frequency, power, known_beta = synthetic_spectrum
 
     # Fit the spectrum
-    fit_results = fit_spectrum(frequency, power)
+    fit_results = fit_standard_model(frequency, power)
 
     # Check that the returned beta is close to the known beta
     assert "beta" in fit_results
@@ -47,51 +43,48 @@ def test_fit_spectrum_returns_correct_beta(synthetic_spectrum):
     )  # Allow some tolerance due to noise
 
 
-def test_fit_spectrum_returns_good_fit_metrics(synthetic_spectrum):
+def test_fit_standard_model_returns_good_fit_metrics(synthetic_spectrum):
     """
-    Test that fit_spectrum returns a good R-squared value for a clean signal
+    Test that fit_standard_model returns a good R-squared value for a clean signal
     when using the OLS method.
     """
     frequency, power, _ = synthetic_spectrum
 
     # Fit the spectrum using OLS specifically for this test
-    fit_results = fit_spectrum(frequency, power, method="ols")
+    fit_results = fit_standard_model(frequency, power, method="ols")
 
     # Check that the R-squared value indicates a good fit
     assert "r_squared" in fit_results
     assert fit_results["r_squared"] > 0.95
 
 
-def test_fit_spectrum_theil_sen(synthetic_spectrum):
+def test_fit_standard_model_theil_sen(synthetic_spectrum):
     """
-    Test that fit_spectrum with method='theil-sen' correctly estimates beta.
+    Test that fit_standard_model with method='theil-sen' correctly estimates beta.
     """
     frequency, power, known_beta = synthetic_spectrum
 
     # Fit the spectrum using the Theil-Sen estimator
-    fit_results = fit_spectrum(frequency, power, method="theil-sen")
+    fit_results = fit_standard_model(frequency, power, method="theil-sen")
 
     # Check that the returned beta is close to the known beta
     assert "beta" in fit_results
     assert fit_results["beta"] == pytest.approx(known_beta, abs=0.1)
 
-    # Check that the other metrics are NaN as expected
-    assert np.isnan(fit_results["r_squared"])
-    assert np.isnan(fit_results["stderr"])
+    # Check that the other metrics are not present, as expected for Theil-Sen
+    assert "r_squared" not in fit_results
+    assert "stderr" not in fit_results
 
 
-def test_fit_spectrum_with_bootstrap(synthetic_spectrum):
+def test_fit_standard_model_with_bootstrap_ci(synthetic_spectrum):
     """
-    Test that fit_spectrum_with_bootstrap returns a confidence interval for beta.
+    Test that fit_standard_model returns a confidence interval for beta.
     """
-    # Set a seed for reproducibility of the bootstrap
-    np.random.seed(42)
-
     frequency, power, known_beta = synthetic_spectrum
 
     # Fit the spectrum with bootstrap
-    fit_results = fit_spectrum_with_bootstrap(
-        frequency, power, n_bootstraps=100
+    fit_results = fit_standard_model(
+        frequency, power, n_bootstraps=100, seed=42
     )  # Use a small number for testing
 
     # Check that the results dictionary contains the required keys
@@ -181,33 +174,33 @@ def test_fit_segmented_spectrum(multifractal_spectrum):
 # --- Edge Case Tests ---
 
 
-def test_fit_spectrum_white_noise():
+def test_fit_standard_model_white_noise():
     """Test fitting a flat spectrum (white noise), where beta should be ~0."""
     frequency = np.linspace(0.01, 1, 100)
     # Power is constant for white noise, with some random variation
     rng = np.random.default_rng(42)
     power = np.ones_like(frequency) + rng.normal(0, 0.1, len(frequency))
 
-    fit_results = fit_spectrum(frequency, power)
+    fit_results = fit_standard_model(frequency, power)
     assert fit_results["beta"] == pytest.approx(0.0, abs=0.1)
 
 
-def test_fit_spectrum_bootstrap_insufficient_data():
-    """Test bootstrap function when the initial fit fails."""
+def test_fit_standard_model_insufficient_data():
+    """Test standard model function when the initial fit fails."""
     # Not enough data points to perform a fit
     frequency = np.array([1.0])
     power = np.array([1.0])
 
-    results = fit_spectrum_with_bootstrap(frequency, power)
+    results = fit_standard_model(frequency, power)
 
     # Check that all results are NaN
     assert np.isnan(results["beta"])
-    assert np.isnan(results["r_squared"])
+    assert np.isnan(results["bic"])
     assert np.isnan(results["beta_ci_lower"])
     assert np.isnan(results["beta_ci_upper"])
 
 
-def test_fit_spectrum_with_bootstrap_is_reproducible(synthetic_spectrum):
+def test_fit_standard_model_is_reproducible(synthetic_spectrum):
     """
     Test that the bootstrap function produces the same results when the same
     seed is provided.
@@ -215,15 +208,15 @@ def test_fit_spectrum_with_bootstrap_is_reproducible(synthetic_spectrum):
     frequency, power, _ = synthetic_spectrum
 
     # Fit twice with the same seed
-    results1 = fit_spectrum_with_bootstrap(
+    results1 = fit_standard_model(
         frequency, power, n_bootstraps=50, seed=123
     )
-    results2 = fit_spectrum_with_bootstrap(
+    results2 = fit_standard_model(
         frequency, power, n_bootstraps=50, seed=123
     )
 
     # Fit once with a different seed
-    results3 = fit_spectrum_with_bootstrap(
+    results3 = fit_standard_model(
         frequency, power, n_bootstraps=50, seed=456
     )
 
@@ -300,7 +293,7 @@ def test_fit_segmented_spectrum_p_threshold(multifractal_spectrum, mocker):
     # --- Case 2: p_threshold is higher than the p-value (e.g., 0.15 > 0.1) ---
     # The fit should be accepted.
     results_accepted = fit_segmented_spectrum(
-        frequency, power, n_breakpoints=1, p_threshold=0.15
+        frequency, power, n_breakpoints=1, p_threshold=0.15, n_bootstraps=0
     )
 
     assert "model_summary" in results_accepted
@@ -309,10 +302,10 @@ def test_fit_segmented_spectrum_p_threshold(multifractal_spectrum, mocker):
     assert results_accepted["davies_p_value"] == 0.1
 
 
-def test_fit_spectrum_with_parametric_ci_ols(synthetic_spectrum):
+def test_fit_standard_model_with_parametric_ci_ols(synthetic_spectrum):
     """Test parametric CI calculation for the OLS method."""
     frequency, power, known_beta = synthetic_spectrum
-    results = fit_spectrum_with_bootstrap(
+    results = fit_standard_model(
         frequency, power, method="ols", ci_method="parametric"
     )
 
@@ -324,10 +317,10 @@ def test_fit_spectrum_with_parametric_ci_ols(synthetic_spectrum):
     assert results["beta_ci_lower"] <= known_beta <= results["beta_ci_upper"]
 
 
-def test_fit_spectrum_with_parametric_ci_theil_sen(synthetic_spectrum):
+def test_fit_standard_model_with_parametric_ci_theil_sen(synthetic_spectrum):
     """Test parametric CI calculation for the Theil-Sen method."""
     frequency, power, known_beta = synthetic_spectrum
-    results = fit_spectrum_with_bootstrap(
+    results = fit_standard_model(
         frequency, power, method="theil-sen", ci_method="parametric"
     )
 
@@ -341,8 +334,10 @@ def test_fit_spectrum_with_parametric_ci_theil_sen(synthetic_spectrum):
 
 def test_fit_segmented_spectrum_with_parametric_ci(multifractal_spectrum):
     """Test parametric CI calculation for segmented models."""
-    frequency, power, known_breakpoint, known_beta1, _ = multifractal_spectrum
-    results = fit_segmented_spectrum(frequency, power, ci_method="parametric")
+    frequency, power, known_breakpoint, known_beta1, known_beta2 = multifractal_spectrum
+
+    with pytest.warns(UserWarning, match="Parametric confidence intervals"):
+        results = fit_segmented_spectrum(frequency, power, ci_method="parametric")
 
     assert "betas_ci" in results and "breakpoints_ci" in results
     assert len(results["betas_ci"]) == 2

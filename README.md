@@ -67,6 +67,7 @@ You can control how data is loaded by passing optional arguments to the `Analysi
 
 *   `time_format`: To speed up date parsing, provide the specific format of your time column (e.g., `"%Y-%m-%d %H:%M:%S"`).
 *   `sheet_name`: If you are loading an Excel file, you can specify the sheet to load by its name (e.g., `"Sheet2"`) or index (e.g., `1`).
+*   `verbose`: Set to `True` to enable detailed logging of the analysis process, which can be helpful for debugging. Defaults to `False`.
 
 ```python
 analyzer = Analysis(
@@ -74,7 +75,8 @@ analyzer = Analysis(
     time_col='date',
     data_col='value',
     sheet_name='Water Quality Data',
-    time_format='%Y-%m-%d'
+    time_format='%Y-%m-%d',
+    verbose=True
 )
 ```
 

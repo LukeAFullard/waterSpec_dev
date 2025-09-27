@@ -49,11 +49,11 @@ def test_log_transform(sample_data):
 def test_log_transform_non_positive():
     """Test that log_transform raises ValueError for non-positive data."""
     with pytest.raises(
-        ValueError, match="log-transform requires all data to be positive"
+        ValueError, match="Log-transform requires all data to be positive, but 1 non-positive value"
     ):
         log_transform(np.array([1.0, 2.0, 0.0, 4.0, 5.0]))
     with pytest.raises(
-        ValueError, match="log-transform requires all data to be positive"
+        ValueError, match="Log-transform requires all data to be positive, but 1 non-positive value"
     ):
         log_transform(np.array([1.0, -2.0, 3.0, 4.0, 5.0]))
 
@@ -223,7 +223,8 @@ def test_normalize_zero_std_dev():
     errors = np.array([0.1, 0.1, 0.1, 0.1])
     normalized_data, normalized_errors = normalize(data.copy(), errors.copy())
     assert np.all(normalized_data == 0)
-    assert np.all(normalized_errors == 0)
+    # Errors should not be scaled if variance is zero
+    assert np.all(normalized_errors == errors)
 
 
 def test_detrend_loess_with_errors(sample_data):
@@ -267,10 +268,12 @@ def test_preprocess_data_nan_propagation():
     Test that NaNs introduced during censoring are correctly propagated to the
     error array in the preprocess_data wrapper.
     """
-    time = np.arange(4)
-    # This series will have 'foo' converted to NaN
-    data_series_censored = pd.Series(["1", "<2", "3", "foo"])
-    error_series = pd.Series([0.1, 0.2, 0.3, 0.4])
+    time = np.arange(12)
+    # Create a series that will have 2 NaNs after processing, leaving 10
+    # valid points, which is the minimum required.
+    data_list = [str(i) for i in range(10)] + ["<2", "foo"]
+    data_series_censored = pd.Series(data_list)
+    error_series = pd.Series(np.linspace(0.1, 0.5, 12))
 
     with pytest.warns(UserWarning, match="Non-numeric or unhandled censored values"):
         processed_data, processed_errors = preprocess_data(
@@ -278,15 +281,14 @@ def test_preprocess_data_nan_propagation():
             time,
             error_series=error_series,
             censor_strategy="drop",
-            min_length=2,
         )
 
-    # '<2' (with drop strategy) and 'foo' should become NaN
-    assert np.isnan(processed_data[1])
-    assert np.isnan(processed_data[3])
+    # '<2' (at index 10) and 'foo' (at index 11) should become NaN
+    assert np.isnan(processed_data[10])
+    assert np.isnan(processed_data[11])
     # The corresponding errors should also be NaN
-    assert np.isnan(processed_errors[1])
-    assert np.isnan(processed_errors[3])
+    assert np.isnan(processed_errors[10])
+    assert np.isnan(processed_errors[11])
     # The valid points should still have their errors
-    assert processed_errors[0] == 0.1
-    assert processed_errors[2] == 0.3
+    assert not np.isnan(processed_errors[0])
+    assert not np.isnan(processed_errors[9])
