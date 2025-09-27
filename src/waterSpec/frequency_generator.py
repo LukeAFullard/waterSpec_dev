@@ -23,14 +23,25 @@ def generate_frequency_grid(time_numeric, num_points=200, grid_type="log"):
         np.ndarray: The frequency grid.
     """
     duration = np.max(time_numeric) - np.min(time_numeric)
-    min_freq = 1 / duration
-    nyquist_freq = 0.5 / np.median(np.diff(time_numeric))
+    if duration <= 0:
+        raise ValueError(
+            "Time series duration must be positive to generate a frequency grid."
+        )
 
-    # Ensure min_freq is positive and less than nyquist_freq
-    if min_freq <= 0:
-        min_freq = 1e-9  # A small positive number
+    # The minimum frequency is determined by the total duration of the series.
+    min_freq = 1 / duration
+
+    # For irregularly sampled data, the Nyquist frequency is not strictly defined.
+    # We use a common heuristic based on the average sampling interval, which is
+    # generally more stable than the median for this purpose.
+    avg_sampling_interval = np.mean(np.diff(time_numeric))
+    nyquist_freq = 0.5 / avg_sampling_interval
+
+    # In rare cases (e.g., very short series), min_freq can be >= nyquist_freq.
+    # We adjust min_freq downwards to ensure a valid frequency range. This is an
+    # arbitrary adjustment but prevents the function from failing.
     if min_freq >= nyquist_freq:
-        min_freq = nyquist_freq / 100  # Adjust if duration is too short
+        min_freq = nyquist_freq / 100
 
     if grid_type == "log":
         frequency_grid = np.logspace(

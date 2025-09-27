@@ -90,8 +90,12 @@ def fit_standard_model(
                 else:  # theil-sen
                     resampled_slope = stats.theilslopes(synthetic_log_power, log_freq)[0]
                 beta_estimates.append(-resampled_slope)
-            except Exception:
-                continue  # Skip failed bootstrap iterations
+            except Exception as e:
+                # Log the specific error for a failed iteration
+                msg = f"Bootstrap iteration failed with error: {e}"
+                if logger:
+                    logger.debug(msg)
+                continue
 
         if len(beta_estimates) > 0:
             if len(beta_estimates) < n_bootstraps * 0.8:
@@ -142,7 +146,10 @@ MIN_POINTS_PER_SEGMENT = 5
 
 
 def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed, logger=None):
-    """Performs robust bootstrap resampling for a fitted piecewise model."""
+    """
+    Performs robust bootstrap resampling for a fitted piecewise model.
+    This also calculates the confidence interval of the fitted line itself.
+    """
     n_breakpoints = pw_fit.n_breakpoints
     log_power_fit = pw_fit.predict(log_freq)
     residuals = log_power - log_power_fit
@@ -150,6 +157,7 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
 
     bootstrap_betas = [[] for _ in range(n_breakpoints + 1)]
     bootstrap_breakpoints = [[] for _ in range(n_breakpoints)]
+    bootstrap_fits = []  # Store each bootstrap fit line
     successful_fits = 0
 
     for _ in range(n_bootstraps):
@@ -178,9 +186,15 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
             for i, slope in enumerate(slopes):
                 bootstrap_betas[i].append(-slope)
 
+            # Store the predicted line from this bootstrap sample
+            bootstrap_fits.append(bootstrap_pw_fit.predict(log_freq))
             successful_fits += 1
-        except Exception:
-            continue  # Skip if the fit fails for any reason
+        except Exception as e:
+            # Log the specific error for a failed iteration
+            msg = f"Segmented bootstrap iteration failed with error: {e}"
+            if logger:
+                logger.debug(msg)
+            continue
 
     if successful_fits < n_bootstraps * 0.8:
         msg = (
@@ -193,7 +207,22 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
             warnings.warn(msg, UserWarning)
 
     lower_p, upper_p = (100 - ci) / 2, 100 - (100 - ci) / 2
-    ci_results = {"betas_ci": [], "breakpoints_ci": []}
+    ci_results = {
+        "betas_ci": [],
+        "breakpoints_ci": [],
+        "fit_ci_lower": None,
+        "fit_ci_upper": None,
+    }
+
+    # Calculate CIs for the fitted line itself
+    if bootstrap_fits:
+        bootstrap_fits_arr = np.array(bootstrap_fits)
+        ci_results["fit_ci_lower"] = np.percentile(
+            bootstrap_fits_arr, lower_p, axis=0
+        )
+        ci_results["fit_ci_upper"] = np.percentile(
+            bootstrap_fits_arr, upper_p, axis=0
+        )
 
     for i in range(n_breakpoints + 1):
         if bootstrap_betas[i]:
@@ -233,7 +262,6 @@ def _extract_parametric_segmented_cis(pw_fit, n_breakpoints, ci=95, logger=None)
     else:
         warnings.warn(msg, UserWarning)
 
-    estimates = pw_fit.get_results()["estimates"]
     estimates = pw_fit.get_results()["estimates"]
     betas_ci = []
     breakpoints_ci = []
@@ -299,6 +327,18 @@ def fit_segmented_spectrum(
         dict: A dictionary containing the fit results, including CIs.
     """
     # Log-transform the data
+    if n_breakpoints > 1:
+        msg = (
+            f"Fitting a model with {n_breakpoints} breakpoints. Note that statistical "
+            "significance is only tested for the 1-breakpoint model (Davies test). "
+            "The selection of models with >1 breakpoint is based solely on BIC, "
+            "which may risk overfitting."
+        )
+        if logger:
+            logger.warning(msg)
+        else:
+            warnings.warn(msg, UserWarning)
+
     valid_indices = (frequency > 0) & (power > 0)
     min_points = MIN_POINTS_PER_SEGMENT * (n_breakpoints + 1)
     if np.sum(valid_indices) < min_points:

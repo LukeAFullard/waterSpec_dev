@@ -35,20 +35,31 @@ def load_data(
     if df.empty:
         raise ValueError("The provided data file is empty.")
 
-    # 3. Check for column existence
-    if time_col not in df.columns:
+    # 3. Create a mapping of original column names to lowercase
+    col_map = {col.lower(): col for col in df.columns}
+    time_col_lower = time_col.lower()
+    data_col_lower = data_col.lower()
+
+    # Check for column existence (case-insensitive)
+    if time_col_lower not in col_map:
         raise ValueError(f"Time column '{time_col}' not found in the file.")
-    if data_col not in df.columns:
+    if data_col_lower not in col_map:
         raise ValueError(f"Data column '{data_col}' not found in the file.")
+
+    # Get original column names from the map
+    time_col_orig = col_map[time_col_lower]
+    data_col_orig = col_map[data_col_lower]
 
     # 4. Perform validation and type coercion on copies of the series
     # Time column
-    if df[time_col].isnull().all():
+    if df[time_col_orig].isnull().all():
         raise ValueError(f"The time column '{time_col}' contains no valid data.")
 
-    original_time_na = df[time_col].isna().sum()
+    original_time_na = df[time_col_orig].isna().sum()
     try:
-        time_series = pd.to_datetime(df[time_col], format=time_format, errors="coerce")
+        time_series = pd.to_datetime(
+            df[time_col_orig], format=time_format, errors="coerce"
+        )
     except Exception as e:
         raise ValueError(f"Could not parse time column '{time_col}'. Reason: {e}")
 
@@ -64,29 +75,40 @@ def load_data(
         raise ValueError(msg)
 
     # Data column
-    if df[data_col].isnull().all():
+    if df[data_col_orig].isnull().all():
         warnings.warn(
             f"The data column '{data_col}' contains no valid data.", UserWarning
         )
-    data_series = df[data_col]
+    original_data_na = df[data_col_orig].isna().sum()
+    data_series = pd.to_numeric(df[data_col_orig], errors="coerce")
+    coerced_data_na = data_series.isna().sum()
+    if coerced_data_na > original_data_na:
+        num_failed_data = coerced_data_na - original_data_na
+        warnings.warn(
+            f"{num_failed_data} value(s) in the data column '{data_col}' could not be "
+            "converted to a numeric type and were set to NaN.",
+            UserWarning,
+        )
 
     # Error column
     error_series = None
     if error_col:
-        if error_col not in df.columns:
+        error_col_lower = error_col.lower()
+        if error_col_lower not in col_map:
             warnings.warn(
                 f"Error column '{error_col}' not found. No errors will be used.",
                 UserWarning,
             )
         else:
-            if df[error_col].isnull().all():
+            error_col_orig = col_map[error_col_lower]
+            if df[error_col_orig].isnull().all():
                 warnings.warn(
                     f"The error column '{error_col}' contains no valid data.",
                     UserWarning,
                 )
 
-            original_error_na = df[error_col].isna().sum()
-            error_series = pd.to_numeric(df[error_col], errors="coerce")
+            original_error_na = df[error_col_orig].isna().sum()
+            error_series = pd.to_numeric(df[error_col_orig], errors="coerce")
             coerced_error_na = error_series.isna().sum()
 
             if coerced_error_na > original_error_na:
@@ -96,8 +118,10 @@ def load_data(
                     "could not be converted to a numeric type and were set to NaN.",
                     UserWarning,
                 )
-        if error_series is not None and (error_series.dropna() < 0).any():
-            warnings.warn("The error column contains negative values.", UserWarning)
+            if error_series is not None and (error_series.dropna() < 0).any():
+                warnings.warn(
+                    "The error column contains negative values.", UserWarning
+                )
 
     # 5. Create a new, clean DataFrame from the validated series
     clean_df = pd.DataFrame(
