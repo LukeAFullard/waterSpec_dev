@@ -307,3 +307,57 @@ def test_fit_segmented_spectrum_p_threshold(multifractal_spectrum, mocker):
     assert "No significant breakpoint found" not in results_accepted["model_summary"]
     assert "breakpoint" in results_accepted  # The fit details should be present
     assert results_accepted["davies_p_value"] == 0.1
+
+
+def test_fit_spectrum_with_parametric_ci_ols(synthetic_spectrum):
+    """Test parametric CI calculation for the OLS method."""
+    frequency, power, known_beta = synthetic_spectrum
+    results = fit_spectrum_with_bootstrap(
+        frequency, power, method="ols", ci_method="parametric"
+    )
+
+    assert "beta_ci_lower" in results and "beta_ci_upper" in results
+    assert np.isfinite(results["beta_ci_lower"])
+    assert np.isfinite(results["beta_ci_upper"])
+    assert results["beta_ci_lower"] < results["beta_ci_upper"]
+    # Check if the known beta is within the CI
+    assert results["beta_ci_lower"] <= known_beta <= results["beta_ci_upper"]
+
+
+def test_fit_spectrum_with_parametric_ci_theil_sen(synthetic_spectrum):
+    """Test parametric CI calculation for the Theil-Sen method."""
+    frequency, power, known_beta = synthetic_spectrum
+    results = fit_spectrum_with_bootstrap(
+        frequency, power, method="theil-sen", ci_method="parametric"
+    )
+
+    assert "beta_ci_lower" in results and "beta_ci_upper" in results
+    assert np.isfinite(results["beta_ci_lower"])
+    assert np.isfinite(results["beta_ci_upper"])
+    assert results["beta_ci_lower"] < results["beta_ci_upper"]
+    # Theil-sen is robust, so the CI should contain the known beta
+    assert results["beta_ci_lower"] <= known_beta <= results["beta_ci_upper"]
+
+
+def test_fit_segmented_spectrum_with_parametric_ci(multifractal_spectrum):
+    """Test parametric CI calculation for segmented models."""
+    frequency, power, known_breakpoint, known_beta1, _ = multifractal_spectrum
+    results = fit_segmented_spectrum(frequency, power, ci_method="parametric")
+
+    assert "betas_ci" in results and "breakpoints_ci" in results
+    assert len(results["betas_ci"]) == 2
+    assert len(results["breakpoints_ci"]) == 1
+
+    # Check CI for the first slope (should be valid)
+    beta1_ci = results["betas_ci"][0]
+    assert np.all(np.isfinite(beta1_ci))
+    assert beta1_ci[0] <= known_beta1 <= beta1_ci[1]
+
+    # Check CI for the second slope (should be NaN, as it's not directly available)
+    beta2_ci = results["betas_ci"][1]
+    assert np.all(np.isnan(beta2_ci))
+
+    # Check CI for the breakpoint (should be valid)
+    breakpoint_ci = results["breakpoints_ci"][0]
+    assert np.all(np.isfinite(breakpoint_ci))
+    assert breakpoint_ci[0] <= known_breakpoint <= breakpoint_ci[1]

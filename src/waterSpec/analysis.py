@@ -142,7 +142,7 @@ class Analysis:
         )
 
     def _perform_model_selection(
-        self, fit_method, n_bootstraps, p_threshold, max_breakpoints, seed
+        self, fit_method, ci_method, n_bootstraps, p_threshold, max_breakpoints, seed
     ):
         """
         Performs fits for models with different numbers of breakpoints and
@@ -158,6 +158,7 @@ class Analysis:
             self.frequency,
             self.power,
             method=fit_method,
+            ci_method=ci_method,
             n_bootstraps=n_bootstraps,
             seed=seed,
         )
@@ -173,6 +174,7 @@ class Analysis:
                 self.power,
                 n_breakpoints=n_bp,
                 p_threshold=p_threshold,
+                ci_method=ci_method,
                 n_bootstraps=n_bootstraps,
                 seed=seed,
             )
@@ -200,6 +202,7 @@ class Analysis:
         fit_results["all_models"] = all_models
         fit_results["chosen_model"] = best_model["model_type"]
         fit_results["analysis_mode"] = "auto"
+        fit_results["ci_method"] = ci_method
 
         # Add a simplified type for easier downstream processing
         if best_model["n_breakpoints"] == 0:
@@ -218,9 +221,15 @@ class Analysis:
         fap_method,
     ):
         """Detects significant peaks based on the chosen method."""
-        fit_successful = (
-            "beta" in fit_results and np.isfinite(fit_results["beta"])
-        ) or ("beta1" in fit_results and np.isfinite(fit_results["beta1"]))
+        is_standard_success = "beta" in fit_results and np.isfinite(
+            fit_results.get("beta")
+        )
+        is_segmented_success = (
+            "betas" in fit_results
+            and len(fit_results.get("betas", [])) > 0
+            and np.isfinite(fit_results["betas"][0])
+        )
+        fit_successful = is_standard_success or is_segmented_success
 
         if not fit_successful:
             return fit_results
@@ -289,6 +298,7 @@ class Analysis:
         self,
         output_dir,
         fit_method="theil-sen",
+        ci_method="bootstrap",
         n_bootstraps=1000,
         fap_threshold=0.01,
         grid_type="log",
@@ -312,8 +322,12 @@ class Analysis:
             output_dir (str): Path to the directory where outputs will be saved.
             fit_method (str, optional): Method for spectral slope fitting.
                 Defaults to 'theil-sen'.
+            ci_method (str, optional): The method for calculating confidence
+                intervals. Can be `'bootstrap'` (default) for a robust,
+                non-parametric method, or `'parametric'` for a faster method
+                based on statistical theory.
             n_bootstraps (int, optional): Number of bootstrap samples for CI.
-                Defaults to 1000.
+                Only used if `ci_method` is `'bootstrap'`. Defaults to 1000.
             grid_type (str, optional): Type of frequency grid ('log' or 'linear').
                 Defaults to 'log'.
             num_grid_points (int, optional): The number of points to generate
@@ -348,12 +362,18 @@ class Analysis:
         Returns:
             dict: A dictionary containing all analysis results.
         """
+        # Validate ci_method
+        if ci_method not in ["bootstrap", "parametric"]:
+            raise ValueError(
+                "Invalid `ci_method`. Must be 'bootstrap' or 'parametric'."
+            )
+
         # 1. Calculate Periodogram
         self._calculate_periodogram(grid_type, normalization, num_grid_points)
 
         # 2. Fit Spectrum and Select Best Model
         fit_results = self._perform_model_selection(
-            fit_method, n_bootstraps, p_threshold, max_breakpoints, seed
+            fit_method, ci_method, n_bootstraps, p_threshold, max_breakpoints, seed
         )
 
         # 3. Detect Significant Peaks
@@ -366,11 +386,15 @@ class Analysis:
         )
 
         # 4. Interpret Results
-        fit_successful = (
+        is_standard_success = "beta" in fit_results and np.isfinite(
+            fit_results.get("beta")
+        )
+        is_segmented_success = (
             "betas" in fit_results
-            and len(fit_results["betas"]) > 0
+            and len(fit_results.get("betas", [])) > 0
             and np.isfinite(fit_results["betas"][0])
         )
+        fit_successful = is_standard_success or is_segmented_success
         if not fit_successful:
             interp_results = {
                 "summary_text": (

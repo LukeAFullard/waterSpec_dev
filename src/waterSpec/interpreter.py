@@ -156,19 +156,24 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
 
     # --- Generate the main summary for the chosen model ---
     n_breakpoints = fit_results.get("n_breakpoints", 0)
+    ci_method = fit_results.get("ci_method", "bootstrap")
+    ci_method_str = f" ({ci_method})"
 
     if n_breakpoints > 0:
         # --- Segmented Model Summary ---
         summary_parts = [f"Segmented Analysis for: {param_name}"]
+        if ci_method == "parametric":
+            summary_parts.append(
+                "  [Note: Parametric CIs are only available for the first slope and breakpoints.]"
+            )
 
         # --- Handle the first segment (always "Low-Frequency") ---
         beta1 = fit_results["betas"][0]
         beta1_ci = fit_results.get("betas_ci", [(np.nan, np.nan)])[0]
-        beta1_str = (
-            f"β1 = {beta1:.2f} (95% CI: {beta1_ci[0]:.2f}–{beta1_ci[1]:.2f})"
-            if np.all(np.isfinite(beta1_ci))
-            else f"β1 = {beta1:.2f}"
-        )
+        beta1_str = f"β1 = {beta1:.2f}"
+        if np.all(np.isfinite(beta1_ci)):
+            beta1_str += f" (95% CI: {beta1_ci[0]:.2f}–{beta1_ci[1]:.2f}{ci_method_str})"
+
         summary_parts.extend(
             [
                 "Low-Frequency (Long-term) Fit:",
@@ -185,16 +190,13 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
             bp_freq = fit_results["breakpoints"][i]
             bp_ci = fit_results.get("breakpoints_ci", [(np.nan, np.nan)] * (i + 1))[i]
 
-            beta_next_str = (
-                f"β{i+2} = {beta_next:.2f} (95% CI: {beta_next_ci[0]:.2f}–{beta_next_ci[1]:.2f})"
-                if np.all(np.isfinite(beta_next_ci))
-                else f"β{i+2} = {beta_next:.2f}"
-            )
-            bp_str = (
-                f"~{_format_period(bp_freq)} (95% CI: {_format_period(bp_ci[0])}–{_format_period(bp_ci[1])})"
-                if np.all(np.isfinite(bp_ci))
-                else f"~{_format_period(bp_freq)}"
-            )
+            beta_next_str = f"β{i+2} = {beta_next:.2f}"
+            if np.all(np.isfinite(beta_next_ci)):
+                beta_next_str += f" (95% CI: {beta_next_ci[0]:.2f}–{beta_next_ci[1]:.2f}{ci_method_str})"
+
+            bp_str = f"~{_format_period(bp_freq)}"
+            if np.all(np.isfinite(bp_ci)):
+                bp_str += f" (95% CI: {_format_period(bp_ci[0])}–{_format_period(bp_ci[1])}{ci_method_str})"
 
             # Determine segment name
             name = (
@@ -226,16 +228,15 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
         # --- Standard Model Summary ---
         beta = fit_results["beta"]
         ci = (fit_results.get("beta_ci_lower"), fit_results.get("beta_ci_upper"))
-        beta_str = (
-            f"β = {beta:.2f} (95% CI: {ci[0]:.2f}–{ci[1]:.2f})"
-            if (
-                ci[0] is not None
-                and np.isfinite(ci[0])
-                and ci[1] is not None
-                and np.isfinite(ci[1])
-            )
-            else f"β = {beta:.2f}"
-        )
+        beta_str = f"β = {beta:.2f}"
+        if (
+            ci[0] is not None
+            and np.isfinite(ci[0])
+            and ci[1] is not None
+            and np.isfinite(ci[1])
+        ):
+            beta_str += f" (95% CI: {ci[0]:.2f}–{ci[1]:.2f}{ci_method_str})"
+
         summary_text = "\n".join([
             f"Standard Analysis for: {param_name}",
             f"Value: {beta_str}",
