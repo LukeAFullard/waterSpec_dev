@@ -163,33 +163,55 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
 
         # --- Handle the first segment (always "Low-Frequency") ---
         beta1 = fit_results["betas"][0]
-        summary_parts.extend([
-            "Low-Frequency (Long-term) Fit:",
-            f"  β1 = {beta1:.2f}",
-            f"  Interpretation: {get_scientific_interpretation(beta1)}",
-            f"  Persistence: {get_persistence_traffic_light(beta1)}",
-        ])
+        beta1_ci = fit_results.get("betas_ci", [(np.nan, np.nan)])[0]
+        beta1_str = (
+            f"β1 = {beta1:.2f} (95% CI: {beta1_ci[0]:.2f}–{beta1_ci[1]:.2f})"
+            if np.all(np.isfinite(beta1_ci))
+            else f"β1 = {beta1:.2f}"
+        )
+        summary_parts.extend(
+            [
+                "Low-Frequency (Long-term) Fit:",
+                f"  {beta1_str}",
+                f"  Interpretation: {get_scientific_interpretation(beta1)}",
+                f"  Persistence: {get_persistence_traffic_light(beta1)}",
+            ]
+        )
 
         # --- Loop through each breakpoint and the segment that follows it ---
         for i in range(n_breakpoints):
             beta_next = fit_results["betas"][i + 1]
+            beta_next_ci = fit_results.get("betas_ci", [(np.nan, np.nan)] * (i + 2))[i + 1]
             bp_freq = fit_results["breakpoints"][i]
+            bp_ci = fit_results.get("breakpoints_ci", [(np.nan, np.nan)] * (i + 1))[i]
+
+            beta_next_str = (
+                f"β{i+2} = {beta_next:.2f} (95% CI: {beta_next_ci[0]:.2f}–{beta_next_ci[1]:.2f})"
+                if np.all(np.isfinite(beta_next_ci))
+                else f"β{i+2} = {beta_next:.2f}"
+            )
+            bp_str = (
+                f"~{_format_period(bp_freq)} (95% CI: {_format_period(bp_ci[0])}–{_format_period(bp_ci[1])})"
+                if np.all(np.isfinite(bp_ci))
+                else f"~{_format_period(bp_freq)}"
+            )
 
             # Determine segment name
-            if (i + 1) == n_breakpoints:
-                # This is the last segment
-                name = "High-Frequency (Short-term)"
-            else:
-                # This is a middle segment
-                name = f"Mid-Frequency Segment {i+1}"
+            name = (
+                "High-Frequency (Short-term)"
+                if (i + 1) == n_breakpoints
+                else f"Mid-Frequency Segment {i+1}"
+            )
 
-            summary_parts.append(f"--- Breakpoint {i+1} @ ~{_format_period(bp_freq)} ---")
-            summary_parts.extend([
-                f"{name} Fit:",
-                f"  β{i+2} = {beta_next:.2f}",
-                f"  Interpretation: {get_scientific_interpretation(beta_next)}",
-                f"  Persistence: {get_persistence_traffic_light(beta_next)}",
-            ])
+            summary_parts.append(f"--- Breakpoint {i+1} @ {bp_str} ---")
+            summary_parts.extend(
+                [
+                    f"{name} Fit:",
+                    f"  {beta_next_str}",
+                    f"  Interpretation: {get_scientific_interpretation(beta_next)}",
+                    f"  Persistence: {get_persistence_traffic_light(beta_next)}",
+                ]
+            )
 
         summary_text = "\n".join(summary_parts)
         results_dict = {
@@ -197,6 +219,8 @@ def interpret_results(fit_results, param_name="Parameter", uncertainty_threshold
             "n_breakpoints": n_breakpoints,
             "betas": fit_results["betas"],
             "breakpoints": fit_results["breakpoints"],
+            "betas_ci": fit_results.get("betas_ci"),
+            "breakpoints_ci": fit_results.get("breakpoints_ci"),
         }
     else:
         # --- Standard Model Summary ---
