@@ -10,20 +10,30 @@ The methods used in this package are inspired by the work of *Liang et al. (2021
 
 ## Core Features
 
-`waterSpec` is designed to do two things well:
+`waterSpec` provides a comprehensive and robust workflow for spectral analysis:
 
-1.  **Determine the Spectral Slope (β)**: It calculates the Lomb-Scargle periodogram of a time series and fits a regression to the power spectrum. It can automatically compare models with 0, 1, or 2 breakpoints to find the best fit, providing one or more β values that describe the temporal scaling (e.g., persistence, memory) of the system.
-
-2.  **Find Significant Peaks**: It identifies statistically significant periodicities (peaks) in the periodogram, which correspond to recurring cycles in the time series data (e.g., seasonal or weekly patterns).
+-   **Robust Data Loading**: Ingest time series data from CSV, Excel, or JSON files with flexible, case-insensitive column mapping.
+-   **Advanced Preprocessing**: Prepare your data for analysis with a suite of tools, including log-transforms, normalization, and multiple detrending methods (linear and LOESS).
+-   **Automated Model Selection**: Automatically fits and compares spectral models with 0, 1, or 2 breakpoints using the Bayesian Information Criterion (BIC) to find the best fit for your data.
+-   **Comprehensive Uncertainty Analysis**: Calculates and reports 95% confidence intervals for all key parameters (spectral exponents and breakpoints) to provide a clear picture of model uncertainty.
+-   **Significant Peak Detection**: Identifies statistically significant periodicities in your time series using either False Alarm Probability (FAP) or residual-based methods.
+-   **Publication-Quality Outputs**: Generates high-quality plots and detailed text summaries of the analysis, ready for inclusion in reports and publications.
 
 ## Installation
 
-This package is not yet on PyPI. To install it, clone this repository and install it in editable mode using pip:
+This package is not yet on PyPI. To install it, clone this repository and install it in editable mode using pip.
 
+**For standard use:**
 ```bash
 git clone https://github.com/example/waterSpec.git
 cd waterSpec
 pip install -e .
+```
+
+**For development (to run the tests):**
+```bash
+# After cloning and changing directory:
+pip install -e '.[test]'
 ```
 
 ## Quick Start
@@ -42,7 +52,7 @@ analyzer = Analysis(
     file_path=file_path,
     time_col='timestamp',
     data_col='concentration',
-    param_name='Sample Concentration' # Used for plot titles and summaries
+    param_name='Nitrate Concentration at Site A' # A descriptive name for plots
 )
 
 # 3. Run the full analysis
@@ -55,7 +65,7 @@ print(results['summary_text'])
 
 ## Example Output
 
-Running the code above will produce a plot (`example_output/Sample_Concentration_spectrum_plot.png`) and a text summary (`example_output/Sample_Concentration_summary.txt`). The summary text provides a comprehensive overview of the analysis, including a comparison of different spectral models and a list of any significant periodicities found in the data.
+Running the code above will produce a plot (`example_output/Nitrate_Concentration_at_Site_A_spectrum_plot.png`) and a text summary (`example_output/Nitrate_Concentration_at_Site_A_summary.txt`). The summary text provides a comprehensive overview of the analysis, including a comparison of different spectral models and a list of any significant periodicities found in the data.
 
 ## Advanced Usage
 
@@ -100,8 +110,12 @@ results = analyzer.run_full_analysis(
 print(results['summary_text'])
 ```
 
-## Citation
+## How to Cite
 
-If you use `waterSpec` in your research, please consider citing the original work that inspired its methods:
+If you use `waterSpec` in your research, please cite both the software and the original work that inspired its methods.
 
-*Liang X, Schilling KE, Jones CS, Zhang Y-K. 2021. Temporal scaling of long-term co-occurring agricultural contaminants and the implications for conservation planning. Environmental Research Letters 16:094015.*
+**Citing the software:**
+> Jules. (2025). waterSpec: A Python package for spectral analysis of environmental time series (Version 0.1.0) [Software]. Available from https://github.com/example/waterSpec.
+
+**Citing the methodology:**
+> Liang X, Schilling KE, Jones CS, Zhang Y-K. 2021. Temporal scaling of long-term co-occurring agricultural contaminants and the implications for conservation planning. Environmental Research Letters 16:094015.
