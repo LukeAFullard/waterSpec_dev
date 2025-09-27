@@ -1,3 +1,4 @@
+import re
 from unittest.mock import ANY, patch
 
 import numpy as np
@@ -161,9 +162,45 @@ def test_analysis_insufficient_data(tmp_path):
     file_path = create_test_data_file(tmp_path, time, series)
 
     with pytest.raises(
-        ValueError, match="The time series has only 5 valid data points"
+        ValueError,
+        match="Not enough valid data points \\(5\\) remaining after "
+        "preprocessing. Minimum required: 10.",
     ):
         Analysis(file_path, time_col="time", data_col="value")
+
+
+def test_analysis_min_valid_data_points_configurable(tmp_path):
+    """Test that the minimum data points threshold can be configured."""
+    time = pd.date_range(start="2000-01-01", periods=8, freq="D")
+    series = np.random.rand(8)
+    file_path = create_test_data_file(tmp_path, time, series)
+
+    # This should fail with the default of 10
+    with pytest.raises(ValueError, match="Minimum required: 10"):
+        Analysis(file_path, time_col="time", data_col="value")
+
+    # This should pass with a custom threshold of 8
+    analyzer = Analysis(
+        file_path, time_col="time", data_col="value", min_valid_data_points=8
+    )
+    assert len(analyzer.data) == 8
+
+
+@pytest.mark.parametrize("invalid_value", [-10, 0, 9.5, "abc"])
+def test_analysis_min_valid_data_points_invalid(tmp_path, invalid_value):
+    """Test that invalid values for min_valid_data_points raise an error."""
+    time, series = generate_synthetic_series(n_points=20)
+    file_path = create_test_data_file(tmp_path, time, series)
+
+    with pytest.raises(
+        ValueError, match="`min_valid_data_points` must be a positive integer."
+    ):
+        Analysis(
+            file_path,
+            time_col="time",
+            data_col="value",
+            min_valid_data_points=invalid_value,
+        )
 
 
 def test_analysis_zero_variance_data(tmp_path):
@@ -178,7 +215,7 @@ def test_analysis_zero_variance_data(tmp_path):
     )
     results = analyzer.run_full_analysis(output_dir=str(output_dir))
 
-    assert "Analysis failed" in results["summary_text"]
+    assert "Model fitting failed" in results["summary_text"]
 
 
 def test_analysis_fap_threshold_is_configurable(tmp_path):
@@ -376,3 +413,85 @@ def test_analysis_parametric_ci_is_propagated(tmp_path):
     assert "(parametric)" in results["summary_text"]
     assert "ci_method" in results
     assert results["ci_method"] == "parametric"
+
+
+@pytest.mark.parametrize(
+    "param, value, message",
+    [
+        ("fit_method", "invalid", "`fit_method` must be 'theil-sen' or 'ols'."),
+        ("ci_method", "invalid", "`ci_method` must be 'bootstrap' or 'parametric'."),
+        ("n_bootstraps", -1, "`n_bootstraps` must be a non-negative integer."),
+        ("fap_threshold", 1.1, "`fap_threshold` must be a float between 0 and 1."),
+        ("grid_type", "invalid", "`grid_type` must be 'log' or 'linear'."),
+        ("num_grid_points", 1, "`num_grid_points` must be an integer greater than 1."),
+        ("fap_method", "invalid", "`fap_method` must be 'baluev' or 'bootstrap'."),
+        ("normalization", "invalid", "must be one of 'standard', 'model', 'log', or 'psd'."),
+        ("peak_detection_method", "invalid", "must be 'residual', 'fap', or None."),
+        ("peak_detection_ci", 101, "must be a number between 0 and 100."),
+        ("p_threshold", -0.1, "`p_threshold` must be a float between 0 and 1."),
+        ("max_breakpoints", 3, "`max_breakpoints` must be an integer (0, 1, or 2)."),
+    ],
+)
+def test_run_full_analysis_invalid_parameters(tmp_path, param, value, message):
+    """Test that run_full_analysis raises errors for invalid parameters."""
+    time, series = generate_synthetic_series(n_points=100)
+    file_path = create_test_data_file(tmp_path, time, series)
+    analyzer = Analysis(file_path, time_col="time", data_col="value")
+
+    kwargs = {"output_dir": str(tmp_path)}
+    kwargs[param] = value
+
+    with pytest.raises(ValueError, match=re.escape(message)):
+        analyzer.run_full_analysis(**kwargs)
+
+
+@patch("waterSpec.analysis.fit_segmented_spectrum")
+@patch("waterSpec.analysis.fit_standard_model")
+def test_analysis_model_fitting_failure_reporting(
+    mock_fit_standard, mock_fit_segmented, tmp_path
+):
+    """
+    Test that if all model fits fail, the summary text includes detailed
+    reasons for each failure.
+    """
+    # --- Mock Configuration ---
+    # Mock models to return failure information instead of valid results
+    mock_fit_standard.return_value = {
+        "bic": np.nan,
+        "failure_reason": "Could not compute Theil-Sen slope.",
+    }
+    mock_fit_segmented.side_effect = [
+        {"bic": np.nan, "failure_reason": "Davies test p-value > threshold."},
+        Exception("Unexpected crash during 2-breakpoint fit."),
+    ]
+
+    # --- Test Execution ---
+    file_path = create_test_data_file(
+        tmp_path, pd.date_range("2023", periods=100), np.random.rand(100)
+    )
+    output_dir = tmp_path / "results"
+    analyzer = Analysis(file_path, time_col="time", data_col="value")
+    results = analyzer.run_full_analysis(output_dir=str(output_dir), max_breakpoints=2)
+
+    # --- Assertions ---
+    assert "summary_text" in results
+    summary = results["summary_text"]
+
+    # Check that the summary reports that model fitting failed
+    assert "Model fitting failed for all attempted models" in summary
+    assert "Reasons:" in summary
+
+    # Check for the specific failure reasons from each mocked model
+    assert "Standard model (0 breakpoints): Could not compute Theil-Sen slope." in summary
+    assert (
+        "Segmented model (1 bp): Davies test p-value > threshold." in summary
+    )
+    assert (
+        "Segmented model (2 bp): An unexpected error occurred: "
+        "Unexpected crash during 2-breakpoint fit." in summary
+    )
+
+    # Check that the output file contains the failure summary
+    summary_path = output_dir / "value_summary.txt"
+    assert summary_path.exists()
+    assert "Model fitting failed" in summary_path.read_text()

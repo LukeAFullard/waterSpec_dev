@@ -4,7 +4,6 @@ import pytest
 import statsmodels.api as sm
 
 from waterSpec.preprocessor import (
-    _validate_data_length,
     detrend,
     detrend_loess,
     handle_censored_data,
@@ -100,13 +99,6 @@ def test_detrend_loess_with_options(sample_data):
 
     # The results should be different because the outlier is handled differently
     assert not np.array_equal(detrended_default, detrended_no_iter)
-
-
-def test_validate_data_length():
-    """Test the data length validation function."""
-    _validate_data_length(np.random.rand(20), min_length=10)
-    with pytest.raises(ValueError, match="has only 5 valid data points"):
-        _validate_data_length(np.random.rand(5), min_length=10)
 
 
 def test_preprocess_data_wrapper(sample_data):

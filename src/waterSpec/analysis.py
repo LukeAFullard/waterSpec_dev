@@ -17,11 +17,6 @@ from .spectral_analyzer import (
     find_significant_peaks,
 )
 
-# Define a constant for the minimum number of valid data points required to
-# proceed with an analysis.
-MIN_VALID_DATA_POINTS = 10
-
-
 class Analysis:
     """
     A class to perform a complete spectral analysis of a time series.
@@ -45,6 +40,7 @@ class Analysis:
         detrend_method="linear",
         normalize_data=False,
         detrend_options=None,
+        min_valid_data_points=10,
         verbose=False,
     ):
         """
@@ -72,11 +68,17 @@ class Analysis:
                 ('linear', 'loess', or None). Defaults to 'linear'.
             normalize_data (bool, optional): If True, normalize the data.
             detrend_options (dict, optional): Options for the detrending method.
+            min_valid_data_points (int, optional): The minimum number of valid
+                data points required to proceed with an analysis. Defaults to 10.
             verbose (bool, optional): If True, sets logging level to INFO.
                 Defaults to False (logging level WARNING).
         """
         self.param_name = param_name if param_name is not None else data_col
         self._setup_logger(level=logging.INFO if verbose else logging.WARNING)
+
+        if not isinstance(min_valid_data_points, int) or min_valid_data_points <= 0:
+            raise ValueError("`min_valid_data_points` must be a positive integer.")
+        self.min_valid_data_points = min_valid_data_points
 
         # Load and preprocess data
         self.logger.info("Loading and preprocessing data...")
@@ -101,9 +103,11 @@ class Analysis:
         )
 
         valid_indices = ~np.isnan(processed_data)
-        if np.sum(valid_indices) < MIN_VALID_DATA_POINTS:
+        if np.sum(valid_indices) < self.min_valid_data_points:
             raise ValueError(
-                "Not enough valid data points remaining after preprocessing."
+                f"Not enough valid data points ({np.sum(valid_indices)}) "
+                f"remaining after preprocessing. Minimum required: "
+                f"{self.min_valid_data_points}."
             )
 
         self.time = time_numeric[valid_indices]
@@ -138,6 +142,18 @@ class Analysis:
         s = re.sub(r"(?u)[^-\w.]", "", s)
         return s
 
+    def _is_fit_successful(self, fit_results):
+        """Checks if a model fit was successful."""
+        is_standard_success = "beta" in fit_results and np.isfinite(
+            fit_results.get("beta")
+        )
+        is_segmented_success = (
+            "betas" in fit_results
+            and len(fit_results.get("betas", [])) > 0
+            and np.isfinite(fit_results["betas"][0])
+        )
+        return is_standard_success or is_segmented_success
+
     def _calculate_periodogram(self, grid_type, normalization, num_grid_points):
         """Generates frequency grid and calculates the Lomb-Scargle periodogram."""
         self.logger.info("Calculating Lomb-Scargle periodogram...")
@@ -162,49 +178,85 @@ class Analysis:
         """
         self.logger.info("Performing model selection based on BIC...")
         all_models = []
+        failed_model_reasons = []
 
         # Fit the standard model (0 breakpoints)
         self.logger.info("Fitting standard model (0 breakpoints)...")
-        standard_results = fit_standard_model(
-            self.frequency,
-            self.power,
-            method=fit_method,
-            ci_method=ci_method,
-            n_bootstraps=n_bootstraps,
-            seed=seed,
-            logger=self.logger,
-        )
-        if "bic" in standard_results and np.isfinite(standard_results["bic"]):
-            standard_results["model_type"] = "standard"
-            standard_results["n_breakpoints"] = 0
-            all_models.append(standard_results)
-            self.logger.info(f"Standard model fit complete. BIC: {standard_results['bic']:.2f}")
-
-        # Fit segmented models (1 and possibly 2 breakpoints)
-        for n_bp in range(1, max_breakpoints + 1):
-            self.logger.info(f"Fitting segmented model ({n_bp} breakpoint(s))...")
-            seg_results = fit_segmented_spectrum(
+        try:
+            standard_results = fit_standard_model(
                 self.frequency,
                 self.power,
-                n_breakpoints=n_bp,
-                p_threshold=p_threshold,
+                method=fit_method,
                 ci_method=ci_method,
                 n_bootstraps=n_bootstraps,
                 seed=seed,
                 logger=self.logger,
             )
-            if "bic" in seg_results and np.isfinite(seg_results["bic"]):
-                seg_results["model_type"] = f"segmented_{n_bp}bp"
-                all_models.append(seg_results)
-                self.logger.info(f"Segmented model ({n_bp} bp) fit complete. BIC: {seg_results['bic']:.2f}")
+            if "bic" in standard_results and np.isfinite(standard_results["bic"]):
+                standard_results["model_type"] = "standard"
+                standard_results["n_breakpoints"] = 0
+                all_models.append(standard_results)
+                self.logger.info(
+                    "Standard model fit complete. "
+                    f"BIC: {standard_results['bic']:.2f}"
+                )
+            else:
+                reason = standard_results.get("failure_reason", "Unknown error")
+                failed_model_reasons.append(f"Standard model (0 breakpoints): {reason}")
+                self.logger.warning(f"Standard model fit failed: {reason}")
+        except Exception as e:
+            reason = f"An unexpected error occurred: {e}"
+            failed_model_reasons.append(f"Standard model (0 breakpoints): {reason}")
+            self.logger.error("Standard model fit crashed.", exc_info=True)
+
+        # Fit segmented models (1 and possibly 2 breakpoints)
+        for n_bp in range(1, max_breakpoints + 1):
+            self.logger.info(f"Fitting segmented model ({n_bp} breakpoint(s))...")
+            try:
+                seg_results = fit_segmented_spectrum(
+                    self.frequency,
+                    self.power,
+                    n_breakpoints=n_bp,
+                    p_threshold=p_threshold,
+                    ci_method=ci_method,
+                    n_bootstraps=n_bootstraps,
+                    seed=seed,
+                    logger=self.logger,
+                )
+                if "bic" in seg_results and np.isfinite(seg_results["bic"]):
+                    seg_results["model_type"] = f"segmented_{n_bp}bp"
+                    all_models.append(seg_results)
+                    self.logger.info(
+                        f"Segmented model ({n_bp} bp) fit complete. "
+                        f"BIC: {seg_results['bic']:.2f}"
+                    )
+                else:
+                    reason = seg_results.get("failure_reason", "Unknown error")
+                    failed_model_reasons.append(
+                        f"Segmented model ({n_bp} bp): {reason}"
+                    )
+                    self.logger.warning(
+                        f"Segmented model ({n_bp} bp) fit failed: {reason}"
+                    )
+            except Exception as e:
+                reason = f"An unexpected error occurred: {e}"
+                failed_model_reasons.append(f"Segmented model ({n_bp} bp): {reason}")
+                self.logger.error(
+                    f"Segmented model ({n_bp} bp) fit crashed.", exc_info=True
+                )
 
         if not all_models:
             self.logger.error("Model fitting failed for all model types.")
+            failure_summary = (
+                "Model fitting failed for all attempted models. Reasons:\n"
+                + "\n".join(f"- {reason}" for reason in failed_model_reasons)
+            )
             return {
                 "betas": [np.nan],
                 "n_breakpoints": 0,
                 "chosen_model_type": "standard",
-                "summary_text": "Model fitting failed for all model types.",
+                "summary_text": failure_summary,
+                "failure_reason": failure_summary,
             }
 
         best_model = min(all_models, key=lambda x: x["bic"])
@@ -235,15 +287,7 @@ class Analysis:
         fap_method,
     ):
         """Detects significant peaks based on the chosen method."""
-        is_standard_success = "beta" in fit_results and np.isfinite(fit_results.get("beta"))
-        is_segmented_success = (
-            "betas" in fit_results
-            and len(fit_results.get("betas", [])) > 0
-            and np.isfinite(fit_results["betas"][0])
-        )
-        fit_successful = is_standard_success or is_segmented_success
-
-        if not fit_successful:
+        if not self._is_fit_successful(fit_results):
             return fit_results
 
         self.logger.info(f"Detecting significant peaks using '{peak_detection_method}' method...")
@@ -305,6 +349,56 @@ class Analysis:
             f.write(results["summary_text"])
         self.logger.info(f"Plot saved to {plot_path}")
         self.logger.info(f"Summary saved to {summary_path}")
+
+    def _validate_run_parameters(
+        self,
+        fit_method,
+        ci_method,
+        n_bootstraps,
+        fap_threshold,
+        grid_type,
+        num_grid_points,
+        fap_method,
+        normalization,
+        peak_detection_method,
+        peak_detection_ci,
+        p_threshold,
+        max_breakpoints,
+    ):
+        """Validates parameters for the `run_full_analysis` method."""
+        if fit_method not in ["theil-sen", "ols"]:
+            raise ValueError("`fit_method` must be 'theil-sen' or 'ols'.")
+        if ci_method not in ["bootstrap", "parametric"]:
+            raise ValueError("`ci_method` must be 'bootstrap' or 'parametric'.")
+        if not isinstance(n_bootstraps, int) or n_bootstraps < 0:
+            raise ValueError("`n_bootstraps` must be a non-negative integer.")
+        if not (isinstance(fap_threshold, float) and 0 < fap_threshold < 1):
+            raise ValueError("`fap_threshold` must be a float between 0 and 1.")
+        if grid_type not in ["log", "linear"]:
+            raise ValueError("`grid_type` must be 'log' or 'linear'.")
+        if not isinstance(num_grid_points, int) or num_grid_points <= 1:
+            raise ValueError("`num_grid_points` must be an integer greater than 1.")
+        if fap_method not in ["baluev", "bootstrap"]:
+            raise ValueError("`fap_method` must be 'baluev' or 'bootstrap'.")
+        if normalization not in ["standard", "model", "log", "psd"]:
+            raise ValueError(
+                "`normalization` must be one of 'standard', 'model', 'log', or 'psd'."
+            )
+        if peak_detection_method not in ["residual", "fap", None]:
+            raise ValueError(
+                "`peak_detection_method` must be 'residual', 'fap', or None."
+            )
+        if not (
+            isinstance(peak_detection_ci, (int, float))
+            and 0 < peak_detection_ci < 100
+        ):
+            raise ValueError(
+                "`peak_detection_ci` must be a number between 0 and 100."
+            )
+        if not (isinstance(p_threshold, float) and 0 < p_threshold < 1):
+            raise ValueError("`p_threshold` must be a float between 0 and 1.")
+        if max_breakpoints not in [0, 1, 2]:
+            raise ValueError("`max_breakpoints` must be an integer (0, 1, or 2).")
 
     def run_full_analysis(
         self,
@@ -372,21 +466,31 @@ class Analysis:
         Returns:
             dict: A dictionary containing all analysis results.
         """
-        # Validate ci_method
-        if ci_method not in ["bootstrap", "parametric"]:
-            raise ValueError(
-                "Invalid `ci_method`. Must be 'bootstrap' or 'parametric'."
-            )
+        # 1. Validate all run parameters
+        self._validate_run_parameters(
+            fit_method,
+            ci_method,
+            n_bootstraps,
+            fap_threshold,
+            grid_type,
+            num_grid_points,
+            fap_method,
+            normalization,
+            peak_detection_method,
+            peak_detection_ci,
+            p_threshold,
+            max_breakpoints,
+        )
 
-        # 1. Calculate Periodogram
+        # 2. Calculate Periodogram
         self._calculate_periodogram(grid_type, normalization, num_grid_points)
 
-        # 2. Fit Spectrum and Select Best Model
+        # 3. Fit Spectrum and Select Best Model
         fit_results = self._perform_model_selection(
             fit_method, ci_method, n_bootstraps, p_threshold, max_breakpoints, seed
         )
 
-        # 3. Detect Significant Peaks
+        # 4. Detect Significant Peaks
         fit_results = self._detect_significant_peaks(
             fit_results,
             peak_detection_method,
@@ -395,29 +499,25 @@ class Analysis:
             fap_method,
         )
 
-        # 4. Interpret Results
+        # 5. Interpret Results
         self.logger.info("Interpreting final results and generating summary...")
-        is_standard_success = "beta" in fit_results and np.isfinite(
-            fit_results.get("beta")
-        )
-        is_segmented_success = (
-            "betas" in fit_results
-            and len(fit_results.get("betas", [])) > 0
-            and np.isfinite(fit_results["betas"][0])
-        )
-        fit_successful = is_standard_success or is_segmented_success
-        if not fit_successful:
-            interp_results = {
-                "summary_text": (
-                    "Analysis failed: Could not determine a valid spectral slope."
-                )
-            }
+        if not self._is_fit_successful(fit_results):
+            # If the fitting step provided a specific failure summary, use it.
+            # Otherwise, use a generic message.
+            if "failure_reason" in fit_results:
+                interp_results = {"summary_text": fit_results["summary_text"]}
+            else:
+                interp_results = {
+                    "summary_text": (
+                        "Analysis failed: Could not determine a valid spectral slope."
+                    )
+                }
             self.results = {**fit_results, **interp_results}
         else:
             interp_results = interpret_results(fit_results, param_name=self.param_name)
             self.results = {**fit_results, **interp_results}
 
-        # 5. Generate and Save Outputs
+        # 6. Generate and Save Outputs
         self._generate_outputs(self.results, output_dir)
 
         self.logger.info(f"Analysis complete. Outputs saved to '{output_dir}'.")
