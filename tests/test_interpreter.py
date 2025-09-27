@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 from waterSpec.interpreter import (
@@ -181,3 +182,102 @@ def test_interpret_results_segmented():
     assert "β1 = 0.50" in summary
     assert "High-Frequency (Short-term) Fit" in summary
     assert "β2 = 1.50" in summary
+
+
+# --- New tests for increased coverage ---
+
+
+def test_get_uncertainty_warning_handles_nan():
+    """Test that _get_uncertainty_warning returns None for NaN CI."""
+    from waterSpec.interpreter import _get_uncertainty_warning
+
+    assert _get_uncertainty_warning((np.nan, np.nan), 0.5) is None
+
+
+def test_get_scientific_interpretation_handles_nan():
+    """Test get_scientific_interpretation with a NaN beta value."""
+    assert "No interpretation available" in get_scientific_interpretation(np.nan)
+
+
+def test_compare_to_benchmarks_logic():
+    """Test compare_to_benchmarks for values inside and between ranges."""
+    # A beta of 1.25 falls *within* the "Discharge (Q)" range (1.0-1.8)
+    assert "Similar to Discharge (Q)" in compare_to_benchmarks(1.25)
+    # A beta of 2.5 is outside all ranges and is closest to the mean of Nitrate-N (1.75).
+    assert "Closest to Nitrate-N" in compare_to_benchmarks(2.5)
+
+
+def test_interpret_results_auto_mode_segmented_chosen():
+    """Test auto mode summary when a segmented model is chosen."""
+    fit_results = {
+        "analysis_mode": "auto",
+        "chosen_model": "segmented_1bp",
+        "all_models": [
+            {"beta": 1.2, "betas": [1.2], "bic": 120, "n_breakpoints": 0},
+            {
+                "betas": [0.8, 1.5],
+                "breakpoints": [0.1],
+                "bic": 100,
+                "n_breakpoints": 1,
+            },
+        ],
+        "betas": [0.8, 1.5],
+        "breakpoints": [0.1],
+        "n_breakpoints": 1,
+    }
+    results = interpret_results(fit_results)
+    summary = results["summary_text"]
+    assert "Chosen Model: Segmented 1bp" in summary
+    assert "Details for Chosen (Segmented 1bp) Model:" in summary
+
+
+def test_interpret_results_segmented_wide_ci():
+    """Test uncertainty warnings for segmented models with wide CIs."""
+    fit_results = {
+        "betas": [0.5, 1.5],
+        "betas_ci": [(0.1, 0.9), (1.0, 2.8)],  # Wide CI for beta2
+        "breakpoints": [0.1],
+        "breakpoints_ci": [(0.01, 0.5)],  # Wide CI for breakpoint
+        "n_breakpoints": 1,
+    }
+    results = interpret_results(
+        fit_results, breakpoint_uncertainty_threshold=10  # Lower threshold for testing
+    )
+    summary = results["summary_text"]
+    warnings = results["uncertainty_warnings"]
+
+    assert "Uncertainty Report:" in summary
+    assert len(warnings) == 3
+    assert "Warning: The 95% CI for β1 is wide" in warnings[0]
+    assert "Warning: The 95% CI for β2 is wide" in warnings[1]
+    assert (
+        "Warning: The 95% CI for Breakpoint 1 Period spans more than an order of magnitude"
+        in warnings[2]
+    )
+
+
+def test_interpret_results_segmented_nan_ci():
+    """Test segmented summary when CIs are NaN."""
+    fit_results = {
+        "betas": [0.5, 1.5],
+        "betas_ci": [(0.1, 0.9), (np.nan, np.nan)],
+        "breakpoints": [0.1],
+        "n_breakpoints": 1,
+    }
+    results = interpret_results(fit_results)
+    summary = results["summary_text"]
+    # Check that the CI string is not present for the second beta
+    assert "β1 = 0.50 (95% CI: 0.10–0.90" in summary
+    # Find the line containing "β2 = 1.50" and check that it doesn't contain "CI"
+    beta2_line = [
+        line for line in summary.split("\n") if line.strip().startswith("β2 = 1.50")
+    ][0]
+    assert "CI" not in beta2_line
+
+
+def test_interpret_results_no_peaks_generic_message():
+    """Test the generic 'no peaks found' message."""
+    fit_results = {"beta": 1.0, "betas": [1.0], "n_breakpoints": 0, "significant_peaks": []}
+    # No 'fap_level' or 'residual_threshold' keys are provided
+    results = interpret_results(fit_results)
+    assert "No significant periodicities were found." in results["summary_text"]

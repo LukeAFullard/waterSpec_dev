@@ -282,3 +282,31 @@ def test_preprocess_data_nan_propagation():
     # The valid points should still have their errors
     assert not np.isnan(processed_errors[0])
     assert not np.isnan(processed_errors[9])
+
+
+# --- New tests for increased coverage ---
+
+
+def test_detrend_insufficient_data():
+    """Test that detrend returns data unmodified if there are < 2 points."""
+    x = np.array([1.0])
+    data = np.array([10.0])
+    detrended_data, _ = detrend(x, data)
+    assert np.array_equal(data, detrended_data)
+
+
+def test_normalize_no_valid_data():
+    """Test that normalize returns data unmodified if there are no valid points."""
+    data = np.array([np.nan, np.nan])
+    normalized_data, _ = normalize(data)
+    assert np.all(np.isnan(normalized_data))
+
+
+def test_detrend_loess_insufficient_data():
+    """Test that LOESS detrending warns and returns data when there are < 5 points."""
+    x = np.arange(4)
+    y = np.random.rand(4)
+    with pytest.warns(UserWarning, match="Not enough data points"):
+        detrended_y, _ = detrend_loess(x, y)
+    # Data should be returned unmodified
+    assert np.array_equal(y, detrended_y)

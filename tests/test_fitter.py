@@ -1,7 +1,16 @@
+import logging
+from unittest.mock import MagicMock, patch
+from collections import namedtuple
+
 import numpy as np
 import pytest
+from scipy import stats
 
-from waterSpec.fitter import fit_segmented_spectrum, fit_standard_model
+from waterSpec.fitter import (
+    _calculate_bic,
+    fit_segmented_spectrum,
+    fit_standard_model,
+)
 
 
 @pytest.fixture
@@ -356,3 +365,219 @@ def test_fit_segmented_spectrum_with_parametric_ci(multifractal_spectrum):
     breakpoint_ci = results["breakpoints_ci"][0]
     assert np.all(np.isfinite(breakpoint_ci))
     assert breakpoint_ci[0] <= known_breakpoint <= breakpoint_ci[1]
+
+
+# --- New tests for increased coverage ---
+
+
+def test_calculate_bic_edge_cases():
+    """Test _calculate_bic with edge cases like empty input and zero RSS."""
+    # Test with empty arrays
+    assert np.isnan(_calculate_bic(np.array([]), np.array([]), 2))
+
+    # Test with zero RSS (perfect fit)
+    y = np.array([1, 2, 3])
+    assert _calculate_bic(y, y, 2) == -np.inf
+
+
+def test_fit_standard_model_raises_for_invalid_ci_method(synthetic_spectrum):
+    """Test that fit_standard_model raises a ValueError for an invalid ci_method."""
+    frequency, power, _ = synthetic_spectrum
+    with pytest.raises(ValueError, match="Unknown ci_method: 'invalid'"):
+        fit_standard_model(frequency, power, ci_method="invalid")
+
+
+def test_fit_segmented_spectrum_insufficient_data():
+    """
+    Test that segmented fitting fails gracefully with insufficient data.
+    """
+    frequency = np.logspace(-3, 0, 10)
+    power = frequency**-1
+    # Requesting 2 breakpoints requires at least 15 points (5 per segment)
+    results = fit_segmented_spectrum(frequency, power, n_breakpoints=2)
+    assert "Not enough data points" in results["model_summary"]
+    assert results["bic"] == np.inf
+
+
+def test_fit_segmented_spectrum_warns_for_multiple_breakpoints(
+    multifractal_spectrum,
+):
+    """
+    Test that a warning is issued when fitting more than one breakpoint.
+    """
+    frequency, power, _, _, _ = multifractal_spectrum
+    with pytest.warns(UserWarning, match="Fitting a model with 2 breakpoints"):
+        fit_segmented_spectrum(frequency, power, n_breakpoints=2, n_bootstraps=0)
+
+
+def test_fit_standard_model_raises_for_invalid_method(synthetic_spectrum):
+    """Test that fit_standard_model raises a ValueError for an invalid method."""
+    frequency, power, _ = synthetic_spectrum
+    with pytest.raises(ValueError, match="Unknown fitting method: 'invalid'"):
+        fit_standard_model(frequency, power, method="invalid")
+
+
+@patch("waterSpec.fitter.stats.theilslopes")
+def test_fit_standard_model_bootstrap_handles_failures(
+    mock_theilslopes, synthetic_spectrum
+):
+    """
+    Test that the bootstrap process for the standard model is robust to
+    failures in some iterations.
+    """
+    frequency, power, _ = synthetic_spectrum
+    # Make the first call succeed, then raise an exception on the second call
+    mock_theilslopes.side_effect = [
+        (-1.5, 0, 0, 0),  # Initial fit
+        (-1.4, 0, 0, 0),  # First bootstrap iteration
+        RuntimeError("Test bootstrap failure"),  # Second iteration fails
+        (-1.6, 0, 0, 0),  # Third iteration
+    ]
+
+    # The logger will capture the debug message for the failed iteration
+    logger = logging.getLogger("test_logger")
+    with patch.object(logger, "debug") as mock_debug:
+        results = fit_standard_model(
+            frequency,
+            power,
+            method="theil-sen",
+            n_bootstraps=3,
+            seed=42,
+            logger=logger,
+        )
+        assert results["beta_ci_lower"] is not None
+        # Check that the failed iteration was logged
+        mock_debug.assert_called_with(
+            "Bootstrap iteration failed with error: Test bootstrap failure"
+        )
+
+
+@patch("waterSpec.fitter.stats.linregress")
+def test_fit_standard_model_bootstrap_warns_on_low_success_rate(
+    mock_linregress, synthetic_spectrum
+):
+    """
+    Test that a warning is issued if the bootstrap success rate is low.
+    """
+    frequency, power, _ = synthetic_spectrum
+    # Mock the results of linregress. Return a valid result for the initial fit,
+    # then simulate many failures during bootstrapping.
+    LinregressResult = namedtuple(
+        "LinregressResult", ["slope", "intercept", "rvalue", "pvalue", "stderr"]
+    )
+    mock_linregress.side_effect = [
+        LinregressResult(slope=-1.5, intercept=0, rvalue=1, pvalue=0, stderr=0)
+    ] + [RuntimeError("fail")] * 90 + [
+        LinregressResult(slope=-1.4, intercept=0, rvalue=1, pvalue=0, stderr=0)
+    ] * 10
+
+    with pytest.warns(UserWarning, match="Only 10/100 bootstrap iterations succeeded"):
+        fit_standard_model(
+            frequency, power, method="ols", n_bootstraps=100, seed=42
+        )
+
+
+@patch("waterSpec.fitter.piecewise_regression.Fit")
+def test_extract_parametric_segmented_cis_handles_missing_keys(mock_pw_fit_class):
+    """
+    Test that _extract_parametric_segmented_cis handles cases where the
+    confidence intervals are missing from the results dictionary.
+    """
+    from waterSpec.fitter import _extract_parametric_segmented_cis
+
+    # Create a mock pw_fit object with incomplete "estimates"
+    mock_pw_fit = mock_pw_fit_class.return_value
+    mock_pw_fit.get_results.return_value = {
+        "estimates": {
+            "alpha1": {"estimate": -0.5},  # No CI for alpha1
+            "breakpoint1": {"estimate": np.log(0.1)},  # No CI for breakpoint
+        }
+    }
+
+    results = _extract_parametric_segmented_cis(mock_pw_fit, n_breakpoints=1)
+
+    # Betas CI should be all NaNs
+    assert len(results["betas_ci"]) == 2
+    assert np.all(np.isnan(results["betas_ci"]))
+
+    # Breakpoints CI should be all NaNs
+    assert len(results["breakpoints_ci"]) == 1
+    assert np.all(np.isnan(results["breakpoints_ci"]))
+
+
+@patch("waterSpec.fitter.piecewise_regression.Fit")
+def test_bootstrap_segmented_fit_handles_failures(
+    mock_pw_fit_class, multifractal_spectrum, caplog
+):
+    """
+    Test that _bootstrap_segmented_fit is robust to failures and warns
+    on low success rate.
+    """
+    frequency, power, _, _, _ = multifractal_spectrum
+
+    # --- Mock the main fit ---
+    main_fit = MagicMock()
+    main_fit.n_breakpoints = 1
+    main_fit.davies = 0.01  # Set a p-value to pass the significance check
+    main_fit.get_results.return_value = {
+        "converged": True,
+        "bic": 100,
+        "estimates": {
+            "breakpoint1": {"name": "breakpoint1", "estimate": np.log(0.1)},
+            "alpha1": {"name": "alpha1", "estimate": -0.5},
+            "beta1": {"name": "beta1", "estimate": -1.3},
+        },
+    }
+    main_fit.estimates = main_fit.get_results.return_value["estimates"]
+    main_fit.predict.return_value = np.zeros_like(np.log(frequency))
+
+    # --- Mock the bootstrap fits ---
+    def create_successful_fit(bp_est, alpha_est, beta_est):
+        fit = MagicMock()
+        fit.estimates = {
+            "converged": True,
+            "breakpoint1": {"name": "breakpoint1", "estimate": bp_est},
+            "alpha1": {"name": "alpha1", "estimate": alpha_est},
+            "beta1": {"name": "beta1", "estimate": beta_est},
+        }
+        fit.predict.return_value = np.zeros_like(np.log(frequency))
+        return fit
+
+    # Make the bootstrap fits fail most of the time
+    mock_pw_fit_class.side_effect = (
+        [main_fit]
+        + [RuntimeError("Bootstrap fit failed")] * 8
+        + [
+            create_successful_fit(np.log(0.11), -0.55, -1.25),
+            create_successful_fit(np.log(0.12), -0.58, -1.28),
+        ]
+    )
+
+    # --- Run the test ---
+    logger = logging.getLogger("test_fitter_logger")
+    with caplog.at_level(logging.WARNING):
+        results = fit_segmented_spectrum(
+            frequency, power, n_bootstraps=10, seed=42, logger=logger
+        )
+
+    # --- Assertions ---
+    # Check that CIs were still produced from the successful fits
+    assert "betas_ci" in results
+    assert len(results["betas_ci"]) == 2
+    assert np.all(np.isfinite(results["betas_ci"]))
+
+    # Check that a warning was logged for the low success rate
+    assert "Only 2/10 bootstrap iterations" in caplog.text
+
+
+def test_fit_segmented_spectrum_no_bootstrap(multifractal_spectrum):
+    """
+    Test that fit_segmented_spectrum returns NaN CIs when n_bootstraps is 0.
+    """
+    frequency, power, _, _, _ = multifractal_spectrum
+    results = fit_segmented_spectrum(frequency, power, n_bootstraps=0)
+
+    assert "betas_ci" in results
+    assert np.all(np.isnan(results["betas_ci"]))
+    assert "breakpoints_ci" in results
+    assert np.all(np.isnan(results["breakpoints_ci"]))

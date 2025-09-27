@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import numpy as np
 import pytest
 
@@ -170,3 +172,53 @@ def test_find_peaks_via_residuals_raises_error_on_missing_keys():
 
     with pytest.raises(ValueError, match="fit_results is missing required keys"):
         find_peaks_via_residuals({"log_freq": [1, 2, 3]})
+
+
+# --- New tests for increased coverage ---
+
+
+def test_find_significant_peaks_bootstrap_warning(synthetic_signal):
+    """
+    Test that a UserWarning is issued when using the slow 'bootstrap' FAP method.
+    """
+    time, y, _ = synthetic_signal
+    frequency = np.linspace(0.01, 0.5, 100)
+    _, _, ls_obj = calculate_periodogram(time, y, frequency=frequency)
+
+    with pytest.warns(UserWarning, match="Using the 'bootstrap' method"):
+        find_significant_peaks(ls_obj, [], [], fap_method="bootstrap")
+
+
+def test_find_significant_peaks_slow_bootstrap_warning(synthetic_signal):
+    """
+    Test that a UserWarning is issued for slow per-peak FAP calculation
+    when using the bootstrap method with many peaks.
+    """
+    time, y, _ = synthetic_signal
+    frequency = np.linspace(0.01, 0.5, 100)
+    # Create a deterministic power array with 10 clear peaks
+    power = np.full(100, 0.1)
+    power[5:95:10] = 1.0
+
+    _, _, ls_obj = calculate_periodogram(time, y, frequency=frequency)
+
+    # Mock the FAP level to ensure all 10 peaks are significant
+    with patch.object(ls_obj, "false_alarm_level", return_value=0.5):
+        with pytest.warns(UserWarning, match="Calculating the individual FAP for 9 peaks"):
+            find_significant_peaks(ls_obj, frequency, power, fap_method="bootstrap")
+
+
+def test_find_peaks_via_residuals_handles_empty_groups(sample_fit_results):
+    """
+    Test that find_peaks_via_residuals handles empty groups that can be
+    produced by np.split in edge cases.
+    """
+    from waterSpec.spectral_analyzer import find_peaks_via_residuals
+
+    # Mock np.split to return a list containing an empty array, which can
+    # happen in certain edge cases of np.diff.
+    with patch("numpy.split", return_value=[np.array([1, 2]), np.array([])]):
+        # The test is that this runs without an error.
+        peaks, _ = find_peaks_via_residuals(sample_fit_results, ci=95)
+        # It should still find the peak from the non-empty group.
+        assert len(peaks) > 0

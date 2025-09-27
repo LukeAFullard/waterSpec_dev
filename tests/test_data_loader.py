@@ -213,3 +213,34 @@ def test_load_data_negative_error_column(tmp_path):
     file_path.write_text("time,value,error\n2023-01-01,10,1\n2023-01-02,11,-0.5")
     with pytest.warns(UserWarning, match="error column contains negative values"):
         load_data(file_path, time_col="time", data_col="value", error_col="error")
+
+
+# --- New tests for increased coverage ---
+
+
+def test_load_data_file_not_found():
+    """Test that a FileNotFoundError is raised for a non-existent file."""
+    with pytest.raises(FileNotFoundError, match="file was not found"):
+        load_data("non_existent_file.csv", time_col="time", data_col="value")
+
+
+def test_load_data_missing_time_column(create_test_csv):
+    """Test that a missing time column raises a ValueError."""
+    with pytest.raises(ValueError, match="Time column 'bad_col' not found"):
+        load_data(create_test_csv, time_col="bad_col", data_col="concentration")
+
+
+def test_load_data_all_nan_time_column(tmp_path):
+    """Test that a time column with all NaNs raises a ValueError."""
+    file_path = tmp_path / "all_nan_time.csv"
+    file_path.write_text("time,value\n,,10\n,,20")
+    with pytest.raises(ValueError, match="time column 'time' contains no valid data"):
+        load_data(file_path, time_col="time", data_col="value")
+
+
+def test_load_data_all_nan_error_column(tmp_path):
+    """Test that an error column with all NaNs issues a warning."""
+    file_path = tmp_path / "all_nan_error.csv"
+    file_path.write_text("time,value,error\n2023-01-01,10,\n2023-01-02,11,")
+    with pytest.warns(UserWarning, match="error column 'error' contains no valid data"):
+        load_data(file_path, time_col="time", data_col="value", error_col="error")
