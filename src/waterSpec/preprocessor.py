@@ -41,15 +41,9 @@ def detrend(x, data, errors=None):
 
     if errors is not None:
         errors_valid = errors[valid_indices]
-        if np.any(np.isnan(errors_valid)):
-            warnings.warn(
-                "NaNs found in error values corresponding to valid data points. "
-                "These will be treated as having zero error for propagation.",
-                UserWarning,
-            )
-            errors_valid = np.nan_to_num(errors_valid)
-
+        # Calculate the standard error of the trend line prediction
         prediction_se = results.get_prediction(X_with_const).se_mean
+        # Propagate errors: new_err^2 = old_err^2 + trend_err^2
         new_err_sq = np.square(errors_valid) + np.square(prediction_se)
         errors[valid_indices] = np.sqrt(new_err_sq)
 
@@ -70,14 +64,17 @@ def normalize(data, errors=None):
     if std_dev > 1e-9:  # Use a small threshold to avoid division by zero
         data[valid_indices] = (valid_data - np.mean(valid_data)) / std_dev
         if errors is not None:
-            valid_errors = errors[valid_indices]
-            errors[valid_indices] = valid_errors / std_dev
+            errors[valid_indices] = errors[valid_indices] / std_dev
     else:
         # If std_dev is negligible, data is constant. Center it at 0.
         data[valid_indices] = 0
         if errors is not None:
-            # Errors are not scaled if variance is zero
-            errors[valid_indices] = errors[valid_indices]
+            # Errors cannot be meaningfully scaled for constant data.
+            warnings.warn(
+                "Data has zero variance; cannot normalize errors. Setting to NaN.",
+                UserWarning,
+            )
+            errors[valid_indices] = np.nan
 
     return data, errors
 
@@ -210,19 +207,11 @@ def detrend_loess(x, y, errors=None, **kwargs):
     detrended_y[valid_indices] = residuals
 
     if errors is not None:
-        errors_valid = errors[valid_indices]
-        if np.any(np.isnan(errors_valid)):
-            warnings.warn(
-                "NaNs in error values corresponding to valid data points will be "
-                "treated as zero for error propagation.",
-                UserWarning,
-            )
-            errors_valid = np.nan_to_num(errors_valid)
-
-        # Estimate LOESS fit uncertainty as the std of the residuals
-        loess_se = np.std(residuals)
-        new_err_sq = np.square(errors_valid) + np.square(loess_se)
-        errors[valid_indices] = np.sqrt(new_err_sq)
+        warnings.warn(
+            "Error propagation for LOESS detrending is not supported. "
+            "Errors will not be modified.",
+            UserWarning,
+        )
 
     return detrended_y, errors
 

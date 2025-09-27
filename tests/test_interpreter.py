@@ -40,7 +40,7 @@ def test_interpret_results_basic():
     assert "Persistent" in summary
     assert "fBm-like" in summary
     assert "Chloride" in summary
-    assert results["uncertainty_warning"] is None
+    assert not results["uncertainty_warnings"]
 
 
 def test_interpret_results_with_ci():
@@ -53,7 +53,7 @@ def test_interpret_results_with_ci():
     }
     results = interpret_results(fit_results, param_name="Nitrate")
     assert "95% CI: 1.50–1.90" in results["summary_text"]
-    assert results["uncertainty_warning"] is None
+    assert not results["uncertainty_warnings"]
 
 
 def test_interpret_results_with_wide_ci():
@@ -65,8 +65,9 @@ def test_interpret_results_with_wide_ci():
         "beta_ci_upper": 2.4,
     }
     results = interpret_results(fit_results, param_name="Nitrate")
-    assert "Warning: The confidence interval width" in results["uncertainty_warning"]
-    assert "large" in results["summary_text"]
+    assert "Uncertainty Report:" in results["summary_text"]
+    assert len(results["uncertainty_warnings"]) == 1
+    assert "Warning: The 95% CI for β is wide" in results["uncertainty_warnings"][0]
 
 
 def test_interpret_results_no_param_name():

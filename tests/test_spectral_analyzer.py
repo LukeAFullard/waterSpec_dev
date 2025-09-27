@@ -168,5 +168,5 @@ def test_find_peaks_via_residuals_raises_error_on_missing_keys():
     """Test that the function raises a ValueError if required keys are missing."""
     from waterSpec.spectral_analyzer import find_peaks_via_residuals
 
-    with pytest.raises(ValueError, match="must contain 'residuals'"):
+    with pytest.raises(ValueError, match="fit_results is missing required keys"):
         find_peaks_via_residuals({"log_freq": [1, 2, 3]})

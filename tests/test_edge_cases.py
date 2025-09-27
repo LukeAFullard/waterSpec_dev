@@ -198,7 +198,7 @@ def test_find_peaks_via_residuals_no_fit(tmp_path):
     """
     from waterSpec.spectral_analyzer import find_peaks_via_residuals
     fit_results = {"beta": np.nan}
-    with pytest.raises(ValueError, match="fit_results must contain 'residuals'"):
+    with pytest.raises(ValueError, match="fit_results is missing required keys"):
         find_peaks_via_residuals(fit_results, ci=95)
 
 # --- Tests for Gaps in frequency_generator.py ---

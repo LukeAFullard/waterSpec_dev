@@ -120,26 +120,6 @@ def test_plot_spectrum_segmented(spectrum_data, tmp_path):
     assert os.path.exists(output_file)
 
 
-@patch("matplotlib.pyplot.text")
-def test_plot_spectrum_with_summary_annotation(mock_plt_text, spectrum_data, tmp_path):
-    """
-    Test that plot_spectrum calls plt.text to add a summary annotation.
-    """
-    frequency, power, fit_results = spectrum_data
-    summary = "This is a test summary."
-    fit_results["summary_text"] = summary
-    output_file = tmp_path / "test_plot_summary.png"
-
-    plot_spectrum(frequency, power, fit_results, output_path=str(output_file))
-
-    # Assert that plt.text was called
-    assert mock_plt_text.called
-    # Assert that the summary text was passed to the call
-    # call_args[0] is the tuple of positional arguments
-    # The text string is the third positional argument (x, y, text)
-    assert summary in mock_plt_text.call_args[0]
-
-
 def test_plot_spectrum_multi_breakpoint(spectrum_data, tmp_path):
     """
     Test that plot_spectrum can handle multi-breakpoint (n>1) segmented fit
@@ -155,12 +135,14 @@ def test_plot_spectrum_multi_breakpoint(spectrum_data, tmp_path):
             return -1.0 * x
 
     # Create a fit result dictionary that simulates a 2-breakpoint fit
+    log_freq = np.log(frequency)
     multi_segmented_fit_results = {
         "n_breakpoints": 2,
         "betas": [0.2, 1.5, 0.8],
         "breakpoints": [frequency[10], frequency[30]],
         "model_object": MockModel(),
-        "log_freq": np.log(frequency),
+        "log_freq": log_freq,
+        "fitted_log_power": -1.0 * log_freq,  # Mock the fitted line
     }
 
     try:

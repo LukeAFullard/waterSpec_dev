@@ -85,6 +85,14 @@ def find_significant_peaks(
     # Filter for peaks that are above the significance level
     significant_peaks_indices = [p for p in all_peaks if power[p] > fap_level]
 
+    # Add a warning if per-peak FAP calculation is likely to be slow
+    if fap_method == "bootstrap" and len(significant_peaks_indices) > 5:
+        warnings.warn(
+            f"Calculating the individual FAP for {len(significant_peaks_indices)} "
+            "peaks using the 'bootstrap' method may be very slow.",
+            UserWarning,
+        )
+
     significant_peaks = []
     for peak_idx in significant_peaks_indices:
         peak_freq = frequency[peak_idx]
@@ -120,10 +128,10 @@ def find_peaks_via_residuals(fit_results, ci=95):
                - list: A list of dictionaries, each describing a significant peak.
                - float: The residual threshold used for significance.
     """
-    if "residuals" not in fit_results or "fitted_log_power" not in fit_results:
-        raise ValueError(
-            "fit_results must contain 'residuals' and 'fitted_log_power'."
-        )
+    required_keys = ["residuals", "fitted_log_power", "log_freq", "log_power"]
+    if not all(key in fit_results for key in required_keys):
+        missing_keys = [key for key in required_keys if key not in fit_results]
+        raise ValueError(f"fit_results is missing required keys: {missing_keys}")
 
     residuals = fit_results["residuals"]
     log_freq = fit_results["log_freq"]

@@ -223,8 +223,8 @@ def test_normalize_zero_std_dev():
     errors = np.array([0.1, 0.1, 0.1, 0.1])
     normalized_data, normalized_errors = normalize(data.copy(), errors.copy())
     assert np.all(normalized_data == 0)
-    # Errors should not be scaled if variance is zero
-    assert np.all(normalized_errors == errors)
+    # Errors should be NaN if variance is zero, as they cannot be scaled
+    assert np.all(np.isnan(normalized_errors))
 
 
 def test_detrend_loess_with_errors(sample_data):
@@ -239,14 +239,10 @@ def test_detrend_loess_with_errors(sample_data):
         time, trended_data.copy(), errors=errors.copy(), frac=0.5
     )
 
-    # Manually calculate expected error
-    smoothed_y = sm.nonparametric.lowess(trended_data, time, frac=0.5)[:, 1]
-    residuals = trended_data - smoothed_y
-    loess_se = np.std(residuals)
-    expected_errors = np.sqrt(np.square(errors) + np.square(loess_se))
-
+    # The new implementation does not propagate errors for LOESS and returns
+    # them unchanged, so the expected errors are the original errors.
     assert detrended_errors is not None
-    np.testing.assert_array_almost_equal(detrended_errors, expected_errors)
+    np.testing.assert_array_almost_equal(detrended_errors, errors)
 
 
 def test_detrend_with_nan_in_errors(sample_data):
@@ -256,11 +252,13 @@ def test_detrend_with_nan_in_errors(sample_data):
     errors = np.full_like(trended_data, 0.1, dtype=float)
     errors[3] = np.nan
 
-    with pytest.warns(UserWarning, match="NaNs found in error values"):
-        _, detrended_errors = detrend(time, trended_data.copy(), errors=errors.copy())
+    # The warning is no longer issued; NaNs are propagated directly.
+    _, detrended_errors = detrend(time, trended_data.copy(), errors=errors.copy())
 
-    # The output should not contain NaNs.
-    assert not np.isnan(detrended_errors).any()
+    # The NaN should propagate through the calculation.
+    assert np.isnan(detrended_errors[3])
+    # And other values should be finite.
+    assert np.all(np.isfinite(np.delete(detrended_errors, 3)))
 
 
 def test_preprocess_data_nan_propagation():
