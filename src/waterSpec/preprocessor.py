@@ -4,22 +4,6 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
-# Define a constant for the minimum number of data points required for analysis.
-MIN_DATA_POINTS_FOR_ANALYSIS = 10
-
-
-def _validate_data_length(data, stage="initial", min_length=MIN_DATA_POINTS_FOR_ANALYSIS):
-    """
-    Validates that the data has a sufficient number of non-NaN values at a
-    given preprocessing stage.
-    """
-    valid_points = np.sum(~np.isnan(data))
-    if valid_points < min_length:
-        raise ValueError(
-            f"The time series has only {valid_points} valid data points after the "
-            f"'{stage}' step, which is less than the required minimum of {min_length}."
-        )
-
 
 def detrend(x, data, errors=None):
     """
@@ -244,7 +228,6 @@ def preprocess_data(
     processed_data = handle_censored_data(
         data_series, strategy=censor_strategy, **censor_options
     )
-    _validate_data_length(processed_data, stage="censored data handling")
 
     # Align errors with data (set error to NaN where data is NaN)
     processed_errors = None
@@ -258,7 +241,6 @@ def preprocess_data(
         processed_data, processed_errors = log_transform(
             processed_data, processed_errors
         )
-        _validate_data_length(processed_data, stage="log-transform")
 
     # 3. Detrend
     if detrend_method == "linear":
@@ -278,8 +260,5 @@ def preprocess_data(
     # 4. Normalize
     if normalize_data:
         processed_data, processed_errors = normalize(processed_data, processed_errors)
-
-    # Final validation check
-    _validate_data_length(processed_data, stage="final")
 
     return processed_data, processed_errors
