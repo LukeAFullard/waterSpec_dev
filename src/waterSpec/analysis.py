@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import warnings
@@ -5,7 +6,7 @@ import warnings
 import numpy as np
 
 from .data_loader import load_data
-from .fitter import fit_segmented_spectrum, fit_spectrum_with_bootstrap
+from .fitter import fit_segmented_spectrum, fit_standard_model
 from .frequency_generator import generate_frequency_grid
 from .interpreter import interpret_results
 from .plotting import plot_spectrum
@@ -44,6 +45,7 @@ class Analysis:
         detrend_method="linear",
         normalize_data=False,
         detrend_options=None,
+        verbose=False,
     ):
         """
         Initializes the Analysis object by loading and preprocessing the data.
@@ -56,33 +58,28 @@ class Analysis:
                 errors. If provided, these will be used for weighted periodogram
                 calculation. Defaults to None.
             time_format (str, optional): The specific `strptime` format of the
-                time column to speed up parsing (e.g., `"%Y-%m-%d %H:%M:%S"`).
-                If None, the format is inferred automatically. Defaults to None.
+                time column to speed up parsing. If None, it is inferred.
             sheet_name (str or int, optional): If loading an Excel file, specify
-                the sheet name or index. Defaults to 0 (the first sheet).
+                the sheet name or index. Defaults to 0.
             param_name (str, optional): A descriptive name for the data parameter
                 being analyzed (e.g., "Nitrate Concentration"). Used for plot
                 titles and summaries. If None, defaults to `data_col`.
             censor_strategy (str, optional): The strategy for handling censored
                 (non-detect) data. See `preprocess.py` for options.
-                Defaults to 'drop'.
-            censor_options (dict, optional): A dictionary of options for the
-                chosen censoring strategy. Defaults to None.
-            log_transform_data (bool, optional): If True, the data is
-                log-transformed before analysis. This is often recommended for
-                environmental data. Defaults to False.
-            detrend_method (str, optional): The method used to detrend the
-                time series. Can be `'linear'`, `'loess'`, or None to disable.
-                Defaults to 'linear'.
-            normalize_data (bool, optional): If True, the data is normalized
-                (centered and scaled) after other preprocessing.
-                Defaults to False.
-            detrend_options (dict, optional): A dictionary of options for the
-                chosen detrending method. Defaults to None.
+            censor_options (dict, optional): Options for the censoring strategy.
+            log_transform_data (bool, optional): If True, log-transform the data.
+            detrend_method (str, optional): Method to detrend the time series
+                ('linear', 'loess', or None). Defaults to 'linear'.
+            normalize_data (bool, optional): If True, normalize the data.
+            detrend_options (dict, optional): Options for the detrending method.
+            verbose (bool, optional): If True, sets logging level to INFO.
+                Defaults to False (logging level WARNING).
         """
         self.param_name = param_name if param_name is not None else data_col
+        self._setup_logger(level=logging.INFO if verbose else logging.WARNING)
 
         # Load and preprocess data
+        self.logger.info("Loading and preprocessing data...")
         time_numeric, data_series, error_series = load_data(
             file_path,
             time_col,
@@ -109,18 +106,31 @@ class Analysis:
                 "Not enough valid data points remaining after preprocessing."
             )
 
-        # Store the processed data as instance attributes
         self.time = time_numeric[valid_indices]
         self.data = processed_data[valid_indices]
         self.errors = (
             processed_errors[valid_indices] if processed_errors is not None else None
         )
+        self.logger.info("Data loading and preprocessing complete.")
 
         # Attributes to be populated by analysis methods
         self.results = None
         self.frequency = None
         self.power = None
         self.ls_obj = None
+
+    def _setup_logger(self, level):
+        """Configures a logger for the Analysis instance."""
+        self.logger = logging.getLogger(f"waterSpec.{self.param_name}")
+        # Prevent duplicate handlers if logger is already configured
+        if not self.logger.handlers:
+            self.logger.setLevel(level)
+            handler = logging.StreamHandler()
+            formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
+            handler.setFormatter(formatter)
+            self.logger.addHandler(handler)
 
     def _sanitize_filename(self, filename):
         """Sanitizes a string to be a valid filename."""
@@ -130,6 +140,7 @@ class Analysis:
 
     def _calculate_periodogram(self, grid_type, normalization, num_grid_points):
         """Generates frequency grid and calculates the Lomb-Scargle periodogram."""
+        self.logger.info("Calculating Lomb-Scargle periodogram...")
         self.frequency = generate_frequency_grid(
             self.time, num_points=num_grid_points, grid_type=grid_type
         )
@@ -140,6 +151,7 @@ class Analysis:
             dy=self.errors,
             normalization=normalization,
         )
+        self.logger.info("Periodogram calculation complete.")
 
     def _perform_model_selection(
         self, fit_method, ci_method, n_bootstraps, p_threshold, max_breakpoints, seed
@@ -148,27 +160,29 @@ class Analysis:
         Performs fits for models with different numbers of breakpoints and
         selects the best one using BIC.
         """
-        # --- Step 1: Fit all candidate models ---
-        # We fit a standard linear model (0 breakpoints) and then fit segmented
-        # models for each number of breakpoints up to `max_breakpoints`.
+        self.logger.info("Performing model selection based on BIC...")
         all_models = []
 
         # Fit the standard model (0 breakpoints)
-        standard_results = fit_spectrum_with_bootstrap(
+        self.logger.info("Fitting standard model (0 breakpoints)...")
+        standard_results = fit_standard_model(
             self.frequency,
             self.power,
             method=fit_method,
             ci_method=ci_method,
             n_bootstraps=n_bootstraps,
             seed=seed,
+            logger=self.logger,
         )
         if "bic" in standard_results and np.isfinite(standard_results["bic"]):
             standard_results["model_type"] = "standard"
             standard_results["n_breakpoints"] = 0
             all_models.append(standard_results)
+            self.logger.info(f"Standard model fit complete. BIC: {standard_results['bic']:.2f}")
 
         # Fit segmented models (1 and possibly 2 breakpoints)
         for n_bp in range(1, max_breakpoints + 1):
+            self.logger.info(f"Fitting segmented model ({n_bp} breakpoint(s))...")
             seg_results = fit_segmented_spectrum(
                 self.frequency,
                 self.power,
@@ -177,14 +191,15 @@ class Analysis:
                 ci_method=ci_method,
                 n_bootstraps=n_bootstraps,
                 seed=seed,
+                logger=self.logger,
             )
-            # Only include the model if the fit was successful (returned a valid BIC)
             if "bic" in seg_results and np.isfinite(seg_results["bic"]):
                 seg_results["model_type"] = f"segmented_{n_bp}bp"
                 all_models.append(seg_results)
+                self.logger.info(f"Segmented model ({n_bp} bp) fit complete. BIC: {seg_results['bic']:.2f}")
 
-        # Handle the case where no models could be successfully fitted
         if not all_models:
+            self.logger.error("Model fitting failed for all model types.")
             return {
                 "betas": [np.nan],
                 "n_breakpoints": 0,
@@ -192,19 +207,18 @@ class Analysis:
                 "summary_text": "Model fitting failed for all model types.",
             }
 
-        # --- Step 2: Select the best model based on the lowest BIC ---
         best_model = min(all_models, key=lambda x: x["bic"])
+        self.logger.info(
+            f"Best model selected: {best_model['model_type']} "
+            f"(BIC: {best_model['bic']:.2f})"
+        )
 
-        # --- Step 3: Consolidate results for output ---
-        # The final results dictionary includes the best model's parameters,
-        # a record of all models considered, and metadata about the choice.
         fit_results = best_model.copy()
         fit_results["all_models"] = all_models
         fit_results["chosen_model"] = best_model["model_type"]
         fit_results["analysis_mode"] = "auto"
         fit_results["ci_method"] = ci_method
 
-        # Add a simplified type for easier downstream processing
         if best_model["n_breakpoints"] == 0:
             fit_results["chosen_model_type"] = "standard"
         else:
@@ -221,9 +235,7 @@ class Analysis:
         fap_method,
     ):
         """Detects significant peaks based on the chosen method."""
-        is_standard_success = "beta" in fit_results and np.isfinite(
-            fit_results.get("beta")
-        )
+        is_standard_success = "beta" in fit_results and np.isfinite(fit_results.get("beta"))
         is_segmented_success = (
             "betas" in fit_results
             and len(fit_results.get("betas", [])) > 0
@@ -234,16 +246,12 @@ class Analysis:
         if not fit_successful:
             return fit_results
 
+        self.logger.info(f"Detecting significant peaks using '{peak_detection_method}' method...")
         if peak_detection_method == "residual":
-            # If the user provides FAP parameters with the residual method,
-            # they will be ignored. Warn them to avoid confusion.
             if fap_method != "baluev" or fap_threshold != 0.01:
-                warnings.warn(
-                    (
-                        "Warning: 'peak_detection_method' is 'residual', so "
-                        "'fap_method' and 'fap_threshold' are ignored."
-                    ),
-                    UserWarning,
+                self.logger.warning(
+                    "'peak_detection_method' is 'residual', so 'fap_method' and "
+                    "'fap_threshold' parameters are ignored."
                 )
             peaks, threshold = find_peaks_via_residuals(
                 fit_results, ci=peak_detection_ci
@@ -263,18 +271,20 @@ class Analysis:
             fit_results["fap_level"] = level
             fit_results["fap_threshold"] = fap_threshold
         elif peak_detection_method is not None and peak_detection_method != "fap":
-            warnings.warn(
-                (
-                    f"Unknown peak_detection_method '{peak_detection_method}'. "
-                    "No peak detection performed."
-                ),
-                UserWarning,
+            self.logger.warning(
+                f"Unknown peak_detection_method '{peak_detection_method}'. "
+                "No peak detection performed."
             )
 
+        if "significant_peaks" in fit_results:
+            self.logger.info(
+                f"Found {len(fit_results['significant_peaks'])} significant peaks."
+            )
         return fit_results
 
     def _generate_outputs(self, results, output_dir):
         """Generates and saves the plot and summary text file."""
+        self.logger.info(f"Generating outputs in directory: {output_dir}")
         os.makedirs(output_dir, exist_ok=True)
         sanitized_name = self._sanitize_filename(self.param_name)
 
@@ -293,6 +303,8 @@ class Analysis:
         summary_path = os.path.join(output_dir, f"{sanitized_name}_summary.txt")
         with open(summary_path, "w") as f:
             f.write(results["summary_text"])
+        self.logger.info(f"Plot saved to {plot_path}")
+        self.logger.info(f"Summary saved to {summary_path}")
 
     def run_full_analysis(
         self,
@@ -314,46 +326,44 @@ class Analysis:
         """
         Runs the complete analysis workflow and saves all outputs to a directory.
 
-        This method performs an automatic analysis to choose the best model
-        (standard or segmented), calculates significant peaks, and saves a
+        This method performs an automatic analysis to choose the best spectral
+        model (standard or segmented), calculates significant peaks, and saves a
         plot and a text summary of the results.
 
         Args:
             output_dir (str): Path to the directory where outputs will be saved.
             fit_method (str, optional): Method for spectral slope fitting.
-                Defaults to 'theil-sen'.
+                Can be 'theil-sen' (default) or 'ols'.
             ci_method (str, optional): The method for calculating confidence
-                intervals. Can be `'bootstrap'` (default) for a robust,
-                non-parametric method, or `'parametric'` for a faster method
+                intervals. Can be 'bootstrap' (default) for a robust,
+                non-parametric method, or 'parametric' for a faster method
                 based on statistical theory.
             n_bootstraps (int, optional): Number of bootstrap samples for CI.
-                Only used if `ci_method` is `'bootstrap'`. Defaults to 1000.
+                Only used if `ci_method` is 'bootstrap'. Defaults to 1000.
             grid_type (str, optional): Type of frequency grid ('log' or 'linear').
                 Defaults to 'log'.
             num_grid_points (int, optional): The number of points to generate
                 for the frequency grid. Defaults to 200.
             peak_detection_method (str, optional): Method for peak detection.
-                - `'residual'` (default): Identifies peaks that are significant
+                - 'residual' (default): Identifies peaks that are significant
                   outliers from the fitted spectral model. Recommended.
-                - `'fap'`: Uses the traditional False Alarm Probability (FAP)
+                - 'fap': Uses the traditional False Alarm Probability (FAP)
                   method.
-                When using `'residual'`, the `fap_method` and `fap_threshold`
-                parameters are ignored. Defaults to 'residual'.
+                When using 'residual', `fap_method` and `fap_threshold` are ignored.
             peak_detection_ci (int, optional): The confidence interval (in %)
                 to use for the residual-based peak detection method.
                 Defaults to 95.
             fap_threshold (float, optional): The significance level for the FAP
                 peak detection method. Only used when `peak_detection_method`
-                is `'fap'`. Defaults to 0.01.
+                is 'fap'. Defaults to 0.01.
             fap_method (str, optional): The method for calculating the FAP.
-                The default, `'baluev'`, is a fast and recommended approximation.
-                The `'bootstrap'` method is slower but also available. Only used
-                when `peak_detection_method` is `'fap'`. Defaults to 'baluev'.
+                Can be 'baluev' (default) or 'bootstrap'. Only used when
+                `peak_detection_method` is 'fap'.
             normalization (str, optional): Normalization for the periodogram.
                 Defaults to 'standard'.
             p_threshold (float, optional): The p-value threshold for the
                 Davies test for a significant breakpoint in segmented
-                regression (only used for 1-breakpoint models). Defaults to 0.05.
+                regression (only for 1-breakpoint models). Defaults to 0.05.
             max_breakpoints (int, optional): The maximum number of breakpoints
                 to consider in segmented regression (0, 1, or 2). Defaults to 1.
             seed (int, optional): A seed for the random number generator to
@@ -386,6 +396,7 @@ class Analysis:
         )
 
         # 4. Interpret Results
+        self.logger.info("Interpreting final results and generating summary...")
         is_standard_success = "beta" in fit_results and np.isfinite(
             fit_results.get("beta")
         )
@@ -409,5 +420,5 @@ class Analysis:
         # 5. Generate and Save Outputs
         self._generate_outputs(self.results, output_dir)
 
-        print(f"Analysis complete. Outputs saved to '{output_dir}'.")
+        self.logger.info(f"Analysis complete. Outputs saved to '{output_dir}'.")
         return self.results

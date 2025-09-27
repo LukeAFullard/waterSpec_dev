@@ -4,49 +4,42 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
+# Define a constant for the minimum number of data points required for analysis.
+MIN_DATA_POINTS_FOR_ANALYSIS = 10
 
-def _validate_data_length(data, min_length=10):
+
+def _validate_data_length(data, stage="initial", min_length=MIN_DATA_POINTS_FOR_ANALYSIS):
     """
-    Validates that the data has a sufficient number of non-NaN values.
+    Validates that the data has a sufficient number of non-NaN values at a
+    given preprocessing stage.
     """
     valid_points = np.sum(~np.isnan(data))
     if valid_points < min_length:
         raise ValueError(
-            f"The time series has only {valid_points} valid data points, "
-            f"which is less than the required minimum of {min_length} for analysis."
+            f"The time series has only {valid_points} valid data points after the "
+            f"'{stage}' step, which is less than the required minimum of {min_length}."
         )
 
 
 def detrend(x, data, errors=None):
     """
     Removes the linear trend from a time series using Ordinary Least Squares.
-    This function is designed for unevenly spaced data and correctly handles
-    error propagation.
-
-    Note on error propagation: If errors are provided, this function propagates
-    the uncertainty from the original measurement and the uncertainty from the
-    linear fit. The final error is the quadrature sum of the original error
-    and the standard error of the trend line prediction.
     """
     valid_indices = ~np.isnan(data)
     if np.sum(valid_indices) < 2:
-        return data, errors
+        return data, errors  # Not enough points to detrend
 
     x_valid = x[valid_indices]
     y_valid = data[valid_indices]
 
-    # Fit a linear trend using statsmodels OLS
     X_with_const = sm.add_constant(x_valid)
     model = sm.OLS(y_valid, X_with_const)
     results = model.fit()
 
-    # Subtract the trend
     trend = results.predict(X_with_const)
     data[valid_indices] = y_valid - trend
 
-    # Propagate errors if provided
     if errors is not None:
-        # Ensure errors are valid where data is valid
         errors_valid = errors[valid_indices]
         if np.any(np.isnan(errors_valid)):
             warnings.warn(
@@ -56,9 +49,7 @@ def detrend(x, data, errors=None):
             )
             errors_valid = np.nan_to_num(errors_valid)
 
-        # Get the standard error of the mean prediction
         prediction_se = results.get_prediction(X_with_const).se_mean
-        # Combine in quadrature: var_new = var_old + var_pred
         new_err_sq = np.square(errors_valid) + np.square(prediction_se)
         errors[valid_indices] = np.sqrt(new_err_sq)
 
@@ -68,7 +59,6 @@ def detrend(x, data, errors=None):
 def normalize(data, errors=None):
     """
     Normalizes a time series to have a mean of 0 and a standard deviation of 1.
-    Also propagates errors if they are provided.
     """
     valid_indices = ~np.isnan(data)
     valid_data = data[valid_indices]
@@ -77,36 +67,39 @@ def normalize(data, errors=None):
 
     std_dev = np.std(valid_data)
 
-    if std_dev > 0:
+    if std_dev > 1e-9:  # Use a small threshold to avoid division by zero
         data[valid_indices] = (valid_data - np.mean(valid_data)) / std_dev
         if errors is not None:
             valid_errors = errors[valid_indices]
             errors[valid_indices] = valid_errors / std_dev
     else:
-        # If std_dev is 0, the data is constant. Center it at 0.
+        # If std_dev is negligible, data is constant. Center it at 0.
         data[valid_indices] = 0
-        # If data is constant, there is no variance to scale, so errors become 0.
         if errors is not None:
-            errors[valid_indices] = 0
+            # Errors are not scaled if variance is zero
+            errors[valid_indices] = errors[valid_indices]
 
     return data, errors
 
 
 def log_transform(data, errors=None):
     """
-    Applies a natural logarithm transformation to the data.
-    Also propagates errors if they are provided, using dy/y.
+    Applies a natural logarithm transformation to the data and propagates errors.
     """
     valid_indices = ~np.isnan(data)
     valid_data = data[valid_indices]
 
-    if np.any(valid_data <= 0):
-        raise ValueError("log-transform requires all data to be positive")
+    non_positive_mask = valid_data <= 0
+    if np.any(non_positive_mask):
+        num_non_positive = np.sum(non_positive_mask)
+        raise ValueError(
+            f"Log-transform requires all data to be positive, but {num_non_positive} "
+            "non-positive value(s) were found."
+        )
 
-    # Propagate errors first, before transforming the data
     if errors is not None:
         valid_errors = errors[valid_indices]
-        # Avoid division by zero, though we already checked for valid_data > 0
+        # Propagate errors before transforming data: new_err = old_err / value
         errors[valid_indices] = valid_errors / valid_data
 
     data[valid_indices] = np.log(valid_data)
@@ -120,74 +113,68 @@ def handle_censored_data(
     lower_multiplier=0.5,
     upper_multiplier=1.1,
     censor_symbol="<",
-    **kwargs,  # To gracefully accept other options
+    **kwargs,
 ):
     """
     Handles censored data in a pandas Series by replacing censor marks before
     coercing the series to a numeric type.
     """
-    # Ensure we are working with a pandas Series for string operations
     if not isinstance(data_series, pd.Series):
         series = pd.Series(data_series).copy()
     else:
         series = data_series.copy()
 
+    if pd.api.types.is_numeric_dtype(series):
+        return series.to_numpy()  # No processing needed if already numeric
+
     if strategy not in ["drop", "use_detection_limit", "multiplier"]:
         raise ValueError(
-            "Invalid strategy. Choose from "
+            "Invalid censor strategy. Choose from "
             "['drop', 'use_detection_limit', 'multiplier']"
         )
 
-    # Convert to string to safely find censor marks
     str_series = series.astype(str)
+    original_series = series.copy()  # Keep a copy for finding offenders
 
     # --- Handle left-censored data (e.g., "<5") ---
-    left_censored_mask = str_series.str.startswith(censor_symbol, na=False)
-    if left_censored_mask.any():
-        # Get the numeric value of the detection limit
-        left_values = pd.to_numeric(
-            str_series[left_censored_mask].str.lstrip(censor_symbol), errors="coerce"
+    left_mask = str_series.str.startswith(censor_symbol, na=False)
+    if left_mask.any():
+        values = pd.to_numeric(
+            str_series[left_mask].str.lstrip(censor_symbol), errors="coerce"
         )
-
-        # Replace the string value (e.g., "<5") with the appropriate numeric value
         if strategy == "drop":
-            series.loc[left_censored_mask] = np.nan
+            series.loc[left_mask] = np.nan
         elif strategy == "use_detection_limit":
-            series.loc[left_censored_mask] = left_values
+            series.loc[left_mask] = values
         elif strategy == "multiplier":
-            series.loc[left_censored_mask] = left_values * lower_multiplier
+            series.loc[left_mask] = values * lower_multiplier
 
     # --- Handle right-censored data (e.g., ">50") ---
-    right_censored_mask = str_series.str.startswith(">", na=False)
-    if right_censored_mask.any():
-        # Get the numeric value of the detection limit
-        right_values = pd.to_numeric(
-            str_series[right_censored_mask].str.lstrip(">"), errors="coerce"
-        )
-
-        # Replace the string value (e.g., ">50") with the appropriate numeric value
+    right_mask = str_series.str.startswith(">", na=False)
+    if right_mask.any():
+        values = pd.to_numeric(str_series[right_mask].str.lstrip(">"), errors="coerce")
         if strategy == "drop":
-            series.loc[right_censored_mask] = np.nan
+            series.loc[right_mask] = np.nan
         elif strategy == "use_detection_limit":
-            series.loc[right_censored_mask] = right_values
+            series.loc[right_mask] = values
         elif strategy == "multiplier":
-            series.loc[right_censored_mask] = right_values * upper_multiplier
+            series.loc[right_mask] = values * upper_multiplier
 
-    # --- Final conversion to numeric ---
-    # Now that censor marks are handled, convert the entire series to numeric.
-    # Any remaining non-numeric strings (e.g., "apple") or values that could
-    # not be coerced from the censor marks will become NaN.
+    # --- Final conversion and warning for remaining non-numeric values ---
     numeric_series = pd.to_numeric(series, errors="coerce")
-    if numeric_series.isnull().any():
-        # Find the original values that are now null
-        original_nan_mask = series[numeric_series.isnull()].notna()
-        original_offenders = series[numeric_series.isnull()][original_nan_mask]
-        if not original_offenders.empty:
-            warnings.warn(
-                "Non-numeric or unhandled censored values found in data column, "
-                "which will be treated as NaNs.",
-                UserWarning,
-            )
+    final_nan_mask = numeric_series.isnull()
+    original_nan_mask = original_series.isnull()
+
+    # Identify values that became NaN during processing
+    newly_nan_mask = final_nan_mask & ~original_nan_mask
+    if newly_nan_mask.any():
+        offenders = original_series[newly_nan_mask].unique()
+        warnings.warn(
+            "Non-numeric or unhandled censored values were found in the data column "
+            "and have been converted to NaN. Examples: "
+            f"{list(offenders[:5])}",
+            UserWarning,
+        )
 
     return numeric_series.to_numpy()
 
@@ -195,57 +182,45 @@ def handle_censored_data(
 def detrend_loess(x, y, errors=None, **kwargs):
     """
     Removes a non-linear trend from a time series using LOESS.
-
-    This function is a wrapper around `statsmodels.nonparametric.lowess.lowess`.
-    Any additional keyword arguments are passed directly to the statsmodels function.
-
-    Note on error propagation: If errors are provided, this function propagates
-    the uncertainty from the original measurement and the uncertainty from the
-    LOESS fit. The final error is the quadrature sum of the original error
-    and the standard deviation of the LOESS residuals, which serves as an
-    estimate of the model's prediction uncertainty. This is an approximation
-    and should be used with caution.
-
-    Args:
-        x (np.ndarray): The independent variable (time).
-        y (np.ndarray): The dependent variable (data).
-        errors (np.ndarray, optional): The measurement errors. Defaults to None.
-        **kwargs: Additional keyword arguments for `statsmodels.lowess`.
-                  Common arguments include `frac` (default 0.5) and `it` (default 3).
     """
-    # Set a default for `frac` if not provided, consistent with the old signature
+    # Set a default for `frac` if not provided
     if "frac" not in kwargs:
         kwargs["frac"] = 0.5
 
     valid_indices = ~np.isnan(y)
-    if np.sum(valid_indices) < 2:
+    num_valid = np.sum(valid_indices)
+
+    # LOESS requires a minimum number of points to function properly.
+    # This check prevents statsmodels from throwing an error.
+    min_points_for_loess = 5
+    if num_valid < min_points_for_loess:
+        warnings.warn(
+            f"Not enough data points ({num_valid}) for LOESS detrending. "
+            f"A minimum of {min_points_for_loess} is required. Skipping.",
+            UserWarning,
+        )
         return y, errors
 
     x_valid = x[valid_indices]
     y_valid = y[valid_indices]
 
-    # Perform LOESS smoothing
     smoothed_y = sm.nonparametric.lowess(y_valid, x_valid, **kwargs)[:, 1]
-
-    # Detrend the data
-    detrended_y = np.full_like(y, np.nan)
     residuals = y_valid - smoothed_y
+    detrended_y = np.full_like(y, np.nan)
     detrended_y[valid_indices] = residuals
 
-    # Propagate errors if provided
     if errors is not None:
         errors_valid = errors[valid_indices]
         if np.any(np.isnan(errors_valid)):
             warnings.warn(
-                "NaNs found in error values corresponding to valid data points. "
-                "These will be treated as having zero error for propagation.",
+                "NaNs in error values corresponding to valid data points will be "
+                "treated as zero for error propagation.",
                 UserWarning,
             )
             errors_valid = np.nan_to_num(errors_valid)
 
         # Estimate LOESS fit uncertainty as the std of the residuals
         loess_se = np.std(residuals)
-        # Combine in quadrature
         new_err_sq = np.square(errors_valid) + np.square(loess_se)
         errors[valid_indices] = np.sqrt(new_err_sq)
 
@@ -262,11 +237,10 @@ def preprocess_data(
     detrend_method=None,
     normalize_data=False,
     detrend_options=None,
-    min_length=10,
 ):
     """
-    A wrapper function that applies a series of preprocessing steps.
-    The order of operations is:
+    A wrapper function that applies a series of preprocessing steps in a
+    defined order:
     1. Handle censored data
     2. Log-transform (if specified)
     3. Detrend (if specified)
@@ -277,22 +251,27 @@ def preprocess_data(
     if censor_options is None:
         censor_options = {}
 
+    # 1. Handle censored data
     processed_data = handle_censored_data(
         data_series, strategy=censor_strategy, **censor_options
     )
-    _validate_data_length(processed_data, min_length=min_length)
+    _validate_data_length(processed_data, stage="censored data handling")
 
+    # Align errors with data (set error to NaN where data is NaN)
     processed_errors = None
     if error_series is not None:
         processed_errors = error_series.to_numpy(copy=True)
         nan_mask = np.isnan(processed_data)
         processed_errors[nan_mask] = np.nan
 
+    # 2. Log-transform
     if log_transform_data:
         processed_data, processed_errors = log_transform(
             processed_data, processed_errors
         )
+        _validate_data_length(processed_data, stage="log-transform")
 
+    # 3. Detrend
     if detrend_method == "linear":
         processed_data, processed_errors = detrend(
             time_numeric, processed_data, errors=processed_errors
@@ -303,12 +282,15 @@ def preprocess_data(
         )
     elif detrend_method is not None:
         warnings.warn(
-            f"Unknown detrending method '{detrend_method}'. "
-            "No detrending will be applied.",
+            f"Unknown detrending method '{detrend_method}'. No detrending applied.",
             UserWarning,
         )
 
+    # 4. Normalize
     if normalize_data:
         processed_data, processed_errors = normalize(processed_data, processed_errors)
+
+    # Final validation check
+    _validate_data_length(processed_data, stage="final")
 
     return processed_data, processed_errors
