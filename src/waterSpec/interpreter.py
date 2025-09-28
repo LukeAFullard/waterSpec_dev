@@ -193,11 +193,6 @@ def interpret_results(
     if n_breakpoints > 0:
         # --- Segmented Model Summary ---
         summary_parts = [f"Segmented Analysis for: {param_name}"]
-        if ci_method == "parametric":
-            summary_parts.append(
-                "  [Note: Parametric CIs are only available for the first slope and breakpoints.]"
-            )
-
         # --- Handle the first segment (always "Low-Frequency") ---
         beta1 = fit_results["betas"][0]
         beta1_ci = fit_results.get("betas_ci", [(np.nan, np.nan)])[0]
