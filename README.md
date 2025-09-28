@@ -47,6 +47,33 @@ results = analyzer.run_full_analysis(
 print(results['summary_text'])
 ```
 
+Which produces the following summary:
+
+```text
+Automatic Analysis for: Segmented Spectrum Example
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = 59.23    (β = 0.77)
+
+  Models that failed to fit:
+    - Segmented model (1 bp): Unknown error
+
+==> Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: Segmented Spectrum Example
+Value: β = 0.77 (95% CI: 0.61–0.92 (parametric))
+Persistence Level: 🟡 Mixed / weak persistence
+Scientific Meaning: -0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, suggesting event-driven transport.
+Contextual Comparison: Similar to TSS (Surface runoff-dominated).
+
+-----------------------------------
+Significant Periodicities Found:
+  - Period: 1.5 days (Fit Residual: 3.00)
+  - Period: 6.6 months (Fit Residual: 2.33)
+```
+
 <p align="center">
   <img src="example_output/Segmented_Spectrum_Example_spectrum_plot.png" alt="Segmented Spectrum Example" width="90%"/>
 </p>
@@ -84,6 +111,41 @@ results = analyzer.run_full_analysis(
 
 # The summary text is available in the returned dictionary
 print(results['summary_text'])
+```
+
+This results in the following summary, correctly identifying the 30-day cycle:
+
+```text
+Automatic Analysis for: Peak Detection Example
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = 282.50   (β = 1.13)
+  - Segmented (1 BP) BIC = 174.68   (β1=-0.53, β2=2.98)
+
+==> Chosen Model: Segmented 1bp
+-----------------------------------
+
+Details for Chosen (Segmented 1bp) Model:
+Segmented Analysis for: Peak Detection Example
+  [Note: Parametric CIs are only available for the first slope and breakpoints.]
+Low-Frequency (Long-term) Fit:
+  β1 = -0.53 (95% CI: -0.94–-0.12 (parametric))
+  Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.
+  Persistence: 🔴 Event-driven
+--- Breakpoint 1 @ ~25.2 days (95% CI: 31.9 days–20.0 days (parametric)) ---
+High-Frequency (Short-term) Fit:
+  β2 = 2.98 (95% CI: 2.64–3.33 (parametric))
+  Interpretation: 1 < β < 3 (fBm-like): Strong persistence, suggesting transport is damped by storage.
+  Persistence: 🟢 Persistent / subsurface dominated
+
+-----------------------------------
+Significant Periodicities Found (at 5.0% FAP Level):
+  - Period: 30.4 days
+
+-----------------------------------
+Uncertainty Report:
+  - Warning: The 95% CI for β1 is wide (0.82 > 0.5), suggesting high uncertainty.
+  - Warning: The 95% CI for β2 is wide (0.69 > 0.5), suggesting high uncertainty.
 ```
 
 <p align="center">
@@ -153,7 +215,41 @@ print(results['summary_text'])
 
 ### Example Output
 
-Running the code above will produce a plot (`example_output/Nitrate_Concentration_at_Site_A_spectrum_plot.png`) and a text summary (`example_output/Nitrate_Concentration_at_Site_A_summary.txt`). The summary text provides a comprehensive overview of the analysis, including a comparison of different spectral models and a list of any significant periodicities found in the data.
+Running the code above will produce the following plot and summary text. The summary provides a comprehensive overview of the analysis, including a comparison of different spectral models and a list of any significant periodicities found in the data.
+
+```text
+Automatic Analysis for: Nitrate Concentration at Site A
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = 90.05    (β = -0.37)
+  - Segmented (1 BP) BIC = 47.73    (β1=0.36, β2=-1.52)
+
+==> Chosen Model: Segmented 1bp
+-----------------------------------
+
+Details for Chosen (Segmented 1bp) Model:
+Segmented Analysis for: Nitrate Concentration at Site A
+  [Note: Parametric CIs are only available for the first slope and breakpoints.]
+Low-Frequency (Long-term) Fit:
+  β1 = 0.36 (95% CI: -0.11–0.83 (parametric))
+  Interpretation: -0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, suggesting event-driven transport.
+  Persistence: 🔴 Event-driven
+--- Breakpoint 1 @ ~10.3 days (95% CI: 14.1 days–7.5 days (parametric)) ---
+High-Frequency (Short-term) Fit:
+  β2 = -1.52 (95% CI: -1.97–-1.08 (parametric))
+  Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.
+  Persistence: 🔴 Event-driven
+
+-----------------------------------
+Significant Periodicities Found:
+  - Period: 3.0 days (Fit Residual: 4.29)
+  - Period: 5.9 days (Fit Residual: 2.51)
+
+-----------------------------------
+Uncertainty Report:
+  - Warning: The 95% CI for β1 is wide (0.95 > 0.5), suggesting high uncertainty.
+  - Warning: The 95% CI for β2 is wide (0.89 > 0.5), suggesting high uncertainty.
+```
 
 <p align="center">
   <img src="example_output/Nitrate_Concentration_at_Site_A_spectrum_plot.png" alt="Quick Start Example Plot" width="90%"/>
