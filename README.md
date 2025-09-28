@@ -10,11 +10,16 @@ The methods used in this package are inspired by the work of *Liang et al. (2021
 
 ## Feature 1: Spectral Power Coefficent (Beta) Estimation
 
-`waterSpec` automatically fits and compares spectral models with 0, 1, or 2 breakpoints to find the best fit for your data. It uses the Bayesian Information Criterion (BIC) to select the most appropriate model and provides 95% confidence intervals for the spectral exponent, beta.
+A key feature of `waterSpec` is its ability to characterize the relationship between the frequency and power of a time series, which is often described by the spectral exponent, beta (β). The package can model this relationship in two ways:
 
-### Example: Segmented Spectrum
+1.  **Linear (Standard) Fit**: A single slope across the entire frequency range.
+2.  **Segmented (Breakpoint) Fit**: Two or more slopes, indicating that the relationship changes at specific frequencies (breakpoints).
 
-This example demonstrates how `waterSpec` can identify a breakpoint in the spectrum, indicating a change in the underlying processes at different timescales.
+`waterSpec` automates the complex task of model selection. It fits both linear and segmented models and uses the **Bayesian Information Criterion (BIC)** to determine the most appropriate model for your data, preventing overfitting and providing a more objective analysis.
+
+### Example: Automatic Model Selection
+
+This example demonstrates how `waterSpec` automatically selects the best spectral model. In this case, while a segmented model was considered, the BIC score indicated that a **linear model** was the best fit for the data. This showcases the package's ability to make objective, data-driven decisions.
 
 ```python
 from waterSpec import Analysis
@@ -150,6 +155,10 @@ print(results['summary_text'])
 
 Running the code above will produce a plot (`example_output/Nitrate_Concentration_at_Site_A_spectrum_plot.png`) and a text summary (`example_output/Nitrate_Concentration_at_Site_A_summary.txt`). The summary text provides a comprehensive overview of the analysis, including a comparison of different spectral models and a list of any significant periodicities found in the data.
 
+<p align="center">
+  <img src="example_output/Nitrate_Concentration_at_Site_A_spectrum_plot.png" alt="Quick Start Example Plot" width="90%"/>
+</p>
+
 ### Advanced Usage
 
 `waterSpec` provides several options to customize the analysis.
@@ -192,6 +201,15 @@ results = analyzer.run_full_analysis(
 )
 print(results['summary_text'])
 ```
+
+#### A Note on Confidence Intervals
+
+`waterSpec` offers two methods for calculating confidence intervals (CIs):
+
+-   `'bootstrap'`: A robust, non-parametric method that is recommended for final analysis. It can be computationally intensive.
+-   `'parametric'`: A faster method based on statistical theory. It is suitable for initial exploration and is used in the examples in this `README` for speed.
+
+For the most reliable results, it is recommended to use the `'bootstrap'` method.
 
 ### Dependencies and Citation
 
