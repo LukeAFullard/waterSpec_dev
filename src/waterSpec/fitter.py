@@ -177,6 +177,30 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
     bootstrap_fits = []  # Store each bootstrap fit line
     successful_fits = 0
 
+    # Extract the starting breakpoints from the initial fit's results.
+    # This was the source of a bug where bootstrap CIs would always fail.
+    # The previous code tried to access a non-existent `estimates` attribute
+    # on the `pw_fit` object.
+    initial_results = pw_fit.get_results()
+    initial_estimates = initial_results.get("estimates")
+
+    if not initial_estimates:
+        if logger:
+            logger.warning("Could not perform bootstrap: initial fit failed or produced no estimates.")
+        else:
+            warnings.warn("Could not perform bootstrap: initial fit failed or produced no estimates.", UserWarning)
+        return {
+            "betas_ci": [(np.nan, np.nan)] * (n_breakpoints + 1),
+            "breakpoints_ci": [(np.nan, np.nan)] * n_breakpoints,
+            "fit_ci_lower": None,
+            "fit_ci_upper": None,
+        }
+
+    start_values = [
+        initial_estimates[f"breakpoint{i+1}"]["estimate"]
+        for i in range(n_breakpoints)
+    ]
+
     for _ in range(n_bootstraps):
         resampled_residuals = rng.choice(residuals, size=len(residuals), replace=True)
         synthetic_log_power = log_power_fit + resampled_residuals
@@ -186,12 +210,19 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
                 log_freq,
                 synthetic_log_power,
                 n_breakpoints=n_breakpoints,
-                start_values=[bp["estimate"] for bp in pw_fit.estimates.values() if "breakpoint" in bp["name"]],
+                start_values=start_values,
             )
-            if not bootstrap_pw_fit.estimates["converged"]:
+
+            # Bug fix: Correctly get results from the bootstrap fit object.
+            # The previous code incorrectly tried to access a non-existent `estimates` attribute.
+            bootstrap_results = bootstrap_pw_fit.get_results()
+            if not bootstrap_results["converged"]:
                 continue
 
-            estimates = bootstrap_pw_fit.estimates
+            estimates = bootstrap_results["estimates"]
+            if not estimates:
+                continue
+
             for i in range(n_breakpoints):
                 bp_val = np.exp(estimates[f"breakpoint{i+1}"]["estimate"])
                 bootstrap_breakpoints[i].append(bp_val)
@@ -264,10 +295,8 @@ def _extract_parametric_segmented_cis(pw_fit, n_breakpoints, ci=95, logger=None)
     """
     Extracts parametric CIs from a fitted piecewise_regression model.
 
-    Note: The library provides CIs for the first slope (alpha1) and the
-    breakpoints, but not directly for the slopes of subsequent segments. This
-    function returns NaNs for the CIs of subsequent slopes. Bootstrap CIs
-    do not have this limitation and are recommended.
+    Note: The library provides CIs for all slopes (alphas) and breakpoints.
+    This function extracts them.
     """
     msg = (
         "Parametric confidence intervals for segmented models assume normality "
@@ -279,28 +308,33 @@ def _extract_parametric_segmented_cis(pw_fit, n_breakpoints, ci=95, logger=None)
     else:
         warnings.warn(msg, UserWarning)
 
-    estimates = pw_fit.get_results()["estimates"]
+    results = pw_fit.get_results()
+    if not results or "estimates" not in results:
+        return {"betas_ci": [], "breakpoints_ci": []}
+
+    estimates = results["estimates"]
     betas_ci = []
     breakpoints_ci = []
 
-    # CI for the first slope (alpha1) is available directly.
-    alpha1_ci = estimates.get("alpha1", {}).get("confidence_interval")
-    if alpha1_ci is not None:
-        # Beta is the negative of the slope, so the CI is inverted.
-        betas_ci.append((-alpha1_ci[1], -alpha1_ci[0]))
-    else:
-        betas_ci.append((np.nan, np.nan))
+    # Bug fix: The piecewise-regression library provides CIs for all alphas.
+    # The previous implementation only extracted the first one. This loop
+    # now correctly extracts CIs for all segment slopes.
+    for i in range(1, n_breakpoints + 2):
+        alpha_key = f"alpha{i}"
+        alpha_info = estimates.get(alpha_key, {})
+        alpha_ci = alpha_info.get("confidence_interval")
 
-    # For subsequent slopes, parametric CIs are not directly available
-    # without making assumptions about the library's internal API.
-    for _ in range(n_breakpoints):
-        betas_ci.append((np.nan, np.nan))
+        if alpha_ci and all(c is not None for c in alpha_ci):
+            # Beta is the negative of the slope, so the CI is inverted.
+            betas_ci.append((-alpha_ci[1], -alpha_ci[0]))
+        else:
+            betas_ci.append((np.nan, np.nan))
 
     # CIs for the breakpoints
     for i in range(1, n_breakpoints + 1):
         bp_info = estimates.get(f"breakpoint{i}", {})
         bp_ci_log = bp_info.get("confidence_interval")
-        if bp_ci_log is not None:
+        if bp_ci_log and all(c is not None for c in bp_ci_log):
             # Convert from log space back to frequency space
             breakpoints_ci.append((np.exp(bp_ci_log[0]), np.exp(bp_ci_log[1])))
         else:
