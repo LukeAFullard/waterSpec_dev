@@ -1,22 +1,23 @@
 from waterSpec import Analysis
 
 # 1. Define the path to your data file
-file_path = 'examples/sample_data.csv'
+file_path = 'examples/periodic_data.csv'
 
 # 2. Create the analyzer object
-# This loads and preprocesses the data immediately.
 analyzer = Analysis(
     file_path=file_path,
     time_col='timestamp',
-    data_col='concentration',
-    param_name='Nitrate Concentration at Site A' # A descriptive name for plots
+    data_col='value',
+    param_name='Peak Detection Example'
 )
 
 # 3. Run the full analysis
-# This command runs the analysis, saves the outputs, and returns the results.
+# We'll use settings that are friendly for a quick example run
 results = analyzer.run_full_analysis(
     output_dir='example_output',
-    ci_method='parametric' # Use faster CI calculation
+    ci_method='parametric',
+    peak_detection_method='fap', # Use FAP for this example
+    fap_threshold=0.05
 )
 
 # The summary text is available in the returned dictionary

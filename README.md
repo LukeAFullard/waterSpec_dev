@@ -8,7 +8,87 @@
 
 The methods used in this package are inspired by the work of *Liang et al. (2021)*.
 
-## Core Features
+## Feature 1: Spectral Power Coefficent (Beta) Estimation
+
+`waterSpec` automatically fits and compares spectral models with 0, 1, or 2 breakpoints to find the best fit for your data. It uses the Bayesian Information Criterion (BIC) to select the most appropriate model and provides 95% confidence intervals for the spectral exponent, beta.
+
+### Example: Segmented Spectrum
+
+This example demonstrates how `waterSpec` can identify a breakpoint in the spectrum, indicating a change in the underlying processes at different timescales.
+
+```python
+from waterSpec import Analysis
+
+# 1. Define the path to your data file
+file_path = 'examples/segmented_data.csv'
+
+# 2. Create the analyzer object
+analyzer = Analysis(
+    file_path=file_path,
+    time_col='timestamp',
+    data_col='value',
+    param_name='Segmented Spectrum Example'
+)
+
+# 3. Run the full analysis
+# We'll run a faster analysis by reducing the grid points and using parametric CIs
+results = analyzer.run_full_analysis(
+    output_dir='example_output',
+    num_grid_points=100,      # Lower resolution for speed
+    ci_method='parametric'    # Use faster CI calculation
+)
+
+# The summary text is available in the returned dictionary
+print(results['summary_text'])
+```
+
+<p align="center">
+  <img src="example_output/Segmented_Spectrum_Example_spectrum_plot.png" alt="Segmented Spectrum Example" width="90%"/>
+</p>
+
+## Feature 2: Peak Detection
+
+`waterSpec` can identify statistically significant periodicities in your time series using either False Alarm Probability (FAP) or residual-based methods. This is useful for detecting cyclical patterns, such as seasonal or diurnal signals.
+
+### Example: Detecting a 30-day Cycle
+
+This example shows how to use the FAP method to find a known periodic signal in the data.
+
+```python
+from waterSpec import Analysis
+
+# 1. Define the path to your data file
+file_path = 'examples/periodic_data.csv'
+
+# 2. Create the analyzer object
+analyzer = Analysis(
+    file_path=file_path,
+    time_col='timestamp',
+    data_col='value',
+    param_name='Peak Detection Example'
+)
+
+# 3. Run the full analysis
+# We'll use settings that are friendly for a quick example run
+results = analyzer.run_full_analysis(
+    output_dir='example_output',
+    ci_method='parametric',
+    peak_detection_method='fap', # Use FAP for this example
+    fap_threshold=0.05
+)
+
+# The summary text is available in the returned dictionary
+print(results['summary_text'])
+```
+
+<p align="center">
+  <img src="example_output/Peak_Detection_Example_spectrum_plot.png" alt="Peak Detection Example" width="90%"/>
+</p>
+
+---
+## Full Documentation
+
+### Core Features
 
 `waterSpec` provides a comprehensive and robust workflow for spectral analysis:
 
@@ -19,7 +99,7 @@ The methods used in this package are inspired by the work of *Liang et al. (2021
 -   **Significant Peak Detection**: Identifies statistically significant periodicities in your time series using either False Alarm Probability (FAP) or residual-based methods.
 -   **Publication-Quality Outputs**: Generates high-quality plots and detailed text summaries of the analysis, ready for inclusion in reports and publications.
 
-## Installation
+### Installation
 
 This package is not yet on PyPI. To install it, clone this repository and install it in editable mode using pip.
 
@@ -36,7 +116,7 @@ pip install -e .
 pip install -e '.[test]'
 ```
 
-## Quick Start
+### Quick Start
 
 The recommended workflow is centered around the `waterSpec.Analysis` object. You can run a complete analysis, generating a plot and a detailed text summary, with just a few lines of code.
 
@@ -57,21 +137,24 @@ analyzer = Analysis(
 
 # 3. Run the full analysis
 # This command runs the analysis, saves the outputs, and returns the results.
-results = analyzer.run_full_analysis(output_dir='example_output')
+results = analyzer.run_full_analysis(
+    output_dir='example_output',
+    ci_method='parametric' # Use faster CI calculation for the example
+)
 
 # The summary text is available in the returned dictionary
 print(results['summary_text'])
 ```
 
-## Example Output
+### Example Output
 
 Running the code above will produce a plot (`example_output/Nitrate_Concentration_at_Site_A_spectrum_plot.png`) and a text summary (`example_output/Nitrate_Concentration_at_Site_A_summary.txt`). The summary text provides a comprehensive overview of the analysis, including a comparison of different spectral models and a list of any significant periodicities found in the data.
 
-## Advanced Usage
+### Advanced Usage
 
 `waterSpec` provides several options to customize the analysis.
 
-### Data Loading Options
+#### Data Loading Options
 
 You can control how data is loaded by passing optional arguments to the `Analysis` constructor:
 
@@ -90,7 +173,7 @@ analyzer = Analysis(
 )
 ```
 
-### Analysis Options
+#### Analysis Options
 
 The `run_full_analysis` method offers several parameters to fine-tune the spectral analysis:
 
@@ -110,13 +193,13 @@ results = analyzer.run_full_analysis(
 print(results['summary_text'])
 ```
 
-## Dependencies and Citation
+### Dependencies and Citation
 
 The segmented regression analysis in this package is powered by the `piecewise-regression` library. If you use the segmented model results from `waterSpec` in your research, please cite the following paper:
 
 > Pilgrim, C. (2021). piecewise-regression (aka segmented regression) in Python. Journal of Open Source Software, 6(68), 3859. https://doi.org/10.21105/joss.03859
 
-## Citing the Methodology
+### Citing the Methodology
 
 The methods used in this package are based on the following article. Please cite it if you use `waterSpec` in your research.
 

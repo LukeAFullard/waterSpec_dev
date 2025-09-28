@@ -1,22 +1,22 @@
 from waterSpec import Analysis
 
 # 1. Define the path to your data file
-file_path = 'examples/sample_data.csv'
+file_path = 'examples/segmented_data.csv'
 
 # 2. Create the analyzer object
-# This loads and preprocesses the data immediately.
 analyzer = Analysis(
     file_path=file_path,
     time_col='timestamp',
-    data_col='concentration',
-    param_name='Nitrate Concentration at Site A' # A descriptive name for plots
+    data_col='value',
+    param_name='Segmented Spectrum Example'
 )
 
 # 3. Run the full analysis
-# This command runs the analysis, saves the outputs, and returns the results.
+# We'll run a faster analysis by reducing the grid points and using parametric CIs
 results = analyzer.run_full_analysis(
     output_dir='example_output',
-    ci_method='parametric' # Use faster CI calculation
+    num_grid_points=100,      # Lower resolution for speed
+    ci_method='parametric'    # Use faster CI calculation
 )
 
 # The summary text is available in the returned dictionary
