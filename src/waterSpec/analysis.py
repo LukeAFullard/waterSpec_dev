@@ -444,11 +444,15 @@ class Analysis:
             num_grid_points (int, optional): The number of points to generate
                 for the frequency grid. Defaults to 200.
             peak_detection_method (str, optional): Method for peak detection.
-                - 'residual' (default): Identifies peaks that are significant
+                The available options are:
+
+                - `'residual'` (default): Identifies peaks that are significant
                   outliers from the fitted spectral model. Recommended.
-                - 'fap': Uses the traditional False Alarm Probability (FAP)
+                - `'fap'`: Uses the traditional False Alarm Probability (FAP)
                   method.
-                When using 'residual', `fap_method` and `fap_threshold` are ignored.
+
+                When using `'residual'`, `fap_method` and `fap_threshold` are
+                ignored.
             peak_detection_ci (int, optional): The confidence interval (in %)
                 to use for the residual-based peak detection method.
                 Defaults to 95.
