@@ -114,7 +114,7 @@ print(results['summary_text'])
 
 The segmented regression analysis in this package is powered by the `piecewise-regression` library. If you use the segmented model results from `waterSpec` in your research, please cite the following paper:
 
-> Maini, C., & Muggeo, V. M. R. (2022). piecewise-regression: a python package for segmented analysis. Journal of Open Source Software, 7(71), 3859. https://doi.org/10.21105/joss.03859
+> Pilgrim, C. (2021). piecewise-regression (aka segmented regression) in Python. Journal of Open Source Software, 6(68), 3859. https://doi.org/10.21105/joss.03859
 
 ## Citing the Methodology
 
