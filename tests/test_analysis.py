@@ -557,3 +557,54 @@ def test_analysis_warns_on_ignored_peak_detection_ci(tmp_path, mocker):
         "'peak_detection_method' is 'fap', so the 'peak_detection_ci' "
         "parameter is ignored."
     )
+
+
+def test_is_fit_successful_logic(tmp_path):
+    """Test the internal _is_fit_successful helper function directly."""
+    # Need an analyzer instance to call the private method
+    time, series = generate_synthetic_series()
+    file_path = create_test_data_file(tmp_path, time, series)
+    analyzer = Analysis(file_path, "time", "value")
+
+    # Test successful standard fit
+    successful_standard = {"beta": 1.0}
+    assert analyzer._is_fit_successful(successful_standard)
+
+    # Test successful segmented fit
+    successful_segmented = {"betas": [1.0, 2.0]}
+    assert analyzer._is_fit_successful(successful_segmented)
+
+    # Test unsuccessful standard fit (e.g., NaN result)
+    failed_standard = {"beta": np.nan}
+    assert not analyzer._is_fit_successful(failed_standard)
+
+    # Test unsuccessful segmented fit (e.g., NaN result)
+    failed_segmented = {"betas": [np.nan, 2.0]}
+    assert not analyzer._is_fit_successful(failed_segmented)
+
+    # Test with an empty dictionary
+    empty_fit = {}
+    assert not analyzer._is_fit_successful(empty_fit)
+
+
+def test_peak_detection_ignored_parameter_warning(tmp_path, mocker):
+    """
+    Test that a warning is issued if fap parameters are passed when using
+    the 'residual' peak detection method, as they will be ignored.
+    """
+    file_path = "examples/sample_data.csv"
+    analyzer = Analysis(file_path, "timestamp", "concentration", verbose=True)
+    spy_logger = mocker.spy(analyzer.logger, "warning")
+
+    # Test for ignored fap parameters when using 'residual' method
+    analyzer.run_full_analysis(
+        output_dir=tmp_path,
+        peak_detection_method="residual",
+        fap_method="bootstrap",  # non-default, should be ignored
+        fap_threshold=0.05,  # non-default, should be ignored
+        n_bootstraps=0,
+    )
+    spy_logger.assert_any_call(
+        "'peak_detection_method' is 'residual', so 'fap_method' and "
+        "'fap_threshold' parameters are ignored."
+    )
