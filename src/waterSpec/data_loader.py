@@ -152,20 +152,25 @@ def load_data(
 
     # 7. Sort by time and check for monotonicity
     clean_df = clean_df.sort_values(by="time").reset_index(drop=True)
-    time_numeric = (clean_df["time"].astype(np.int64) // 10**9).to_numpy()
+    # Convert to nanoseconds since epoch to check for monotonicity with full precision.
+    time_numeric_ns = clean_df["time"].astype(np.int64).to_numpy()
 
-    if len(time_numeric) > 1:
-        time_diffs = np.diff(time_numeric)
+    # Check for strict monotonicity. After sorting, any non-positive difference
+    # indicates a duplicate or out-of-order timestamp.
+    if len(time_numeric_ns) > 1:
+        time_diffs = np.diff(time_numeric_ns)
         if not np.all(time_diffs > 0):
-            # Find all indices where the time difference is not positive
-            error_indices = np.where(time_diffs <= 0)[0]
-            # Report the first violation
-            first_error_idx = error_indices[0]
-            violating_timestamp = clean_df["time"].iloc[first_error_idx + 1]
+            # Find the index of the first violation for a precise error message.
+            first_violation_idx = np.flatnonzero(time_diffs <= 0)[0] + 1
+            violating_timestamp = clean_df["time"].iloc[first_violation_idx]
             raise ValueError(
-                "Time column is not strictly monotonic increasing. "
-                "Duplicate or out-of-order timestamps found. First violation "
-                f"at index {first_error_idx + 1} with value: {violating_timestamp}"
+                "Time column is not strictly monotonic increasing. This can be "
+                "caused by duplicate or out-of-order timestamps. First "
+                f"violation found at index {first_violation_idx} with value: "
+                f"{violating_timestamp}"
             )
 
-    return time_numeric, clean_df["data"], clean_df.get("error")
+    # Return time in seconds (as a float) for compatibility with downstream
+    # analysis functions (e.g., Lomb-Scargle).
+    time_numeric_sec = time_numeric_ns / 1e9
+    return time_numeric_sec, clean_df["data"], clean_df.get("error")

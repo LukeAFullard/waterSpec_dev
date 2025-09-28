@@ -8,67 +8,81 @@ import statsmodels.api as sm
 def detrend(x, data, errors=None):
     """
     Removes the linear trend from a time series using Ordinary Least Squares.
+    This function returns new arrays and does not modify inputs.
     """
-    valid_indices = ~np.isnan(data)
+    # Create copies to avoid modifying the original arrays
+    detrended_data = np.copy(data)
+    propagated_errors = np.copy(errors) if errors is not None else None
+
+    valid_indices = ~np.isnan(detrended_data)
     if np.sum(valid_indices) < 2:
-        return data, errors  # Not enough points to detrend
+        return detrended_data, propagated_errors  # Not enough points to detrend
 
     x_valid = x[valid_indices]
-    y_valid = data[valid_indices]
+    y_valid = detrended_data[valid_indices]
 
     X_with_const = sm.add_constant(x_valid)
     model = sm.OLS(y_valid, X_with_const)
     results = model.fit()
 
     trend = results.predict(X_with_const)
-    data[valid_indices] = y_valid - trend
+    detrended_data[valid_indices] = y_valid - trend
 
-    if errors is not None:
-        errors_valid = errors[valid_indices]
+    if propagated_errors is not None:
+        errors_valid = propagated_errors[valid_indices]
         # Calculate the standard error of the trend line prediction
         prediction_se = results.get_prediction(X_with_const).se_mean
         # Propagate errors: new_err^2 = old_err^2 + trend_err^2
         new_err_sq = np.square(errors_valid) + np.square(prediction_se)
-        errors[valid_indices] = np.sqrt(new_err_sq)
+        propagated_errors[valid_indices] = np.sqrt(new_err_sq)
 
-    return data, errors
+    return detrended_data, propagated_errors
 
 
 def normalize(data, errors=None):
     """
     Normalizes a time series to have a mean of 0 and a standard deviation of 1.
+    This function returns new arrays and does not modify inputs.
     """
-    valid_indices = ~np.isnan(data)
-    valid_data = data[valid_indices]
+    normalized_data = np.copy(data)
+    normalized_errors = np.copy(errors) if errors is not None else None
+
+    valid_indices = ~np.isnan(normalized_data)
+    valid_data = normalized_data[valid_indices]
     if len(valid_data) == 0:
-        return data, errors
+        return normalized_data, normalized_errors
 
     std_dev = np.std(valid_data)
 
     if std_dev > 1e-9:  # Use a small threshold to avoid division by zero
-        data[valid_indices] = (valid_data - np.mean(valid_data)) / std_dev
-        if errors is not None:
-            errors[valid_indices] = errors[valid_indices] / std_dev
+        normalized_data[valid_indices] = (valid_data - np.mean(valid_data)) / std_dev
+        if normalized_errors is not None:
+            errors_valid = normalized_errors[valid_indices]
+            normalized_errors[valid_indices] = errors_valid / std_dev
     else:
         # If std_dev is negligible, data is constant. Center it at 0.
-        data[valid_indices] = 0
-        if errors is not None:
+        normalized_data[valid_indices] = 0
+        if normalized_errors is not None:
             # Errors cannot be meaningfully scaled for constant data.
             warnings.warn(
                 "Data has zero variance; cannot normalize errors. Setting to NaN.",
                 UserWarning,
             )
-            errors[valid_indices] = np.nan
+            normalized_errors[valid_indices] = np.nan
 
-    return data, errors
+    return normalized_data, normalized_errors
 
 
 def log_transform(data, errors=None):
     """
     Applies a natural logarithm transformation to the data and propagates errors.
+    This function returns new arrays and does not modify inputs.
     """
-    valid_indices = ~np.isnan(data)
-    valid_data = data[valid_indices]
+    transformed_data = np.copy(data)
+    transformed_errors = np.copy(errors) if errors is not None else None
+
+    valid_indices = ~np.isnan(transformed_data)
+    valid_data = transformed_data[valid_indices]
 
     non_positive_mask = valid_data <= 0
     if np.any(non_positive_mask):
@@ -78,14 +92,14 @@ def log_transform(data, errors=None):
             "non-positive value(s) were found."
         )
 
-    if errors is not None:
-        valid_errors = errors[valid_indices]
+    if transformed_errors is not None:
+        valid_errors = transformed_errors[valid_indices]
         # Propagate errors before transforming data: new_err = old_err / value
-        errors[valid_indices] = valid_errors / valid_data
+        transformed_errors[valid_indices] = valid_errors / valid_data
 
-    data[valid_indices] = np.log(valid_data)
+    transformed_data[valid_indices] = np.log(valid_data)
 
-    return data, errors
+    return transformed_data, transformed_errors
 
 
 def handle_censored_data(

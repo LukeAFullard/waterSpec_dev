@@ -142,10 +142,13 @@ def interpret_results(
 ):
     """
     Generates a comprehensive, human-readable interpretation of the analysis results.
-    Handles standard, segmented, and auto analysis types.
+
+    This function is designed to be called from the main Analysis class and
+    returns only the interpretation dictionary, not the full results set.
     """
     auto_summary_header = ""
     uncertainty_warnings = []
+    summary_text = ""
 
     # If this was an auto-analysis, generate a special header
     if fit_results.get("analysis_mode") == "auto":
@@ -164,13 +167,20 @@ def interpret_results(
                 beta_str = f"{betas}"
             model_summaries.append(f"  - {name:<15} BIC = {bic_str:<8} ({beta_str})")
 
+        # Add reasons for failed models, if any, for diagnostic purposes
+        failed_reasons = fit_results.get("failed_model_reasons", [])
+        if failed_reasons:
+            model_summaries.append("\n  Models that failed to fit:")
+            for reason in failed_reasons:
+                model_summaries.append(f"    - {reason}")
+
         chosen_model_name = fit_results["chosen_model"].replace("_", " ").capitalize()
         auto_summary_header = (
             f"Automatic Analysis for: {param_name}\n"
             "-----------------------------------\n"
             "Model Comparison (Lower BIC is better):\n"
             + "\n".join(model_summaries)
-            + f"\n==> Chosen Model: {chosen_model_name}\n"
+            + f"\n\n==> Chosen Model: {chosen_model_name}\n"
             "-----------------------------------\n\n"
             f"Details for Chosen ({chosen_model_name}) Model:\n"
         )
@@ -255,16 +265,7 @@ def interpret_results(
                     f"  Persistence: {get_persistence_traffic_light(beta_next)}",
                 ]
             )
-
         summary_text = "\n".join(summary_parts)
-        results_dict = {
-            "analysis_type": "segmented",
-            "n_breakpoints": n_breakpoints,
-            "betas": fit_results["betas"],
-            "breakpoints": fit_results["breakpoints"],
-            "betas_ci": fit_results.get("betas_ci"),
-            "breakpoints_ci": fit_results.get("breakpoints_ci"),
-        }
     else:
         # --- Standard Model Summary ---
         beta = fit_results["beta"]
@@ -285,12 +286,6 @@ def interpret_results(
                 f"Contextual Comparison: {compare_to_benchmarks(beta)}",
             ]
         )
-
-        results_dict = {
-            "analysis_type": "standard",
-            "beta_value": beta,
-            "confidence_interval": ci,
-        }
 
     # --- Append shared sections (peaks and warnings) ---
     if "significant_peaks" in fit_results and fit_results["significant_peaks"]:
@@ -332,6 +327,7 @@ def interpret_results(
         summary_text += "Uncertainty Report:\n"
         summary_text += "\n".join([f"  - {w}" for w in uncertainty_warnings])
 
-    results_dict["summary_text"] = auto_summary_header + summary_text
-    results_dict["uncertainty_warnings"] = uncertainty_warnings
-    return results_dict
+    return {
+        "summary_text": auto_summary_header + summary_text,
+        "uncertainty_warnings": uncertainty_warnings,
+    }

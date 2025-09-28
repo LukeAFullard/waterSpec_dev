@@ -356,3 +356,27 @@ def test_fit_segmented_spectrum_with_parametric_ci(multifractal_spectrum):
     breakpoint_ci = results["breakpoints_ci"][0]
     assert np.all(np.isfinite(breakpoint_ci))
     assert breakpoint_ci[0] <= known_breakpoint <= breakpoint_ci[1]
+
+
+def test_fit_standard_model_graceful_failure(synthetic_spectrum, mocker):
+    """
+    Test that fit_standard_model fails gracefully if the underlying Scipy
+    function raises an unexpected exception.
+    """
+    frequency, power, _ = synthetic_spectrum
+
+    # Mock the underlying fitting function to raise an error
+    mocker.patch(
+        "waterSpec.fitter.stats.linregress",
+        side_effect=RuntimeError("Unexpected Scipy error"),
+    )
+
+    # The function should catch the error and return a specific result
+    results = fit_standard_model(frequency, power, method="ols")
+
+    assert "failure_reason" in results
+    assert "Unexpected Scipy error" in results["failure_reason"]
+    # The BIC should be infinite so this model is never chosen
+    assert results["bic"] == np.inf
+    # The beta value should be NaN
+    assert np.isnan(results["beta"])
