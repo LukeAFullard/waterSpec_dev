@@ -110,6 +110,12 @@ results = analyzer.run_full_analysis(
 print(results['summary_text'])
 ```
 
+## Dependencies and Citation
+
+The segmented regression analysis in this package is powered by the `piecewise-regression` library. If you use the segmented model results from `waterSpec` in your research, please cite the following paper:
+
+> Pilgrim, C. (2021). piecewise-regression (aka segmented regression) in Python. Journal of Open Source Software, 6(68), 3859. https://doi.org/10.21105/joss.03859
+
 ## Citing the Methodology
 
 The methods used in this package are based on the following article. Please cite it if you use `waterSpec` in your research.
