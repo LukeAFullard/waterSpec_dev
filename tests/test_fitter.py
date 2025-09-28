@@ -380,3 +380,155 @@ def test_fit_standard_model_graceful_failure(synthetic_spectrum, mocker):
     assert results["bic"] == np.inf
     # The beta value should be NaN
     assert np.isnan(results["beta"])
+
+
+def test_calculate_bic_edge_cases():
+    """Test the internal _calculate_bic function with edge cases."""
+    from waterSpec.fitter import _calculate_bic
+
+    # Test with no data points, should return NaN
+    assert np.isnan(_calculate_bic(np.array([]), np.array([]), n_params=2))
+
+    # Test with a perfect fit (RSS is zero), should return -inf
+    y_true = np.array([1, 2, 3, 4])
+    y_pred = np.array([1, 2, 3, 4])
+    assert _calculate_bic(y_true, y_pred, n_params=2) == -np.inf
+
+
+def test_fit_standard_model_invalid_arguments(synthetic_spectrum):
+    """Test that fit_standard_model raises ValueErrors for invalid arguments."""
+    frequency, power, _ = synthetic_spectrum
+
+    with pytest.raises(ValueError, match="Unknown fitting method"):
+        fit_standard_model(frequency, power, method="invalid_method")
+
+    with pytest.raises(ValueError, match="Unknown ci_method"):
+        fit_standard_model(frequency, power, ci_method="invalid_ci")
+
+
+def test_fit_segmented_spectrum_insufficient_data():
+    """
+    Test that fit_segmented_spectrum fails gracefully when there are not
+    enough data points for the requested number of breakpoints.
+    """
+    # For a 1-breakpoint model, at least 10 points are required (5 per segment)
+    frequency = np.linspace(0.1, 1, 9)
+    power = np.linspace(1, 10, 9)
+
+    results = fit_segmented_spectrum(frequency, power, n_breakpoints=1)
+
+    assert "bic" in results and results["bic"] == np.inf
+    assert "model_summary" in results
+    assert "Not enough data points" in results["model_summary"]
+
+
+def test_fit_segmented_spectrum_multi_breakpoint_warning(multifractal_spectrum):
+    """
+    Test that a warning is issued when fitting a model with more than one
+    breakpoint, as this is only supported via BIC comparison.
+    """
+    frequency, power, _, _, _ = multifractal_spectrum
+
+    # This should trigger a warning that statistical significance (Davies test)
+    # is not performed for models with >1 breakpoint.
+    with pytest.warns(UserWarning, match="Fitting a model with 2 breakpoints"):
+        fit_segmented_spectrum(frequency, power, n_breakpoints=2, n_bootstraps=0)
+
+
+def test_fit_standard_model_bootstrap_warning(synthetic_spectrum, mocker):
+    """
+    Test that a warning is issued if too few bootstrap iterations succeed.
+    """
+    from collections import namedtuple
+    frequency, power, known_beta = synthetic_spectrum
+
+    # The initial fit must succeed. We create a mock result that mimics the
+    # output of stats.linregress (a namedtuple that is unpackable and has attributes).
+    LinregressResult = namedtuple(
+        "LinregressResult", ["slope", "intercept", "rvalue", "pvalue", "stderr"]
+    )
+    mock_success_result = LinregressResult(-known_beta, 1.0, 0.9, 0.0, 0.1)
+
+    # The first call is for the initial fit. The subsequent calls are in the
+    # bootstrap loop. We make most of them fail.
+    side_effects = (
+        [mock_success_result]
+        + [RuntimeError("Failed fit")] * 95
+        + [mock_success_result] * 5
+    )
+    mocker.patch("waterSpec.fitter.stats.linregress", side_effect=side_effects)
+
+    with pytest.warns(UserWarning, match="Only 5/100 bootstrap iterations succeeded"):
+        fit_standard_model(
+            frequency, power, method="ols", n_bootstraps=100, seed=42
+        )
+
+
+def test_bootstrap_segmented_fit_graceful_failure(mocker):
+    """
+    Test that _bootstrap_segmented_fit fails gracefully if the initial
+    fit object has no valid estimates.
+    """
+    from waterSpec.fitter import _bootstrap_segmented_fit
+
+    # Mock the initial piecewise fit object to simulate a failed fit
+    mock_pw_fit = mocker.MagicMock()
+    mock_pw_fit.get_results.return_value = {"converged": False, "estimates": None}
+    mock_pw_fit.n_breakpoints = 1
+    mock_pw_fit.predict.return_value = np.ones(10)  # Dummy return for predict
+
+    with pytest.warns(UserWarning, match="Could not perform bootstrap"):
+        results = _bootstrap_segmented_fit(
+            mock_pw_fit,
+            log_freq=np.ones(10),
+            log_power=np.ones(10),
+            n_bootstraps=100,
+            ci=95,
+            seed=42,
+        )
+
+    # Check that the results contain NaNs as expected
+    assert np.all(np.isnan(results["betas_ci"]))
+    assert np.all(np.isnan(results["breakpoints_ci"]))
+
+
+def test_bootstrap_segmented_fit_iteration_warning(multifractal_spectrum, mocker):
+    """
+    Test that a warning is issued if too few bootstrap iterations succeed
+    in the segmented fitting process.
+    """
+    frequency, power, _, _, _ = multifractal_spectrum
+
+    # Mock for a successful fit (initial or bootstrap)
+    mock_successful_fit = mocker.MagicMock()
+    mock_successful_fit.get_results.return_value = {
+        "converged": True,
+        "estimates": {
+            "breakpoint1": {"estimate": 1.0},
+            "alpha1": {"estimate": 1.0},
+            "beta1": {"estimate": 1.0},
+        },
+    }
+    mock_successful_fit.davies = 0.01  # To pass the p-value check
+    mock_successful_fit.predict.return_value = np.zeros_like(power)
+    mock_successful_fit.n_breakpoints = 1
+
+    # Mock for a failed bootstrap fit
+    mock_failed_fit = mocker.MagicMock()
+    mock_failed_fit.get_results.return_value = {"converged": False}
+
+    # The first call is for the initial fit, which must succeed.
+    # The subsequent calls are for the bootstrap iterations.
+    side_effects = (
+        [mock_successful_fit]
+        + [mock_failed_fit] * 95
+        + [mock_successful_fit] * 5
+    )
+    mocker.patch(
+        "waterSpec.fitter.piecewise_regression.Fit", side_effect=side_effects
+    )
+
+    with pytest.warns(UserWarning, match="Only 5/100 bootstrap iterations for the segmented model succeeded"):
+        fit_segmented_spectrum(
+            frequency, power, n_breakpoints=1, n_bootstraps=100, seed=42
+        )
