@@ -181,3 +181,34 @@ def test_interpret_results_segmented():
     assert "β1 = 0.50" in summary
     assert "High-Frequency (Short-term) Fit" in summary
     assert "β2 = 1.50" in summary
+
+
+def test_interpret_results_auto_mode_with_failures():
+    """
+    Test that the auto-analysis summary includes reasons for failed models.
+    """
+    # This is the only successful model, so it will be the chosen one.
+    standard_model = {"beta": 1.2, "betas": [1.2], "bic": 120.5, "n_breakpoints": 0}
+
+    fit_results = {
+        "analysis_mode": "auto",
+        "chosen_model": "standard",
+        "all_models": [standard_model],  # Only successful models are in here
+        "failed_model_reasons": [
+            "Segmented model (1 bp): No significant breakpoint found (Davies test p > 0.05)"
+        ],
+        **standard_model,  # Unpack the chosen model's results
+    }
+
+    results = interpret_results(fit_results, param_name="Test Param")
+    summary = results["summary_text"]
+
+    # Check that the header and successful model are present
+    assert "Automatic Analysis for: Test Param" in summary
+    assert "Standard" in summary
+    assert "BIC = 120.50" in summary
+    assert "Chosen Model: Standard" in summary
+
+    # Check that the failed model reason is also included in the summary
+    assert "Models that failed to fit:" in summary
+    assert "Segmented model (1 bp): No significant breakpoint found" in summary

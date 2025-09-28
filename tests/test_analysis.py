@@ -495,3 +495,65 @@ def test_analysis_model_fitting_failure_reporting(
     summary_path = output_dir / "value_summary.txt"
     assert summary_path.exists()
     assert "Model fitting failed" in summary_path.read_text()
+
+
+@patch("waterSpec.analysis.fit_segmented_spectrum")
+@patch("waterSpec.analysis.fit_standard_model")
+def test_analysis_retains_failure_reasons_on_partial_success(
+    mock_fit_standard, mock_fit_segmented, tmp_path
+):
+    """
+    Test that failure reasons are still reported even if one model succeeds.
+    """
+    # Mock the standard model to fail
+    mock_fit_standard.return_value = {
+        "bic": np.inf,
+        "failure_reason": "Standard model failed.",
+    }
+    # Mock the segmented model to succeed
+    mock_fit_segmented.return_value = {
+        "betas": [0.5, 1.8],
+        "breakpoints": [0.01],
+        "bic": 100.0,
+        "n_breakpoints": 1,
+        "residuals": np.array([1, 2, 3]),
+        "fitted_log_power": np.array([1, 2, 3]),
+        "log_freq": np.array([1, 2, 3]),
+        "log_power": np.array([1, 2, 3]),
+    }
+
+    file_path = create_test_data_file(
+        tmp_path, pd.date_range("2023", periods=100), np.random.rand(100)
+    )
+    analyzer = Analysis(file_path, "time", "value")
+    results = analyzer.run_full_analysis(output_dir=tmp_path)
+
+    # The successful model should be chosen
+    assert results["chosen_model"] == "segmented_1bp"
+    # The failure reason for the other model should be in the results
+    assert "failed_model_reasons" in results
+    assert len(results["failed_model_reasons"]) == 1
+    assert "Standard model (0 breakpoints): Standard model failed." in results["failed_model_reasons"]
+
+
+def test_analysis_warns_on_ignored_peak_detection_ci(tmp_path, mocker):
+    """
+    Test that a warning is logged if peak_detection_ci is passed when
+    peak_detection_method is 'fap'.
+    """
+    file_path = "examples/sample_data.csv"
+    analyzer = Analysis(file_path, "timestamp", "concentration", verbose=True)
+
+    # Spy on the logger to check for the warning
+    spy_logger = mocker.spy(analyzer.logger, "warning")
+
+    analyzer.run_full_analysis(
+        output_dir=tmp_path,
+        peak_detection_method="fap",
+        peak_detection_ci=99,  # A non-default value that should be ignored
+    )
+
+    spy_logger.assert_any_call(
+        "'peak_detection_method' is 'fap', so the 'peak_detection_ci' "
+        "parameter is ignored."
+    )

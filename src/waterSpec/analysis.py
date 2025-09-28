@@ -267,6 +267,7 @@ class Analysis:
 
         fit_results = best_model.copy()
         fit_results["all_models"] = all_models
+        fit_results["failed_model_reasons"] = failed_model_reasons
         fit_results["chosen_model"] = best_model["model_type"]
         fit_results["analysis_mode"] = "auto"
         fit_results["ci_method"] = ci_method
@@ -304,6 +305,11 @@ class Analysis:
             fit_results["residual_threshold"] = threshold
             fit_results["peak_detection_ci"] = peak_detection_ci
         elif peak_detection_method == "fap" and fap_threshold is not None:
+            if peak_detection_ci != 95:
+                self.logger.warning(
+                    "'peak_detection_method' is 'fap', so the 'peak_detection_ci' "
+                    "parameter is ignored."
+                )
             peaks, level = find_significant_peaks(
                 self.ls_obj,
                 self.frequency,
@@ -338,7 +344,6 @@ class Analysis:
             self.frequency,
             self.power,
             fit_results=results,
-            analysis_type=results["chosen_model_type"],
             output_path=plot_path,
             param_name=self.param_name,
         )

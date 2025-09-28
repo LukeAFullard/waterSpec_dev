@@ -49,3 +49,32 @@ def test_generate_frequency_grid_invalid_type(sample_time_array):
     """
     with pytest.raises(ValueError, match="grid_type must be either 'log' or 'linear'"):
         generate_frequency_grid(sample_time_array, grid_type="invalid_type")
+
+
+def test_nyquist_frequency_is_robust_to_outliers():
+    """
+    Tests that the Nyquist frequency calculation uses the median sampling
+    interval, making it robust to large data gaps (outliers).
+    """
+    # Create a time series with mostly regular sampling (1-day intervals)
+    # but with one large gap of 100 days.
+    regular_time = np.arange(10)  # 10 points with 1-day interval
+    gap = np.array([110])  # A single point after a 100-day gap
+    irregular_time = np.concatenate([regular_time, gap])
+
+    # The median interval should be 1.0.
+    median_interval = np.median(np.diff(irregular_time))
+    assert median_interval == 1.0
+    expected_nyquist = 0.5 / median_interval  # Should be 0.5
+
+    # The mean interval would be skewed by the large gap.
+    mean_interval = np.mean(np.diff(irregular_time))
+    incorrect_nyquist = 0.5 / mean_interval  # Would be much lower
+
+    assert expected_nyquist != incorrect_nyquist
+
+    # Generate the frequency grid
+    grid = generate_frequency_grid(irregular_time)
+
+    # The maximum frequency in the grid should be based on the median, not the mean.
+    assert np.max(grid) == pytest.approx(expected_nyquist)

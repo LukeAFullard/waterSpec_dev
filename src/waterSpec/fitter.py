@@ -58,16 +58,33 @@ def fit_standard_model(
 
     # 2. Perform the initial fit (OLS or Theil-Sen)
     fit_results = {}
-    if method == "ols":
-        res = stats.linregress(log_freq, log_power)
-        slope, intercept, r_value, _, stderr = res
-        fit_results.update({"r_squared": r_value**2, "stderr": stderr})
-    elif method == "theil-sen":
-        res = stats.theilslopes(log_power, log_freq, alpha=1 - (ci / 100))
-        slope, intercept, low_slope, high_slope = res
-        fit_results.update({"slope_ci_lower": low_slope, "slope_ci_upper": high_slope})
+    try:
+        if method == "ols":
+            res = stats.linregress(log_freq, log_power)
+            slope, intercept, r_value, _, stderr = res
+            fit_results.update({"r_squared": r_value**2, "stderr": stderr})
+        elif method == "theil-sen":
+            res = stats.theilslopes(log_power, log_freq, alpha=1 - (ci / 100))
+            slope, intercept, low_slope, high_slope = res
+            fit_results.update({"slope_ci_lower": low_slope, "slope_ci_upper": high_slope})
 
-    fit_results.update({"beta": -slope, "intercept": intercept})
+        fit_results.update({"beta": -slope, "intercept": intercept})
+
+    except Exception as e:
+        failure_reason = (
+            f"Initial standard model fit failed with method '{method}'. Error: {e}"
+        )
+        if logger:
+            logger.warning(failure_reason)
+        else:
+            warnings.warn(failure_reason, UserWarning)
+        return {
+            "beta": np.nan,
+            "bic": np.inf,  # Use infinite BIC to ensure this model is not chosen
+            "beta_ci_lower": np.nan,
+            "beta_ci_upper": np.nan,
+            "failure_reason": failure_reason,
+        }
 
     # 3. Calculate BIC
     log_power_fit = slope * log_freq + intercept

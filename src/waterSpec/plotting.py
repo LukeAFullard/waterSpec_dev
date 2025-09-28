@@ -4,23 +4,32 @@ import numpy as np
 from .interpreter import _format_period
 
 
+def _is_fit_successful(fit_results):
+    """Checks if a model fit was successful based on the presence of valid results."""
+    is_standard_success = "beta" in fit_results and np.isfinite(fit_results.get("beta"))
+    is_segmented_success = (
+        "betas" in fit_results
+        and len(fit_results.get("betas", [])) > 0
+        and np.isfinite(fit_results["betas"][0])
+    )
+    return is_standard_success or is_segmented_success
+
+
 def plot_spectrum(
     frequency,
     power,
     fit_results,
-    analysis_type="standard",
     output_path=None,
     param_name="Parameter",
 ):
     """
     Generates and saves a plot of the power spectrum and its fit.
+    The plot type is determined from the `fit_results` dictionary.
 
     Args:
         frequency (np.ndarray): The frequency array.
         power (np.ndarray): The power array.
         fit_results (dict): The dictionary of results from the workflow.
-        analysis_type (str, optional): The type of analysis ('standard' or
-            'segmented'). Defaults to 'standard'.
         output_path (str, optional): The path to save the plot image. If None,
             the plot is displayed. Defaults to None.
         param_name (str, optional): The name of the parameter being plotted.
@@ -31,15 +40,16 @@ def plot_spectrum(
     # Plot the raw power spectrum
     plt.loglog(frequency, power, "o", markersize=5, alpha=0.6, label="Raw Periodogram")
 
-    log_freq = np.log(frequency[frequency > 0])
+    if _is_fit_successful(fit_results):
+        analysis_type = fit_results.get("chosen_model_type")
+        log_freq = fit_results.get("log_freq")
 
-    if analysis_type == "standard":
-        beta = fit_results.get("beta")
-        intercept = fit_results.get("intercept")
-        beta_ci_lower = fit_results.get("beta_ci_lower")
-        beta_ci_upper = fit_results.get("beta_ci_upper")
+        if analysis_type == "standard":
+            beta = fit_results.get("beta")
+            intercept = fit_results.get("intercept")
+            beta_ci_lower = fit_results.get("beta_ci_lower")
+            beta_ci_upper = fit_results.get("beta_ci_upper")
 
-        if beta is not None and intercept is not None:
             # Plot the main fit line
             fit_line = np.exp(intercept - beta * log_freq)
             plt.loglog(
@@ -60,15 +70,11 @@ def plot_spectrum(
                     upper_bound,
                     color="r",
                     alpha=0.2,
-                    label="95% CI",
+                    label="95% CI on β",
                 )
 
-    elif analysis_type == "segmented":
-        n_breakpoints = fit_results.get("n_breakpoints", 0)
-        model = fit_results.get("model_object")
-        log_freq_full = fit_results.get("log_freq")
-
-        if model and log_freq_full is not None and n_breakpoints > 0:
+        elif analysis_type == "segmented":
+            n_breakpoints = fit_results.get("n_breakpoints", 0)
             log_power_fit = fit_results.get("fitted_log_power")
             log_bps = [np.log(bp) for bp in fit_results["breakpoints"]]
             colors = ["r", "m", "g"]
@@ -78,7 +84,7 @@ def plot_spectrum(
             fit_ci_upper = fit_results.get("fit_ci_upper")
             if fit_ci_lower is not None and fit_ci_upper is not None:
                 plt.fill_between(
-                    np.exp(log_freq_full),
+                    np.exp(log_freq),
                     np.exp(fit_ci_lower),
                     np.exp(fit_ci_upper),
                     color="gray",
@@ -90,19 +96,17 @@ def plot_spectrum(
             for i in range(n_breakpoints + 1):
                 # Define the mask for this segment
                 if i == 0:
-                    mask = log_freq_full <= log_bps[0]
+                    mask = log_freq <= log_bps[0]
                     label = f"Low-Freq Fit (β1 ≈ {fit_results['betas'][0]:.2f})"
                 elif i == n_breakpoints:
-                    mask = log_freq_full > log_bps[i - 1]
+                    mask = log_freq > log_bps[i - 1]
                     label = f"High-Freq Fit (β{i+1} ≈ {fit_results['betas'][i]:.2f})"
-                else:  # Middle segment(s)
-                    mask = (log_freq_full > log_bps[i - 1]) & (
-                        log_freq_full <= log_bps[i]
-                    )
+                else:
+                    mask = (log_freq > log_bps[i - 1]) & (log_freq <= log_bps[i])
                     label = f"Mid-Freq Fit (β{i+1} ≈ {fit_results['betas'][i]:.2f})"
 
                 plt.loglog(
-                    np.exp(log_freq_full[mask]),
+                    np.exp(log_freq[mask]),
                     np.exp(log_power_fit[mask]),
                     color=colors[i % len(colors)],
                     linestyle="-",
@@ -120,6 +124,19 @@ def plot_spectrum(
                     alpha=0.8,
                     label=f"Breakpoint {i+1} ≈ {_format_period(bp_freq)}",
                 )
+    else:
+        # If the fit was not successful, add a prominent annotation
+        plt.text(
+            0.5,
+            0.5,
+            "Spectral model fitting failed",
+            ha="center",
+            va="center",
+            transform=plt.gca().transAxes,
+            fontsize=14,
+            color="red",
+            bbox=dict(facecolor="white", alpha=0.8, boxstyle="round,pad=0.5"),
+        )
 
     # Plot the FAP level and annotate significant peaks if available
     fap_level = fit_results.get("fap_level")
@@ -137,14 +154,9 @@ def plot_spectrum(
 
         # Create annotation text based on which significance info is available
         if "fap" in peak:
-            annotation_text = (
-                f'Period: {_format_period(peak_freq)}\n(FAP: {peak["fap"]:.2E})'
-            )
+            annotation_text = f'Period: {_format_period(peak_freq)}\n(FAP: {peak["fap"]:.2E})'
         elif "residual" in peak:
-            annotation_text = (
-                f"Period: {_format_period(peak_freq)}\n"
-                f"(Residual: {peak['residual']:.2f})"
-            )
+            annotation_text = f"Period: {_format_period(peak_freq)}\n(Residual: {peak['residual']:.2f})"
         else:
             annotation_text = f"Period: {_format_period(peak_freq)}"
 

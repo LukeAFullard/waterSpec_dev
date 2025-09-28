@@ -126,9 +126,9 @@ def test_load_non_monotonic_time(tmp_path):
     # After sorting, the duplicate '2023-01-01' will be at index 1.
     # The error message should identify this specific timestamp.
     expected_error_msg = (
-        "Time column is not strictly monotonic increasing. "
-        "Duplicate or out-of-order timestamps found. First violation "
-        "at index 1 with value: 2023-01-01 00:00:00"
+        "Time column is not strictly monotonic increasing. This can be "
+        "caused by duplicate or out-of-order timestamps. First "
+        "violation found at index 1 with value: 2023-01-01 00:00:00"
     )
     with pytest.raises(ValueError, match=expected_error_msg):
         load_data(file_path, time_col="timestamp", data_col="concentration")
@@ -213,3 +213,32 @@ def test_load_data_negative_error_column(tmp_path):
     file_path.write_text("time,value,error\n2023-01-01,10,1\n2023-01-02,11,-0.5")
     with pytest.warns(UserWarning, match="error column contains negative values"):
         load_data(file_path, time_col="time", data_col="value", error_col="error")
+
+
+def test_load_high_frequency_data(tmp_path):
+    """
+    Test that timestamps with sub-second differences are handled correctly
+    and do not raise a monotonicity error.
+    """
+    file_path = tmp_path / "high_freq.csv"
+    # Timestamps are 100ms apart
+    file_path.write_text(
+        "timestamp,value\n"
+        "2023-01-01T00:00:00.100Z,1\n"
+        "2023-01-01T00:00:00.200Z,2\n"
+        "2023-01-01T00:00:00.300Z,3\n"
+    )
+
+    # Before the fix, this would have raised a ValueError because the integer
+    # conversion of time would treat all timestamps as the same second.
+    # The function should now run without raising an error.
+    time_numeric, data, _ = load_data(
+        file_path, time_col="timestamp", data_col="value"
+    )
+
+    assert len(time_numeric) == 3
+    assert len(data) == 3
+
+    # Check that the time difference is approximately 0.1 seconds
+    time_diffs = np.diff(time_numeric)
+    assert np.all(np.isclose(time_diffs, 0.1))

@@ -282,3 +282,35 @@ def test_preprocess_data_nan_propagation():
     # The valid points should still have their errors
     assert not np.isnan(processed_errors[0])
     assert not np.isnan(processed_errors[9])
+
+
+def test_transformations_are_pure(sample_data):
+    """
+    Test that the core transformation functions do not modify the original
+    input arrays (i.e., they are pure functions).
+    """
+    # Create original arrays
+    original_data = sample_data.copy()
+    original_errors = np.full_like(original_data, 0.1)
+    time = np.arange(len(original_data))
+
+    # Create copies for comparison after the functions are called
+    data_before = original_data.copy()
+    errors_before = original_errors.copy()
+
+    # Call the functions without passing copies
+    detrend(time, original_data, original_errors)
+    normalize(original_data, original_errors)
+    log_transform(original_data, original_errors)
+
+    # Assert that the original arrays have not been modified
+    np.testing.assert_array_equal(
+        original_data,
+        data_before,
+        err_msg="The 'detrend', 'normalize', or 'log_transform' function modified the input data array in-place.",
+    )
+    np.testing.assert_array_equal(
+        original_errors,
+        errors_before,
+        err_msg="The 'detrend', 'normalize', or 'log_transform' function modified the input errors array in-place.",
+    )

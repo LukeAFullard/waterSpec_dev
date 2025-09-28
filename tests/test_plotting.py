@@ -28,6 +28,34 @@ def test_plot_spectrum_saves_file(spectrum_data, tmp_path):
     assert os.path.exists(output_file)
 
 
+@patch("matplotlib.pyplot.text")
+def test_plot_spectrum_handles_failed_fit(mock_text, spectrum_data, tmp_path):
+    """
+    Test that plot_spectrum adds a 'fitting failed' annotation if the fit
+    results are invalid.
+    """
+    frequency, power, _ = spectrum_data
+    # Simulate a failed fit by providing empty results
+    failed_fit_results = {}
+    output_file = tmp_path / "test_plot_failed.png"
+
+    plot_spectrum(
+        frequency,
+        power,
+        fit_results=failed_fit_results,
+        output_path=str(output_file),
+    )
+
+    # Check that the file was still created
+    assert os.path.exists(output_file)
+
+    # Check that plt.text was called with the failure message
+    mock_text.assert_called_once()
+    # The first argument of the first call to mock_text
+    call_args = mock_text.call_args[0]
+    assert "Spectral model fitting failed" in call_args
+
+
 def test_plot_spectrum_with_ci_and_peaks(tmp_path):
     """
     Test that plot_spectrum can handle confidence intervals and find peaks.
@@ -51,7 +79,6 @@ def test_plot_spectrum_with_ci_and_peaks(tmp_path):
             frequency,
             power,
             fit_results=fit_results,
-            analysis_type="standard",
             output_path=str(output_file),
         )
     except Exception as e:
@@ -111,7 +138,6 @@ def test_plot_spectrum_segmented(spectrum_data, tmp_path):
             frequency,
             power,
             fit_results=segmented_fit_results,
-            analysis_type="segmented",
             output_path=str(output_file),
         )
     except Exception as e:
@@ -150,7 +176,6 @@ def test_plot_spectrum_multi_breakpoint(spectrum_data, tmp_path):
             frequency,
             power,
             fit_results=multi_segmented_fit_results,
-            analysis_type="segmented",
             output_path=str(output_file),
         )
     except Exception as e:

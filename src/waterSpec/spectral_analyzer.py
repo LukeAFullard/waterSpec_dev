@@ -76,14 +76,17 @@ def find_significant_peaks(
             UserWarning,
         )
 
-    # Calculate the power level corresponding to the FAP threshold
-    fap_level = ls.false_alarm_level(fap_threshold, method=fap_method, **fap_kwargs)
+    # Calculate the power level corresponding to the FAP threshold.
+    # We use np.max() because, depending on the method, false_alarm_level
+    # can return an array. We need a single scalar for the height threshold.
+    fap_level = np.max(
+        ls.false_alarm_level(fap_threshold, method=fap_method, **fap_kwargs)
+    )
 
-    # Find all peaks in the spectrum
-    all_peaks, _ = find_peaks(power)
-
-    # Filter for peaks that are above the significance level
-    significant_peaks_indices = [p for p in all_peaks if power[p] > fap_level]
+    # Find all peaks in the spectrum that are above the significance level.
+    # Using the 'height' parameter is more efficient than finding all peaks
+    # and then filtering.
+    significant_peaks_indices, _ = find_peaks(power, height=fap_level)
 
     # Add a warning if per-peak FAP calculation is likely to be slow
     if fap_method == "bootstrap" and len(significant_peaks_indices) > 5:

@@ -32,10 +32,12 @@ def generate_frequency_grid(time_numeric, num_points=200, grid_type="log"):
     min_freq = 1 / duration
 
     # For irregularly sampled data, the Nyquist frequency is not strictly defined.
-    # We use a common heuristic based on the average sampling interval, which is
-    # generally more stable than the median for this purpose.
-    avg_sampling_interval = np.mean(np.diff(time_numeric))
-    nyquist_freq = 0.5 / avg_sampling_interval
+    # A common and robust heuristic is to use the median sampling interval,
+    # as it is less sensitive to outliers (i.e., large gaps) than the mean.
+    median_sampling_interval = np.median(np.diff(time_numeric))
+    if median_sampling_interval <= 0:
+        raise ValueError("Median sampling interval must be positive.")
+    nyquist_freq = 0.5 / median_sampling_interval
 
     # In rare cases (e.g., very short series), min_freq can be >= nyquist_freq.
     # We adjust min_freq downwards to ensure a valid frequency range. This is an
