@@ -315,4 +315,4 @@ The segmented regression analysis in this package is powered by the `piecewise-r
 
 The methods used in this package are based on the following article. Please cite it if you use `waterSpec` in your research.
 
-> Liang X, Schilling KE, Jones CS, Zhang Y-K. 2021. Temporal scaling of long-term co-occurring agricultural contaminants and the implications for conservation planning. Environmental Research Letters 16:094015.
+> [Liang X, Schilling KE, Jones CS, Zhang Y-K. 2021. Temporal scaling of long-term co-occurring agricultural contaminants and the implications for conservation planning. Environmental Research Letters 16:094015.](https://doi.org/10.1088/1748-9326/ac19dd)
