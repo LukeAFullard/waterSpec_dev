@@ -14,7 +14,10 @@ analyzer = Analysis(
 
 # 3. Run the full analysis
 # This command runs the analysis, saves the outputs, and returns the results.
-results = analyzer.run_full_analysis(output_dir='example_output')
+results = analyzer.run_full_analysis(
+    output_dir='example_output',
+    ci_method='parametric' # Use faster CI calculation
+)
 
 # The summary text is available in the returned dictionary
 print(results['summary_text'])

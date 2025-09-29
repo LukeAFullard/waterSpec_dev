@@ -1,0 +1,29 @@
+Automatic Analysis for: Peak Detection Example
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = 282.50   (β = 1.13)
+  - Segmented (1 BP) BIC = 165.00   (β1=-0.80, β2=2.77)
+
+==> Chosen Model: Segmented 1bp
+-----------------------------------
+
+Details for Chosen (Segmented 1bp) Model:
+Segmented Analysis for: Peak Detection Example
+Low-Frequency (Long-term) Fit:
+  β1 = -0.80 (95% CI: -1.21–-0.40 (parametric))
+  Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.
+  Persistence: 🔴 Event-driven
+--- Breakpoint 1 @ ~31.9 days (95% CI: 40.0 days–25.5 days (parametric)) ---
+High-Frequency (Short-term) Fit:
+  β2 = 2.77 (95% CI: 2.42–3.13 (parametric))
+  Interpretation: 1 < β < 3 (fBm-like): Strong persistence, suggesting transport is damped by storage.
+  Persistence: 🟢 Persistent / subsurface dominated
+
+-----------------------------------
+Significant Periodicities Found (at 5.0% FAP Level):
+  - Period: 30.4 days
+
+-----------------------------------
+Uncertainty Report:
+  - Warning: The 95% CI for β1 is wide (0.80 > 0.5), suggesting high uncertainty.
+  - Warning: The 95% CI for β2 is wide (0.71 > 0.5), suggesting high uncertainty.

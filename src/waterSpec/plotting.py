@@ -92,6 +92,42 @@ def plot_spectrum(
                     label="95% CI on Fit",
                 )
 
+            # If CIs for slopes are available (from parametric method), plot them
+            elif "beta_cis" in fit_results and fit_results["beta_cis"]:
+                for i in range(n_breakpoints + 1):
+                    if i < len(fit_results["beta_cis"]) and fit_results["beta_cis"][i] is not None:
+                        beta_ci_lower, beta_ci_upper = fit_results["beta_cis"][i]
+                        intercept = fit_results["intercepts"][i]
+
+                        # Define the mask for this segment
+                        if n_breakpoints == 0: # Should not happen in this branch, but for safety
+                            mask = np.ones_like(log_freq, dtype=bool)
+                        elif i == 0:
+                            mask = log_freq <= log_bps[0]
+                        elif i == n_breakpoints:
+                            mask = log_freq > log_bps[i - 1]
+                        else:
+                            mask = (log_freq > log_bps[i-1]) & (log_freq <= log_bps[i])
+
+                        # We need to reconstruct the line for this segment
+                        # The intercept is for the start of the segment's domain
+                        segment_log_freq = log_freq[mask]
+
+                        # The model is y = intercept - beta * x
+                        # The uncertainty comes from beta, so we swap the upper/lower CIs
+                        lower_bound_power = intercept - beta_ci_upper * segment_log_freq
+                        upper_bound_power = intercept - beta_ci_lower * segment_log_freq
+
+                        plt.fill_between(
+                            np.exp(segment_log_freq),
+                            np.exp(lower_bound_power),
+                            np.exp(upper_bound_power),
+                            color=colors[i % len(colors)],
+                            alpha=0.2,
+                            label=f"95% CI on β{i+1}",
+                        )
+
+
             # Plot each segment
             for i in range(n_breakpoints + 1):
                 # Define the mask for this segment

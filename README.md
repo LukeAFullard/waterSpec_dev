@@ -8,7 +8,153 @@
 
 The methods used in this package are inspired by the work of *Liang et al. (2021)*.
 
-## Core Features
+## Feature 1: Spectral Power Coefficent (Beta) Estimation
+
+A key feature of `waterSpec` is its ability to characterize the relationship between the frequency and power of a time series, which is often described by the spectral exponent, beta (β). The package can model this relationship in two ways:
+
+1.  **Linear (Standard) Fit**: A single slope across the entire frequency range.
+2.  **Segmented (Breakpoint) Fit**: Two or more slopes, indicating that the relationship changes at specific frequencies (breakpoints).
+
+`waterSpec` automates the complex task of model selection. It fits both linear and segmented models and uses the **Bayesian Information Criterion (BIC)** to determine the most appropriate model for your data, preventing overfitting and providing a more objective analysis.
+
+### Example: Automatic Model Selection
+
+This example demonstrates how `waterSpec` automatically selects the best spectral model. In this case, while a segmented model was considered, the BIC score indicated that a **linear model** was the best fit for the data. This showcases the package's ability to make objective, data-driven decisions.
+
+```python
+from waterSpec import Analysis
+
+# 1. Define the path to your data file
+file_path = 'examples/segmented_data.csv'
+
+# 2. Create the analyzer object
+analyzer = Analysis(
+    file_path=file_path,
+    time_col='timestamp',
+    data_col='value',
+    param_name='Segmented Spectrum Example'
+)
+
+# 3. Run the full analysis
+# We'll run a faster analysis by reducing the grid points and using parametric CIs
+results = analyzer.run_full_analysis(
+    output_dir='example_output',
+    num_grid_points=100,      # Lower resolution for speed
+    ci_method='parametric'    # Use faster CI calculation
+)
+
+# The summary text is available in the returned dictionary
+print(results['summary_text'])
+```
+
+Which produces the following summary:
+
+```text
+Automatic Analysis for: Segmented Spectrum Example
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = 59.23    (β = 0.77)
+
+  Models that failed to fit:
+    - Segmented model (1 bp): Unknown error
+
+==> Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: Segmented Spectrum Example
+Value: β = 0.77 (95% CI: 0.61–0.92 (parametric))
+Persistence Level: 🟡 Mixed / weak persistence
+Scientific Meaning: -0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, suggesting event-driven transport.
+Contextual Comparison: Similar to TSS (Surface runoff-dominated).
+
+-----------------------------------
+Significant Periodicities Found:
+  - Period: 1.5 days (Fit Residual: 3.00)
+  - Period: 6.6 months (Fit Residual: 2.33)
+```
+
+<p align="center">
+  <img src="example_output/Segmented_Spectrum_Example_spectrum_plot.png" alt="Segmented Spectrum Example" width="90%"/>
+</p>
+
+## Feature 2: Peak Detection
+
+`waterSpec` can identify statistically significant periodicities in your time series using either False Alarm Probability (FAP) or residual-based methods. This is useful for detecting cyclical patterns, such as seasonal or diurnal signals.
+
+### Example: Detecting a 30-day Cycle
+
+This example shows how to use the FAP method to find a known periodic signal in the data.
+
+```python
+from waterSpec import Analysis
+
+# 1. Define the path to your data file
+file_path = 'examples/periodic_data.csv'
+
+# 2. Create the analyzer object
+analyzer = Analysis(
+    file_path=file_path,
+    time_col='timestamp',
+    data_col='value',
+    param_name='Peak Detection Example'
+)
+
+# 3. Run the full analysis
+# We'll use settings that are friendly for a quick example run
+results = analyzer.run_full_analysis(
+    output_dir='example_output',
+    ci_method='parametric',
+    peak_detection_method='fap', # Use FAP for this example
+    fap_threshold=0.05
+)
+
+# The summary text is available in the returned dictionary
+print(results['summary_text'])
+```
+
+This results in the following summary, correctly identifying the 30-day cycle:
+
+```text
+Automatic Analysis for: Peak Detection Example
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = 282.50   (β = 1.13)
+  - Segmented (1 BP) BIC = 165.00   (β1=-0.80, β2=2.77)
+
+==> Chosen Model: Segmented 1bp
+-----------------------------------
+
+Details for Chosen (Segmented 1bp) Model:
+Segmented Analysis for: Peak Detection Example
+Low-Frequency (Long-term) Fit:
+  β1 = -0.80 (95% CI: -1.21–-0.40 (parametric))
+  Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.
+  Persistence: 🔴 Event-driven
+--- Breakpoint 1 @ ~31.9 days (95% CI: 40.0 days–25.5 days (parametric)) ---
+High-Frequency (Short-term) Fit:
+  β2 = 2.77 (95% CI: 2.42–3.13 (parametric))
+  Interpretation: 1 < β < 3 (fBm-like): Strong persistence, suggesting transport is damped by storage.
+  Persistence: 🟢 Persistent / subsurface dominated
+
+-----------------------------------
+Significant Periodicities Found (at 5.0% FAP Level):
+  - Period: 30.4 days
+
+-----------------------------------
+Uncertainty Report:
+  - Warning: The 95% CI for β1 is wide (0.80 > 0.5), suggesting high uncertainty.
+  - Warning: The 95% CI for β2 is wide (0.71 > 0.5), suggesting high uncertainty.
+```
+
+<p align="center">
+  <img src="example_output/Peak_Detection_Example_spectrum_plot.png" alt="Peak Detection Example" width="90%"/>
+</p>
+
+---
+## Full Documentation
+
+### Core Features
 
 `waterSpec` provides a comprehensive and robust workflow for spectral analysis:
 
@@ -19,7 +165,7 @@ The methods used in this package are inspired by the work of *Liang et al. (2021
 -   **Significant Peak Detection**: Identifies statistically significant periodicities in your time series using either False Alarm Probability (FAP) or residual-based methods.
 -   **Publication-Quality Outputs**: Generates high-quality plots and detailed text summaries of the analysis, ready for inclusion in reports and publications.
 
-## Installation
+### Installation
 
 This package is not yet on PyPI. To install it, clone this repository and install it in editable mode using pip.
 
@@ -36,7 +182,7 @@ pip install -e .
 pip install -e '.[test]'
 ```
 
-## Quick Start
+### Quick Start
 
 The recommended workflow is centered around the `waterSpec.Analysis` object. You can run a complete analysis, generating a plot and a detailed text summary, with just a few lines of code.
 
@@ -57,21 +203,61 @@ analyzer = Analysis(
 
 # 3. Run the full analysis
 # This command runs the analysis, saves the outputs, and returns the results.
-results = analyzer.run_full_analysis(output_dir='example_output')
+results = analyzer.run_full_analysis(
+    output_dir='example_output',
+    ci_method='parametric' # Use faster CI calculation for the example
+)
 
 # The summary text is available in the returned dictionary
 print(results['summary_text'])
 ```
 
-## Example Output
+### Example Output
 
-Running the code above will produce a plot (`example_output/Nitrate_Concentration_at_Site_A_spectrum_plot.png`) and a text summary (`example_output/Nitrate_Concentration_at_Site_A_summary.txt`). The summary text provides a comprehensive overview of the analysis, including a comparison of different spectral models and a list of any significant periodicities found in the data.
+Running the code above will produce the following plot and summary text. The summary provides a comprehensive overview of the analysis, including a comparison of different spectral models and a list of any significant periodicities found in the data.
 
-## Advanced Usage
+```text
+Automatic Analysis for: Nitrate Concentration at Site A
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = 90.05    (β = -0.37)
+  - Segmented (1 BP) BIC = 47.73    (β1=0.36, β2=-1.52)
+
+==> Chosen Model: Segmented 1bp
+-----------------------------------
+
+Details for Chosen (Segmented 1bp) Model:
+Segmented Analysis for: Nitrate Concentration at Site A
+Low-Frequency (Long-term) Fit:
+  β1 = 0.36 (95% CI: -0.11–0.83 (parametric))
+  Interpretation: -0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, suggesting event-driven transport.
+  Persistence: 🔴 Event-driven
+--- Breakpoint 1 @ ~10.3 days (95% CI: 14.1 days–7.5 days (parametric)) ---
+High-Frequency (Short-term) Fit:
+  β2 = -1.52 (95% CI: -1.97–-1.08 (parametric))
+  Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.
+  Persistence: 🔴 Event-driven
+
+-----------------------------------
+Significant Periodicities Found:
+  - Period: 3.0 days (Fit Residual: 4.29)
+  - Period: 5.9 days (Fit Residual: 2.51)
+
+-----------------------------------
+Uncertainty Report:
+  - Warning: The 95% CI for β1 is wide (0.95 > 0.5), suggesting high uncertainty.
+  - Warning: The 95% CI for β2 is wide (0.89 > 0.5), suggesting high uncertainty.
+```
+
+<p align="center">
+  <img src="example_output/Nitrate_Concentration_at_Site_A_spectrum_plot.png" alt="Quick Start Example Plot" width="90%"/>
+</p>
+
+### Advanced Usage
 
 `waterSpec` provides several options to customize the analysis.
 
-### Data Loading Options
+#### Data Loading Options
 
 You can control how data is loaded by passing optional arguments to the `Analysis` constructor:
 
@@ -90,7 +276,7 @@ analyzer = Analysis(
 )
 ```
 
-### Analysis Options
+#### Analysis Options
 
 The `run_full_analysis` method offers several parameters to fine-tune the spectral analysis:
 
@@ -110,14 +296,23 @@ results = analyzer.run_full_analysis(
 print(results['summary_text'])
 ```
 
-## Dependencies and Citation
+#### A Note on Confidence Intervals
+
+`waterSpec` offers two methods for calculating confidence intervals (CIs):
+
+-   `'bootstrap'`: A robust, non-parametric method that is recommended for final analysis. It can be computationally intensive.
+-   `'parametric'`: A faster method based on statistical theory. It is suitable for initial exploration and is used in the examples in this `README` for speed.
+
+For the most reliable results, it is recommended to use the `'bootstrap'` method.
+
+### Dependencies and Citation
 
 The segmented regression analysis in this package is powered by the `piecewise-regression` library. If you use the segmented model results from `waterSpec` in your research, please cite the following paper:
 
 > Pilgrim, C. (2021). piecewise-regression (aka segmented regression) in Python. Journal of Open Source Software, 6(68), 3859. https://doi.org/10.21105/joss.03859
 
-## Citing the Methodology
+### Citing the Methodology
 
 The methods used in this package are based on the following article. Please cite it if you use `waterSpec` in your research.
 
-> Liang X, Schilling KE, Jones CS, Zhang Y-K. 2021. Temporal scaling of long-term co-occurring agricultural contaminants and the implications for conservation planning. Environmental Research Letters 16:094015.
+> [Liang X, Schilling KE, Jones CS, Zhang Y-K. 2021. Temporal scaling of long-term co-occurring agricultural contaminants and the implications for conservation planning. Environmental Research Letters 16:094015.](https://doi.org/10.1088/1748-9326/ac19dd)
