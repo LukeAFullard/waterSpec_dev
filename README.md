@@ -8,7 +8,82 @@
 
 The methods used in this package are inspired by the work of *Liang et al. (2021)*.
 
-## Feature 1: Spectral Power Coefficent (Beta) Estimation
+## Quick Start
+
+The recommended workflow is centered around the `waterSpec.Analysis` object. You can run a complete analysis, generating a plot and a detailed text summary, with just a few lines of code.
+
+```python
+from waterSpec import Analysis
+
+# 1. Define the path to your data file
+file_path = 'examples/sample_data.csv'
+
+# 2. Create the analyzer object
+# This loads and preprocesses the data immediately.
+analyzer = Analysis(
+    file_path=file_path,
+    time_col='timestamp',
+    data_col='concentration',
+    param_name='Nitrate Concentration at Site A' # A descriptive name for plots
+)
+
+# 3. Run the full analysis
+# This command runs the analysis, saves the outputs, and returns the results.
+results = analyzer.run_full_analysis(
+    output_dir='example_output',
+    ci_method='parametric' # Use faster CI calculation for the example
+)
+
+# The summary text is available in the returned dictionary
+print(results['summary_text'])
+```
+
+### Example Output
+
+Running the code above will produce the following plot and summary text. The summary provides a comprehensive overview of the analysis, including a comparison of different spectral models and a list of any significant periodicities found in the data.
+
+```text
+Automatic Analysis for: Nitrate Concentration at Site A
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = 90.05    (β = -0.37)
+  - Segmented (1 BP) BIC = 47.73    (β1=0.36, β2=-1.52)
+
+==> Chosen Model: Segmented 1bp
+-----------------------------------
+
+Details for Chosen (Segmented 1bp) Model:
+Segmented Analysis for: Nitrate Concentration at Site A
+Low-Frequency (Long-term) Fit:
+  β1 = 0.36 (95% CI: -0.11–0.83 (parametric))
+  Interpretation: -0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, suggesting event-driven transport.
+  Persistence: 🔴 Event-driven
+--- Breakpoint 1 @ ~10.3 days (95% CI: 14.1 days–7.5 days (parametric)) ---
+High-Frequency (Short-term) Fit:
+  β2 = -1.52 (95% CI: -1.97–-1.08 (parametric))
+  Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.
+  Persistence: 🔴 Event-driven
+
+-----------------------------------
+Significant Periodicities Found:
+  - Period: 3.0 days (Fit Residual: 4.29)
+  - Period: 5.9 days (Fit Residual: 2.51)
+
+-----------------------------------
+Uncertainty Report:
+  - Warning: The 95% CI for β1 is wide (0.95 > 0.5), suggesting high uncertainty.
+  - Warning: The 95% CI for β2 is wide (0.89 > 0.5), suggesting high uncertainty.
+```
+
+<p align="center">
+  <img src="example_output/Nitrate_Concentration_at_Site_A_spectrum_plot.png" alt="Quick Start Example Plot" width="90%"/>
+</p>
+
+---
+
+## Key Features
+
+### Spectral Power Coefficent (Beta) Estimation
 
 A key feature of `waterSpec` is its ability to characterize the relationship between the frequency and power of a time series, which is often described by the spectral exponent, beta (β). The package can model this relationship in two ways:
 
@@ -17,7 +92,7 @@ A key feature of `waterSpec` is its ability to characterize the relationship bet
 
 `waterSpec` automates the complex task of model selection. It fits both linear and segmented models and uses the **Bayesian Information Criterion (BIC)** to determine the most appropriate model for your data, preventing overfitting and providing a more objective analysis.
 
-### Example: Automatic Model Selection
+#### Example: Robust Model Selection
 
 This example demonstrates how `waterSpec` automatically selects the best spectral model. In this case, while a segmented model was considered, the BIC score indicated that a **linear model** was the best fit for the data. This showcases the package's ability to make objective, data-driven decisions.
 
@@ -78,11 +153,11 @@ Significant Periodicities Found:
   <img src="example_output/Segmented_Spectrum_Example_spectrum_plot.png" alt="Segmented Spectrum Example" width="90%"/>
 </p>
 
-## Feature 2: Peak Detection
+### Peak Detection
 
 `waterSpec` can identify statistically significant periodicities in your time series using either False Alarm Probability (FAP) or residual-based methods. This is useful for detecting cyclical patterns, such as seasonal or diurnal signals.
 
-### Example: Detecting a 30-day Cycle
+#### Example: Detecting a 30-day Cycle
 
 This example shows how to use the FAP method to find a known periodic signal in the data.
 
@@ -182,77 +257,6 @@ pip install -e .
 pip install -e '.[test]'
 ```
 
-### Quick Start
-
-The recommended workflow is centered around the `waterSpec.Analysis` object. You can run a complete analysis, generating a plot and a detailed text summary, with just a few lines of code.
-
-```python
-from waterSpec import Analysis
-
-# 1. Define the path to your data file
-file_path = 'examples/sample_data.csv'
-
-# 2. Create the analyzer object
-# This loads and preprocesses the data immediately.
-analyzer = Analysis(
-    file_path=file_path,
-    time_col='timestamp',
-    data_col='concentration',
-    param_name='Nitrate Concentration at Site A' # A descriptive name for plots
-)
-
-# 3. Run the full analysis
-# This command runs the analysis, saves the outputs, and returns the results.
-results = analyzer.run_full_analysis(
-    output_dir='example_output',
-    ci_method='parametric' # Use faster CI calculation for the example
-)
-
-# The summary text is available in the returned dictionary
-print(results['summary_text'])
-```
-
-### Example Output
-
-Running the code above will produce the following plot and summary text. The summary provides a comprehensive overview of the analysis, including a comparison of different spectral models and a list of any significant periodicities found in the data.
-
-```text
-Automatic Analysis for: Nitrate Concentration at Site A
------------------------------------
-Model Comparison (Lower BIC is better):
-  - Standard        BIC = 90.05    (β = -0.37)
-  - Segmented (1 BP) BIC = 47.73    (β1=0.36, β2=-1.52)
-
-==> Chosen Model: Segmented 1bp
------------------------------------
-
-Details for Chosen (Segmented 1bp) Model:
-Segmented Analysis for: Nitrate Concentration at Site A
-Low-Frequency (Long-term) Fit:
-  β1 = 0.36 (95% CI: -0.11–0.83 (parametric))
-  Interpretation: -0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, suggesting event-driven transport.
-  Persistence: 🔴 Event-driven
---- Breakpoint 1 @ ~10.3 days (95% CI: 14.1 days–7.5 days (parametric)) ---
-High-Frequency (Short-term) Fit:
-  β2 = -1.52 (95% CI: -1.97–-1.08 (parametric))
-  Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.
-  Persistence: 🔴 Event-driven
-
------------------------------------
-Significant Periodicities Found:
-  - Period: 3.0 days (Fit Residual: 4.29)
-  - Period: 5.9 days (Fit Residual: 2.51)
-
------------------------------------
-Uncertainty Report:
-  - Warning: The 95% CI for β1 is wide (0.95 > 0.5), suggesting high uncertainty.
-  - Warning: The 95% CI for β2 is wide (0.89 > 0.5), suggesting high uncertainty.
-```
-
-<p align="center">
-  <img src="example_output/Nitrate_Concentration_at_Site_A_spectrum_plot.png" alt="Quick Start Example Plot" width="90%"/>
-</p>
-
 ### Advanced Usage
 
 `waterSpec` provides several options to customize the analysis.
@@ -273,6 +277,29 @@ analyzer = Analysis(
     sheet_name='Water Quality Data',
     time_format='%Y-%m-%d',
     verbose=True
+)
+```
+
+#### Preprocessing Options
+
+You can control how data is preprocessed by passing optional arguments to the `Analysis` constructor. These steps are applied in a fixed order: censoring, log-transformation, detrending, and normalization.
+
+*   `censor_strategy`: The method for handling censored data (e.g., values like `"<5"`). Options are `'drop'` (default), `'use_detection_limit'`, or `'multiplier'`.
+*   `log_transform_data`: If `True`, the data is log-transformed. This requires all data points to be positive.
+*   `detrend_method`: The method for removing a trend from the data. Options are `'linear'` (default) or `'loess'`.
+*   `normalize_data`: If `True`, the data is normalized to have a mean of 0 and a standard deviation of 1.
+
+```python
+# Example of using preprocessing options
+analyzer = Analysis(
+    file_path='examples/censored_data.csv',
+    time_col='timestamp',
+    data_col='value',
+    param_name='Detrended and Censored Data',
+    # Handle censored data by replacing '<' with the detection limit
+    censor_strategy='use_detection_limit',
+    # Detrend the data using a non-linear LOESS fit
+    detrend_method='loess'
 )
 ```
 
@@ -303,7 +330,7 @@ print(results['summary_text'])
 -   `'bootstrap'`: A robust, non-parametric method that is recommended for final analysis. It can be computationally intensive.
 -   `'parametric'`: A faster method based on statistical theory. It is suitable for initial exploration and is used in the examples in this `README` for speed.
 
-For the most reliable results, it is recommended to use the `'bootstrap'` method.
+By default, `run_full_analysis` uses `ci_method='bootstrap'`. For faster initial exploration, we recommend explicitly setting `ci_method='parametric'`, as shown in the examples. For the most reliable results in a final analysis, it is recommended to use the default `'bootstrap'` method.
 
 ### Dependencies and Citation
 
