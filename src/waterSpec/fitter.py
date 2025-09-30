@@ -183,8 +183,6 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
     This also calculates the confidence interval of the fitted line itself.
     """
     logger = logger or logging.getLogger(__name__)
-    if piecewise_regression is None:
-        raise ImportError(_PIECEWISE_MISSING_MSG)
     n_breakpoints = pw_fit.n_breakpoints
     log_power_fit = pw_fit.predict(log_freq)
     residuals = log_power - log_power_fit
@@ -311,8 +309,6 @@ def _extract_parametric_segmented_cis(pw_fit, n_breakpoints, ci=95, logger=None)
     This function extracts them.
     """
     logger = logger or logging.getLogger(__name__)
-    if piecewise_regression is None:
-        raise ImportError(_PIECEWISE_MISSING_MSG)
     msg = (
         "Parametric confidence intervals for segmented models assume normality "
         "of errors and may be less reliable than bootstrap intervals. "
@@ -391,7 +387,22 @@ def fit_segmented_spectrum(
     """
     logger = logger or logging.getLogger(__name__)
     if piecewise_regression is None:
-        raise ImportError(_PIECEWISE_MISSING_MSG)
+        logger.warning(
+            "Segmented fitting failed because the 'piecewise-regression' "
+            "package is not installed. Falling back to a standard linear fit. "
+            "To enable segmented fitting, please install the package, e.g., "
+            "with 'pip install piecewise-regression'."
+        )
+        return fit_standard_model(
+            frequency,
+            power,
+            method="theil-sen",  # Default to a robust method
+            ci_method=ci_method,
+            n_bootstraps=n_bootstraps,
+            ci=ci,
+            seed=seed,
+            logger=logger,
+        )
 
     # Input validation
     if not isinstance(frequency, np.ndarray) or not isinstance(power, np.ndarray):

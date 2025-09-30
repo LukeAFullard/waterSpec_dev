@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import waterSpec.fitter
 
 from waterSpec.fitter import fit_segmented_spectrum, fit_standard_model
 
@@ -581,3 +582,33 @@ def test_fit_segmented_spectrum_invalid_numeric_args(multifractal_spectrum):
 
     with pytest.raises(ValueError, match="'ci' must be between 0 and 100"):
         fit_segmented_spectrum(frequency, power, ci=100)
+
+
+def test_fit_segmented_spectrum_fallback_on_missing_package(
+    multifractal_spectrum, mocker, caplog
+):
+    """
+    Test that fit_segmented_spectrum falls back to fit_standard_model if
+    piecewise_regression is not installed.
+    """
+    frequency, power, _, _, _ = multifractal_spectrum
+
+    # Mock the import to simulate the package being missing
+    mocker.patch("waterSpec.fitter.piecewise_regression", None)
+
+    # Spy on the fallback function to ensure it's called
+    spy_fit_standard = mocker.spy(waterSpec.fitter, "fit_standard_model")
+
+    # Call the function that should trigger the fallback
+    results = fit_segmented_spectrum(frequency, power)
+
+    # 1. Check that the warning was logged
+    assert "Falling back to a standard linear fit" in caplog.text
+
+    # 2. Check that the fallback function was called
+    spy_fit_standard.assert_called_once()
+
+    # 3. Check that the results look like they came from the standard model
+    # (e.g., they don't contain segmented-specific keys)
+    assert "beta" in results
+    assert "breakpoints" not in results
