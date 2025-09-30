@@ -84,7 +84,7 @@ def test_fit_standard_model_with_bootstrap_ci(synthetic_spectrum):
 
     # Fit the spectrum with bootstrap
     fit_results = fit_standard_model(
-        frequency, power, n_bootstraps=100, seed=42
+        frequency, power, n_bootstraps=10, seed=42
     )  # Use a small number for testing
 
     # Check that the results dictionary contains the required keys
@@ -152,23 +152,24 @@ def test_fit_segmented_spectrum(multifractal_spectrum):
     """
     frequency, power, known_breakpoint, known_beta1, known_beta2 = multifractal_spectrum
 
-    # Fit the segmented spectrum
-    results = fit_segmented_spectrum(frequency, power)
+    # Fit the segmented spectrum with a low number of bootstraps for speed
+    results = fit_segmented_spectrum(frequency, power, n_bootstraps=10, seed=42)
 
-    # Check that the results contain the expected keys
-    assert "breakpoint" in results
-    assert "beta1" in results
-    assert "beta2" in results
+    # Check that the results contain the expected list-based keys
+    assert "breakpoints" in results
+    assert "betas" in results
+    assert len(results["breakpoints"]) == 1
+    assert len(results["betas"]) == 2
 
     # Check that the identified breakpoint is close to the known breakpoint
     # The breakpoint is on a log scale, so we check the log values
-    assert np.log10(results["breakpoint"]) == pytest.approx(
+    assert np.log10(results["breakpoints"][0]) == pytest.approx(
         np.log10(known_breakpoint), abs=0.5
     )
 
     # Check that the estimated betas are close to the known betas
-    assert results["beta1"] == pytest.approx(known_beta1, abs=0.3)
-    assert results["beta2"] == pytest.approx(known_beta2, abs=0.3)
+    assert results["betas"][0] == pytest.approx(known_beta1, abs=0.3)
+    assert results["betas"][1] == pytest.approx(known_beta2, abs=0.3)
 
 
 # --- Edge Case Tests ---
@@ -209,15 +210,15 @@ def test_fit_standard_model_is_reproducible(synthetic_spectrum):
 
     # Fit twice with the same seed
     results1 = fit_standard_model(
-        frequency, power, n_bootstraps=50, seed=123
+        frequency, power, n_bootstraps=10, seed=123
     )
     results2 = fit_standard_model(
-        frequency, power, n_bootstraps=50, seed=123
+        frequency, power, n_bootstraps=10, seed=123
     )
 
     # Fit once with a different seed
     results3 = fit_standard_model(
-        frequency, power, n_bootstraps=50, seed=456
+        frequency, power, n_bootstraps=10, seed=456
     )
 
     # The first two results should be identical
@@ -288,7 +289,7 @@ def test_fit_segmented_spectrum_p_threshold(multifractal_spectrum, mocker):
 
     assert "model_summary" in results_rejected
     assert "No significant breakpoint found" in results_rejected["model_summary"]
-    assert "breakpoint" not in results_rejected  # The fit details should not be present
+    assert "breakpoints" not in results_rejected  # The fit details should not be present
 
     # --- Case 2: p_threshold is higher than the p-value (e.g., 0.15 > 0.1) ---
     # The fit should be accepted.
@@ -298,7 +299,7 @@ def test_fit_segmented_spectrum_p_threshold(multifractal_spectrum, mocker):
 
     assert "model_summary" in results_accepted
     assert "No significant breakpoint found" not in results_accepted["model_summary"]
-    assert "breakpoint" in results_accepted  # The fit details should be present
+    assert "breakpoints" in results_accepted  # The fit details should be present
     assert results_accepted["davies_p_value"] == 0.1
 
 
@@ -348,9 +349,10 @@ def test_fit_segmented_spectrum_with_parametric_ci(multifractal_spectrum):
     assert np.all(np.isfinite(beta1_ci))
     assert beta1_ci[0] <= known_beta1 <= beta1_ci[1]
 
-    # Check CI for the second slope (should be NaN, as it's not directly available)
+    # Check CI for the second slope (this should now be valid after the bug fix)
     beta2_ci = results["betas_ci"][1]
-    assert np.all(np.isnan(beta2_ci))
+    assert np.all(np.isfinite(beta2_ci))
+    assert beta2_ci[0] <= known_beta2 <= beta2_ci[1]
 
     # Check CI for the breakpoint (should be valid)
     breakpoint_ci = results["breakpoints_ci"][0]
@@ -449,18 +451,18 @@ def test_fit_standard_model_bootstrap_warning(synthetic_spectrum, mocker):
     )
     mock_success_result = LinregressResult(-known_beta, 1.0, 0.9, 0.0, 0.1)
 
-    # The first call is for the initial fit. The subsequent calls are in the
-    # bootstrap loop. We make most of them fail.
+    # The first call is for the initial fit. The subsequent calls are for the
+    # bootstrap loop. We make half of them fail to trigger the warning.
     side_effects = (
-        [mock_success_result]
-        + [RuntimeError("Failed fit")] * 95
-        + [mock_success_result] * 5
+        [mock_success_result]  # Initial fit
+        + [RuntimeError("Failed fit")] * 5  # 5 failures
+        + [mock_success_result] * 5  # 5 successes
     )
     mocker.patch("waterSpec.fitter.stats.linregress", side_effect=side_effects)
 
-    with pytest.warns(UserWarning, match="Only 5/100 bootstrap iterations succeeded"):
+    with pytest.warns(UserWarning, match="Only 5/10 bootstrap iterations succeeded"):
         fit_standard_model(
-            frequency, power, method="ols", n_bootstraps=100, seed=42
+            frequency, power, method="ols", n_bootstraps=10, seed=42
         )
 
 
@@ -482,7 +484,7 @@ def test_bootstrap_segmented_fit_graceful_failure(mocker):
             mock_pw_fit,
             log_freq=np.ones(10),
             log_power=np.ones(10),
-            n_bootstraps=100,
+            n_bootstraps=10,
             ci=95,
             seed=42,
         )
@@ -518,17 +520,17 @@ def test_bootstrap_segmented_fit_iteration_warning(multifractal_spectrum, mocker
     mock_failed_fit.get_results.return_value = {"converged": False}
 
     # The first call is for the initial fit, which must succeed.
-    # The subsequent calls are for the bootstrap iterations.
+    # The subsequent calls are for the bootstrap iterations. We make most fail.
     side_effects = (
-        [mock_successful_fit]
-        + [mock_failed_fit] * 95
-        + [mock_successful_fit] * 5
+        [mock_successful_fit]  # Initial fit
+        + [mock_failed_fit] * 8  # 8 failures
+        + [mock_successful_fit] * 2  # 2 successes
     )
     mocker.patch(
         "waterSpec.fitter.piecewise_regression.Fit", side_effect=side_effects
     )
 
-    with pytest.warns(UserWarning, match="Only 5/100 bootstrap iterations for the segmented model succeeded"):
+    with pytest.warns(UserWarning, match="Only 2/10 bootstrap iterations for the segmented model succeeded"):
         fit_segmented_spectrum(
-            frequency, power, n_breakpoints=1, n_bootstraps=100, seed=42
+            frequency, power, n_breakpoints=1, n_bootstraps=10, seed=42
         )

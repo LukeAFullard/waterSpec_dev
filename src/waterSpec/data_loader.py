@@ -76,9 +76,7 @@ def load_data(
 
     # Data column
     if df[data_col_orig].isnull().all():
-        warnings.warn(
-            f"The data column '{data_col}' contains no valid data.", UserWarning
-        )
+        raise ValueError(f"The data column '{data_col}' contains no valid data.")
     original_data_na = df[data_col_orig].isna().sum()
     data_series = pd.to_numeric(df[data_col_orig], errors="coerce")
     coerced_data_na = data_series.isna().sum()

@@ -114,11 +114,13 @@ def fit_standard_model(
                     logger.debug(msg)
                 continue
 
+        MIN_BOOTSTRAP_SUCCESS_RATIO = 0.8
         if len(beta_estimates) > 0:
-            if len(beta_estimates) < n_bootstraps * 0.8:
+            if len(beta_estimates) < n_bootstraps * MIN_BOOTSTRAP_SUCCESS_RATIO:
                 msg = (
                     f"Only {len(beta_estimates)}/{n_bootstraps} bootstrap iterations "
-                    "succeeded. The resulting confidence interval may be unreliable."
+                    "succeeded (less than {MIN_BOOTSTRAP_SUCCESS_RATIO * 100}%). "
+                    "The resulting confidence interval may be unreliable."
                 )
                 if logger:
                     logger.warning(msg)
@@ -464,12 +466,6 @@ def fit_segmented_spectrum(
         slopes.append(current_slope)
 
     betas = [-s for s in slopes]
-
-    # For backward compatibility, add single values if only one breakpoint
-    if n_breakpoints == 1:
-        results["breakpoint"] = breakpoints[0]
-        results["beta1"] = betas[0]
-        results["beta2"] = betas[1]
 
     results["breakpoints"] = breakpoints
     results["betas"] = betas

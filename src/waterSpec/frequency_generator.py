@@ -39,11 +39,14 @@ def generate_frequency_grid(time_numeric, num_points=200, grid_type="log"):
         raise ValueError("Median sampling interval must be positive.")
     nyquist_freq = 0.5 / median_sampling_interval
 
-    # In rare cases (e.g., very short series), min_freq can be >= nyquist_freq.
-    # We adjust min_freq downwards to ensure a valid frequency range. This is an
-    # arbitrary adjustment but prevents the function from failing.
+    # The minimum frequency must be less than the Nyquist frequency to define
+    # a valid range for the grid. If it's not, the time series is too short
+    # or has too few points for a meaningful analysis.
     if min_freq >= nyquist_freq:
-        min_freq = nyquist_freq / 100
+        raise ValueError(
+            "The time series duration is too short relative to the median "
+            "sampling interval. A meaningful frequency grid cannot be generated."
+        )
 
     if grid_type == "log":
         frequency_grid = np.logspace(

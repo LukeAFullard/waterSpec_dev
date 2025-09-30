@@ -150,18 +150,23 @@ def test_find_peaks_via_residuals_finds_peak(sample_fit_results):
     assert peaks[0]["frequency"] == pytest.approx(expected_freq)
 
 
-def test_find_peaks_via_residuals_no_significant_peak(sample_fit_results):
+def test_find_peaks_via_residuals_no_significant_peak(sample_fit_results, mocker):
     """
     Test that the method returns an empty list if no residual crosses the
     threshold.
     """
     from waterSpec.spectral_analyzer import find_peaks_via_residuals
 
-    # With our deterministic data, ci=99.9 will set a threshold > 0.1 but < 3.0.
-    # The test is to see if we can set a threshold so high that nothing is found.
-    # With ci=100, the threshold will be 3.0, and `>` comparison will fail.
-    peaks, threshold = find_peaks_via_residuals(sample_fit_results, ci=100)
+    # Mock numpy.percentile to return a threshold that is guaranteed to be
+    # higher than any residual in the sample data (max is 3.0). This avoids
+    # floating point issues with ci=100.
+    mock_threshold = 3.1
+    mocker.patch("numpy.percentile", return_value=mock_threshold)
+
+    # The `ci` value doesn't matter here since percentile is mocked.
+    peaks, threshold = find_peaks_via_residuals(sample_fit_results, ci=99.9)
     assert len(peaks) == 0
+    assert threshold == mock_threshold
 
 
 def test_find_peaks_via_residuals_raises_error_on_missing_keys():

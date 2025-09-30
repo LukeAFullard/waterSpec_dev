@@ -143,28 +143,21 @@ def find_peaks_via_residuals(fit_results, ci=95):
     # Calculate the significance threshold from the residuals
     residual_threshold = np.percentile(residuals, ci)
 
-    # Find indices where the residual exceeds the threshold
-    significant_indices = np.where(residuals > residual_threshold)[0]
-    if len(significant_indices) == 0:
+    # Use a dedicated peak-finding algorithm on the residuals. This is more
+    # robust than grouping contiguous regions, as it prevents a single broad
+    # peak from being split into multiple reported peaks.
+    peak_indices, _ = find_peaks(residuals, height=residual_threshold)
+
+    if len(peak_indices) == 0:
         return [], residual_threshold
 
-    # Group contiguous significant indices into regions
-    significant_groups = np.split(
-        significant_indices, np.where(np.diff(significant_indices) != 1)[0] + 1
-    )
-
     significant_peaks = []
-    for group in significant_groups:
-        if len(group) == 0:
-            continue
-        # For each significant region, find the point with the highest power
-        max_power_index_in_group = group[np.argmax(log_power[group])]
-
+    for peak_idx in peak_indices:
         significant_peaks.append(
             {
-                "frequency": np.exp(log_freq[max_power_index_in_group]),
-                "power": np.exp(log_power[max_power_index_in_group]),
-                "residual": residuals[max_power_index_in_group],
+                "frequency": np.exp(log_freq[peak_idx]),
+                "power": np.exp(log_power[peak_idx]),
+                "residual": residuals[peak_idx],
             }
         )
 

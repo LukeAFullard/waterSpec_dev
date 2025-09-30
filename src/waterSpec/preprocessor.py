@@ -30,8 +30,10 @@ def detrend(x, data, errors=None):
 
     if propagated_errors is not None:
         errors_valid = propagated_errors[valid_indices]
-        # Calculate the standard error of the trend line prediction
-        prediction_se = results.get_prediction(X_with_const).se_mean
+        # To propagate errors correctly, we need the standard error for a
+        # single observation's prediction, not the mean prediction. `se_obs`
+        # correctly includes the residual standard deviation.
+        prediction_se = results.get_prediction(X_with_const).se_obs
         # Propagate errors: new_err^2 = old_err^2 + trend_err^2
         new_err_sq = np.square(errors_valid) + np.square(prediction_se)
         propagated_errors[valid_indices] = np.sqrt(new_err_sq)
@@ -107,7 +109,8 @@ def handle_censored_data(
     strategy="drop",
     lower_multiplier=0.5,
     upper_multiplier=1.1,
-    censor_symbol="<",
+    left_censor_symbol="<",
+    right_censor_symbol=">",
     **kwargs,
 ):
     """
@@ -132,10 +135,10 @@ def handle_censored_data(
     original_series = series.copy()  # Keep a copy for finding offenders
 
     # --- Handle left-censored data (e.g., "<5") ---
-    left_mask = str_series.str.startswith(censor_symbol, na=False)
+    left_mask = str_series.str.startswith(left_censor_symbol, na=False)
     if left_mask.any():
         values = pd.to_numeric(
-            str_series[left_mask].str.lstrip(censor_symbol), errors="coerce"
+            str_series[left_mask].str.lstrip(left_censor_symbol), errors="coerce"
         )
         if strategy == "drop":
             series.loc[left_mask] = np.nan
@@ -145,9 +148,11 @@ def handle_censored_data(
             series.loc[left_mask] = values * lower_multiplier
 
     # --- Handle right-censored data (e.g., ">50") ---
-    right_mask = str_series.str.startswith(">", na=False)
+    right_mask = str_series.str.startswith(right_censor_symbol, na=False)
     if right_mask.any():
-        values = pd.to_numeric(str_series[right_mask].str.lstrip(">"), errors="coerce")
+        values = pd.to_numeric(
+            str_series[right_mask].str.lstrip(right_censor_symbol), errors="coerce"
+        )
         if strategy == "drop":
             series.loc[right_mask] = np.nan
         elif strategy == "use_detection_limit":
@@ -174,14 +179,19 @@ def handle_censored_data(
     return numeric_series.to_numpy()
 
 
-def detrend_loess(x, y, errors=None, **kwargs):
+def detrend_loess(x, y, errors=None, frac=0.5, **kwargs):
     """
     Removes a non-linear trend from a time series using LOESS.
-    """
-    # Set a default for `frac` if not provided
-    if "frac" not in kwargs:
-        kwargs["frac"] = 0.5
 
+    Args:
+        frac (float): The fraction of the data used when estimating each
+            y-value. Should be between 0 and 1.
+    """
+    # 1. Validate parameters
+    if not isinstance(frac, (int, float)) or not (0 < frac <= 1):
+        raise ValueError("`frac` must be a number between 0 and 1.")
+
+    # 2. Prepare data
     valid_indices = ~np.isnan(y)
     num_valid = np.sum(valid_indices)
 
@@ -199,7 +209,7 @@ def detrend_loess(x, y, errors=None, **kwargs):
     x_valid = x[valid_indices]
     y_valid = y[valid_indices]
 
-    smoothed_y = sm.nonparametric.lowess(y_valid, x_valid, **kwargs)[:, 1]
+    smoothed_y = sm.nonparametric.lowess(y_valid, x_valid, frac=frac, **kwargs)[:, 1]
     residuals = y_valid - smoothed_y
     detrended_y = np.full_like(y, np.nan)
     detrended_y[valid_indices] = residuals

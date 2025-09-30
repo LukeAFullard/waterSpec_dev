@@ -58,45 +58,59 @@ BENCHMARK_TABLE = pd.DataFrame(
 ).set_index("Parameter")
 
 
+# Define constants for scientific interpretation for clarity and maintainability.
+BETA_TOLERANCE = 0.2  # Tolerance for comparing beta to common noise models
+BETA_LOWER_BOUND = -0.5  # Physical lower bound for beta
+BETA_UPPER_BOUND = 3.0  # Physical upper bound for beta
+
+# Define thresholds for persistence categories
+PERSISTENCE_EVENT_DRIVEN_THRESHOLD = 0.5
+PERSISTENCE_MIXED_THRESHOLD = 1.0
+
+
 def get_scientific_interpretation(beta):
     """Provides a scientific interpretation of the spectral exponent (beta)."""
-    # Relax the check to allow for slightly negative beta values, which can
-    # occur with noisy data.
-    if beta < -0.5:
+    if beta < BETA_LOWER_BOUND:
         return (
             "Warning: Beta value is significantly negative, which is physically "
             "unrealistic."
         )
-    if np.isclose(beta, 0, atol=0.2):
+    if np.isclose(beta, 0, atol=BETA_TOLERANCE):
         return "β ≈ 0: White noise (uncorrelated)."
-    if np.isclose(beta, 1, atol=0.2):
+    if np.isclose(beta, 1, atol=BETA_TOLERANCE):
         return "β ≈ 1: Pink noise (1/f), common in nature."
-    if np.isclose(beta, 2, atol=0.2):
+    if np.isclose(beta, 2, atol=BETA_TOLERANCE):
         return "β ≈ 2: Brownian noise (random walk)."
-    if -0.5 <= beta < 1:
+    if BETA_LOWER_BOUND <= beta < 1:
         return (
-            "-0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, "
+            f"{BETA_LOWER_BOUND} < β < 1 (fGn-like): Weak persistence or anti-persistence, "
             "suggesting event-driven transport."
         )
-    if 1 < beta < 3:
+    if 1 < beta < BETA_UPPER_BOUND:
         return (
-            "1 < β < 3 (fBm-like): Strong persistence, suggesting transport is "
+            f"1 < β < {BETA_UPPER_BOUND} (fBm-like): Strong persistence, suggesting transport is "
             "damped by storage."
         )
-    if beta >= 3:
-        return "β ≥ 3: Black noise, very smooth signal, may indicate non-stationarity."
+    if beta >= BETA_UPPER_BOUND:
+        return f"β ≥ {BETA_UPPER_BOUND}: Black noise, very smooth signal, may indicate non-stationarity."
     return "No interpretation available."
 
 
 def get_persistence_traffic_light(beta):
     """Returns a traffic-light style summary of persistence."""
-    if beta < 0.5:
+    if beta < PERSISTENCE_EVENT_DRIVEN_THRESHOLD:
         return "🔴 Event-driven"
-    if 0.5 <= beta <= 1.0:
+    if PERSISTENCE_EVENT_DRIVEN_THRESHOLD <= beta <= PERSISTENCE_MIXED_THRESHOLD:
         return "🟡 Mixed / weak persistence"
-    if beta > 1.0:
+    if beta > PERSISTENCE_MIXED_THRESHOLD:
         return "🟢 Persistent / subsurface dominated"
     return "⚪ Unknown"
+
+
+# Define time constants for period formatting for clarity and maintainability.
+SECONDS_PER_DAY = 86400
+DAYS_PER_MONTH = 30.44  # Average days in a month
+DAYS_PER_YEAR = 365.25  # Accounts for leap years
 
 
 def _format_period(frequency_hz):
@@ -105,12 +119,12 @@ def _format_period(frequency_hz):
         return "N/A"
 
     period_seconds = 1 / frequency_hz
-    period_days = period_seconds / 86400
+    period_days = period_seconds / SECONDS_PER_DAY
 
-    if period_days > 365.25 * 2:  # Over 2 years
-        return f"{period_days / 365.25:.1f} years"
-    elif period_days > 30.44 * 2:  # Over 2 months
-        return f"{period_days / 30.44:.1f} months"
+    if period_days > DAYS_PER_YEAR * 2:
+        return f"{period_days / DAYS_PER_YEAR:.1f} years"
+    elif period_days > DAYS_PER_MONTH * 2:
+        return f"{period_days / DAYS_PER_MONTH:.1f} months"
     else:
         return f"{period_days:.1f} days"
 
@@ -132,6 +146,25 @@ def compare_to_benchmarks(beta):
             closest_match = f"Closest to {param} ({row['Dominant Pathway']}-dominated)."
 
     return closest_match
+
+
+def _generate_segment_interpretation(
+    title, beta, beta_ci, beta_name, ci_method_str, uncertainty_threshold
+):
+    """Generates the interpretation text for a single spectral segment."""
+    beta_str = f"{beta_name} = {beta:.2f}"
+    if np.all(np.isfinite(beta_ci)):
+        beta_str += f" (95% CI: {beta_ci[0]:.2f}–{beta_ci[1]:.2f}{ci_method_str})"
+
+    warning = _get_uncertainty_warning(beta_ci, uncertainty_threshold, name=beta_name)
+
+    summary_lines = [
+        f"{title}:",
+        f"  {beta_str}",
+        f"  Interpretation: {get_scientific_interpretation(beta)}",
+        f"  Persistence: {get_persistence_traffic_light(beta)}",
+    ]
+    return summary_lines, warning
 
 
 def interpret_results(
@@ -193,49 +226,30 @@ def interpret_results(
     if n_breakpoints > 0:
         # --- Segmented Model Summary ---
         summary_parts = [f"Segmented Analysis for: {param_name}"]
-        # --- Handle the first segment (always "Low-Frequency") ---
+
+        # --- Handle the first segment (Low-Frequency) ---
         beta1 = fit_results["betas"][0]
         beta1_ci = fit_results.get("betas_ci", [(np.nan, np.nan)])[0]
-        beta1_str = f"β1 = {beta1:.2f}"
-        if np.all(np.isfinite(beta1_ci)):
-            beta1_str += f" (95% CI: {beta1_ci[0]:.2f}–{beta1_ci[1]:.2f}{ci_method_str})"
-        warning = _get_uncertainty_warning(beta1_ci, uncertainty_threshold, name="β1")
+        segment_summary, warning = _generate_segment_interpretation(
+            "Low-Frequency (Long-term) Fit",
+            beta1,
+            beta1_ci,
+            "β1",
+            ci_method_str,
+            uncertainty_threshold,
+        )
+        summary_parts.extend(segment_summary)
         if warning:
             uncertainty_warnings.append(warning)
 
-        summary_parts.extend(
-            [
-                "Low-Frequency (Long-term) Fit:",
-                f"  {beta1_str}",
-                f"  Interpretation: {get_scientific_interpretation(beta1)}",
-                f"  Persistence: {get_persistence_traffic_light(beta1)}",
-            ]
-        )
-
         # --- Loop through each breakpoint and the segment that follows it ---
         for i in range(n_breakpoints):
-            beta_next = fit_results["betas"][i + 1]
-            beta_next_ci = fit_results.get("betas_ci", [(np.nan, np.nan)] * (i + 2))[
-                i + 1
-            ]
             bp_freq = fit_results["breakpoints"][i]
             bp_ci = fit_results.get("breakpoints_ci", [(np.nan, np.nan)] * (i + 1))[i]
-
-            beta_name = f"β{i+2}"
-            beta_next_str = f"{beta_name} = {beta_next:.2f}"
-            if np.all(np.isfinite(beta_next_ci)):
-                beta_next_str += f" (95% CI: {beta_next_ci[0]:.2f}–{beta_next_ci[1]:.2f}{ci_method_str})"
-            warning = _get_uncertainty_warning(
-                beta_next_ci, uncertainty_threshold, name=beta_name
-            )
-            if warning:
-                uncertainty_warnings.append(warning)
-
             bp_name = f"Breakpoint {i+1} Period"
             bp_str = f"~{_format_period(bp_freq)}"
             if np.all(np.isfinite(bp_ci)):
                 bp_str += f" (95% CI: {_format_period(bp_ci[0])}–{_format_period(bp_ci[1])}{ci_method_str})"
-                # Check if the breakpoint CI spans more than an order of magnitude
                 if bp_ci[1] / bp_ci[0] > breakpoint_uncertainty_threshold:
                     uncertainty_warnings.append(
                         f"Warning: The 95% CI for {bp_name} spans more than an "
@@ -243,23 +257,31 @@ def interpret_results(
                         f"{_format_period(bp_ci[1])}), indicating high uncertainty "
                         "in its location."
                     )
+            summary_parts.append(f"--- Breakpoint {i+1} @ {bp_str} ---")
 
-            # Determine segment name
+            # Determine segment name and get its data
             name = (
-                "High-Frequency (Short-term)"
+                "High-Frequency (Short-term) Fit"
                 if (i + 1) == n_breakpoints
                 else f"Mid-Frequency Segment {i+1}"
             )
+            beta_next = fit_results["betas"][i + 1]
+            beta_next_ci = fit_results.get("betas_ci", [(np.nan, np.nan)] * (i + 2))[
+                i + 1
+            ]
+            beta_name = f"β{i+2}"
 
-            summary_parts.append(f"--- Breakpoint {i+1} @ {bp_str} ---")
-            summary_parts.extend(
-                [
-                    f"{name} Fit:",
-                    f"  {beta_next_str}",
-                    f"  Interpretation: {get_scientific_interpretation(beta_next)}",
-                    f"  Persistence: {get_persistence_traffic_light(beta_next)}",
-                ]
+            segment_summary, warning = _generate_segment_interpretation(
+                name,
+                beta_next,
+                beta_next_ci,
+                beta_name,
+                ci_method_str,
+                uncertainty_threshold,
             )
+            summary_parts.extend(segment_summary)
+            if warning:
+                uncertainty_warnings.append(warning)
         summary_text = "\n".join(summary_parts)
     else:
         # --- Standard Model Summary ---
