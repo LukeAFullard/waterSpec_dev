@@ -1,5 +1,4 @@
 import logging
-import warnings
 
 import numpy as np
 from scipy import stats
@@ -55,6 +54,7 @@ def fit_standard_model(
         seed (int, optional): A seed for the random number generator.
         logger (logging.Logger, optional): A logger for warnings.
     """
+    logger = logger or logging.getLogger(__name__)
     # 1. Validate inputs and filter data
     if not isinstance(frequency, np.ndarray) or not isinstance(power, np.ndarray):
         raise TypeError("Input 'frequency' and 'power' must be numpy arrays.")
@@ -93,10 +93,7 @@ def fit_standard_model(
         failure_reason = (
             f"Initial standard model fit failed with method '{method}'. Error: {e}"
         )
-        if logger:
-            logger.warning(failure_reason)
-        else:
-            warnings.warn(failure_reason, UserWarning)
+        logger.warning(failure_reason)
         return {
             "beta": np.nan,
             "bic": np.inf,  # Use infinite BIC to ensure this model is not chosen
@@ -141,10 +138,7 @@ def fit_standard_model(
                     f"succeeded (less than {MIN_BOOTSTRAP_SUCCESS_RATIO * 100}%). "
                     "The resulting confidence interval may be unreliable."
                 )
-                if logger:
-                    logger.warning(msg)
-                else:
-                    warnings.warn(msg, UserWarning)
+                logger.warning(msg)
             p_lower = (100 - ci) / 2
             p_upper = 100 - p_lower
             beta_ci_lower = np.percentile(beta_estimates, p_lower)
@@ -188,6 +182,7 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
     Performs robust bootstrap resampling for a fitted piecewise model.
     This also calculates the confidence interval of the fitted line itself.
     """
+    logger = logger or logging.getLogger(__name__)
     if piecewise_regression is None:
         raise ImportError(_PIECEWISE_MISSING_MSG)
     n_breakpoints = pw_fit.n_breakpoints
@@ -208,10 +203,7 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
     initial_estimates = initial_results.get("estimates")
 
     if not initial_estimates:
-        if logger:
-            logger.warning("Could not perform bootstrap: initial fit failed or produced no estimates.")
-        else:
-            warnings.warn("Could not perform bootstrap: initial fit failed or produced no estimates.", UserWarning)
+        logger.warning("Could not perform bootstrap: initial fit failed or produced no estimates.")
         return {
             "betas_ci": [(np.nan, np.nan)] * (n_breakpoints + 1),
             "breakpoints_ci": [(np.nan, np.nan)] * n_breakpoints,
@@ -272,10 +264,7 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
             f"Only {successful_fits}/{n_bootstraps} bootstrap iterations for the "
             "segmented model succeeded. The confidence intervals may be unreliable."
         )
-        if logger:
-            logger.warning(msg)
-        else:
-            warnings.warn(msg, UserWarning)
+        logger.warning(msg)
 
     lower_p, upper_p = (100 - ci) / 2, 100 - (100 - ci) / 2
     ci_results = {
@@ -321,6 +310,7 @@ def _extract_parametric_segmented_cis(pw_fit, n_breakpoints, ci=95, logger=None)
     Note: The library provides CIs for all slopes (alphas) and breakpoints.
     This function extracts them.
     """
+    logger = logger or logging.getLogger(__name__)
     if piecewise_regression is None:
         raise ImportError(_PIECEWISE_MISSING_MSG)
     msg = (
@@ -328,10 +318,7 @@ def _extract_parametric_segmented_cis(pw_fit, n_breakpoints, ci=95, logger=None)
         "of errors and may be less reliable than bootstrap intervals. "
         "Consider using ci_method='bootstrap' for more robust results."
     )
-    if logger:
-        logger.warning(msg)
-    else:
-        warnings.warn(msg, UserWarning)
+    logger.warning(msg)
 
     results = pw_fit.get_results()
     if not results or "estimates" not in results:
@@ -402,6 +389,7 @@ def fit_segmented_spectrum(
     Returns:
         dict: A dictionary containing the fit results, including CIs.
     """
+    logger = logger or logging.getLogger(__name__)
     if piecewise_regression is None:
         raise ImportError(_PIECEWISE_MISSING_MSG)
 
@@ -429,10 +417,7 @@ def fit_segmented_spectrum(
             "The selection of models with >1 breakpoint is based solely on BIC, "
             "which may risk overfitting."
         )
-        if logger:
-            logger.warning(msg)
-        else:
-            warnings.warn(msg, UserWarning)
+        logger.warning(msg)
 
     valid_indices = (frequency > 0) & (power > 0)
     min_points = MIN_POINTS_PER_SEGMENT * (n_breakpoints + 1)
@@ -451,12 +436,7 @@ def fit_segmented_spectrum(
         fit_summary = pw_fit.get_results()
         converged = fit_summary["converged"]
     except Exception as e:
-        if logger:
-            logger.warning(f"Segmented regression failed with an unexpected error: {e}")
-        else:
-            warnings.warn(
-                f"Segmented regression failed with an unexpected error: {e}", UserWarning
-            )
+        logger.warning(f"Segmented regression failed with an unexpected error: {e}")
         return {
             "model_summary": "Segmented regression failed with an unexpected error.",
             "n_breakpoints": n_breakpoints,
