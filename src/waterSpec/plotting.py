@@ -93,10 +93,10 @@ def plot_spectrum(
                 )
 
             # If CIs for slopes are available (from parametric method), plot them
-            elif "beta_cis" in fit_results and fit_results["beta_cis"]:
+            elif "betas_ci" in fit_results and fit_results["betas_ci"]:
                 for i in range(n_breakpoints + 1):
-                    if i < len(fit_results["beta_cis"]) and fit_results["beta_cis"][i] is not None:
-                        beta_ci_lower, beta_ci_upper = fit_results["beta_cis"][i]
+                    if i < len(fit_results["betas_ci"]) and fit_results["betas_ci"][i] is not None:
+                        beta_ci_lower, beta_ci_upper = fit_results["betas_ci"][i]
                         intercept = fit_results["intercepts"][i]
 
                         # Define the mask for this segment

@@ -47,17 +47,18 @@ def test_fit_segmented_spectrum_against_known_data():
     known_beta2 = -alpha_2
     known_breakpoint = np.exp(breakpoint_1)  # Convert back to linear frequency
 
-    assert "breakpoint" in results
-    assert "beta1" in results
-    assert "beta2" in results
+    assert "breakpoints" in results
+    assert "betas" in results
+    assert len(results["betas"]) == 2
+    assert len(results["breakpoints"]) == 1
 
     # Use a relatively loose tolerance to account for noise in the data
-    assert results["beta1"] == pytest.approx(known_beta1, abs=0.5)
-    assert results["beta2"] == pytest.approx(known_beta2, abs=0.5)
+    assert results["betas"][0] == pytest.approx(known_beta1, abs=0.5)
+    assert results["betas"][1] == pytest.approx(known_beta2, abs=0.5)
 
     # The fit happens in the log-frequency domain, so we should compare the
     # breakpoint in that domain to avoid large relative errors caused by np.exp()
-    estimated_log_breakpoint = np.log(results["breakpoint"])
+    estimated_log_breakpoint = np.log(results["breakpoints"][0])
     assert estimated_log_breakpoint == pytest.approx(breakpoint_1, rel=0.1)
 
 
@@ -96,13 +97,14 @@ def test_fit_segmented_spectrum_against_muggeo_data():
     expected_log_breakpoint = 1.608
 
     # 4. Assert that our results match the expected values
-    assert "breakpoint" in results
-    assert "beta1" in results
-    assert "beta2" in results
+    assert "breakpoints" in results
+    assert "betas" in results
+    assert len(results["betas"]) == 2
+    assert len(results["breakpoints"]) == 1
 
-    estimated_log_breakpoint = np.log(results["breakpoint"])
+    estimated_log_breakpoint = np.log(results["breakpoints"][0])
 
     # Use a tolerance that aligns with the reference test's assertions
-    assert results["beta1"] == pytest.approx(expected_beta1, abs=0.1)
-    assert results["beta2"] == pytest.approx(expected_beta2, abs=0.1)
+    assert results["betas"][0] == pytest.approx(expected_beta1, abs=0.1)
+    assert results["betas"][1] == pytest.approx(expected_beta2, abs=0.1)
     assert estimated_log_breakpoint == pytest.approx(expected_log_breakpoint, abs=0.1)

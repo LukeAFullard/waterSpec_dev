@@ -62,8 +62,8 @@ def fit_standard_model(
         raise ValueError("'frequency' and 'power' must have the same shape.")
     if not np.all(np.isfinite(frequency)) or not np.all(np.isfinite(power)):
         raise ValueError("Input arrays must contain finite values.")
-    if n_bootstraps <= 0:
-        raise ValueError("'n_bootstraps' must be a positive integer.")
+    if n_bootstraps < 0:
+        raise ValueError("'n_bootstraps' must be non-negative.")
     if not 0 < ci < 100:
         raise ValueError("'ci' must be between 0 and 100.")
     if method not in ["ols", "theil-sen"]:
@@ -131,11 +131,16 @@ def fit_standard_model(
                 continue
 
         MIN_BOOTSTRAP_SUCCESS_RATIO = 0.8
-        if len(beta_estimates) > 0:
+        if len(beta_estimates) == 0:
+            logger.warning(
+                "All bootstrap iterations failed for the standard model. "
+                "Confidence intervals could not be calculated."
+            )
+        else:
             if len(beta_estimates) < n_bootstraps * MIN_BOOTSTRAP_SUCCESS_RATIO:
                 msg = (
                     f"Only {len(beta_estimates)}/{n_bootstraps} bootstrap iterations "
-                    f"succeeded (less than {MIN_BOOTSTRAP_SUCCESS_RATIO * 100}%). "
+                    f"succeeded (less than {MIN_BOOTSTRAP_SUCCESS_RATIO * 100:.0f}%). "
                     "The resulting confidence interval may be unreliable."
                 )
                 logger.warning(msg)
@@ -257,7 +262,12 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
                 logger.debug(msg)
             continue
 
-    if successful_fits < n_bootstraps * 0.8:
+    if successful_fits == 0:
+        logger.warning(
+            "All bootstrap iterations failed for the segmented model. "
+            "Confidence intervals could not be calculated."
+        )
+    elif successful_fits < n_bootstraps * 0.8:
         msg = (
             f"Only {successful_fits}/{n_bootstraps} bootstrap iterations for the "
             "segmented model succeeded. The confidence intervals may be unreliable."
@@ -415,18 +425,19 @@ def fit_segmented_spectrum(
         raise ValueError("'n_breakpoints' must be a positive integer.")
     if not 0 < p_threshold < 1:
         raise ValueError("'p_threshold' must be between 0 and 1.")
-    if n_bootstraps <= 0:
-        raise ValueError("'n_bootstraps' must be a positive integer.")
+    if n_bootstraps < 0:
+        raise ValueError("'n_bootstraps' must be non-negative.")
     if not 0 < ci < 100:
         raise ValueError("'ci' must be between 0 and 100.")
 
     # Log-transform the data
     if n_breakpoints > 1:
         msg = (
-            f"Fitting a model with {n_breakpoints} breakpoints. Note that statistical "
-            "significance is only tested for the 1-breakpoint model (Davies test). "
-            "The selection of models with >1 breakpoint is based solely on BIC, "
-            "which may risk overfitting."
+            f"Fitting a model with {n_breakpoints} breakpoints. "
+            "WARNING: Statistical significance is only tested for 1-breakpoint models "
+            "(via Davies test). Models with more than one breakpoint are chosen "
+            "based on BIC alone, which can lead to overfitting, especially with "
+            "noisy data. Interpret these results with caution."
         )
         logger.warning(msg)
 
@@ -502,6 +513,24 @@ def fit_segmented_spectrum(
 
     results["breakpoints"] = breakpoints
     results["betas"] = betas
+
+    # --- Calculate intercepts for each segment ---
+    intercepts = []
+    if "const" in estimates:
+        current_intercept = estimates["const"]["estimate"]
+        intercepts.append(current_intercept)
+        for i in range(1, n_breakpoints + 1):
+            beta_i = estimates[f"beta{i}"]["estimate"]
+            breakpoint_i = estimates[f"breakpoint{i}"]["estimate"]
+            current_intercept -= beta_i * breakpoint_i
+            intercepts.append(current_intercept)
+    else:
+        logger.warning(
+            "Could not find 'const' in piecewise regression estimates. "
+            "Intercepts will not be available in the results."
+        )
+        intercepts = [np.nan] * (n_breakpoints + 1)
+    results["intercepts"] = intercepts
 
     # --- Calculate Confidence Intervals based on the chosen method ---
     if ci_method == "bootstrap":
