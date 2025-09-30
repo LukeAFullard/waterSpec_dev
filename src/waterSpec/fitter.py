@@ -56,6 +56,16 @@ def fit_standard_model(
         logger (logging.Logger, optional): A logger for warnings.
     """
     # 1. Validate inputs and filter data
+    if not isinstance(frequency, np.ndarray) or not isinstance(power, np.ndarray):
+        raise TypeError("Input 'frequency' and 'power' must be numpy arrays.")
+    if frequency.shape != power.shape:
+        raise ValueError("'frequency' and 'power' must have the same shape.")
+    if not np.all(np.isfinite(frequency)) or not np.all(np.isfinite(power)):
+        raise ValueError("Input arrays must contain finite values.")
+    if n_bootstraps <= 0:
+        raise ValueError("'n_bootstraps' must be a positive integer.")
+    if not 0 < ci < 100:
+        raise ValueError("'ci' must be between 0 and 100.")
     if method not in ["ols", "theil-sen"]:
         raise ValueError(f"Unknown fitting method: '{method}'. Choose 'ols' or 'theil-sen'.")
     valid_indices = (frequency > 0) & (power > 0)
@@ -394,6 +404,22 @@ def fit_segmented_spectrum(
     """
     if piecewise_regression is None:
         raise ImportError(_PIECEWISE_MISSING_MSG)
+
+    # Input validation
+    if not isinstance(frequency, np.ndarray) or not isinstance(power, np.ndarray):
+        raise TypeError("Input 'frequency' and 'power' must be numpy arrays.")
+    if frequency.shape != power.shape:
+        raise ValueError("'frequency' and 'power' must have the same shape.")
+    if not np.all(np.isfinite(frequency)) or not np.all(np.isfinite(power)):
+        raise ValueError("Input arrays must contain finite values.")
+    if n_breakpoints <= 0:
+        raise ValueError("'n_breakpoints' must be a positive integer.")
+    if not 0 < p_threshold < 1:
+        raise ValueError("'p_threshold' must be between 0 and 1.")
+    if n_bootstraps <= 0:
+        raise ValueError("'n_bootstraps' must be a positive integer.")
+    if not 0 < ci < 100:
+        raise ValueError("'ci' must be between 0 and 100.")
 
     # Log-transform the data
     if n_breakpoints > 1:
