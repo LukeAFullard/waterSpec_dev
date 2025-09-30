@@ -75,24 +75,24 @@ def get_scientific_interpretation(beta):
             "Warning: Beta value is significantly negative, which is physically "
             "unrealistic."
         )
-    if np.isclose(beta, 0, atol=BETA_TOLERANCE):
+    elif np.isclose(beta, 0, atol=BETA_TOLERANCE):
         return "β ≈ 0 (White Noise): Uncorrelated, random process."
-    if BETA_LOWER_BOUND <= beta < 0:
+    elif np.isclose(beta, 1, atol=BETA_TOLERANCE):
+        return "β ≈ 1 (Pink Noise): Stronger persistence, common in natural systems."
+    elif np.isclose(beta, 2, atol=BETA_TOLERANCE):
+        return "β ≈ 2 (Brownian Noise): Random walk process."
+    elif BETA_LOWER_BOUND <= beta < 0:
         return f"β < 0 (fGn-like): Anti-persistent, suggesting short-term reversals."
-    if 0 < beta < 1:
+    elif 0 < beta < 1:
         return (
             f"0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport."
         )
-    if np.isclose(beta, 1, atol=BETA_TOLERANCE):
-        return "β ≈ 1 (Pink Noise): Stronger persistence, common in natural systems."
-    if 1 < beta < BETA_UPPER_BOUND:
+    elif 1 < beta < BETA_UPPER_BOUND:
         return (
             f"1 < β < {BETA_UPPER_BOUND} (fBm-like): Strong persistence, suggesting transport is "
             "damped by storage."
         )
-    if np.isclose(beta, 2, atol=BETA_TOLERANCE):
-        return "β ≈ 2 (Brownian Noise): Random walk process."
-    if beta >= BETA_UPPER_BOUND:
+    elif beta >= BETA_UPPER_BOUND:
         return f"β ≥ {BETA_UPPER_BOUND}: Black noise, very smooth signal, may indicate non-stationarity."
     return "No interpretation available."
 
@@ -122,9 +122,10 @@ def _format_period(frequency_hz):
     period_seconds = 1 / frequency_hz
     period_days = period_seconds / SECONDS_PER_DAY
 
-    if period_days > DAYS_PER_YEAR * 2:
+    # Use >= to correctly handle the boundary conditions (e.g., exactly 2 months).
+    if period_days >= DAYS_PER_YEAR * 2:
         return f"{period_days / DAYS_PER_YEAR:.1f} years"
-    elif period_days > DAYS_PER_MONTH * 2:
+    elif period_days >= DAYS_PER_MONTH * 2:
         return f"{period_days / DAYS_PER_MONTH:.1f} months"
     else:
         return f"{period_days:.1f} days"
