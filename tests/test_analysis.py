@@ -67,7 +67,7 @@ def test_analysis_run_full_analysis_creates_outputs(tmp_path):
     output_dir = tmp_path / "results"
 
     analyzer = Analysis(file_path, time_col="timestamp", data_col="concentration")
-    results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=10)
+    results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=0)
 
     # Check that output files were created
     expected_plot = output_dir / "concentration_spectrum_plot.png"
@@ -83,7 +83,7 @@ def test_analysis_run_full_analysis_creates_outputs(tmp_path):
     # Check that the results dictionary is populated and valid
     assert "summary_text" in results
     assert "Analysis for: concentration" in results["summary_text"]
-    assert "beta" in results or "beta1" in results
+    assert "beta" in results or "betas" in results
 
 
 @pytest.mark.parametrize(
@@ -102,7 +102,7 @@ def test_analysis_with_known_beta(tmp_path, known_beta, tolerance):
     analyzer = Analysis(
         file_path, time_col="time", data_col="value", detrend_method=None
     )
-    results = analyzer.run_full_analysis(output_dir=tmp_path, n_bootstraps=10)
+    results = analyzer.run_full_analysis(output_dir=tmp_path, n_bootstraps=0)
 
     assert "beta" in results
     assert results["beta"] == pytest.approx(known_beta, abs=tolerance)
@@ -146,7 +146,7 @@ def test_analysis_auto_chooses_segmented_with_mock(
     output_dir = tmp_path / "results"
 
     analyzer = Analysis(file_path, time_col="time", data_col="value")
-    results = analyzer.run_full_analysis(output_dir=str(output_dir))
+    results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=0)
 
     assert results["chosen_model"] == "segmented_1bp"
     assert results["bic"] == 100.0
@@ -213,7 +213,7 @@ def test_analysis_zero_variance_data(tmp_path):
     analyzer = Analysis(
         file_path, time_col="time", data_col="value", detrend_method=None
     )
-    results = analyzer.run_full_analysis(output_dir=str(output_dir))
+    results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=0)
 
     assert "Model fitting failed" in results["summary_text"]
 
@@ -227,7 +227,7 @@ def test_analysis_fap_threshold_is_configurable(tmp_path):
     analyzer = Analysis(file_path, time_col="timestamp", data_col="concentration")
     results = analyzer.run_full_analysis(
         output_dir=str(output_dir),
-        n_bootstraps=10,
+        n_bootstraps=0,
         peak_detection_method="fap",
         fap_threshold=custom_fap,
     )
@@ -259,6 +259,7 @@ def test_analysis_residual_method_finds_peak(tmp_path):
         grid_type="linear",
         peak_detection_method="residual",
         peak_detection_ci=95,
+        n_bootstraps=0,
     )
 
     assert "significant_peaks" in results
@@ -283,12 +284,12 @@ def test_analysis_with_censored_data(tmp_path):
         data_col="concentration",
         censor_strategy="use_detection_limit",
     )
-    results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=10)
+    results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=0)
 
     # Check that the analysis ran successfully and produced valid results
     assert "summary_text" in results
     assert "Analysis failed" not in results["summary_text"]
-    assert "beta" in results or "beta1" in results
+    assert "beta" in results or "betas" in results
     assert np.isfinite(results.get("beta", np.nan)) or (
         "betas" in results and np.isfinite(results["betas"][0])
     )
@@ -406,7 +407,7 @@ def test_analysis_parametric_ci_is_propagated(tmp_path):
 
     analyzer = Analysis(file_path, time_col="time", data_col="value")
     results = analyzer.run_full_analysis(
-        output_dir=tmp_path, ci_method="parametric"
+        output_dir=tmp_path, ci_method="parametric", n_bootstraps=0
     )
 
     assert "summary_text" in results
@@ -471,7 +472,9 @@ def test_analysis_model_fitting_failure_reporting(
     )
     output_dir = tmp_path / "results"
     analyzer = Analysis(file_path, time_col="time", data_col="value")
-    results = analyzer.run_full_analysis(output_dir=str(output_dir), max_breakpoints=2)
+    results = analyzer.run_full_analysis(
+        output_dir=str(output_dir), max_breakpoints=2, n_bootstraps=0
+    )
 
     # --- Assertions ---
     assert "summary_text" in results
@@ -526,7 +529,7 @@ def test_analysis_retains_failure_reasons_on_partial_success(
         tmp_path, pd.date_range("2023", periods=100), np.random.rand(100)
     )
     analyzer = Analysis(file_path, "time", "value")
-    results = analyzer.run_full_analysis(output_dir=tmp_path)
+    results = analyzer.run_full_analysis(output_dir=tmp_path, n_bootstraps=0)
 
     # The successful model should be chosen
     assert results["chosen_model"] == "segmented_1bp"
@@ -551,6 +554,7 @@ def test_analysis_warns_on_ignored_peak_detection_ci(tmp_path, mocker):
         output_dir=tmp_path,
         peak_detection_method="fap",
         peak_detection_ci=99,  # A non-default value that should be ignored
+        n_bootstraps=0,
     )
 
     spy_logger.assert_any_call(

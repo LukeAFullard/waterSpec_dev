@@ -114,16 +114,19 @@ def find_significant_peaks(
     return significant_peaks, fap_level
 
 
+from scipy import stats
+
+
 def find_peaks_via_residuals(fit_results, ci=95):
     """
     Finds significant peaks by identifying outliers in the residuals of the
-    spectral fit.
+    spectral fit using a statistically robust threshold.
 
     Args:
         fit_results (dict): The dictionary returned by the fitting functions.
                             Must contain 'residuals', 'fitted_log_power', 'log_freq',
                             and 'log_power'.
-        ci (int, optional): The confidence interval to use for the significance
+        ci (int, optional): The confidence level for the significance
                             threshold, in percent. Defaults to 95.
 
     Returns:
@@ -136,12 +139,27 @@ def find_peaks_via_residuals(fit_results, ci=95):
         missing_keys = [key for key in required_keys if key not in fit_results]
         raise ValueError(f"fit_results is missing required keys: {missing_keys}")
 
+    if not (0 < ci < 100):
+        raise ValueError("Confidence interval 'ci' must be between 0 and 100.")
+
     residuals = fit_results["residuals"]
     log_freq = fit_results["log_freq"]
     log_power = fit_results["log_power"]
 
-    # Calculate the significance threshold from the residuals
-    residual_threshold = np.percentile(residuals, ci)
+    # Calculate a statistically-based threshold assuming residuals are ~normally distributed.
+    # This is more robust than a simple percentile.
+    residual_std = np.std(residuals)
+
+    # We are interested in positive peaks, so this is a one-tailed test.
+    # Convert CI to a significance level (alpha)
+    alpha = 1 - (ci / 100)
+
+    # The critical Z-value for a one-tailed test.
+    z_critical = stats.norm.ppf(1 - alpha)
+
+    # The threshold is the critical value times the standard deviation of the residuals.
+    # We add the mean, which should be close to zero for good residuals, but for safety.
+    residual_threshold = np.mean(residuals) + z_critical * residual_std
 
     # Use a dedicated peak-finding algorithm on the residuals. This is more
     # robust than grouping contiguous regions, as it prevents a single broad

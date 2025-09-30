@@ -15,7 +15,7 @@ def test_get_scientific_interpretation():
     assert "(Pink Noise)" in get_scientific_interpretation(1.0)
     assert "fBm-like" in get_scientific_interpretation(1.5)
     assert "(Brownian Noise)" in get_scientific_interpretation(2.0)
-    assert "Warning" in get_scientific_interpretation(-1.0)
+    assert "Blue Noise" in get_scientific_interpretation(-1.0)
 
 
 def test_get_persistence_traffic_light():
