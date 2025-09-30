@@ -150,23 +150,25 @@ def test_find_peaks_via_residuals_finds_peak(sample_fit_results):
     assert peaks[0]["frequency"] == pytest.approx(expected_freq)
 
 
-def test_find_peaks_via_residuals_no_significant_peak(sample_fit_results, mocker):
+def test_find_peaks_via_residuals_no_significant_peak(sample_fit_results):
     """
     Test that the method returns an empty list if no residual crosses the
-    threshold.
+    threshold, using data with no significant outliers.
     """
     from waterSpec.spectral_analyzer import find_peaks_via_residuals
 
-    # Mock numpy.percentile to return a threshold that is guaranteed to be
-    # higher than any residual in the sample data (max is 3.0). This avoids
-    # floating point issues with ci=100.
-    mock_threshold = 3.1
-    mocker.patch("numpy.percentile", return_value=mock_threshold)
+    # Overwrite the residuals with a sample that has no extreme outliers.
+    # A normal distribution is used for this purpose.
+    rng = np.random.default_rng(0)
+    sample_fit_results["residuals"] = rng.normal(loc=0, scale=0.1, size=100)
 
-    # The `ci` value doesn't matter here since percentile is mocked.
-    peaks, threshold = find_peaks_via_residuals(sample_fit_results, ci=99.9)
+    # With a very high confidence interval, no peaks should be found in data
+    # that lacks a strong outlier.
+    peaks, threshold = find_peaks_via_residuals(sample_fit_results, ci=99.99)
+
     assert len(peaks) == 0
-    assert threshold == mock_threshold
+    # The threshold should still be a positive value based on the data's std dev.
+    assert threshold > 0
 
 
 def test_find_peaks_via_residuals_raises_error_on_missing_keys():

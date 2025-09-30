@@ -60,7 +60,6 @@ BENCHMARK_TABLE = pd.DataFrame(
 
 # Define constants for scientific interpretation for clarity and maintainability.
 BETA_TOLERANCE = 0.2  # Tolerance for comparing beta to common noise models
-BETA_LOWER_BOUND = -0.5  # Physical lower bound for beta
 BETA_UPPER_BOUND = 3.0  # Physical upper bound for beta
 
 # Define thresholds for persistence categories
@@ -70,19 +69,14 @@ PERSISTENCE_MIXED_THRESHOLD = 1.0
 
 def get_scientific_interpretation(beta):
     """Provides a scientific interpretation of the spectral exponent (beta)."""
-    if beta < BETA_LOWER_BOUND:
-        return (
-            "Warning: Beta value is significantly negative, which is physically "
-            "unrealistic."
-        )
-    elif np.isclose(beta, 0, atol=BETA_TOLERANCE):
+    if np.isclose(beta, 0, atol=BETA_TOLERANCE):
         return "β ≈ 0 (White Noise): Uncorrelated, random process."
     elif np.isclose(beta, 1, atol=BETA_TOLERANCE):
         return "β ≈ 1 (Pink Noise): Stronger persistence, common in natural systems."
     elif np.isclose(beta, 2, atol=BETA_TOLERANCE):
         return "β ≈ 2 (Brownian Noise): Random walk process."
-    elif BETA_LOWER_BOUND <= beta < 0:
-        return f"β < 0 (fGn-like): Anti-persistent, suggesting short-term reversals."
+    elif beta < 0:
+        return "β < 0 (Blue Noise / Anti-persistent): High frequencies dominate, suggesting systems with negative feedback or mean-reversion."
     elif 0 < beta < 1:
         return (
             f"0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport."

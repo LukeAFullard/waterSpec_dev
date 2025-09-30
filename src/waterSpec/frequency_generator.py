@@ -3,6 +3,7 @@ This module provides functions for generating frequency grids for spectral analy
 """
 
 import numpy as np
+import warnings
 
 
 def generate_frequency_grid(time_numeric, num_points=200, grid_type="log"):
@@ -34,9 +35,23 @@ def generate_frequency_grid(time_numeric, num_points=200, grid_type="log"):
     # For irregularly sampled data, the Nyquist frequency is not strictly defined.
     # A common and robust heuristic is to use the median sampling interval,
     # as it is less sensitive to outliers (i.e., large gaps) than the mean.
-    median_sampling_interval = np.median(np.diff(time_numeric))
+    sampling_intervals = np.diff(time_numeric)
+    median_sampling_interval = np.median(sampling_intervals)
     if median_sampling_interval <= 0:
         raise ValueError("Median sampling interval must be positive.")
+
+    # Check for highly irregular sampling, which can make the Nyquist frequency
+    # misleading. A high coefficient of variation suggests this.
+    # A threshold of 0.5 means the std dev is 50% of the median interval.
+    interval_cv = np.std(sampling_intervals) / median_sampling_interval
+    if interval_cv > 0.5:
+        warnings.warn(
+            f"The time series has highly irregular sampling (CV of intervals = {interval_cv:.2f}). "
+            "The concept of a single Nyquist frequency may be misleading. "
+            "Interpret high-frequency results with caution, as aliasing effects may be complex.",
+            UserWarning,
+        )
+
     nyquist_freq = 0.5 / median_sampling_interval
 
     # The minimum frequency must be less than the Nyquist frequency to define
