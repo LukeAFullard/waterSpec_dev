@@ -10,18 +10,18 @@ from waterSpec.interpreter import (
 
 
 def test_get_scientific_interpretation():
-    assert "White noise" in get_scientific_interpretation(0)
+    assert "(White Noise)" in get_scientific_interpretation(0)
     assert "fGn-like" in get_scientific_interpretation(0.5)
-    assert "Pink noise" in get_scientific_interpretation(1.0)
+    assert "(Pink Noise)" in get_scientific_interpretation(1.0)
     assert "fBm-like" in get_scientific_interpretation(1.5)
-    assert "Brownian noise" in get_scientific_interpretation(2.0)
+    assert "(Brownian Noise)" in get_scientific_interpretation(2.0)
     assert "Warning" in get_scientific_interpretation(-1.0)
 
 
 def test_get_persistence_traffic_light():
-    assert "Event-driven" in get_persistence_traffic_light(0.2)
-    assert "Mixed" in get_persistence_traffic_light(0.7)
-    assert "Persistent" in get_persistence_traffic_light(1.5)
+    assert "Low (Event-driven)" in get_persistence_traffic_light(0.2)
+    assert "Medium (Mixed)" in get_persistence_traffic_light(0.7)
+    assert "High (Storage-dominated)" in get_persistence_traffic_light(1.5)
 
 
 def test_compare_to_benchmarks():
@@ -37,7 +37,7 @@ def test_interpret_results_basic():
     summary = results["summary_text"]
     assert "Analysis for: Nitrate" in summary
     assert "β = 1.70" in summary
-    assert "Persistent" in summary
+    assert "High (Storage-dominated)" in summary
     assert "fBm-like" in summary
     assert "Chloride" in summary
     assert not results["uncertainty_warnings"]
@@ -114,7 +114,7 @@ def test_interpret_results_auto_mode():
 
     # Check that the detailed interpretation for the chosen model is present
     assert "Details for Chosen (Standard) Model:" in summary
-    assert "Persistence Level: 🟢 Persistent" in summary
+    assert "High (Storage-dominated)" in summary
 
 
 def test_interpret_results_with_peaks():
@@ -212,3 +212,34 @@ def test_interpret_results_auto_mode_with_failures():
     # Check that the failed model reason is also included in the summary
     assert "Models that failed to fit:" in summary
     assert "Segmented model (1 bp): No significant breakpoint found" in summary
+
+
+def test_interpret_results_segmented_with_ci():
+    """
+    Test that the breakpoint period CI is formatted in the correct
+    (low-high) order, which is the reverse of the frequency CI.
+    """
+    from waterSpec.interpreter import DAYS_PER_MONTH, SECONDS_PER_DAY
+
+    # Calculate the exact frequencies that will format to "2.0 months" and "4.0 months"
+    # Note: A lower frequency corresponds to a higher period.
+    period_4_months = 4 * DAYS_PER_MONTH * SECONDS_PER_DAY
+    period_2_months = 2 * DAYS_PER_MONTH * SECONDS_PER_DAY
+
+    low_freq = 1 / period_4_months
+    high_freq = 1 / period_2_months
+
+    fit_results = {
+        "betas": [0.5, 1.5],
+        "breakpoints": [(low_freq + high_freq) / 2],  # Midpoint
+        "breakpoints_ci": [(low_freq, high_freq)],
+        "n_breakpoints": 1,
+        "significant_peaks": [],
+        "ci_method": "bootstrap",  # This key is required to show the CI string
+    }
+
+    results = interpret_results(fit_results, param_name="Test")
+    summary = results["summary_text"]
+
+    # The period CI should be (2.0 months–4.0 months)
+    assert "(95% CI: 2.0 months–4.0 months" in summary
