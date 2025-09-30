@@ -119,7 +119,7 @@ def fit_standard_model(
             if len(beta_estimates) < n_bootstraps * MIN_BOOTSTRAP_SUCCESS_RATIO:
                 msg = (
                     f"Only {len(beta_estimates)}/{n_bootstraps} bootstrap iterations "
-                    "succeeded (less than {MIN_BOOTSTRAP_SUCCESS_RATIO * 100}%). "
+                    f"succeeded (less than {MIN_BOOTSTRAP_SUCCESS_RATIO * 100}%). "
                     "The resulting confidence interval may be unreliable."
                 )
                 if logger:
