@@ -25,7 +25,7 @@ BENCHMARK_TABLE = pd.DataFrame(
             "Dominant Pathway": "Surface runoff",
         },
         {
-            "Parameter": "TSS",
+            "Parameter": "Total Suspended Solids (TSS)",
             "Typical β Range": (0.4, 0.8),
             "Interpretation": "Weak persistence",
             "Dominant Pathway": "Surface runoff",
@@ -76,21 +76,22 @@ def get_scientific_interpretation(beta):
             "unrealistic."
         )
     if np.isclose(beta, 0, atol=BETA_TOLERANCE):
-        return "β ≈ 0: White noise (uncorrelated)."
-    if np.isclose(beta, 1, atol=BETA_TOLERANCE):
-        return "β ≈ 1: Pink noise (1/f), common in nature."
-    if np.isclose(beta, 2, atol=BETA_TOLERANCE):
-        return "β ≈ 2: Brownian noise (random walk)."
-    if BETA_LOWER_BOUND <= beta < 1:
+        return "β ≈ 0 (White Noise): Uncorrelated, random process."
+    if BETA_LOWER_BOUND <= beta < 0:
+        return f"β < 0 (fGn-like): Anti-persistent, suggesting short-term reversals."
+    if 0 < beta < 1:
         return (
-            f"{BETA_LOWER_BOUND} < β < 1 (fGn-like): Weak persistence or anti-persistence, "
-            "suggesting event-driven transport."
+            f"0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport."
         )
+    if np.isclose(beta, 1, atol=BETA_TOLERANCE):
+        return "β ≈ 1 (Pink Noise): Stronger persistence, common in natural systems."
     if 1 < beta < BETA_UPPER_BOUND:
         return (
             f"1 < β < {BETA_UPPER_BOUND} (fBm-like): Strong persistence, suggesting transport is "
             "damped by storage."
         )
+    if np.isclose(beta, 2, atol=BETA_TOLERANCE):
+        return "β ≈ 2 (Brownian Noise): Random walk process."
     if beta >= BETA_UPPER_BOUND:
         return f"β ≥ {BETA_UPPER_BOUND}: Black noise, very smooth signal, may indicate non-stationarity."
     return "No interpretation available."
@@ -99,12 +100,12 @@ def get_scientific_interpretation(beta):
 def get_persistence_traffic_light(beta):
     """Returns a traffic-light style summary of persistence."""
     if beta < PERSISTENCE_EVENT_DRIVEN_THRESHOLD:
-        return "🔴 Event-driven"
+        return "Low (Event-driven)"
     if PERSISTENCE_EVENT_DRIVEN_THRESHOLD <= beta <= PERSISTENCE_MIXED_THRESHOLD:
-        return "🟡 Mixed / weak persistence"
+        return "Medium (Mixed)"
     if beta > PERSISTENCE_MIXED_THRESHOLD:
-        return "🟢 Persistent / subsurface dominated"
-    return "⚪ Unknown"
+        return "High (Storage-dominated)"
+    return "Unknown"
 
 
 # Define time constants for period formatting for clarity and maintainability.
@@ -249,12 +250,14 @@ def interpret_results(
             bp_name = f"Breakpoint {i+1} Period"
             bp_str = f"~{_format_period(bp_freq)}"
             if np.all(np.isfinite(bp_ci)):
-                bp_str += f" (95% CI: {_format_period(bp_ci[0])}–{_format_period(bp_ci[1])}{ci_method_str})"
+                # Note: A lower frequency corresponds to a higher period, so the
+                # order of the CI bounds must be swapped when formatting.
+                period_ci_str = f"{_format_period(bp_ci[1])}–{_format_period(bp_ci[0])}"
+                bp_str += f" (95% CI: {period_ci_str}{ci_method_str})"
                 if bp_ci[1] / bp_ci[0] > breakpoint_uncertainty_threshold:
                     uncertainty_warnings.append(
                         f"Warning: The 95% CI for {bp_name} spans more than an "
-                        f"order of magnitude ({_format_period(bp_ci[0])} to "
-                        f"{_format_period(bp_ci[1])}), indicating high uncertainty "
+                        f"order of magnitude ({period_ci_str}), indicating high uncertainty "
                         "in its location."
                     )
             summary_parts.append(f"--- Breakpoint {i+1} @ {bp_str} ---")

@@ -1,8 +1,6 @@
 # waterSpec: Spectral Analysis of Environmental Time Series
 
-<p align="center">
-  <img src="assets/logo.png" alt="waterSpec Logo" width="90%"/>
-</p>
+![waterSpec Logo](assets/logo.png)
 
 `waterSpec` is a Python package for performing spectral analysis on environmental time series, particularly those that are irregularly sampled. It provides a simple, powerful workflow to characterize the temporal scaling and periodic behavior of environmental data.
 
@@ -42,6 +40,8 @@ print(results['summary_text'])
 
 Running the code above will produce the following plot and summary text. The summary provides a comprehensive overview of the analysis, including a comparison of different spectral models and a list of any significant periodicities found in the data.
 
+The **Fit Residual** value for each peak indicates how much that peak stands out from the background spectral model; a higher value indicates a more significant peak.
+
 ```text
 Automatic Analysis for: Nitrate Concentration at Site A
 -----------------------------------
@@ -75,26 +75,24 @@ Uncertainty Report:
   - Warning: The 95% CI for β2 is wide (0.89 > 0.5), suggesting high uncertainty.
 ```
 
-<p align="center">
-  <img src="example_output/Nitrate_Concentration_at_Site_A_spectrum_plot.png" alt="Quick Start Example Plot" width="90%"/>
-</p>
+![Quick Start Example Plot](example_output/Nitrate_Concentration_at_Site_A_spectrum_plot.png)
 
 ---
 
 ## Key Features
 
-### Spectral Power Coefficent (Beta) Estimation
+### Spectral Power Coefficient (Beta) Estimation
 
 A key feature of `waterSpec` is its ability to characterize the relationship between the frequency and power of a time series, which is often described by the spectral exponent, beta (β). The package can model this relationship in two ways:
 
 1.  **Linear (Standard) Fit**: A single slope across the entire frequency range.
 2.  **Segmented (Breakpoint) Fit**: Two or more slopes, indicating that the relationship changes at specific frequencies (breakpoints).
 
-`waterSpec` automates the complex task of model selection. It fits both linear and segmented models and uses the **Bayesian Information Criterion (BIC)** to determine the most appropriate model for your data, preventing overfitting and providing a more objective analysis.
+`waterSpec` automates the complex task of model selection. It fits both linear and segmented models and uses the **Bayesian Information Criterion (BIC)** to determine the most appropriate model for your data. BIC is a statistical criterion for model selection that balances model fit with model complexity, effectively penalizing models with more parameters to prevent overfitting.
 
-#### Example: Robust Model Selection
+#### Example: Automatic Model Selection
 
-This example demonstrates how `waterSpec` automatically selects the best spectral model. In this case, while a segmented model was considered, the BIC score indicated that a **linear model** was the best fit for the data. This showcases the package's ability to make objective, data-driven decisions.
+This example demonstrates how `waterSpec` automatically selects the best spectral model. In this case, although the input data is known to have a segmented nature, the package correctly determines that a simpler **linear model** is a better fit according to the BIC. This prevents overfitting and showcases the package's ability to make objective, data-driven decisions even when a more complex model fails to converge or is not statistically justified.
 
 ```python
 from waterSpec import Analysis
@@ -149,9 +147,6 @@ Significant Periodicities Found:
   - Period: 6.6 months (Fit Residual: 2.33)
 ```
 
-<p align="center">
-  <img src="example_output/Segmented_Spectrum_Example_spectrum_plot.png" alt="Segmented Spectrum Example" width="90%"/>
-</p>
 
 ### Peak Detection
 
@@ -222,9 +217,7 @@ Uncertainty Report:
   - Warning: The 95% CI for β2 is wide (0.71 > 0.5), suggesting high uncertainty.
 ```
 
-<p align="center">
-  <img src="example_output/Peak_Detection_Example_spectrum_plot.png" alt="Peak Detection Example" width="90%"/>
-</p>
+![Peak Detection Example](example_output/Peak_Detection_Example_spectrum_plot.png)
 
 ---
 ## Full Documentation
