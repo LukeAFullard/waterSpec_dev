@@ -2,8 +2,17 @@ import logging
 import warnings
 
 import numpy as np
-import piecewise_regression
 from scipy import stats
+
+try:
+    import piecewise_regression
+except ImportError:
+    piecewise_regression = None
+    _PIECEWISE_MISSING_MSG = (
+        "The 'piecewise-regression' package is required for segmented "
+        "spectrum fitting. Install it with 'pip install piecewise-regression' "
+        "or include it in your environment."
+    )
 
 
 def _calculate_bic(y, y_pred, n_params):
@@ -169,6 +178,8 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
     Performs robust bootstrap resampling for a fitted piecewise model.
     This also calculates the confidence interval of the fitted line itself.
     """
+    if piecewise_regression is None:
+        raise ImportError(_PIECEWISE_MISSING_MSG)
     n_breakpoints = pw_fit.n_breakpoints
     log_power_fit = pw_fit.predict(log_freq)
     residuals = log_power - log_power_fit
@@ -300,6 +311,8 @@ def _extract_parametric_segmented_cis(pw_fit, n_breakpoints, ci=95, logger=None)
     Note: The library provides CIs for all slopes (alphas) and breakpoints.
     This function extracts them.
     """
+    if piecewise_regression is None:
+        raise ImportError(_PIECEWISE_MISSING_MSG)
     msg = (
         "Parametric confidence intervals for segmented models assume normality "
         "of errors and may be less reliable than bootstrap intervals. "
@@ -379,6 +392,9 @@ def fit_segmented_spectrum(
     Returns:
         dict: A dictionary containing the fit results, including CIs.
     """
+    if piecewise_regression is None:
+        raise ImportError(_PIECEWISE_MISSING_MSG)
+
     # Log-transform the data
     if n_breakpoints > 1:
         msg = (
