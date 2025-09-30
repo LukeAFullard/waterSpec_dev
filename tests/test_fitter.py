@@ -230,7 +230,7 @@ def test_fit_standard_model_is_reproducible(synthetic_spectrum):
 
 
 def test_fit_segmented_spectrum_handles_exceptions(
-    multifractal_spectrum, mocker
+    multifractal_spectrum, mocker, caplog
 ):
     """
     Test that fit_segmented_spectrum catches exceptions from the underlying
@@ -244,11 +244,11 @@ def test_fit_segmented_spectrum_handles_exceptions(
         side_effect=RuntimeError("Test Exception"),
     )
 
-    with pytest.warns(UserWarning, match="Segmented regression failed"):
-        results = fit_segmented_spectrum(frequency, power)
+    results = fit_segmented_spectrum(frequency, power)
 
     assert "model_summary" in results
     assert "failed with an unexpected error" in results["model_summary"]
+    assert "Segmented regression failed" in caplog.text
 
 
 def test_fit_segmented_spectrum_p_threshold(multifractal_spectrum, mocker):
@@ -294,7 +294,7 @@ def test_fit_segmented_spectrum_p_threshold(multifractal_spectrum, mocker):
     # --- Case 2: p_threshold is higher than the p-value (e.g., 0.15 > 0.1) ---
     # The fit should be accepted.
     results_accepted = fit_segmented_spectrum(
-        frequency, power, n_breakpoints=1, p_threshold=0.15, n_bootstraps=0
+        frequency, power, n_breakpoints=1, p_threshold=0.15, ci_method="parametric"
     )
 
     assert "model_summary" in results_accepted
@@ -333,13 +333,13 @@ def test_fit_standard_model_with_parametric_ci_theil_sen(synthetic_spectrum):
     assert results["beta_ci_lower"] <= known_beta <= results["beta_ci_upper"]
 
 
-def test_fit_segmented_spectrum_with_parametric_ci(multifractal_spectrum):
+def test_fit_segmented_spectrum_with_parametric_ci(multifractal_spectrum, caplog):
     """Test parametric CI calculation for segmented models."""
     frequency, power, known_breakpoint, known_beta1, known_beta2 = multifractal_spectrum
 
-    with pytest.warns(UserWarning, match="Parametric confidence intervals"):
-        results = fit_segmented_spectrum(frequency, power, ci_method="parametric")
+    results = fit_segmented_spectrum(frequency, power, ci_method="parametric")
 
+    assert "Parametric confidence intervals" in caplog.text
     assert "betas_ci" in results and "breakpoints_ci" in results
     assert len(results["betas_ci"]) == 2
     assert len(results["breakpoints_ci"]) == 1
@@ -424,7 +424,7 @@ def test_fit_segmented_spectrum_insufficient_data():
     assert "Not enough data points" in results["model_summary"]
 
 
-def test_fit_segmented_spectrum_multi_breakpoint_warning(multifractal_spectrum):
+def test_fit_segmented_spectrum_multi_breakpoint_warning(multifractal_spectrum, caplog):
     """
     Test that a warning is issued when fitting a model with more than one
     breakpoint, as this is only supported via BIC comparison.
@@ -433,11 +433,11 @@ def test_fit_segmented_spectrum_multi_breakpoint_warning(multifractal_spectrum):
 
     # This should trigger a warning that statistical significance (Davies test)
     # is not performed for models with >1 breakpoint.
-    with pytest.warns(UserWarning, match="Fitting a model with 2 breakpoints"):
-        fit_segmented_spectrum(frequency, power, n_breakpoints=2, n_bootstraps=0)
+    fit_segmented_spectrum(frequency, power, n_breakpoints=2, ci_method="parametric")
+    assert "Fitting a model with 2 breakpoints" in caplog.text
 
 
-def test_fit_standard_model_bootstrap_warning(synthetic_spectrum, mocker):
+def test_fit_standard_model_bootstrap_warning(synthetic_spectrum, mocker, caplog):
     """
     Test that a warning is issued if too few bootstrap iterations succeed.
     """
@@ -460,13 +460,13 @@ def test_fit_standard_model_bootstrap_warning(synthetic_spectrum, mocker):
     )
     mocker.patch("waterSpec.fitter.stats.linregress", side_effect=side_effects)
 
-    with pytest.warns(UserWarning, match="Only 5/10 bootstrap iterations succeeded"):
-        fit_standard_model(
-            frequency, power, method="ols", n_bootstraps=10, seed=42
-        )
+    fit_standard_model(
+        frequency, power, method="ols", n_bootstraps=10, seed=42
+    )
+    assert "Only 5/10 bootstrap iterations succeeded" in caplog.text
 
 
-def test_bootstrap_segmented_fit_graceful_failure(mocker):
+def test_bootstrap_segmented_fit_graceful_failure(mocker, caplog):
     """
     Test that _bootstrap_segmented_fit fails gracefully if the initial
     fit object has no valid estimates.
@@ -479,22 +479,22 @@ def test_bootstrap_segmented_fit_graceful_failure(mocker):
     mock_pw_fit.n_breakpoints = 1
     mock_pw_fit.predict.return_value = np.ones(10)  # Dummy return for predict
 
-    with pytest.warns(UserWarning, match="Could not perform bootstrap"):
-        results = _bootstrap_segmented_fit(
-            mock_pw_fit,
-            log_freq=np.ones(10),
-            log_power=np.ones(10),
-            n_bootstraps=10,
-            ci=95,
-            seed=42,
-        )
+    results = _bootstrap_segmented_fit(
+        mock_pw_fit,
+        log_freq=np.ones(10),
+        log_power=np.ones(10),
+        n_bootstraps=10,
+        ci=95,
+        seed=42,
+    )
+    assert "Could not perform bootstrap" in caplog.text
 
     # Check that the results contain NaNs as expected
     assert np.all(np.isnan(results["betas_ci"]))
     assert np.all(np.isnan(results["breakpoints_ci"]))
 
 
-def test_bootstrap_segmented_fit_iteration_warning(multifractal_spectrum, mocker):
+def test_bootstrap_segmented_fit_iteration_warning(multifractal_spectrum, mocker, caplog):
     """
     Test that a warning is issued if too few bootstrap iterations succeed
     in the segmented fitting process.
@@ -530,7 +530,54 @@ def test_bootstrap_segmented_fit_iteration_warning(multifractal_spectrum, mocker
         "waterSpec.fitter.piecewise_regression.Fit", side_effect=side_effects
     )
 
-    with pytest.warns(UserWarning, match="Only 2/10 bootstrap iterations for the segmented model succeeded"):
-        fit_segmented_spectrum(
-            frequency, power, n_breakpoints=1, n_bootstraps=10, seed=42
-        )
+    fit_segmented_spectrum(
+        frequency, power, n_breakpoints=1, n_bootstraps=10, seed=42
+    )
+    assert "Only 2/10 bootstrap iterations for the segmented model succeeded" in caplog.text
+
+
+def test_fit_segmented_spectrum_white_noise():
+    """Test fitting a flat spectrum (white noise), which should not have a breakpoint."""
+    frequency = np.linspace(0.01, 1, 100)
+    # Power is constant for white noise, with some random variation
+    rng = np.random.default_rng(42)
+    power = np.ones_like(frequency) + rng.normal(0, 0.1, len(frequency))
+
+    results = fit_segmented_spectrum(frequency, power)
+    assert "model_summary" in results
+    assert "No significant breakpoint found" in results["model_summary"]
+    assert results["bic"] == np.inf
+
+
+def test_fit_standard_model_invalid_numeric_args(synthetic_spectrum):
+    """Test that fit_standard_model raises ValueErrors for invalid numeric arguments."""
+    frequency, power, _ = synthetic_spectrum
+
+    with pytest.raises(ValueError, match="'n_bootstraps' must be a positive integer"):
+        fit_standard_model(frequency, power, n_bootstraps=0)
+
+    with pytest.raises(ValueError, match="'ci' must be between 0 and 100"):
+        fit_standard_model(frequency, power, ci=101)
+
+    with pytest.raises(ValueError, match="'ci' must be between 0 and 100"):
+        fit_standard_model(frequency, power, ci=0)
+
+
+def test_fit_segmented_spectrum_invalid_numeric_args(multifractal_spectrum):
+    """Test that fit_segmented_spectrum raises ValueErrors for invalid numeric arguments."""
+    frequency, power, _, _, _ = multifractal_spectrum
+
+    with pytest.raises(ValueError, match="'n_breakpoints' must be a positive integer"):
+        fit_segmented_spectrum(frequency, power, n_breakpoints=0)
+
+    with pytest.raises(ValueError, match="'p_threshold' must be between 0 and 1"):
+        fit_segmented_spectrum(frequency, power, p_threshold=1.1)
+
+    with pytest.raises(ValueError, match="'p_threshold' must be between 0 and 1"):
+        fit_segmented_spectrum(frequency, power, p_threshold=0)
+
+    with pytest.raises(ValueError, match="'n_bootstraps' must be a positive integer"):
+        fit_segmented_spectrum(frequency, power, n_bootstraps=-1)
+
+    with pytest.raises(ValueError, match="'ci' must be between 0 and 100"):
+        fit_segmented_spectrum(frequency, power, ci=100)
