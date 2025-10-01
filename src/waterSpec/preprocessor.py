@@ -222,26 +222,33 @@ def handle_censored_data(
 
 
 def detrend_loess(
-    x: np.ndarray, y: np.ndarray, errors: Optional[np.ndarray] = None, frac: float = 0.5, **kwargs
+    x: np.ndarray,
+    y: np.ndarray,
+    errors: Optional[np.ndarray] = None,
+    frac: float = 0.5,
+    n_bootstrap: int = 0,
+    **kwargs,
 ) -> Tuple[np.ndarray, Optional[np.ndarray], Dict]:
     """
-    Removes a non-linear trend from a time series using LOESS.
+    Removes a non-linear trend from a time series using LOESS and optionally
+    estimates trend uncertainty using a residual-resampling bootstrap.
 
     Args:
-        frac (float): The fraction of the data used when estimating each
-            y-value. Should be between 0 and 1.
+        frac (float): The fraction of data used for each y-value estimation.
+        n_bootstrap (int): The number of bootstrap iterations to perform for
+            uncertainty estimation. If 0, no bootstrapping is performed.
     """
     # 1. Validate parameters
     if not isinstance(frac, (int, float)) or not (0 < frac <= 1):
         raise ValueError("`frac` must be a number between 0 and 1.")
+    if not isinstance(n_bootstrap, int) or n_bootstrap < 0:
+        raise ValueError("`n_bootstrap` must be a non-negative integer.")
 
     diagnostics = {"variance_explained_by_trend": np.nan, "trend_removed": False}
     # 2. Prepare data
     valid_indices = ~np.isnan(y)
     num_valid = np.sum(valid_indices)
 
-    # LOESS requires a minimum number of points to function properly.
-    # This check prevents statsmodels from throwing an error.
     min_points_for_loess = 5
     if num_valid < min_points_for_loess:
         warnings.warn(
@@ -255,8 +262,9 @@ def detrend_loess(
     y_valid = y[valid_indices]
     original_variance = np.var(y_valid)
 
-    smoothed_y = sm.nonparametric.lowess(y_valid, x_valid, frac=frac, **kwargs)[:, 1]
-    residuals = y_valid - smoothed_y
+    # Perform the initial LOESS fit
+    trend = sm.nonparametric.lowess(y_valid, x_valid, frac=frac, **kwargs)[:, 1]
+    residuals = y_valid - trend
     detrended_y = np.full_like(y, np.nan)
     detrended_y[valid_indices] = residuals
 
@@ -274,16 +282,40 @@ def detrend_loess(
             )
     diagnostics["trend_removed"] = True
 
-    if errors is not None:
-        warnings.warn(
-            "Error propagation for LOESS detrending is not currently supported. "
-            "The uncertainties on the detrended data will be the same as the "
-            "original uncertainties, which may be an underestimate. This is a "
-            "known limitation.",
-            UserWarning,
-        )
+    # Propagate errors
+    propagated_errors = errors.copy() if errors is not None else None
+    if propagated_errors is not None:
+        errors_valid = propagated_errors[valid_indices]
+        if n_bootstrap > 0:
+            # --- Bootstrap to estimate trend uncertainty ---
+            bootstrap_trends = np.zeros((n_bootstrap, num_valid))
+            for i in range(n_bootstrap):
+                # Resample residuals and create a synthetic dataset
+                resampled_residuals = np.random.choice(
+                    residuals, size=num_valid, replace=True
+                )
+                synthetic_y = trend + resampled_residuals
+                # Fit LOESS to the synthetic data
+                bootstrap_trends[i, :] = sm.nonparametric.lowess(
+                    synthetic_y, x_valid, frac=frac, **kwargs
+                )[:, 1]
 
-    return detrended_y, errors, diagnostics
+            # Calculate the standard deviation of the trends as the uncertainty
+            trend_uncertainty = np.std(bootstrap_trends, axis=0)
+
+            # Add in quadrature with original errors
+            new_err_sq = np.square(errors_valid) + np.square(trend_uncertainty)
+            propagated_errors[valid_indices] = np.sqrt(new_err_sq)
+        else:
+            warnings.warn(
+                "Error propagation for LOESS detrending is not currently supported "
+                "without bootstrapping (set `n_bootstrap` > 0). The uncertainties "
+                "on the detrended data will be the same as the original, which may "
+                "be an underestimate.",
+                UserWarning,
+            )
+
+    return detrended_y, propagated_errors, diagnostics
 
 
 def preprocess_data(
