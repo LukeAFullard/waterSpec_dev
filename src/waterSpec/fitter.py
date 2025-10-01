@@ -550,16 +550,36 @@ def _bootstrap_segmented_fit(
 
     # Calculate CIs for the fitted line itself
     bootstrap_fits_arr = np.array(bootstrap_fits)
-    # Filter out any columns (frequencies) that contain non-finite values
-    # before calculating percentiles for the fit CI.
-    finite_fit_cols = np.all(np.isfinite(bootstrap_fits_arr), axis=0)
-    if np.any(finite_fit_cols):
-        ci_results["fit_ci_lower"] = np.percentile(
-            bootstrap_fits_arr[:, finite_fit_cols], lower_p, axis=0
-        )
-        ci_results["fit_ci_upper"] = np.percentile(
-            bootstrap_fits_arr[:, finite_fit_cols], upper_p, axis=0
-        )
+
+    # This check handles cases where bootstrap runs failed and produced no fits.
+    if bootstrap_fits_arr.ndim == 2 and bootstrap_fits_arr.shape[1] > 0:
+        # Initialize full-size arrays with NaNs. This ensures that if the
+        # bootstrap fails for some frequencies, those points are excluded from
+        # plotting without causing a dimension mismatch.
+        n_freq_points = bootstrap_fits_arr.shape[1]
+        fit_ci_lower = np.full(n_freq_points, np.nan)
+        fit_ci_upper = np.full(n_freq_points, np.nan)
+
+        # Identify columns (frequencies) where all bootstrap fits were finite.
+        finite_fit_cols = np.all(np.isfinite(bootstrap_fits_arr), axis=0)
+
+        # Calculate percentiles only for the valid columns.
+        if np.any(finite_fit_cols):
+            # Calculate CIs on the subset of data that is valid.
+            lower_bounds = np.percentile(
+                bootstrap_fits_arr[:, finite_fit_cols], lower_p, axis=0
+            )
+            upper_bounds = np.percentile(
+                bootstrap_fits_arr[:, finite_fit_cols], upper_p, axis=0
+            )
+            # Place the calculated CIs back into the full-size arrays.
+            fit_ci_lower[finite_fit_cols] = lower_bounds
+            fit_ci_upper[finite_fit_cols] = upper_bounds
+
+        ci_results["fit_ci_lower"] = fit_ci_lower
+        ci_results["fit_ci_upper"] = fit_ci_upper
+    # If bootstrap_fits_arr is empty or not 2D, CIs will remain as None,
+    # which is the default initialized value.
 
     for i in range(n_breakpoints + 1):
         # Filter out non-finite beta estimates before calculating CIs
