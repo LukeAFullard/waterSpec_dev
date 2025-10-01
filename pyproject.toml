@@ -5,9 +5,6 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "waterSpec"
 version = "0.1.0"
-authors = [
-  { name="Jules", email="jules@example.com" },
-]
 description = "A Python package for spectral analysis of environmental time series."
 readme = "README.md"
 requires-python = ">=3.8"
