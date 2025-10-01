@@ -121,10 +121,10 @@ def _format_period(frequency_hz):
     period_seconds = 1 / frequency_hz
     period_days = period_seconds / SECONDS_PER_DAY
 
-    # Use >= to correctly handle the boundary conditions (e.g., exactly 2 months).
-    if period_days >= DAYS_PER_YEAR * 2:
+    # Switch to years if > 1.5 years, and months if > 1.5 months for intuitive formatting.
+    if period_days >= DAYS_PER_YEAR * 1.5:
         return f"{period_days / DAYS_PER_YEAR:.1f} years"
-    elif period_days >= DAYS_PER_MONTH * 2:
+    elif period_days >= DAYS_PER_MONTH * 1.5:
         return f"{period_days / DAYS_PER_MONTH:.1f} months"
     else:
         return f"{period_days:.1f} days"
