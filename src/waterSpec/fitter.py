@@ -95,6 +95,12 @@ def fit_standard_model(
     log_power = np.log(power[valid_indices])
     n_points = len(log_power)
 
+    if n_points < 30 and "bootstrap" in ci_method:
+        logger.warning(
+            f"Dataset has only {n_points} points. Bootstrap CIs may be "
+            "unreliable. Consider using parametric CIs or collecting more data."
+        )
+
     # 2. Perform the initial fit (OLS or Theil-Sen)
     fit_results = {}
     try:
@@ -141,20 +147,29 @@ def fit_standard_model(
     # 4. Calculate Confidence Intervals
     beta_ci_lower, beta_ci_upper = np.nan, np.nan
     if ci_method == "bootstrap":
-        residuals = log_power - log_power_fit
         rng = np.random.default_rng(seed)
         beta_estimates = []
+        n_points = len(log_freq)
+        error_counts = {}
 
         for _ in range(n_bootstraps):
             try:
-                resampled_residuals = rng.choice(residuals, size=len(residuals), replace=True)
-                synthetic_log_power = log_power_fit + resampled_residuals
+                indices = rng.choice(np.arange(n_points), size=n_points, replace=True)
+                resampled_log_freq = log_freq[indices]
+                resampled_log_power = log_power[indices]
+
                 if method == "ols":
-                    resampled_slope = stats.linregress(log_freq, synthetic_log_power).slope
+                    resampled_slope = stats.linregress(
+                        resampled_log_freq, resampled_log_power
+                    ).slope
                 else:  # theil-sen
-                    resampled_slope = stats.theilslopes(synthetic_log_power, log_freq)[0]
+                    resampled_slope = stats.theilslopes(
+                        resampled_log_power, resampled_log_freq
+                    )[0]
                 beta_estimates.append(-resampled_slope)
             except Exception as e:
+                error_type = type(e).__name__
+                error_counts[error_type] = error_counts.get(error_type, 0) + 1
                 # Log the specific error for a failed iteration
                 msg = f"Bootstrap iteration failed with error: {e}"
                 if logger:
@@ -163,6 +178,11 @@ def fit_standard_model(
 
         MIN_BOOTSTRAP_SAMPLES = 50  # Min samples for a reliable CI
         if len(beta_estimates) < MIN_BOOTSTRAP_SAMPLES:
+            if error_counts:
+                error_summary = ", ".join(
+                    [f"{err}: {count}" for err, count in error_counts.items()]
+                )
+                logger.warning(f"Bootstrap errors occurred: {error_summary}")
             logger.warning(
                 f"Only {len(beta_estimates)}/{n_bootstraps} bootstrap iterations "
                 f"succeeded for the standard model (minimum required: {MIN_BOOTSTRAP_SAMPLES}). "
@@ -170,7 +190,7 @@ def fit_standard_model(
             )
             beta_ci_lower, beta_ci_upper = np.nan, np.nan
         else:
-            MIN_BOOTSTRAP_SUCCESS_RATIO = 0.8
+            MIN_BOOTSTRAP_SUCCESS_RATIO = 0.9
             if len(beta_estimates) < n_bootstraps * MIN_BOOTSTRAP_SUCCESS_RATIO:
                 logger.warning(
                     f"Only {len(beta_estimates)}/{n_bootstraps} bootstrap iterations "
@@ -222,14 +242,14 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
     """
     logger = logger or logging.getLogger(__name__)
     n_breakpoints = pw_fit.n_breakpoints
-    log_power_fit = pw_fit.predict(log_freq)
-    residuals = log_power - log_power_fit
     rng = np.random.default_rng(seed)
+    n_points = len(log_freq)
 
     bootstrap_betas = [[] for _ in range(n_breakpoints + 1)]
     bootstrap_breakpoints = [[] for _ in range(n_breakpoints)]
     bootstrap_fits = []  # Store each bootstrap fit line
     successful_fits = 0
+    error_counts = {}
 
     # Extract the starting breakpoints from the initial fit's results.
     # This was the source of a bug where bootstrap CIs would always fail.
@@ -247,21 +267,22 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
             "fit_ci_upper": None,
         }
 
-    start_values = [
-        initial_estimates[f"breakpoint{i+1}"]["estimate"]
-        for i in range(n_breakpoints)
-    ]
-
     for _ in range(n_bootstraps):
-        resampled_residuals = rng.choice(residuals, size=len(residuals), replace=True)
-        synthetic_log_power = log_power_fit + resampled_residuals
-
         try:
+            indices = rng.choice(np.arange(n_points), size=n_points, replace=True)
+            resampled_log_freq = log_freq[indices]
+            resampled_log_power = log_power[indices]
+
+            # Sort the resampled data by frequency, as required by some
+            # regression algorithms to avoid errors.
+            sort_order = np.argsort(resampled_log_freq)
+            resampled_log_freq_sorted = resampled_log_freq[sort_order]
+            resampled_log_power_sorted = resampled_log_power[sort_order]
+
             bootstrap_pw_fit = piecewise_regression.Fit(
-                log_freq,
-                synthetic_log_power,
+                resampled_log_freq_sorted,
+                resampled_log_power_sorted,
                 n_breakpoints=n_breakpoints,
-                start_values=start_values,
             )
 
             # Bug fix: Correctly get results from the bootstrap fit object.
@@ -289,6 +310,8 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
             bootstrap_fits.append(bootstrap_pw_fit.predict(log_freq))
             successful_fits += 1
         except Exception as e:
+            error_type = type(e).__name__
+            error_counts[error_type] = error_counts.get(error_type, 0) + 1
             # Log the specific error for a failed iteration
             msg = f"Segmented bootstrap iteration failed with error: {e}"
             if logger:
@@ -297,6 +320,11 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
 
     MIN_BOOTSTRAP_SAMPLES = 50  # Min samples for a reliable CI
     if successful_fits < MIN_BOOTSTRAP_SAMPLES:
+        if error_counts:
+            error_summary = ", ".join(
+                [f"{err}: {count}" for err, count in error_counts.items()]
+            )
+            logger.warning(f"Bootstrap errors occurred: {error_summary}")
         logger.warning(
             f"Only {successful_fits}/{n_bootstraps} bootstrap iterations "
             f"succeeded for the segmented model (minimum required: {MIN_BOOTSTRAP_SAMPLES}). "
@@ -310,7 +338,7 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
         }
 
     # Warn if the success rate is low, but still above the minimum sample count
-    MIN_BOOTSTRAP_SUCCESS_RATIO = 0.8
+    MIN_BOOTSTRAP_SUCCESS_RATIO = 0.9
     if successful_fits < n_bootstraps * MIN_BOOTSTRAP_SUCCESS_RATIO:
         logger.warning(
             f"Only {successful_fits}/{n_bootstraps} bootstrap iterations for the "
@@ -483,6 +511,12 @@ def fit_segmented_spectrum(
     log_freq = np.log(frequency[valid_indices])
     log_power = np.log(power[valid_indices])
     n_points = len(log_power)
+
+    if n_points < 30 and "bootstrap" in ci_method:
+        logger.warning(
+            f"Dataset has only {n_points} points. Bootstrap CIs may be "
+            "unreliable. Consider using parametric CIs or collecting more data."
+        )
 
     # Fit the piecewise regression model
     try:
