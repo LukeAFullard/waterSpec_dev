@@ -79,8 +79,9 @@ def test_failed_bootstrap_returns_nan(mocker):
         freq,
         power,
         ci_method="bootstrap",
+        bootstrap_type="pairs",  # Force pairs bootstrap for this test
         n_bootstraps=100,
-        seed=42, # Seed doesn't matter now due to mocking
+        seed=42,  # Seed doesn't matter now due to mocking
     )
     # All 100 bootstrap iterations should now fail because the resampled
     # data will have identical x-coordinates, causing the slope calculation to fail.

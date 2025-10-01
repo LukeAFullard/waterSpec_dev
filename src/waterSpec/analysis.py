@@ -397,7 +397,7 @@ class Analysis:
         output_dir,
         fit_method="theil-sen",
         ci_method="bootstrap",
-        bootstrap_type="pairs",
+        bootstrap_type="residuals",
         n_bootstraps=1000,
         fap_threshold=0.01,
         grid_type="log",

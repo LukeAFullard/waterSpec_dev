@@ -60,7 +60,7 @@ def fit_standard_model(
     power: np.ndarray,
     method: str = "theil-sen",
     ci_method: str = "bootstrap",
-    bootstrap_type: str = "pairs",
+    bootstrap_type: str = "residuals",
     n_bootstraps: int = 1000,
     ci: int = 95,
     seed: Optional[int] = None,
@@ -303,7 +303,7 @@ def _bootstrap_segmented_fit(
     n_bootstraps,
     ci,
     seed,
-    bootstrap_type="pairs",
+    bootstrap_type="residuals",
     logger=None,
 ):
     """
@@ -532,7 +532,7 @@ def fit_segmented_spectrum(
     n_breakpoints: int = 1,
     p_threshold: float = 0.05,
     ci_method: str = "bootstrap",
-    bootstrap_type: str = "pairs",
+    bootstrap_type: str = "residuals",
     n_bootstraps: int = 1000,
     ci: int = 95,
     seed: Optional[int] = None,
