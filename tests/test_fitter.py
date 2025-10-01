@@ -392,10 +392,10 @@ def test_calculate_bic_edge_cases():
     # Test with no data points, should return NaN
     assert np.isnan(_calculate_bic(np.array([]), np.array([]), n_params=2))
 
-    # Test with a perfect fit (RSS is zero), should return inf
+    # Test with a perfect fit (RSS is zero), should return -inf
     y_true = np.array([1, 2, 3, 4])
     y_pred = np.array([1, 2, 3, 4])
-    assert _calculate_bic(y_true, y_pred, n_params=2) == np.inf
+    assert _calculate_bic(y_true, y_pred, n_params=2) == -np.inf
 
 
 def test_fit_standard_model_invalid_arguments(synthetic_spectrum):

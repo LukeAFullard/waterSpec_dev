@@ -35,10 +35,10 @@ def _calculate_bic(y: np.ndarray, y_pred: np.ndarray, n_params: int) -> float:
         warnings.warn(
             "Near-zero RSS found, indicating a perfect fit. "
             "This may be due to overfitting or numerical instability. "
-            "Returning BIC as infinity.",
+            "Returning BIC as -infinity, consistent with AIC.",
             UserWarning,
         )
-        return np.inf
+        return -np.inf
     bic = n * np.log(rss / n) + n_params * np.log(n)
     return bic
 
@@ -126,7 +126,7 @@ def fit_standard_model(
             slope, intercept, r_value, _, stderr = res
             r_squared = r_value**2
             # Calculate adjusted R-squared
-            adj_r_squared = 1 - (1 - r_squared) * (n_points - 1) / (n_points - 2 - 1)
+            adj_r_squared = 1 - (1 - r_squared) * (n_points - 1) / (n_points - 2)
             fit_results.update({
                 "r_squared": r_squared,
                 "adj_r_squared": adj_r_squared,
