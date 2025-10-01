@@ -38,6 +38,45 @@ def test_residual_bootstrap_standard_model():
     assert np.isfinite(results["beta_ci_upper"])
     assert results["beta_ci_lower"] < results["beta_ci_upper"]
 
+def test_block_bootstrap_models():
+    """
+    Tests that the block bootstrap runs for both standard and segmented models
+    and returns valid confidence intervals.
+    """
+    # Test standard model with block bootstrap
+    results_std = fit_standard_model(
+        FREQUENCY_STD,
+        POWER_STD,
+        ci_method="bootstrap",
+        bootstrap_type="block",
+        bootstrap_block_size=5,
+        n_bootstraps=100,
+        seed=42,
+    )
+    assert "beta_ci_lower" in results_std
+    assert "beta_ci_upper" in results_std
+    assert np.isfinite(results_std["beta_ci_lower"])
+    assert np.isfinite(results_std["beta_ci_upper"])
+    assert results_std["beta_ci_lower"] < results_std["beta_ci_upper"]
+
+    # Test segmented model with block bootstrap
+    results_seg = fit_segmented_spectrum(
+        FREQUENCY_SEG,
+        POWER_SEG,
+        ci_method="bootstrap",
+        bootstrap_type="block",
+        bootstrap_block_size=5,
+        n_bootstraps=100,
+        seed=42,
+    )
+    assert "betas_ci" in results_seg, f"Test failed because fit was not successful: {results_seg.get('model_summary')}"
+    assert len(results_seg["betas_ci"]) == 2
+    for lower, upper in results_seg["betas_ci"]:
+        assert np.isfinite(lower)
+        assert np.isfinite(upper)
+        assert lower < upper
+
+
 def test_residual_bootstrap_segmented_model():
     """
     Tests that the residual bootstrap runs for the segmented model and returns
