@@ -17,6 +17,11 @@ def load_data(
     """
     Loads time series data from a CSV, JSON, or Excel file, performing robust
     validation.
+
+    Note: The time column should contain absolute timestamps (e.g., '2023-01-15 10:30:00')
+    that can be parsed by `pandas.to_datetime`. The function calculates time
+    differences in seconds relative to the first timestamp for all downstream
+    frequency analysis.
     """
     # 1. Validate file existence
     if not os.path.exists(file_path):
@@ -165,8 +170,9 @@ def load_data(
 
     # 7. Sort by time and check for monotonicity
     clean_df = clean_df.sort_values(by="time").reset_index(drop=True)
-    # Convert to nanoseconds since epoch to check for monotonicity with full precision.
-    time_numeric_ns = clean_df["time"].astype(np.int64).to_numpy()
+    # Convert to nanoseconds since epoch. Using float64 is safer as it
+    # avoids np.int64 overflow for dates far from the epoch (e.g., paleodata).
+    time_numeric_ns = clean_df["time"].view(np.int64).to_numpy().astype(np.float64)
 
     # Check for strict monotonicity. After sorting, any non-positive difference
     # indicates a duplicate or out-of-order timestamp.
@@ -186,4 +192,16 @@ def load_data(
     # Return time in seconds relative to the first measurement to avoid
     # floating-point precision issues with long time series (e.g., decades).
     time_numeric_sec = (time_numeric_ns - time_numeric_ns[0]) / 1e9
+
+    # Warn if the time span is very large, as this could have implications
+    # for numerical precision in downstream calculations.
+    time_span_days = time_numeric_sec[-1] / (3600 * 24)
+    if time_span_days > 100 * 365:  # e.g., > 100 years
+        warnings.warn(
+            f"The time series spans a very large range ({time_span_days / 365.25:.1f} "
+            "years). While we use float64 to prevent overflow, be mindful of "
+            "potential floating-point precision issues in downstream analysis.",
+            UserWarning,
+        )
+
     return time_numeric_sec, clean_df["data"], clean_df.get("error")

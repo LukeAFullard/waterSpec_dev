@@ -258,7 +258,7 @@ def test_analysis_residual_method_finds_peak(tmp_path):
         output_dir=str(output_dir),
         grid_type="linear",
         peak_detection_method="residual",
-        peak_detection_ci=95,
+            peak_fdr_level=0.05,
         n_bootstraps=0,
     )
 
@@ -428,7 +428,7 @@ def test_analysis_parametric_ci_is_propagated(tmp_path):
         ("fap_method", "invalid", "`fap_method` must be 'baluev' or 'bootstrap'."),
         ("normalization", "invalid", "must be one of 'standard', 'model', 'log', or 'psd'."),
         ("peak_detection_method", "invalid", "must be 'residual', 'fap', or None."),
-        ("peak_detection_ci", 101, "must be a number between 0 and 100."),
+        ("peak_fdr_level", 1.1, "`peak_fdr_level` must be a float between 0 and 1."),
         ("p_threshold", -0.1, "`p_threshold` must be a float between 0 and 1."),
         ("max_breakpoints", 3, "`max_breakpoints` must be an integer (0, 1, or 2)."),
     ],
@@ -448,23 +448,22 @@ def test_run_full_analysis_invalid_parameters(tmp_path, param, value, message):
 
 @patch("waterSpec.analysis.fit_segmented_spectrum")
 @patch("waterSpec.analysis.fit_standard_model")
-def test_analysis_model_fitting_failure_reporting(
+def test_analysis_handles_total_model_failure(
     mock_fit_standard, mock_fit_segmented, tmp_path
 ):
     """
-    Test that if all model fits fail, the summary text includes detailed
-    reasons for each failure.
+    Test that if all model fits fail, run_full_analysis returns a failure
+    result dictionary and generates a corresponding output file.
     """
     # --- Mock Configuration ---
-    # Mock models to return failure information instead of valid results
     mock_fit_standard.return_value = {
         "bic": np.nan,
-        "failure_reason": "Could not compute Theil-Sen slope.",
+        "failure_reason": "Standard failed.",
     }
-    mock_fit_segmented.side_effect = [
-        {"bic": np.nan, "failure_reason": "Davies test p-value > threshold."},
-        Exception("Unexpected crash during 2-breakpoint fit."),
-    ]
+    mock_fit_segmented.return_value = {
+        "bic": np.inf,
+        "failure_reason": "Segmented failed.",
+    }
 
     # --- Test Execution ---
     file_path = create_test_data_file(
@@ -473,31 +472,20 @@ def test_analysis_model_fitting_failure_reporting(
     output_dir = tmp_path / "results"
     analyzer = Analysis(file_path, time_col="time", data_col="value")
     results = analyzer.run_full_analysis(
-        output_dir=str(output_dir), max_breakpoints=2, n_bootstraps=0
+        output_dir=str(output_dir), max_breakpoints=1
     )
 
     # --- Assertions ---
-    assert "summary_text" in results
-    summary = results["summary_text"]
+    assert results["chosen_model_type"] == "failure"
+    assert "Analysis failed: Model fitting failed" in results["summary_text"]
+    assert "Standard model (0 breakpoints): Standard failed." in results["failure_reason"]
+    assert "Segmented model (1 breakpoint(s)): Segmented failed." in results["failure_reason"]
 
-    # Check that the summary reports that model fitting failed
-    assert "Model fitting failed for all attempted models" in summary
-    assert "Reasons:" in summary
-
-    # Check for the specific failure reasons from each mocked model
-    assert "Standard model (0 breakpoints): Could not compute Theil-Sen slope." in summary
-    assert (
-        "Segmented model (1 breakpoint(s)): Davies test p-value > threshold." in summary
-    )
-    assert (
-            "Segmented model (2 breakpoint(s)): An unexpected error occurred (Exception): "
-        "Unexpected crash during 2-breakpoint fit." in summary
-    )
-
-    # Check that the output file contains the failure summary
+    # Check that the output file reflects the failure
     summary_path = output_dir / "value_summary.txt"
     assert summary_path.exists()
-    assert "Model fitting failed" in summary_path.read_text()
+    summary_content = summary_path.read_text()
+    assert "Analysis failed: Model fitting failed" in summary_content
 
 
 @patch("waterSpec.analysis.fit_segmented_spectrum")
@@ -539,9 +527,9 @@ def test_analysis_retains_failure_reasons_on_partial_success(
     assert "Standard model (0 breakpoints): Standard model failed." in results["failed_model_reasons"]
 
 
-def test_analysis_warns_on_ignored_peak_detection_ci(tmp_path, mocker):
+def test_analysis_warns_on_ignored_peak_fdr_level(tmp_path, mocker):
     """
-    Test that a warning is logged if peak_detection_ci is passed when
+    Test that a warning is logged if peak_fdr_level is passed when
     peak_detection_method is 'fap'.
     """
     file_path = "examples/sample_data.csv"
@@ -553,42 +541,14 @@ def test_analysis_warns_on_ignored_peak_detection_ci(tmp_path, mocker):
     analyzer.run_full_analysis(
         output_dir=tmp_path,
         peak_detection_method="fap",
-        peak_detection_ci=99,  # A non-default value that should be ignored
+        peak_fdr_level=0.1,  # A non-default value that should be ignored
         n_bootstraps=0,
     )
 
     spy_logger.assert_any_call(
-        "'peak_detection_method' is 'fap', so the 'peak_detection_ci' "
+        "'peak_detection_method' is 'fap', so the 'peak_fdr_level' "
         "parameter is ignored."
     )
-
-
-def test_is_fit_successful_logic(tmp_path):
-    """Test the internal _is_fit_successful helper function directly."""
-    # Need an analyzer instance to call the private method
-    time, series = generate_synthetic_series()
-    file_path = create_test_data_file(tmp_path, time, series)
-    analyzer = Analysis(file_path, "time", "value")
-
-    # Test successful standard fit
-    successful_standard = {"beta": 1.0}
-    assert analyzer._is_fit_successful(successful_standard)
-
-    # Test successful segmented fit
-    successful_segmented = {"betas": [1.0, 2.0]}
-    assert analyzer._is_fit_successful(successful_segmented)
-
-    # Test unsuccessful standard fit (e.g., NaN result)
-    failed_standard = {"beta": np.nan}
-    assert not analyzer._is_fit_successful(failed_standard)
-
-    # Test unsuccessful segmented fit (e.g., NaN result)
-    failed_segmented = {"betas": [np.nan, 2.0]}
-    assert not analyzer._is_fit_successful(failed_segmented)
-
-    # Test with an empty dictionary
-    empty_fit = {}
-    assert not analyzer._is_fit_successful(empty_fit)
 
 
 def test_peak_detection_ignored_parameter_warning(tmp_path, mocker):

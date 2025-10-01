@@ -85,8 +85,8 @@ def test_fit_standard_model_with_bootstrap_ci(synthetic_spectrum):
 
     # Fit the spectrum with bootstrap
     fit_results = fit_standard_model(
-        frequency, power, n_bootstraps=10, seed=42
-    )  # Use a small number for testing
+        frequency, power, n_bootstraps=100, seed=42
+    )
 
     # Check that the results dictionary contains the required keys
     assert "beta" in fit_results
@@ -154,7 +154,7 @@ def test_fit_segmented_spectrum(multifractal_spectrum):
     frequency, power, known_breakpoint, known_beta1, known_beta2 = multifractal_spectrum
 
     # Fit the segmented spectrum with a low number of bootstraps for speed
-    results = fit_segmented_spectrum(frequency, power, n_bootstraps=10, seed=42)
+    results = fit_segmented_spectrum(frequency, power, n_bootstraps=100, seed=42)
 
     # Check that the results contain the expected list-based keys
     assert "breakpoints" in results
@@ -211,15 +211,15 @@ def test_fit_standard_model_is_reproducible(synthetic_spectrum):
 
     # Fit twice with the same seed
     results1 = fit_standard_model(
-        frequency, power, n_bootstraps=10, seed=123
+        frequency, power, n_bootstraps=100, seed=123
     )
     results2 = fit_standard_model(
-        frequency, power, n_bootstraps=10, seed=123
+        frequency, power, n_bootstraps=100, seed=123
     )
 
     # Fit once with a different seed
     results3 = fit_standard_model(
-        frequency, power, n_bootstraps=10, seed=456
+        frequency, power, n_bootstraps=100, seed=456
     )
 
     # The first two results should be identical
@@ -534,7 +534,7 @@ def test_bootstrap_segmented_fit_iteration_warning(multifractal_spectrum, mocker
     fit_segmented_spectrum(
         frequency, power, n_breakpoints=1, n_bootstraps=10, seed=42
     )
-    assert "Only 2/10 bootstrap iterations for the segmented model succeeded" in caplog.text
+    assert "Only 2/10 bootstrap iterations succeeded for the segmented model (minimum required: 50)" in caplog.text
 
 
 def test_fit_segmented_spectrum_white_noise():

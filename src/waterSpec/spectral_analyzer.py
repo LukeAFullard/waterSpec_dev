@@ -115,38 +115,40 @@ def find_significant_peaks(
 
 
 from scipy import stats
+from statsmodels.stats.multitest import fdrcorrection
 from typing import Dict, List, Tuple
 
 
-def find_peaks_via_residuals(fit_results: Dict, ci: int = 95) -> Tuple[List[Dict], float]:
+def find_peaks_via_residuals(fit_results: Dict, fdr_level: float = 0.05) -> Tuple[List[Dict], float]:
     """
     Finds significant peaks by identifying outliers in the residuals of the
-    spectral fit using a statistically robust threshold.
+    spectral fit using the Benjamini-Hochberg False Discovery Rate (FDR)
+    procedure.
 
-    This method now uses robust statistics (median and MAD) and applies a
-    Bonferroni correction to the significance level to account for multiple
-    comparisons, making it more resilient to non-normal, heavy-tailed
-    residual distributions.
+    This method is more powerful than Bonferroni correction for multiple
+    comparisons, providing better sensitivity to detect true peaks while
+    controlling the false discovery rate.
 
     Args:
         fit_results (dict): The dictionary returned by the fitting functions.
                             Must contain 'residuals', 'fitted_log_power', 'log_freq',
                             and 'log_power'.
-        ci (int, optional): The confidence level for the significance
-                            threshold, in percent. Defaults to 95.
+        fdr_level (float, optional): The false discovery rate level for significance.
+                                     Defaults to 0.05.
 
     Returns:
         tuple: A tuple containing:
                - list: A list of dictionaries, each describing a significant peak.
-               - float: The residual threshold used for significance.
+               - float: The minimum residual value of a significant peak, which
+                        can be used as an effective threshold for plotting.
     """
     required_keys = ["residuals", "fitted_log_power", "log_freq", "log_power"]
     if not all(key in fit_results for key in required_keys):
         missing_keys = [key for key in required_keys if key not in fit_results]
         raise ValueError(f"fit_results is missing required keys: {missing_keys}")
 
-    if not (0 < ci < 100):
-        raise ValueError("Confidence interval 'ci' must be between 0 and 100.")
+    if not (0 < fdr_level < 1):
+        raise ValueError("fdr_level must be between 0 and 1.")
 
     residuals = fit_results["residuals"]
     log_freq = fit_results["log_freq"]
@@ -156,40 +158,36 @@ def find_peaks_via_residuals(fit_results: Dict, ci: int = 95) -> Tuple[List[Dict
     if n_comparisons == 0:
         return [], np.nan
 
-    # Use robust statistics: median for location and Median Absolute Deviation
-    # (MAD) for scale, which are less sensitive to outliers.
-    # The 'scale="normal"' argument scales the MAD to be a consistent
-    # estimator for the standard deviation for normally distributed data.
+    # Use robust statistics (median and MAD) for standardization
     residual_median = np.median(residuals)
     residual_mad_std = stats.median_abs_deviation(residuals, scale="normal")
 
-    # If MAD is zero, fall back to standard deviation to avoid division errors.
     if residual_mad_std < 1e-12:
-        residual_mad_std = np.std(residuals)
-        if residual_mad_std < 1e-12:  # All residuals are identical
-            return [], np.inf  # No peaks can be found
+        return [], np.inf  # No variance in residuals
 
-    # Apply Bonferroni correction for multiple comparisons.
-    # We are performing n_comparisons tests, one for each residual point.
-    alpha = 1 - (ci / 100)
-    corrected_alpha = alpha / n_comparisons
+    # Calculate one-tailed p-values for positive residuals (potential peaks)
+    z_scores = (residuals - residual_median) / residual_mad_std
+    p_values = 1 - stats.norm.cdf(z_scores)
 
-    # The critical Z-value for a one-tailed test with the corrected alpha.
-    z_critical = stats.norm.ppf(1 - corrected_alpha)
+    # Apply Benjamini-Hochberg FDR correction
+    is_significant, _ = fdrcorrection(p_values, alpha=fdr_level, method="indep")
 
-    # The threshold is based on the robust statistics.
-    residual_threshold = residual_median + z_critical * residual_mad_std
+    if not np.any(is_significant):
+        return [], np.inf
 
-    # Use a dedicated peak-finding algorithm on the residuals. This is more
-    # robust than grouping contiguous regions, as it prevents a single broad
-    # peak from being split into multiple reported peaks.
-    peak_indices, _ = find_peaks(residuals, height=residual_threshold)
+    # Find all peaks in the residual series first
+    all_peak_indices, _ = find_peaks(residuals)
 
-    if len(peak_indices) == 0:
-        return [], residual_threshold
+    # Filter to keep only those peaks that are statistically significant
+    significant_peak_indices = [
+        idx for idx in all_peak_indices if is_significant[idx]
+    ]
+
+    if not significant_peak_indices:
+        return [], np.inf
 
     significant_peaks = []
-    for peak_idx in peak_indices:
+    for peak_idx in significant_peak_indices:
         significant_peaks.append(
             {
                 "frequency": np.exp(log_freq[peak_idx]),
@@ -201,4 +199,7 @@ def find_peaks_via_residuals(fit_results: Dict, ci: int = 95) -> Tuple[List[Dict
     # Sort peaks by residual in descending order
     significant_peaks.sort(key=lambda p: p["residual"], reverse=True)
 
-    return significant_peaks, residual_threshold
+    # The effective threshold is the smallest residual that was deemed significant
+    min_significant_residual = min(p["residual"] for p in significant_peaks)
+
+    return significant_peaks, min_significant_residual

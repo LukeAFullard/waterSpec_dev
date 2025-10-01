@@ -161,20 +161,22 @@ def fit_standard_model(
                     logger.debug(msg)
                 continue
 
-        MIN_BOOTSTRAP_SUCCESS_RATIO = 0.8
-        if len(beta_estimates) == 0:
+        MIN_BOOTSTRAP_SAMPLES = 50  # Min samples for a reliable CI
+        if len(beta_estimates) < MIN_BOOTSTRAP_SAMPLES:
             logger.warning(
-                "All bootstrap iterations failed for the standard model. "
-                "Confidence intervals could not be calculated."
+                f"Only {len(beta_estimates)}/{n_bootstraps} bootstrap iterations "
+                f"succeeded for the standard model (minimum required: {MIN_BOOTSTRAP_SAMPLES}). "
+                "Confidence intervals are unreliable and will be set to NaN."
             )
+            beta_ci_lower, beta_ci_upper = np.nan, np.nan
         else:
+            MIN_BOOTSTRAP_SUCCESS_RATIO = 0.8
             if len(beta_estimates) < n_bootstraps * MIN_BOOTSTRAP_SUCCESS_RATIO:
-                msg = (
+                logger.warning(
                     f"Only {len(beta_estimates)}/{n_bootstraps} bootstrap iterations "
-                    f"succeeded (less than {MIN_BOOTSTRAP_SUCCESS_RATIO * 100:.0f}%). "
-                    "The resulting confidence interval may be unreliable."
+                    f"succeeded (success rate < {MIN_BOOTSTRAP_SUCCESS_RATIO:.0%}). "
+                    "The resulting confidence interval may be less reliable."
                 )
-                logger.warning(msg)
             p_lower = (100 - ci) / 2
             p_upper = 100 - p_lower
             beta_ci_lower = np.percentile(beta_estimates, p_lower)
@@ -293,17 +295,28 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
                 logger.debug(msg)
             continue
 
-    if successful_fits == 0:
+    MIN_BOOTSTRAP_SAMPLES = 50  # Min samples for a reliable CI
+    if successful_fits < MIN_BOOTSTRAP_SAMPLES:
         logger.warning(
-            "All bootstrap iterations failed for the segmented model. "
-            "Confidence intervals could not be calculated."
+            f"Only {successful_fits}/{n_bootstraps} bootstrap iterations "
+            f"succeeded for the segmented model (minimum required: {MIN_BOOTSTRAP_SAMPLES}). "
+            "Confidence intervals are unreliable and will be set to NaN."
         )
-    elif successful_fits < n_bootstraps * 0.8:
-        msg = (
+        return {
+            "betas_ci": [(np.nan, np.nan)] * (n_breakpoints + 1),
+            "breakpoints_ci": [(np.nan, np.nan)] * n_breakpoints,
+            "fit_ci_lower": None,
+            "fit_ci_upper": None,
+        }
+
+    # Warn if the success rate is low, but still above the minimum sample count
+    MIN_BOOTSTRAP_SUCCESS_RATIO = 0.8
+    if successful_fits < n_bootstraps * MIN_BOOTSTRAP_SUCCESS_RATIO:
+        logger.warning(
             f"Only {successful_fits}/{n_bootstraps} bootstrap iterations for the "
-            "segmented model succeeded. The confidence intervals may be unreliable."
+            f"segmented model succeeded (success rate < {MIN_BOOTSTRAP_SUCCESS_RATIO:.0%}). "
+            "The confidence intervals may be less reliable."
         )
-        logger.warning(msg)
 
     lower_p, upper_p = (100 - ci) / 2, 100 - (100 - ci) / 2
     ci_results = {
@@ -314,30 +327,19 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
     }
 
     # Calculate CIs for the fitted line itself
-    if bootstrap_fits:
-        bootstrap_fits_arr = np.array(bootstrap_fits)
-        ci_results["fit_ci_lower"] = np.percentile(
-            bootstrap_fits_arr, lower_p, axis=0
-        )
-        ci_results["fit_ci_upper"] = np.percentile(
-            bootstrap_fits_arr, upper_p, axis=0
-        )
+    bootstrap_fits_arr = np.array(bootstrap_fits)
+    ci_results["fit_ci_lower"] = np.percentile(bootstrap_fits_arr, lower_p, axis=0)
+    ci_results["fit_ci_upper"] = np.percentile(bootstrap_fits_arr, upper_p, axis=0)
 
     for i in range(n_breakpoints + 1):
-        if bootstrap_betas[i]:
-            lower = np.percentile(bootstrap_betas[i], lower_p)
-            upper = np.percentile(bootstrap_betas[i], upper_p)
-            ci_results["betas_ci"].append((lower, upper))
-        else:
-            ci_results["betas_ci"].append((np.nan, np.nan))
+        lower = np.percentile(bootstrap_betas[i], lower_p)
+        upper = np.percentile(bootstrap_betas[i], upper_p)
+        ci_results["betas_ci"].append((lower, upper))
 
     for i in range(n_breakpoints):
-        if bootstrap_breakpoints[i]:
-            lower = np.percentile(bootstrap_breakpoints[i], lower_p)
-            upper = np.percentile(bootstrap_breakpoints[i], upper_p)
-            ci_results["breakpoints_ci"].append((lower, upper))
-        else:
-            ci_results["breakpoints_ci"].append((np.nan, np.nan))
+        lower = np.percentile(bootstrap_breakpoints[i], lower_p)
+        upper = np.percentile(bootstrap_breakpoints[i], upper_p)
+        ci_results["breakpoints_ci"].append((lower, upper))
 
     return ci_results
 

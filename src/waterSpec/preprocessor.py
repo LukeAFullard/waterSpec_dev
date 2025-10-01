@@ -1,3 +1,4 @@
+import re
 import warnings
 from typing import Dict, Optional, Tuple
 
@@ -130,10 +131,11 @@ def handle_censored_data(
     upper_multiplier=1.1,
     left_censor_symbol="<",
     right_censor_symbol=">",
+    non_detect_symbols=None,
 ):
     """
-    Handles censored data in a pandas Series by replacing censor marks before
-    coercing the series to a numeric type.
+    Handles censored data in a pandas Series using a robust, regex-based
+    approach that supports custom symbols and various formats.
     """
     if not isinstance(data_series, pd.Series):
         series = pd.Series(data_series).copy()
@@ -141,7 +143,7 @@ def handle_censored_data(
         series = data_series.copy()
 
     if pd.api.types.is_numeric_dtype(series):
-        return series.to_numpy()  # No processing needed if already numeric
+        return series.to_numpy()
 
     if strategy not in ["drop", "use_detection_limit", "multiplier"]:
         raise ValueError(
@@ -149,42 +151,53 @@ def handle_censored_data(
             "['drop', 'use_detection_limit', 'multiplier']"
         )
 
-    str_series = series.astype(str)
-    original_series = series.copy()  # Keep a copy for finding offenders
+    if non_detect_symbols is None:
+        non_detect_symbols = ["ND", "non-detect", "BDL"]
 
-    # --- Handle left-censored data (e.g., "<5") ---
-    left_mask = str_series.str.startswith(left_censor_symbol, na=False)
-    if left_mask.any():
-        values = pd.to_numeric(
-            str_series[left_mask].str.lstrip(left_censor_symbol), errors="coerce"
-        )
-        if strategy == "drop":
-            series.loc[left_mask] = np.nan
-        elif strategy == "use_detection_limit":
-            series.loc[left_mask] = values
-        elif strategy == "multiplier":
-            series.loc[left_mask] = values * lower_multiplier
+    # --- Prepare for processing ---
+    str_series = series.astype(str).str.strip()
+    # This series will be modified with the results of censoring
+    processed_series = series.copy()
+    original_series = series.copy()  # For comparison later
 
-    # --- Handle right-censored data (e.g., ">50") ---
-    right_mask = str_series.str.startswith(right_censor_symbol, na=False)
-    if right_mask.any():
-        values = pd.to_numeric(
-            str_series[right_mask].str.lstrip(right_censor_symbol), errors="coerce"
-        )
-        if strategy == "drop":
-            series.loc[right_mask] = np.nan
-        elif strategy == "use_detection_limit":
-            series.loc[right_mask] = values
-        elif strategy == "multiplier":
-            series.loc[right_mask] = values * upper_multiplier
+    # --- Handle non-detect symbols first (e.g., 'ND', 'BDL') ---
+    if non_detect_symbols:
+        nd_pattern = "|".join(map(re.escape, non_detect_symbols))
+        nd_mask = str_series.str.fullmatch(nd_pattern, case=False, na=False)
+        processed_series[nd_mask] = np.nan
+
+    # --- Regex for censored values with numbers (e.g., '<5', '>10.2') ---
+    l_sym = re.escape(left_censor_symbol)
+    r_sym = re.escape(right_censor_symbol)
+    pattern = re.compile(f"^({l_sym}|{r_sym})\\s*([0-9.eE+-]+)$", re.IGNORECASE)
+
+    # Iterate over the series to find and replace censored values
+    for idx, value in str_series.items():
+        match = pattern.match(str(value))
+        if match:
+            symbol = match.group(1)
+            num_val = float(match.group(2))
+
+            if symbol.lower() == left_censor_symbol.lower():
+                if strategy == "drop":
+                    processed_series.at[idx] = np.nan
+                elif strategy == "use_detection_limit":
+                    processed_series.at[idx] = num_val
+                elif strategy == "multiplier":
+                    processed_series.at[idx] = num_val * lower_multiplier
+            elif symbol.lower() == right_censor_symbol.lower():
+                if strategy == "drop":
+                    processed_series.at[idx] = np.nan
+                elif strategy == "use_detection_limit":
+                    processed_series.at[idx] = num_val
+                elif strategy == "multiplier":
+                    processed_series.at[idx] = num_val * upper_multiplier
 
     # --- Final conversion and warning for remaining non-numeric values ---
-    numeric_series = pd.to_numeric(series, errors="coerce")
-    final_nan_mask = numeric_series.isnull()
-    original_nan_mask = original_series.isnull()
+    numeric_series = pd.to_numeric(processed_series, errors="coerce")
 
-    # Identify values that became NaN during processing
-    newly_nan_mask = final_nan_mask & ~original_nan_mask
+    # Identify values that became NaN during processing but weren't NaN before
+    newly_nan_mask = numeric_series.isnull() & original_series.notnull()
     if newly_nan_mask.any():
         offenders = original_series[newly_nan_mask].unique()
         warnings.warn(
