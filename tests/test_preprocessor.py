@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -226,21 +228,56 @@ def test_normalize_zero_std_dev():
 
 
 def test_detrend_loess_with_errors(sample_data):
-    """Test that LOESS detrending correctly propagates errors."""
+    """Test that LOESS detrending correctly warns when not propagating errors."""
     time = np.arange(len(sample_data))
     # Create some non-linear data with noise
     trended_data = np.sin(time * 0.5) + time * 0.1
     errors = np.full_like(trended_data, 0.1)
 
-    # Detrend with LOESS
-    detrended_data, detrended_errors, _ = detrend_loess(
-        time, trended_data.copy(), errors=errors.copy(), frac=0.5
-    )
+    # Detrend with LOESS without bootstrapping
+    with pytest.warns(
+        UserWarning,
+        match="Error propagation for LOESS detrending is not currently supported "
+        "without bootstrapping",
+    ):
+        _detrended_data, detrended_errors, _ = detrend_loess(
+            time, trended_data.copy(), errors=errors.copy(), frac=0.5, n_bootstrap=0
+        )
 
-    # The new implementation does not propagate errors for LOESS and returns
-    # them unchanged, so the expected errors are the original errors.
+    # Without bootstrapping, errors should be returned unchanged.
     assert detrended_errors is not None
     np.testing.assert_array_almost_equal(detrended_errors, errors)
+
+
+def test_detrend_loess_bootstrap_error_propagation(sample_data):
+    """Test that LOESS detrending with bootstrapping correctly propagates errors."""
+    time = np.arange(len(sample_data))
+    trended_data = np.sin(time * 0.5) + time * 0.1
+    errors = np.full_like(trended_data, 0.1)
+
+    # Detrend with LOESS with bootstrapping enabled.
+    # We expect no warnings about error propagation.
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")  # Capture all warnings
+
+        _detrended_data, detrended_errors, _ = detrend_loess(
+            time,
+            trended_data.copy(),
+            errors=errors.copy(),
+            frac=0.5,
+            n_bootstrap=10,  # Use a small number for speed
+        )
+
+        # Check that no unsupported error propagation warning was issued
+        for warning_message in w:
+            assert "Error propagation for LOESS" not in str(warning_message.message)
+
+    # With bootstrapping, errors should be larger than the original errors
+    assert detrended_errors is not None
+    assert np.all(detrended_errors > errors)
+
+    # Check that the shape is still correct
+    assert detrended_errors.shape == errors.shape
 
 
 def test_detrend_with_nan_in_errors(sample_data):
