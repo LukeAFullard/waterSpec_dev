@@ -101,8 +101,9 @@ def fit_standard_model(
         method (str, optional): The fitting method ('theil-sen' or 'ols').
         ci_method (str, optional): Method for CI calculation.
         bootstrap_type (str, optional): The bootstrap method to use. Can be
-            'pairs', 'residuals', or 'block'. 'block' is recommended for
-            data with suspected autocorrelation.
+            'pairs', 'residuals', 'block', or 'wild'. 'block' is recommended
+            for data with suspected autocorrelation. 'wild' is recommended
+            for heteroscedastic residuals.
         bootstrap_block_size (int, optional): The block size for the moving
             block bootstrap. If None, a rule-of-thumb `n_points**(1/3)` is
             used. Only applicable when `bootstrap_type` is 'block'.
@@ -125,9 +126,9 @@ def fit_standard_model(
         raise ValueError("'ci' must be between 0 and 100.")
     if method not in ["ols", "theil-sen"]:
         raise ValueError(f"Unknown fitting method: '{method}'. Choose 'ols' or 'theil-sen'.")
-    if bootstrap_type not in ["pairs", "residuals", "block"]:
+    if bootstrap_type not in ["pairs", "residuals", "block", "wild"]:
         raise ValueError(
-            f"Unknown bootstrap_type: '{bootstrap_type}'. Choose 'pairs', 'residuals', or 'block'."
+            f"Unknown bootstrap_type: '{bootstrap_type}'. Choose 'pairs', 'residuals', 'block', or 'wild'."
         )
     valid_indices = (frequency > 0) & (power > 0)
     if np.sum(valid_indices) < 2:
@@ -258,6 +259,12 @@ def fit_standard_model(
                     indices = _moving_block_bootstrap_indices(n_points, block_size, rng)
                     resampled_log_freq = log_freq[indices]
                     resampled_log_power = log_power[indices]
+                elif bootstrap_type == "wild":
+                    # Wild bootstrap using Rademacher distribution, which does
+                    # not assume constant variance of residuals.
+                    u = rng.choice([-1, 1], size=n_points, replace=True)
+                    resampled_log_power = log_power_fit + residuals * u
+                    resampled_log_freq = log_freq  # Keep original frequencies
                 else:
                     # This case is handled by the initial validation, but included for safety
                     continue
@@ -379,8 +386,8 @@ def _bootstrap_segmented_fit(
     successful_fits = 0
     error_counts = {}
 
-    # For residual bootstrap, we need the initial fitted values and residuals
-    if bootstrap_type == "residuals":
+    # For residual and wild bootstrap, we need the initial fitted values and residuals
+    if bootstrap_type in ["residuals", "wild"]:
         initial_fitted_power = pw_fit.predict(log_freq)
         initial_residuals = log_power - initial_fitted_power
     elif bootstrap_type == "block":
@@ -442,6 +449,11 @@ def _bootstrap_segmented_fit(
                 sort_order = np.argsort(resampled_log_freq)
                 resampled_log_freq_sorted = resampled_log_freq[sort_order]
                 resampled_log_power_sorted = resampled_log_power[sort_order]
+            elif bootstrap_type == "wild":
+                # Wild bootstrap using Rademacher distribution
+                u = rng.choice([-1, 1], size=n_points, replace=True)
+                resampled_log_power_sorted = initial_fitted_power + initial_residuals * u
+                resampled_log_freq_sorted = log_freq  # Keep original frequencies
             else:
                 continue
 
@@ -650,8 +662,9 @@ def fit_segmented_spectrum(
         ci_method (str, optional): The method for calculating confidence
             intervals ('bootstrap' or 'parametric'). Defaults to 'bootstrap'.
         bootstrap_type (str, optional): The bootstrap method to use. Can be
-            'pairs', 'residuals', or 'block'. 'block' is recommended for
-            data with suspected autocorrelation.
+            'pairs', 'residuals', 'block', or 'wild'. 'block' is recommended
+            for data with suspected autocorrelation. 'wild' is recommended for
+            heteroscedastic residuals.
         bootstrap_block_size (int, optional): The block size for the moving
             block bootstrap. If None, a rule-of-thumb `n_points**(1/3)` is
             used. Only applicable when `bootstrap_type` is 'block'.
