@@ -3,9 +3,7 @@ from astropy.timeseries import LombScargle
 from scipy.signal import find_peaks
 
 
-def calculate_periodogram(
-    time, data, frequency=None, dy=None, normalization="standard"
-):
+def calculate_periodogram(time, data, frequency=None, dy=None, normalization=None):
     """
     Calculates the Lomb-Scargle periodogram for a time series.
 
@@ -13,14 +11,24 @@ def calculate_periodogram(
     grid is recommended for spectral analysis. The `waterSpec.generate_frequency_grid`
     function can be used to create a suitable grid.
 
+    The normalization is chosen automatically based on the presence of measurement
+    errors (`dy`), but can be overridden.
+
     Args:
         time (np.ndarray): The time array.
         data (np.ndarray): The data values.
         frequency (np.ndarray): The frequency grid to use for the periodogram.
         dy (np.ndarray, optional): Measurement uncertainties for each data point.
+                                   If provided, `normalization` defaults to 'psd'.
                                    Defaults to None.
-        normalization (str, optional): The normalization to use for the periodogram.
-                                       Defaults to 'standard'.
+        normalization (str, optional): The normalization method to use.
+            - If `None` (default): Automatically selects 'psd' if `dy` is given,
+              otherwise 'standard'.
+            - 'psd': Computes a power spectral density, suitable for quantitative
+              analysis and slope fitting. Requires `dy` for proper scaling.
+            - 'standard': Computes a dimensionless power (0-1), useful for
+              detecting significant peaks.
+            See Astropy documentation for other options.
 
     Returns:
         tuple[np.ndarray, np.ndarray, LombScargle]: A tuple containing:
@@ -33,6 +41,13 @@ def calculate_periodogram(
             "A frequency grid must be provided. The use of autopower has been "
             "removed to prevent incorrect grid generation."
         )
+
+    # Automatically select normalization if not specified
+    if normalization is None:
+        if dy is not None:
+            normalization = "psd"
+        else:
+            normalization = "standard"
 
     ls = LombScargle(time, data, dy=dy)
 

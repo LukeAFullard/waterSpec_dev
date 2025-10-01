@@ -74,7 +74,9 @@ def normalize(data, errors=None):
     if len(valid_data) == 0:
         return normalized_data, normalized_errors
 
-    std_dev = np.std(valid_data)
+    # Use sample standard deviation (ddof=1) as it is generally a more
+    # appropriate estimator when working with a sample of data.
+    std_dev = np.std(valid_data, ddof=1)
 
     if std_dev > 1e-9:  # Use a small threshold to avoid division by zero
         normalized_data[valid_indices] = (valid_data - np.mean(valid_data)) / std_dev
@@ -293,6 +295,16 @@ def preprocess_data(
     2. Log-transform (if specified)
     3. Detrend (if specified)
     4. Normalize (if specified)
+
+    .. note::
+        The handling of censored data (`censor_strategy`) can significantly
+        impact the results of subsequent spectral analysis. Dropping data,
+        substituting with the detection limit, or using a multiplier can all
+        introduce biases in power-law slope estimates. Users should carefully
+        consider the nature of their data and the potential effects of their
+        chosen strategy. For datasets with a large fraction of non-detects,
+        more advanced methods like Tobit models or multiple imputation may be
+        more appropriate.
     """
     if detrend_options is None:
         detrend_options = {}

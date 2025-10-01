@@ -35,7 +35,7 @@ def test_normalize(sample_data):
     normalized_data, errors = normalize(sample_data.copy())
     assert errors is None
     assert np.mean(normalized_data) == pytest.approx(0)
-    assert np.std(normalized_data) == pytest.approx(1)
+    assert np.std(normalized_data, ddof=1) == pytest.approx(1)
 
 
 def test_log_transform(sample_data):
@@ -140,7 +140,7 @@ def test_normalize_with_errors(sample_data):
     """Test that normalize correctly propagates errors."""
     data = sample_data.copy()
     errors = np.full_like(data, 0.5)
-    data_std = np.std(data)
+    data_std = np.std(data, ddof=1)
 
     transformed_data, transformed_errors = normalize(data, errors)
 
@@ -166,7 +166,7 @@ def test_preprocess_data_with_transforms(sample_data):
 
     # Check the final data properties
     assert np.mean(processed_data) == pytest.approx(0)
-    assert np.std(processed_data) == pytest.approx(1)
+    assert np.std(processed_data, ddof=1) == pytest.approx(1)
 
     # Check the final error propagation
     # 1. After log-transform: error' = error / data

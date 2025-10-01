@@ -178,8 +178,11 @@ def fit_standard_model(
             if not 1.5 < dw_stat < 2.5:
                 logger.warning(
                     f"Durbin-Watson statistic is {dw_stat:.2f}, indicating "
-                    "potential autocorrelation in the model residuals. "
-                    "The 'residuals' bootstrap method is recommended in this case."
+                    "potential autocorrelation in the model residuals. The "
+                    "'residuals' bootstrap method assumes independent residuals "
+                    "and may produce unreliable confidence intervals. Consider "
+                    "using a 'pairs' bootstrap or more advanced methods like "
+                    "block bootstrapping if autocorrelation is significant."
                 )
 
         rng = np.random.default_rng(seed)
@@ -371,22 +374,38 @@ def _bootstrap_segmented_fit(
             )
 
             # Bug fix: Correctly get results from the bootstrap fit object.
-            # The previous code incorrectly tried to access a non-existent `estimates` attribute.
             bootstrap_results = bootstrap_pw_fit.get_results()
-            if not bootstrap_results["converged"]:
+            if not bootstrap_results.get("converged"):
                 continue
 
-            estimates = bootstrap_results["estimates"]
+            estimates = bootstrap_results.get("estimates")
             if not estimates:
                 continue
 
+            # Safely extract breakpoints
             for i in range(n_breakpoints):
-                bp_val = np.exp(estimates[f"breakpoint{i+1}"]["estimate"])
-                bootstrap_breakpoints[i].append(bp_val)
+                bp_info = estimates.get(f"breakpoint{i+1}", {})
+                bp_val = bp_info.get("estimate")
+                if bp_val is not None:
+                    bootstrap_breakpoints[i].append(np.exp(bp_val))
+                else:
+                    bootstrap_breakpoints[i].append(np.nan)
 
-            slopes = [estimates["alpha1"]["estimate"]]
+            # Safely extract slopes
+            current_slope = estimates.get("alpha1", {}).get("estimate")
+            if current_slope is None:
+                continue  # Skip this bootstrap if the first slope is missing
+
+            slopes = [current_slope]
             for i in range(1, n_breakpoints + 1):
-                slopes.append(slopes[-1] + estimates[f"beta{i}"]["estimate"])
+                beta_val = estimates.get(f"beta{i}", {}).get("estimate")
+                if beta_val is None:
+                    slopes = []  # Invalidate the list
+                    break
+                slopes.append(slopes[-1] + beta_val)
+
+            if not slopes:
+                continue  # Skip if any subsequent beta was missing
 
             for i, slope in enumerate(slopes):
                 bootstrap_betas[i].append(-slope)
@@ -632,7 +651,7 @@ def fit_segmented_spectrum(
             log_freq, log_power, n_breakpoints=n_breakpoints
         )
         fit_summary = pw_fit.get_results()
-        converged = fit_summary["converged"]
+        converged = fit_summary.get("converged", False)
     except Exception as e:
         logger.warning(f"Segmented regression failed with an unexpected error: {e}")
         return {
@@ -657,8 +676,15 @@ def fit_segmented_spectrum(
         }
 
     # --- Extract results ---
-    fit_summary = pw_fit.get_results()
-    estimates = fit_summary["estimates"]
+    estimates = fit_summary.get("estimates")
+    if not estimates:
+        return {
+            "model_summary": "Fit converged but no estimates were returned.",
+            "n_breakpoints": n_breakpoints,
+            "bic": np.inf,
+            "aic": np.inf,
+        }
+
     fitted_log_power = pw_fit.predict(log_freq)
 
     # Calculate AIC and Adjusted R-squared
@@ -685,15 +711,22 @@ def fit_segmented_spectrum(
 
     # --- Extract breakpoints and betas (slopes) ---
     breakpoints = []
+    log_breakpoints = []
     for i in range(1, n_breakpoints + 1):
-        bp_log_freq = estimates[f"breakpoint{i}"]["estimate"]
-        breakpoints.append(np.exp(bp_log_freq))
+        bp_info = estimates.get(f"breakpoint{i}", {})
+        bp_log_freq = bp_info.get("estimate")
+        if bp_log_freq is not None:
+            breakpoints.append(np.exp(bp_log_freq))
+            log_breakpoints.append(bp_log_freq)
+        else:
+            breakpoints.append(np.nan)
+            log_breakpoints.append(np.nan)
 
     # Check if breakpoints are too close to the boundaries
     log_freq_range = log_freq.max() - log_freq.min()
     boundary_threshold = 0.05  # 5% of the log-frequency range
-    for bp_log in [estimates[f"breakpoint{i}"]["estimate"] for i in range(1, n_breakpoints + 1)]:
-        if (
+    for bp_log in log_breakpoints:
+        if np.isfinite(bp_log) and (
             bp_log < log_freq.min() + boundary_threshold * log_freq_range
             or bp_log > log_freq.max() - boundary_threshold * log_freq_range
         ):
@@ -704,26 +737,39 @@ def fit_segmented_spectrum(
             break  # Only need to warn once
 
     slopes = []
-    current_slope = estimates["alpha1"]["estimate"]
-    slopes.append(current_slope)
-    for i in range(1, n_breakpoints + 1):
-        current_slope += estimates[f"beta{i}"]["estimate"]
+    current_slope = estimates.get("alpha1", {}).get("estimate")
+    if current_slope is not None:
         slopes.append(current_slope)
+        for i in range(1, n_breakpoints + 1):
+            beta_val = estimates.get(f"beta{i}", {}).get("estimate")
+            if beta_val is None:
+                slopes = []  # Invalidate slopes
+                break
+            current_slope += beta_val
+            slopes.append(current_slope)
 
-    betas = [-s for s in slopes]
+    betas = [-s for s in slopes] if slopes else [np.nan] * (n_breakpoints + 1)
 
     results["breakpoints"] = breakpoints
     results["betas"] = betas
 
     # --- Calculate intercepts for each segment ---
     intercepts = []
-    if "const" in estimates:
-        current_intercept = estimates["const"]["estimate"]
+    const_info = estimates.get("const", {})
+    current_intercept = const_info.get("estimate")
+
+    if current_intercept is not None:
         intercepts.append(current_intercept)
         for i in range(1, n_breakpoints + 1):
-            beta_i = estimates[f"beta{i}"]["estimate"]
-            breakpoint_i = estimates[f"breakpoint{i}"]["estimate"]
-            current_intercept -= beta_i * breakpoint_i
+            beta_info = estimates.get(f"beta{i}", {})
+            beta_i = beta_info.get("estimate")
+            bp_info = estimates.get(f"breakpoint{i}", {})
+            breakpoint_i = bp_info.get("estimate")
+
+            if beta_i is None or breakpoint_i is None:
+                current_intercept = np.nan
+            else:
+                current_intercept -= beta_i * breakpoint_i
             intercepts.append(current_intercept)
     else:
         logger.warning(
@@ -745,8 +791,11 @@ def fit_segmented_spectrum(
             if not 1.5 < dw_stat < 2.5:
                 logger.warning(
                     f"Durbin-Watson statistic is {dw_stat:.2f}, indicating "
-                    "potential autocorrelation in the model residuals. "
-                    "The 'residuals' bootstrap method is recommended."
+                    "potential autocorrelation in the model residuals. The "
+                    "'residuals' bootstrap method assumes independent residuals "
+                    "and may produce unreliable confidence intervals. Consider "
+                    "using a 'pairs' bootstrap or more advanced methods like "
+                    "block bootstrapping if autocorrelation is significant."
                 )
 
         if n_bootstraps > 0:
