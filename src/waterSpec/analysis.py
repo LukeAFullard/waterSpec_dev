@@ -143,18 +143,6 @@ class Analysis:
         s = re.sub(r"(?u)[^-\w.]", "", s)
         return s
 
-    def _is_fit_successful(self, fit_results):
-        """Checks if a model fit was successful."""
-        is_standard_success = "beta" in fit_results and np.isfinite(
-            fit_results.get("beta")
-        )
-        is_segmented_success = (
-            "betas" in fit_results
-            and len(fit_results.get("betas", [])) > 0
-            and np.isfinite(fit_results["betas"][0])
-        )
-        return is_standard_success or is_segmented_success
-
     def _calculate_periodogram(self, grid_type, normalization, num_grid_points):
         """Generates frequency grid and calculates the Lomb-Scargle periodogram."""
         self.logger.info("Calculating Lomb-Scargle periodogram...")
@@ -247,18 +235,12 @@ class Analysis:
                 )
 
         if not all_models:
-            self.logger.error("Model fitting failed for all model types.")
             failure_summary = (
                 "Model fitting failed for all attempted models. Reasons:\n"
                 + "\n".join(f"- {reason}" for reason in failed_model_reasons)
             )
-            return {
-                "betas": [np.nan],
-                "n_breakpoints": 0,
-                "chosen_model_type": "standard",
-                "summary_text": failure_summary,
-                "failure_reason": failure_summary,
-            }
+            self.logger.error(failure_summary)
+            raise RuntimeError(failure_summary)
 
         best_model = min(all_models, key=lambda x: x["bic"])
         self.logger.info(
@@ -284,14 +266,11 @@ class Analysis:
         self,
         fit_results,
         peak_detection_method,
-        peak_detection_ci,
+        peak_fdr_level,
         fap_threshold,
         fap_method,
     ):
         """Detects significant peaks based on the chosen method."""
-        if not self._is_fit_successful(fit_results):
-            return fit_results
-
         self.logger.info(f"Detecting significant peaks using '{peak_detection_method}' method...")
         if peak_detection_method == "residual":
             if fap_method != "baluev" or fap_threshold != 0.01:
@@ -300,15 +279,15 @@ class Analysis:
                     "'fap_threshold' parameters are ignored."
                 )
             peaks, threshold = find_peaks_via_residuals(
-                fit_results, ci=peak_detection_ci
+                fit_results, fdr_level=peak_fdr_level
             )
             fit_results["significant_peaks"] = peaks
             fit_results["residual_threshold"] = threshold
-            fit_results["peak_detection_ci"] = peak_detection_ci
+            fit_results["peak_fdr_level"] = peak_fdr_level
         elif peak_detection_method == "fap" and fap_threshold is not None:
-            if peak_detection_ci != 95:
+            if peak_fdr_level != 0.05:
                 self.logger.warning(
-                    "'peak_detection_method' is 'fap', so the 'peak_detection_ci' "
+                    "'peak_detection_method' is 'fap', so the 'peak_fdr_level' "
                     "parameter is ignored."
                 )
             peaks, level = find_significant_peaks(
@@ -367,7 +346,7 @@ class Analysis:
         fap_method,
         normalization,
         peak_detection_method,
-        peak_detection_ci,
+        peak_fdr_level,
         p_threshold,
         max_breakpoints,
     ):
@@ -394,13 +373,8 @@ class Analysis:
             raise ValueError(
                 "`peak_detection_method` must be 'residual', 'fap', or None."
             )
-        if not (
-            isinstance(peak_detection_ci, (int, float))
-            and 0 < peak_detection_ci < 100
-        ):
-            raise ValueError(
-                "`peak_detection_ci` must be a number between 0 and 100."
-            )
+        if not (isinstance(peak_fdr_level, float) and 0 < peak_fdr_level < 1):
+            raise ValueError("`peak_fdr_level` must be a float between 0 and 1.")
         if not (isinstance(p_threshold, float) and 0 < p_threshold < 1):
             raise ValueError("`p_threshold` must be a float between 0 and 1.")
         if max_breakpoints not in [0, 1, 2]:
@@ -418,7 +392,7 @@ class Analysis:
         fap_method="baluev",
         normalization="standard",
         peak_detection_method="residual",
-        peak_detection_ci=95,
+        peak_fdr_level=0.05,
         p_threshold=0.05,
         max_breakpoints=1,
         seed=None,
@@ -448,15 +422,16 @@ class Analysis:
                 The available options are:
 
                 - `'residual'` (default): Identifies peaks that are significant
-                  outliers from the fitted spectral model. Recommended.
+                  outliers from the fitted spectral model using a False Discovery
+                  Rate (FDR) approach. Recommended.
                 - `'fap'`: Uses the traditional False Alarm Probability (FAP)
                   method.
 
                 When using `'residual'`, `fap_method` and `fap_threshold` are
                 ignored.
-            peak_detection_ci (int, optional): The confidence interval (in %)
+            peak_fdr_level (float, optional): The false discovery rate level
                 to use for the residual-based peak detection method.
-                Defaults to 95.
+                Defaults to 0.05.
             fap_threshold (float, optional): The significance level for the FAP
                 peak detection method. Only used when `peak_detection_method`
                 is 'fap'. Defaults to 0.01.
@@ -487,7 +462,7 @@ class Analysis:
             fap_method,
             normalization,
             peak_detection_method,
-            peak_detection_ci,
+            peak_fdr_level,
             p_threshold,
             max_breakpoints,
         )
@@ -496,36 +471,36 @@ class Analysis:
         self._calculate_periodogram(grid_type, normalization, num_grid_points)
 
         # 3. Fit Spectrum and Select Best Model
-        fit_results = self._perform_model_selection(
-            fit_method, ci_method, n_bootstraps, p_threshold, max_breakpoints, seed
-        )
+        try:
+            fit_results = self._perform_model_selection(
+                fit_method, ci_method, n_bootstraps, p_threshold, max_breakpoints, seed
+            )
+        except RuntimeError as e:
+            self.logger.error(f"Analysis failed during model fitting: {e}")
+            self.results = {
+                "betas": [np.nan],
+                "n_breakpoints": 0,
+                "chosen_model_type": "failure",
+                "summary_text": f"Analysis failed: {e}",
+                "failure_reason": str(e),
+                "preprocessing_diagnostics": self.preprocessing_diagnostics,
+            }
+            self._generate_outputs(self.results, output_dir)
+            return self.results
 
         # 4. Detect Significant Peaks
         fit_results = self._detect_significant_peaks(
             fit_results,
             peak_detection_method,
-            peak_detection_ci,
+            peak_fdr_level,
             fap_threshold,
             fap_method,
         )
 
         # 5. Interpret Results
         self.logger.info("Interpreting final results and generating summary...")
-        if not self._is_fit_successful(fit_results):
-            # If the fitting step provided a specific failure summary, use it.
-            # Otherwise, use a generic message.
-            if "failure_reason" in fit_results:
-                interp_results = {"summary_text": fit_results["summary_text"]}
-            else:
-                interp_results = {
-                    "summary_text": (
-                        "Analysis failed: Could not determine a valid spectral slope."
-                    )
-                }
-            self.results = {**fit_results, **interp_results}
-        else:
-            interp_results = interpret_results(fit_results, param_name=self.param_name)
-            self.results = {**fit_results, **interp_results}
+        interp_results = interpret_results(fit_results, param_name=self.param_name)
+        self.results = {**fit_results, **interp_results}
 
         # Add preprocessing diagnostics to the final results
         self.results["preprocessing_diagnostics"] = self.preprocessing_diagnostics

@@ -109,7 +109,12 @@ DAYS_PER_YEAR = 365.25  # Accounts for leap years
 
 
 def _format_period(frequency_hz):
-    """Converts a frequency in Hz to a human-readable period string."""
+    """
+    Converts a frequency in Hz to a human-readable period string.
+
+    Note: This function assumes the input frequency is in units of 1/seconds (Hz),
+    which is consistent with the `time_numeric_sec` output from `load_data`.
+    """
     if frequency_hz <= 0:
         return "N/A"
 
@@ -339,7 +344,7 @@ def interpret_results(
             )
         elif "residual_threshold" in fit_results:
             no_peaks_msg += (
-                f" above the {fit_results['peak_detection_ci']}% residual threshold."
+                f" at the {fit_results.get('peak_fdr_level', 0.05)*100:.0f}% FDR level."
             )
         else:
             no_peaks_msg += "."

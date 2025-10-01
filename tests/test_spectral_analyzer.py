@@ -117,13 +117,14 @@ def test_find_significant_peaks(synthetic_signal):
 @pytest.fixture
 def sample_fit_results():
     """
-    Creates a deterministic sample fit_results dictionary for testing.
+    Creates a sample fit_results dictionary with one clear peak in the residuals.
     """
     log_freq = np.linspace(np.log(1e-4), np.log(0.5), 100)
     fitted_log_power = -1.5 * log_freq + 2
+    rng = np.random.default_rng(0)
 
-    # Create a deterministic set of residuals with one clear peak
-    residuals = np.full(100, 0.1)
+    # Create residuals with some background noise and one clear peak
+    residuals = rng.normal(loc=0, scale=0.1, size=100)
     residuals[50] = 3.0  # This is the only point that should be significant
 
     log_power = fitted_log_power + residuals
@@ -139,15 +140,16 @@ def test_find_peaks_via_residuals_finds_peak(sample_fit_results):
     """Test that the residual method finds the known injected peak."""
     from waterSpec.spectral_analyzer import find_peaks_via_residuals
 
-    # With ci=95, the 95th percentile of our deterministic residuals will be 0.1,
-    # so the peak with residual 3.0 should be found.
-    peaks, threshold = find_peaks_via_residuals(sample_fit_results, ci=95)
+    # With a reasonable FDR level, the strong peak with residual 3.0 should be found.
+    peaks, threshold = find_peaks_via_residuals(sample_fit_results, fdr_level=0.05)
 
     assert len(peaks) == 1
     assert peaks[0]["residual"] == pytest.approx(3.0)
     # Check that the returned frequency matches the one at index 50
     expected_freq = np.exp(sample_fit_results["log_freq"][50])
     assert peaks[0]["frequency"] == pytest.approx(expected_freq)
+    # The threshold should be the value of the smallest significant peak's residual
+    assert threshold == pytest.approx(3.0)
 
 
 def test_find_peaks_via_residuals_no_significant_peak(sample_fit_results):
@@ -162,13 +164,12 @@ def test_find_peaks_via_residuals_no_significant_peak(sample_fit_results):
     rng = np.random.default_rng(0)
     sample_fit_results["residuals"] = rng.normal(loc=0, scale=0.1, size=100)
 
-    # With a very high confidence interval, no peaks should be found in data
-    # that lacks a strong outlier.
-    peaks, threshold = find_peaks_via_residuals(sample_fit_results, ci=99.99)
+    # With a very stringent FDR level, no peaks should be found.
+    peaks, threshold = find_peaks_via_residuals(sample_fit_results, fdr_level=1e-6)
 
     assert len(peaks) == 0
-    # The threshold should still be a positive value based on the data's std dev.
-    assert threshold > 0
+    # The threshold should be inf when no peaks are found
+    assert threshold == np.inf
 
 
 def test_find_peaks_via_residuals_raises_error_on_missing_keys():
