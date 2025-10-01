@@ -136,7 +136,10 @@ def plot_spectrum(
             # Plot each segment
             for i in range(n_breakpoints + 1):
                 # Define the mask for this segment
-                if i == 0:
+                if n_breakpoints == 0:
+                    mask = np.ones_like(log_freq, dtype=bool)
+                    label = f"Fit (β ≈ {fit_results['betas'][0]:.2f})"
+                elif i == 0:
                     mask = log_freq <= log_bps[0]
                     label = f"Low-Freq Fit (β1 ≈ {fit_results['betas'][0]:.2f})"
                 elif i == n_breakpoints:

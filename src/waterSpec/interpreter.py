@@ -266,11 +266,18 @@ def interpret_results(
                 # order of the CI bounds must be swapped when formatting.
                 period_ci_str = f"{_format_period(bp_ci[1])}–{_format_period(bp_ci[0])}"
                 bp_str += f" (95% CI: {period_ci_str}{ci_method_str})"
-                if bp_ci[1] / bp_ci[0] > breakpoint_uncertainty_threshold:
+                # To assess uncertainty, calculate the ratio of the CI in
+                # period space. A large ratio indicates high uncertainty.
+                # Note: period = 1 / frequency.
+                period_ci_lower = 1 / bp_ci[1]
+                period_ci_upper = 1 / bp_ci[0]
+                period_ratio = period_ci_upper / period_ci_lower
+
+                if period_ratio > breakpoint_uncertainty_threshold:
                     uncertainty_warnings.append(
                         f"Warning: The 95% CI for {bp_name} spans more than an "
-                        f"order of magnitude ({period_ci_str}), indicating high uncertainty "
-                        "in its location."
+                        f"order of magnitude (ratio: {period_ratio:.1f}), indicating high "
+                        "uncertainty in its location."
                     )
             summary_parts.append(f"--- Breakpoint {i+1} @ {bp_str} ---")
 
