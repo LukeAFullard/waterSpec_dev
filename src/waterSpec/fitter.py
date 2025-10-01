@@ -106,7 +106,16 @@ def fit_standard_model(
         )
     valid_indices = (frequency > 0) & (power > 0)
     if np.sum(valid_indices) < 2:
-        return {"beta": np.nan, "bic": np.nan, "beta_ci_lower": np.nan, "beta_ci_upper": np.nan}
+        failure_reason = "Not enough valid (positive) data points to fit the model."
+        logger.warning(failure_reason)
+        return {
+            "beta": np.nan,
+            "bic": np.inf,
+            "aic": np.inf,
+            "beta_ci_lower": np.nan,
+            "beta_ci_upper": np.nan,
+            "failure_reason": failure_reason,
+        }
 
     log_freq = np.log(frequency[valid_indices])
     log_power = np.log(power[valid_indices])
@@ -632,8 +641,18 @@ def fit_segmented_spectrum(
     valid_indices = (frequency > 0) & (power > 0)
     min_points = MIN_POINTS_PER_SEGMENT * (n_breakpoints + 1)
     if np.sum(valid_indices) < min_points:
-        summary = f"Not enough data points for {n_breakpoints}-breakpoint regression."
-        return {"model_summary": summary, "n_breakpoints": n_breakpoints, "bic": np.inf, "aic": np.inf}
+        failure_reason = (
+            f"Not enough data points ({np.sum(valid_indices)}) for a "
+            f"{n_breakpoints}-breakpoint regression (requires at least "
+            f"{min_points})."
+        )
+        logger.warning(failure_reason)
+        return {
+            "failure_reason": failure_reason,
+            "n_breakpoints": n_breakpoints,
+            "bic": np.inf,
+            "aic": np.inf,
+        }
 
     log_freq = np.log(frequency[valid_indices])
     log_power = np.log(power[valid_indices])
@@ -653,9 +672,10 @@ def fit_segmented_spectrum(
         fit_summary = pw_fit.get_results()
         converged = fit_summary.get("converged", False)
     except Exception as e:
-        logger.warning(f"Segmented regression failed with an unexpected error: {e}")
+        failure_reason = f"Segmented regression failed with an unexpected error: {e}"
+        logger.warning(failure_reason)
         return {
-            "model_summary": "Segmented regression failed with an unexpected error.",
+            "failure_reason": failure_reason,
             "n_breakpoints": n_breakpoints,
             "bic": np.inf,
             "aic": np.inf,
@@ -664,11 +684,14 @@ def fit_segmented_spectrum(
     # Check for convergence and statistical significance
     davies_p_value = pw_fit.davies if n_breakpoints == 1 else None
     if not converged or (davies_p_value is not None and davies_p_value > p_threshold):
-        summary = "Model did not converge"
+        failure_reason = "Model did not converge."
         if davies_p_value is not None and davies_p_value > p_threshold:
-            summary = f"No significant breakpoint found (Davies test p > {p_threshold})"
+            failure_reason = (
+                f"No significant breakpoint found (Davies test p > {p_threshold})."
+            )
+        logger.warning(failure_reason)
         return {
-            "model_summary": summary,
+            "failure_reason": failure_reason,
             "n_breakpoints": n_breakpoints,
             "davies_p_value": davies_p_value,
             "bic": np.inf,
@@ -678,8 +701,10 @@ def fit_segmented_spectrum(
     # --- Extract results ---
     estimates = fit_summary.get("estimates")
     if not estimates:
+        failure_reason = "Fit converged but no estimates were returned."
+        logger.warning(failure_reason)
         return {
-            "model_summary": "Fit converged but no estimates were returned.",
+            "failure_reason": failure_reason,
             "n_breakpoints": n_breakpoints,
             "bic": np.inf,
             "aic": np.inf,
