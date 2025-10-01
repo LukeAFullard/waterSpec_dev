@@ -241,7 +241,13 @@ def interpret_results(
         # --- Loop through each breakpoint and the segment that follows it ---
         for i in range(n_breakpoints):
             bp_freq = fit_results["breakpoints"][i]
-            bp_ci = fit_results.get("breakpoints_ci", [(np.nan, np.nan)] * (i + 1))[i]
+            breakpoints_ci_list = fit_results.get("breakpoints_ci", [])
+            bp_ci = (
+                breakpoints_ci_list[i]
+                if i < len(breakpoints_ci_list)
+                else (np.nan, np.nan)
+            )
+
             bp_name = f"Breakpoint {i+1} Period"
             bp_str = f"~{_format_period(bp_freq)}"
             if np.all(np.isfinite(bp_ci)):
@@ -264,9 +270,12 @@ def interpret_results(
                 else f"Mid-Frequency Segment {i+1}"
             )
             beta_next = fit_results["betas"][i + 1]
-            beta_next_ci = fit_results.get("betas_ci", [(np.nan, np.nan)] * (i + 2))[
-                i + 1
-            ]
+            betas_ci_list = fit_results.get("betas_ci", [])
+            beta_next_ci = (
+                betas_ci_list[i + 1]
+                if (i + 1) < len(betas_ci_list)
+                else (np.nan, np.nan)
+            )
             beta_name = f"β{i+2}"
 
             segment_summary, warning = _generate_segment_interpretation(

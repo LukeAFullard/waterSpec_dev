@@ -554,8 +554,8 @@ def test_fit_standard_model_invalid_numeric_args(synthetic_spectrum):
     """Test that fit_standard_model raises ValueErrors for invalid numeric arguments."""
     frequency, power, _ = synthetic_spectrum
 
-    with pytest.raises(ValueError, match="'n_bootstraps' must be a positive integer"):
-        fit_standard_model(frequency, power, n_bootstraps=0)
+    with pytest.raises(ValueError, match="'n_bootstraps' must be non-negative"):
+        fit_standard_model(frequency, power, n_bootstraps=-1)
 
     with pytest.raises(ValueError, match="'ci' must be between 0 and 100"):
         fit_standard_model(frequency, power, ci=101)
@@ -577,7 +577,7 @@ def test_fit_segmented_spectrum_invalid_numeric_args(multifractal_spectrum):
     with pytest.raises(ValueError, match="'p_threshold' must be between 0 and 1"):
         fit_segmented_spectrum(frequency, power, p_threshold=0)
 
-    with pytest.raises(ValueError, match="'n_bootstraps' must be a positive integer"):
+    with pytest.raises(ValueError, match="'n_bootstraps' must be non-negative"):
         fit_segmented_spectrum(frequency, power, n_bootstraps=-1)
 
     with pytest.raises(ValueError, match="'ci' must be between 0 and 100"):

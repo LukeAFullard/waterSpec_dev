@@ -314,3 +314,14 @@ def test_transformations_are_pure(sample_data):
         errors_before,
         err_msg="The 'detrend', 'normalize', or 'log_transform' function modified the input errors array in-place.",
     )
+
+
+def test_handle_censored_data_invalid_option():
+    """
+    Test that handle_censored_data raises a TypeError for an unknown kwarg.
+    This is a regression test to ensure the API is strict and fails fast.
+    """
+    data_series = pd.Series(["1", "<2", "3"])
+    # The 'bad_option' is not a valid argument and should cause a TypeError.
+    with pytest.raises(TypeError):
+        handle_censored_data(data_series, strategy="multiplier", bad_option=True)

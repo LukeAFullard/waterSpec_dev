@@ -95,19 +95,24 @@ def plot_spectrum(
             # If CIs for slopes are available (from parametric method), plot them
             elif "betas_ci" in fit_results and fit_results["betas_ci"]:
                 for i in range(n_breakpoints + 1):
-                    if i < len(fit_results["betas_ci"]) and fit_results["betas_ci"][i] is not None:
+                    # Defensive check to prevent IndexError if CIs are incomplete
+                    if i < len(fit_results["betas_ci"]) and fit_results["betas_ci"][
+                        i
+                    ] is not None and all(np.isfinite(fit_results["betas_ci"][i])):
                         beta_ci_lower, beta_ci_upper = fit_results["betas_ci"][i]
                         intercept = fit_results["intercepts"][i]
 
                         # Define the mask for this segment
-                        if n_breakpoints == 0: # Should not happen in this branch, but for safety
+                        if n_breakpoints == 0:  # Should not happen in this branch, but for safety
                             mask = np.ones_like(log_freq, dtype=bool)
                         elif i == 0:
                             mask = log_freq <= log_bps[0]
                         elif i == n_breakpoints:
                             mask = log_freq > log_bps[i - 1]
                         else:
-                            mask = (log_freq > log_bps[i-1]) & (log_freq <= log_bps[i])
+                            mask = (log_freq > log_bps[i - 1]) & (
+                                log_freq <= log_bps[i]
+                            )
 
                         # We need to reconstruct the line for this segment
                         # The intercept is for the start of the segment's domain

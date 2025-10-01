@@ -111,7 +111,6 @@ def handle_censored_data(
     upper_multiplier=1.1,
     left_censor_symbol="<",
     right_censor_symbol=">",
-    **kwargs,
 ):
     """
     Handles censored data in a pandas Series by replacing censor marks before
