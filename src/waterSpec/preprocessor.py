@@ -17,8 +17,18 @@ def detrend(
     x: np.ndarray, data: np.ndarray, errors: Optional[np.ndarray] = None
 ) -> Tuple[np.ndarray, Optional[np.ndarray], Dict]:
     """
-    Removes the linear trend from a time series using Ordinary Least Squares
-    and provides diagnostics about the removed trend.
+    Removes the linear trend from a time series and provides diagnostics.
+
+    If measurement errors are provided and contain no NaNs, this function uses
+    Weighted Least Squares (WLS) for a more accurate trend estimate, with
+    weights set to 1/error^2. Otherwise, it falls back to Ordinary Least
+    Squares (OLS).
+
+    Error propagation for the detrended data is calculated as:
+    new_err = sqrt(old_err^2 + trend_err^2), where trend_err is the standard
+    error of the trend prediction. This assumes the measurement and trend
+    errors are independent.
+
     This function returns new arrays and does not modify inputs.
     """
     # Create copies to avoid modifying the original arrays
@@ -33,12 +43,33 @@ def detrend(
     x_valid = x[valid_indices]
     y_valid = detrended_data[valid_indices]
 
-    # Calculate variance for diagnostics later
-    original_variance = np.var(y_valid)
-
+    # --- Model fitting: Choose between WLS and OLS ---
     X_with_const = sm.add_constant(x_valid)
-    model = sm.OLS(y_valid, X_with_const)
+    use_wls = False
+    if propagated_errors is not None:
+        errors_valid = propagated_errors[valid_indices]
+        # Check if there are any NaNs within the valid error region
+        if not np.any(np.isnan(errors_valid)):
+            use_wls = True
+
+    if use_wls:
+        # All conditions met for WLS
+        errors_valid = propagated_errors[valid_indices]
+        weights = 1.0 / np.square(errors_valid)
+        model = sm.WLS(y_valid, X_with_const, weights=weights)
+    else:
+        # Fallback to OLS
+        if propagated_errors is not None:
+            # If we are falling back because of NaNs in errors, warn the user.
+            warnings.warn(
+                "NaNs found in the 'errors' array. Falling back to OLS for "
+                "detrending. The trend will not be weighted by measurement error.",
+                UserWarning,
+            )
+        model = sm.OLS(y_valid, X_with_const)
+
     results = model.fit()
+    # --- End of model fitting ---
 
     trend = results.predict(X_with_const)
     detrended_data[valid_indices] = y_valid - trend
