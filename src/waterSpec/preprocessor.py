@@ -103,20 +103,31 @@ def log_transform(data, errors=None):
     transformed_data = np.copy(data)
     transformed_errors = np.copy(errors) if errors is not None else None
 
-    valid_indices = ~np.isnan(transformed_data)
-    valid_data = transformed_data[valid_indices]
+    # First, find non-positive values and handle them.
+    # We consider all non-NaN values for this check.
+    initial_valid_mask = ~np.isnan(transformed_data)
+    non_positive_mask = (transformed_data <= 0) & initial_valid_mask
 
-    non_positive_mask = valid_data <= 0
     if np.any(non_positive_mask):
         num_non_positive = np.sum(non_positive_mask)
-        raise ValueError(
-            f"Log-transform requires all data to be positive, but {num_non_positive} "
-            "non-positive value(s) were found."
+        warnings.warn(
+            f"Log-transform requires all data to be positive. Found {num_non_positive} "
+            f"non-positive value(s), which will be converted to NaN.",
+            UserWarning,
         )
+        # Set non-positive values to NaN
+        transformed_data[non_positive_mask] = np.nan
+        if transformed_errors is not None:
+            transformed_errors[non_positive_mask] = np.nan
+
+    # Now, proceed with the original logic. All remaining values are positive.
+    valid_indices = ~np.isnan(transformed_data)
+    valid_data = transformed_data[valid_indices]
 
     if transformed_errors is not None:
         valid_errors = transformed_errors[valid_indices]
         # Propagate errors before transforming data: new_err = old_err / value
+        # This is now safe because valid_data only contains positive numbers.
         transformed_errors[valid_indices] = valid_errors / valid_data
 
     transformed_data[valid_indices] = np.log(valid_data)

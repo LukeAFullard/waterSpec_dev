@@ -47,15 +47,41 @@ def test_log_transform(sample_data):
 
 
 def test_log_transform_non_positive():
-    """Test that log_transform raises ValueError for non-positive data."""
-    with pytest.raises(
-        ValueError, match="Log-transform requires all data to be positive, but 1 non-positive value"
-    ):
-        log_transform(np.array([1.0, 2.0, 0.0, 4.0, 5.0]))
-    with pytest.raises(
-        ValueError, match="Log-transform requires all data to be positive, but 1 non-positive value"
-    ):
-        log_transform(np.array([1.0, -2.0, 3.0, 4.0, 5.0]))
+    """Test that log_transform handles non-positive values by warning and returning NaN."""
+    # Test with a zero value
+    data_with_zero = np.array([1.0, 2.0, 0.0, 4.0, 5.0])
+    with pytest.warns(UserWarning, match="Found 1 non-positive value"):
+        transformed_data, _ = log_transform(data_with_zero)
+
+    # Check that the non-positive value became NaN
+    assert np.isnan(transformed_data[2])
+    # Check that the other values were transformed correctly
+    expected_finite = np.log(np.array([1.0, 2.0, 4.0, 5.0]))
+    actual_finite = np.delete(transformed_data, 2)
+    np.testing.assert_array_almost_equal(actual_finite, expected_finite)
+
+    # Test with a negative value and errors
+    data_with_negative = np.array([1.0, -2.0, 3.0, 4.0, 5.0])
+    errors = np.full_like(data_with_negative, 0.1)
+    with pytest.warns(UserWarning, match="Found 1 non-positive value"):
+        transformed_data_neg, transformed_errors_neg = log_transform(
+            data_with_negative, errors
+        )
+
+    # Check that the non-positive value and its error became NaN
+    assert np.isnan(transformed_data_neg[1])
+    assert np.isnan(transformed_errors_neg[1])
+
+    # Check that other values and errors were transformed correctly
+    expected_data_finite = np.log(np.array([1.0, 3.0, 4.0, 5.0]))
+    actual_data_finite = np.delete(transformed_data_neg, 1)
+    np.testing.assert_array_almost_equal(actual_data_finite, expected_data_finite)
+
+    expected_errors_finite = np.array([0.1, 0.1, 0.1, 0.1]) / np.array(
+        [1.0, 3.0, 4.0, 5.0]
+    )
+    actual_errors_finite = np.delete(transformed_errors_neg, 1)
+    np.testing.assert_array_almost_equal(actual_errors_finite, expected_errors_finite)
 
 
 def test_handle_censored_data():
