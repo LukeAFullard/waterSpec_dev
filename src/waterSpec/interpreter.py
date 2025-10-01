@@ -183,13 +183,13 @@ def interpret_results(
     if fit_results.get("analysis_mode") == "auto":
         model_summaries = []
         for model in fit_results["all_models"]:
-            n_bp = model["n_breakpoints"]
+            n_breakpoints = model["n_breakpoints"]
             bic_str = f"{model['bic']:.2f}"
-            if n_bp == 0:
+            if n_breakpoints == 0:
                 name = "Standard"
                 beta_str = f"β = {model['beta']:.2f}"
             else:
-                name = f"Segmented ({n_bp} BP)"
+                name = f"Segmented ({n_breakpoints} BP)"
                 betas = ", ".join(
                     [f"β{i+1}={b:.2f}" for i, b in enumerate(model["betas"])]
                 )

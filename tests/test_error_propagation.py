@@ -21,7 +21,7 @@ def test_error_propagation_with_detrend_and_normalize():
     error_series = pd.Series(errors)
 
     # 2. Run the full pipeline to get the actual processed errors
-    _, processed_errors = preprocess_data(
+    _, processed_errors, _ = preprocess_data(
         data_series,
         time,
         error_series=error_series.copy(),
@@ -35,7 +35,7 @@ def test_error_propagation_with_detrend_and_normalize():
 
     # Step 1: Detrending
     # This now returns modified errors that include uncertainty from the fit
-    manual_data, manual_errors = detrend(time, manual_data, manual_errors)
+    manual_data, manual_errors, _ = detrend(time, manual_data, manual_errors)
 
     # Step 2: Normalization
     # This takes the already-modified errors and scales them

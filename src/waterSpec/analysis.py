@@ -90,7 +90,7 @@ class Analysis:
             time_format=time_format,
             sheet_name=sheet_name,
         )
-        processed_data, processed_errors = preprocess_data(
+        processed_data, processed_errors, diagnostics = preprocess_data(
             data_series,
             time_numeric,
             error_series=error_series,
@@ -102,6 +102,7 @@ class Analysis:
             detrend_options=detrend_options,
         )
 
+        self.preprocessing_diagnostics = diagnostics
         valid_indices = ~np.isnan(processed_data)
         if np.sum(valid_indices) < self.min_valid_data_points:
             raise ValueError(
@@ -210,13 +211,13 @@ class Analysis:
             self.logger.error("Standard model fit crashed.", exc_info=True)
 
         # Fit segmented models (1 and possibly 2 breakpoints)
-        for n_bp in range(1, max_breakpoints + 1):
-            self.logger.info(f"Fitting segmented model ({n_bp} breakpoint(s))...")
+        for n_breakpoints in range(1, max_breakpoints + 1):
+            self.logger.info(f"Fitting segmented model with {n_breakpoints} breakpoint(s)...")
             try:
                 seg_results = fit_segmented_spectrum(
                     self.frequency,
                     self.power,
-                    n_breakpoints=n_bp,
+                    n_breakpoints=n_breakpoints,
                     p_threshold=p_threshold,
                     ci_method=ci_method,
                     n_bootstraps=n_bootstraps,
@@ -224,25 +225,25 @@ class Analysis:
                     logger=self.logger,
                 )
                 if "bic" in seg_results and np.isfinite(seg_results["bic"]):
-                    seg_results["model_type"] = f"segmented_{n_bp}bp"
+                    seg_results["model_type"] = f"segmented_{n_breakpoints}bp"
                     all_models.append(seg_results)
                     self.logger.info(
-                        f"Segmented model ({n_bp} bp) fit complete. "
+                        f"Segmented model ({n_breakpoints} breakpoint(s)) fit complete. "
                         f"BIC: {seg_results['bic']:.2f}"
                     )
                 else:
-                    reason = seg_results.get("failure_reason", "Unknown error")
+                    reason = seg_results.get("failure_reason", "Model did not converge or was not significant")
                     failed_model_reasons.append(
-                        f"Segmented model ({n_bp} bp): {reason}"
+                        f"Segmented model ({n_breakpoints} breakpoint(s)): {reason}"
                     )
                     self.logger.warning(
-                        f"Segmented model ({n_bp} bp) fit failed: {reason}"
+                        f"Segmented model ({n_breakpoints} breakpoint(s)) fit failed: {reason}"
                     )
             except Exception as e:
                 reason = f"An unexpected error occurred ({type(e).__name__}): {e}"
-                failed_model_reasons.append(f"Segmented model ({n_bp} bp): {reason}")
+                failed_model_reasons.append(f"Segmented model ({n_breakpoints} breakpoint(s)): {reason}")
                 self.logger.error(
-                    f"Segmented model ({n_bp} bp) fit crashed.", exc_info=True
+                    f"Segmented model ({n_breakpoints} breakpoint(s)) fit crashed.", exc_info=True
                 )
 
         if not all_models:
@@ -525,6 +526,9 @@ class Analysis:
         else:
             interp_results = interpret_results(fit_results, param_name=self.param_name)
             self.results = {**fit_results, **interp_results}
+
+        # Add preprocessing diagnostics to the final results
+        self.results["preprocessing_diagnostics"] = self.preprocessing_diagnostics
 
         # 6. Generate and Save Outputs
         self._generate_outputs(self.results, output_dir)

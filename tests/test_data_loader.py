@@ -166,8 +166,10 @@ def test_load_data_with_time_format(tmp_path):
         file_path, time_col="day", data_col="value", time_format="%d/%m/%Y"
     )
     assert len(time) == 2
-    # The first timestamp should correspond to Jan 1, 2023
-    assert pd.to_datetime("2023-01-01").timestamp() == (time[0])
+    # The first timestamp should be 0.0 seconds (relative time)
+    assert time[0] == 0.0
+    # The second timestamp should be one day later (86400 seconds)
+    assert np.isclose(time[1], 86400.0)
 
 
 def test_load_data_with_incorrect_time_format(tmp_path):

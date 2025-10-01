@@ -487,10 +487,10 @@ def test_analysis_model_fitting_failure_reporting(
     # Check for the specific failure reasons from each mocked model
     assert "Standard model (0 breakpoints): Could not compute Theil-Sen slope." in summary
     assert (
-        "Segmented model (1 bp): Davies test p-value > threshold." in summary
+        "Segmented model (1 breakpoint(s)): Davies test p-value > threshold." in summary
     )
     assert (
-            "Segmented model (2 bp): An unexpected error occurred (Exception): "
+            "Segmented model (2 breakpoint(s)): An unexpected error occurred (Exception): "
         "Unexpected crash during 2-breakpoint fit." in summary
     )
 

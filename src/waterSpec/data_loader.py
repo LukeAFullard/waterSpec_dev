@@ -1,13 +1,19 @@
 import os
 import warnings
+from typing import Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 
 
 def load_data(
-    file_path, time_col, data_col, error_col=None, time_format=None, sheet_name=0
-):
+    file_path: str,
+    time_col: str,
+    data_col: str,
+    error_col: Optional[str] = None,
+    time_format: Optional[str] = None,
+    sheet_name: Union[int, str] = 0,
+) -> Tuple[np.ndarray, pd.Series, Optional[pd.Series]]:
     """
     Loads time series data from a CSV, JSON, or Excel file, performing robust
     validation.
@@ -177,7 +183,7 @@ def load_data(
                 f"{violating_timestamp}"
             )
 
-    # Return time in seconds (as a float) for compatibility with downstream
-    # analysis functions (e.g., Lomb-Scargle).
-    time_numeric_sec = time_numeric_ns / 1e9
+    # Return time in seconds relative to the first measurement to avoid
+    # floating-point precision issues with long time series (e.g., decades).
+    time_numeric_sec = (time_numeric_ns - time_numeric_ns[0]) / 1e9
     return time_numeric_sec, clean_df["data"], clean_df.get("error")

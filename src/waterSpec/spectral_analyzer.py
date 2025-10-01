@@ -115,12 +115,18 @@ def find_significant_peaks(
 
 
 from scipy import stats
+from typing import Dict, List, Tuple
 
 
-def find_peaks_via_residuals(fit_results, ci=95):
+def find_peaks_via_residuals(fit_results: Dict, ci: int = 95) -> Tuple[List[Dict], float]:
     """
     Finds significant peaks by identifying outliers in the residuals of the
     spectral fit using a statistically robust threshold.
+
+    This method now uses robust statistics (median and MAD) and applies a
+    Bonferroni correction to the significance level to account for multiple
+    comparisons, making it more resilient to non-normal, heavy-tailed
+    residual distributions.
 
     Args:
         fit_results (dict): The dictionary returned by the fitting functions.
@@ -145,21 +151,34 @@ def find_peaks_via_residuals(fit_results, ci=95):
     residuals = fit_results["residuals"]
     log_freq = fit_results["log_freq"]
     log_power = fit_results["log_power"]
+    n_comparisons = len(residuals)
 
-    # Calculate a statistically-based threshold assuming residuals are ~normally distributed.
-    # This is more robust than a simple percentile.
-    residual_std = np.std(residuals)
+    if n_comparisons == 0:
+        return [], np.nan
 
-    # We are interested in positive peaks, so this is a one-tailed test.
-    # Convert CI to a significance level (alpha)
+    # Use robust statistics: median for location and Median Absolute Deviation
+    # (MAD) for scale, which are less sensitive to outliers.
+    # The 'scale="normal"' argument scales the MAD to be a consistent
+    # estimator for the standard deviation for normally distributed data.
+    residual_median = np.median(residuals)
+    residual_mad_std = stats.median_abs_deviation(residuals, scale="normal")
+
+    # If MAD is zero, fall back to standard deviation to avoid division errors.
+    if residual_mad_std < 1e-12:
+        residual_mad_std = np.std(residuals)
+        if residual_mad_std < 1e-12:  # All residuals are identical
+            return [], np.inf  # No peaks can be found
+
+    # Apply Bonferroni correction for multiple comparisons.
+    # We are performing n_comparisons tests, one for each residual point.
     alpha = 1 - (ci / 100)
+    corrected_alpha = alpha / n_comparisons
 
-    # The critical Z-value for a one-tailed test.
-    z_critical = stats.norm.ppf(1 - alpha)
+    # The critical Z-value for a one-tailed test with the corrected alpha.
+    z_critical = stats.norm.ppf(1 - corrected_alpha)
 
-    # The threshold is the critical value times the standard deviation of the residuals.
-    # We add the mean, which should be close to zero for good residuals, but for safety.
-    residual_threshold = np.mean(residuals) + z_critical * residual_std
+    # The threshold is based on the robust statistics.
+    residual_threshold = residual_median + z_critical * residual_mad_std
 
     # Use a dedicated peak-finding algorithm on the residuals. This is more
     # robust than grouping contiguous regions, as it prevents a single broad
