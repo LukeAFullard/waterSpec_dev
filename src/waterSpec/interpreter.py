@@ -82,7 +82,11 @@ def get_scientific_interpretation(beta):
     elif np.isclose(beta, 2, atol=BETA_TOLERANCE):
         return "β ≈ 2 (Brownian Noise): Random walk process."
     elif beta < 0:
-        return "β < 0 (Blue Noise / Anti-persistent): High frequencies dominate, suggesting systems with negative feedback or mean-reversion."
+        return (
+            "β < 0 (Warning: Physically Unrealistic): This may indicate aliasing, "
+            "inappropriate detrending, or white noise dominance. Review your "
+            "preprocessing choices."
+        )
     elif 0 < beta < 1:
         return (
             f"0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport."

@@ -408,7 +408,7 @@ class Analysis:
         num_grid_points=200,
         fap_method="baluev",
         normalization="standard",
-        peak_detection_method="residual",
+        peak_detection_method="fap",
         peak_fdr_level=0.05,
         p_threshold=0.05,
         max_breakpoints=1,
@@ -443,14 +443,16 @@ class Analysis:
             peak_detection_method (str, optional): Method for peak detection.
                 The available options are:
 
-                - `'residual'` (default): Identifies peaks that are significant
-                  outliers from the fitted spectral model using a False Discovery
-                  Rate (FDR) approach. Recommended.
-                - `'fap'`: Uses the traditional False Alarm Probability (FAP)
-                  method.
+                - `'fap'` (default): Uses the traditional False Alarm Probability
+                  (FAP) method, which is robust and does not depend on the
+                  goodness-of-fit of the background spectral model.
+                - `'residual'`: Identifies peaks that are significant outliers
+                  from the fitted spectral model using a False Discovery Rate
+                  (FDR) approach. This method's accuracy depends on a correct
+                  background model.
 
-                When using `'residual'`, `fap_method` and `fap_threshold` are
-                ignored.
+                When using `'fap'`, `peak_fdr_level` is ignored. When using
+                `'residual'`, `fap_method` and `fap_threshold` are ignored.
             peak_fdr_level (float, optional): The false discovery rate level
                 to use for the residual-based peak detection method.
                 Defaults to 0.05.
