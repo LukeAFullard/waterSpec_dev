@@ -307,18 +307,24 @@ def test_detrend_loess_bootstrap_error_propagation(sample_data):
 
 
 def test_detrend_with_nan_in_errors(sample_data):
-    """Test detrend function when the error array contains NaNs."""
+    """
+    Test that detrend falls back to OLS and warns when errors contain NaNs.
+    """
     trended_data = sample_data.copy()
     time = np.arange(len(trended_data))
     errors = np.full_like(trended_data, 0.1, dtype=float)
-    errors[3] = np.nan
+    errors[3] = np.nan  # Introduce a NaN
 
-    # The warning is no longer issued; NaNs are propagated directly.
-    _, detrended_errors, _ = detrend(time, trended_data.copy(), errors=errors.copy())
+    # Expect a warning about falling back to OLS because of the NaN
+    with pytest.warns(UserWarning, match="Falling back to OLS"):
+        _detrended_data, detrended_errors, _ = detrend(
+            time, trended_data.copy(), errors=errors.copy()
+        )
 
-    # The NaN should propagate through the calculation.
+    # The NaN in the input error should still result in a NaN in the output error
+    # because the original errors are the base for propagation.
     assert np.isnan(detrended_errors[3])
-    # And other values should be finite.
+    # And other values should be finite and correctly propagated.
     assert np.all(np.isfinite(np.delete(detrended_errors, 3)))
 
 
@@ -394,3 +400,52 @@ def test_handle_censored_data_invalid_option():
     # The 'bad_option' is not a valid argument and should cause a TypeError.
     with pytest.raises(TypeError):
         handle_censored_data(data_series, strategy="multiplier", bad_option=True)
+
+
+def test_detrend_wls_correctness():
+    """
+    Tests that the detrend function correctly uses WLS when provided with valid
+    errors, producing a different (and more accurate) result than OLS.
+    """
+    # 1. Create synthetic data where OLS and WLS give different results
+    np.random.seed(0)
+    time = np.arange(20)
+    true_trend = 0.5 * time
+    noise = np.random.normal(0, 0.5, size=time.shape)
+    data = true_trend + noise
+
+    # 2. Create non-uniform errors. Make the first half of the points
+    # high-confidence (small error) and the second half low-confidence (large error).
+    errors = np.full_like(data, 10.0)
+    errors[:10] = 0.1  # High-confidence points
+
+    # The WLS fit should be much closer to the first 10 points than an OLS fit.
+
+    # 3. Manually perform WLS to get the expected detrended result
+    X_with_const = sm.add_constant(time)
+    weights = 1.0 / (errors**2)
+    wls_model = sm.WLS(data, X_with_const, weights=weights)
+    wls_results = wls_model.fit()
+    expected_trend_wls = wls_results.predict(X_with_const)
+    expected_detrended_data_wls = data - expected_trend_wls
+
+    # For comparison, ensure that an OLS fit would be different
+    ols_model = sm.OLS(data, X_with_const)
+    ols_results = ols_model.fit()
+    assert not np.allclose(wls_results.params, ols_results.params)
+
+    # 4. Call the `detrend` function from the preprocessor
+    # We expect no warnings because the errors are valid for WLS.
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        detrended_data_from_func, _, _ = detrend(
+            time, data.copy(), errors=errors.copy()
+        )
+        # Check that no fallback warning was issued
+        for warning_message in w:
+            assert "Falling back to OLS" not in str(warning_message.message)
+
+    # 5. Assert that the function's output matches the manual WLS result
+    np.testing.assert_array_almost_equal(
+        detrended_data_from_func, expected_detrended_data_wls
+    )
