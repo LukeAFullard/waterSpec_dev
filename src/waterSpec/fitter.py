@@ -1,4 +1,6 @@
 import logging
+import warnings
+from typing import Dict, Optional
 
 import numpy as np
 from scipy import stats
@@ -14,29 +16,46 @@ except ImportError:
     )
 
 
-def _calculate_bic(y, y_pred, n_params):
+def _calculate_bic(y: np.ndarray, y_pred: np.ndarray, n_params: int) -> float:
     """Calculates the Bayesian Information Criterion (BIC)."""
     n = len(y)
     if n == 0:
         return np.nan
     rss = np.sum((y - y_pred) ** 2)
-    # If RSS is zero or very close to it, the log will be -inf.
     if rss < 1e-12:
-        return -np.inf
+        warnings.warn(
+            "Near-zero RSS found, indicating a perfect fit. "
+            "This may be due to overfitting or numerical instability. "
+            "Returning BIC as infinity.",
+            UserWarning,
+        )
+        return np.inf
     bic = n * np.log(rss / n) + n_params * np.log(n)
     return bic
 
 
+def _calculate_aic(y: np.ndarray, y_pred: np.ndarray, n_params: int) -> float:
+    """Calculates the Akaike Information Criterion (AIC)."""
+    n = len(y)
+    if n == 0:
+        return np.nan
+    rss = np.sum((y - y_pred) ** 2)
+    if rss < 1e-12:
+        return -np.inf  # A perfect fit corresponds to a minimal AIC
+    aic = n * np.log(rss / n) + 2 * n_params
+    return aic
+
+
 def fit_standard_model(
-    frequency,
-    power,
-    method="theil-sen",
-    ci_method="bootstrap",
-    n_bootstraps=1000,
-    ci=95,
-    seed=None,
-    logger=None,
-):
+    frequency: np.ndarray,
+    power: np.ndarray,
+    method: str = "theil-sen",
+    ci_method: str = "bootstrap",
+    n_bootstraps: int = 1000,
+    ci: int = 95,
+    seed: Optional[int] = None,
+    logger: Optional[logging.Logger] = None,
+) -> Dict:
     """
     Fits a standard (non-segmented) model to the power spectrum and estimates
     confidence intervals for the spectral exponent (beta).
@@ -74,6 +93,7 @@ def fit_standard_model(
 
     log_freq = np.log(frequency[valid_indices])
     log_power = np.log(power[valid_indices])
+    n_points = len(log_power)
 
     # 2. Perform the initial fit (OLS or Theil-Sen)
     fit_results = {}
@@ -81,7 +101,14 @@ def fit_standard_model(
         if method == "ols":
             res = stats.linregress(log_freq, log_power)
             slope, intercept, r_value, _, stderr = res
-            fit_results.update({"r_squared": r_value**2, "stderr": stderr})
+            r_squared = r_value**2
+            # Calculate adjusted R-squared
+            adj_r_squared = 1 - (1 - r_squared) * (n_points - 1) / (n_points - 2 - 1)
+            fit_results.update({
+                "r_squared": r_squared,
+                "adj_r_squared": adj_r_squared,
+                "stderr": stderr,
+            })
         elif method == "theil-sen":
             res = stats.theilslopes(log_power, log_freq, alpha=1 - (ci / 100))
             slope, intercept, low_slope, high_slope = res
@@ -96,16 +123,20 @@ def fit_standard_model(
         logger.warning(failure_reason)
         return {
             "beta": np.nan,
-            "bic": np.inf,  # Use infinite BIC to ensure this model is not chosen
+            "bic": np.inf,
+            "aic": np.inf,
             "beta_ci_lower": np.nan,
             "beta_ci_upper": np.nan,
             "failure_reason": failure_reason,
         }
 
-    # 3. Calculate BIC
+    # 3. Calculate BIC and AIC
     log_power_fit = slope * log_freq + intercept
-    bic = _calculate_bic(log_power, log_power_fit, n_params=2)
+    n_params = 2
+    bic = _calculate_bic(log_power, log_power_fit, n_params)
+    aic = _calculate_aic(log_power, log_power_fit, n_params)
     fit_results["bic"] = bic
+    fit_results["aic"] = aic
 
     # 4. Calculate Confidence Intervals
     beta_ci_lower, beta_ci_upper = np.nan, np.nan
@@ -179,7 +210,7 @@ def fit_standard_model(
 
 # Define a constant for the minimum number of data points required per
 # segment in a regression to ensure stable fits.
-MIN_POINTS_PER_SEGMENT = 5
+MIN_POINTS_PER_SEGMENT = 10
 
 
 def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed, logger=None):
@@ -362,16 +393,16 @@ def _extract_parametric_segmented_cis(pw_fit, n_breakpoints, ci=95, logger=None)
 
 
 def fit_segmented_spectrum(
-    frequency,
-    power,
-    n_breakpoints=1,
-    p_threshold=0.05,
-    ci_method="bootstrap",
-    n_bootstraps=1000,
-    ci=95,
-    seed=None,
-    logger=None,
-):
+    frequency: np.ndarray,
+    power: np.ndarray,
+    n_breakpoints: int = 1,
+    p_threshold: float = 0.05,
+    ci_method: str = "bootstrap",
+    n_bootstraps: int = 1000,
+    ci: int = 95,
+    seed: Optional[int] = None,
+    logger: Optional[logging.Logger] = None,
+) -> Dict:
     """
     Fits a segmented regression and estimates confidence intervals.
 
@@ -445,10 +476,11 @@ def fit_segmented_spectrum(
     min_points = MIN_POINTS_PER_SEGMENT * (n_breakpoints + 1)
     if np.sum(valid_indices) < min_points:
         summary = f"Not enough data points for {n_breakpoints}-breakpoint regression."
-        return {"model_summary": summary, "n_breakpoints": n_breakpoints, "bic": np.inf}
+        return {"model_summary": summary, "n_breakpoints": n_breakpoints, "bic": np.inf, "aic": np.inf}
 
     log_freq = np.log(frequency[valid_indices])
     log_power = np.log(power[valid_indices])
+    n_points = len(log_power)
 
     # Fit the piecewise regression model
     try:
@@ -462,6 +494,8 @@ def fit_segmented_spectrum(
         return {
             "model_summary": "Segmented regression failed with an unexpected error.",
             "n_breakpoints": n_breakpoints,
+            "bic": np.inf,
+            "aic": np.inf,
         }
 
     # Check for convergence and statistical significance
@@ -474,7 +508,8 @@ def fit_segmented_spectrum(
             "model_summary": summary,
             "n_breakpoints": n_breakpoints,
             "davies_p_value": davies_p_value,
-            "bic": np.inf,  # Return infinite BIC for failed fits
+            "bic": np.inf,
+            "aic": np.inf,
         }
 
     # --- Extract results ---
@@ -482,10 +517,18 @@ def fit_segmented_spectrum(
     estimates = fit_summary["estimates"]
     fitted_log_power = pw_fit.predict(log_freq)
 
+    # Calculate AIC and Adjusted R-squared
+    n_params = 2 * (n_breakpoints + 1)  # 2 params (slope, intercept) per segment
+    r_squared = fit_summary.get("r_squared", np.nan)
+    adj_r_squared = 1 - (1 - r_squared) * (n_points - 1) / (n_points - n_params - 1)
+    aic = _calculate_aic(log_power, fitted_log_power, n_params)
+
     # Store base results
     results = {
         "bic": fit_summary.get("bic"),
-        "r_squared": fit_summary.get("r_squared"),
+        "aic": aic,
+        "r_squared": r_squared,
+        "adj_r_squared": adj_r_squared,
         "model_summary": str(pw_fit.summary()),
         "model_object": pw_fit,
         "log_freq": log_freq,
@@ -501,6 +544,20 @@ def fit_segmented_spectrum(
     for i in range(1, n_breakpoints + 1):
         bp_log_freq = estimates[f"breakpoint{i}"]["estimate"]
         breakpoints.append(np.exp(bp_log_freq))
+
+    # Check if breakpoints are too close to the boundaries
+    log_freq_range = log_freq.max() - log_freq.min()
+    boundary_threshold = 0.05  # 5% of the log-frequency range
+    for bp_log in [estimates[f"breakpoint{i}"]["estimate"] for i in range(1, n_breakpoints + 1)]:
+        if (
+            bp_log < log_freq.min() + boundary_threshold * log_freq_range
+            or bp_log > log_freq.max() - boundary_threshold * log_freq_range
+        ):
+            logger.warning(
+                "A breakpoint is very close to the data boundary, "
+                "which may indicate an unstable fit."
+            )
+            break  # Only need to warn once
 
     slopes = []
     current_slope = estimates["alpha1"]["estimate"]

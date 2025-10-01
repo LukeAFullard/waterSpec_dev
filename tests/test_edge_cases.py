@@ -99,7 +99,7 @@ def test_preprocess_with_loess_detrend(tmp_path):
     time = np.arange(100)
     series = pd.Series(np.sin(time / 10) + np.random.rand(100))
 
-    processed_data, _ = preprocess_data(
+    processed_data, _, _ = preprocess_data(
         series, time, detrend_method="loess"
     )
     assert not np.array_equal(series.values, processed_data)
@@ -228,7 +228,7 @@ def test_preprocess_handles_numpy_array_input():
     """
     time = np.arange(20)
     series = np.random.rand(20) # Pass as numpy array
-    processed_data, _ = preprocess_data(series, time)
+    processed_data, _, _ = preprocess_data(series, time)
     assert isinstance(processed_data, np.ndarray)
 
 def test_preprocess_handles_non_numeric_censored_values(tmp_path):

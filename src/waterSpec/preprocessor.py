@@ -1,25 +1,33 @@
 import warnings
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
 
-def detrend(x, data, errors=None):
+def detrend(
+    x: np.ndarray, data: np.ndarray, errors: Optional[np.ndarray] = None
+) -> Tuple[np.ndarray, Optional[np.ndarray], Dict]:
     """
-    Removes the linear trend from a time series using Ordinary Least Squares.
+    Removes the linear trend from a time series using Ordinary Least Squares
+    and provides diagnostics about the removed trend.
     This function returns new arrays and does not modify inputs.
     """
     # Create copies to avoid modifying the original arrays
     detrended_data = np.copy(data)
     propagated_errors = np.copy(errors) if errors is not None else None
+    diagnostics = {"r_squared_of_trend": np.nan, "trend_removed": False}
 
     valid_indices = ~np.isnan(detrended_data)
     if np.sum(valid_indices) < 2:
-        return detrended_data, propagated_errors  # Not enough points to detrend
+        return detrended_data, propagated_errors, diagnostics
 
     x_valid = x[valid_indices]
     y_valid = detrended_data[valid_indices]
+
+    # Calculate variance for diagnostics later
+    original_variance = np.var(y_valid)
 
     X_with_const = sm.add_constant(x_valid)
     model = sm.OLS(y_valid, X_with_const)
@@ -27,6 +35,17 @@ def detrend(x, data, errors=None):
 
     trend = results.predict(X_with_const)
     detrended_data[valid_indices] = y_valid - trend
+    diagnostics["trend_removed"] = True
+    diagnostics["r_squared_of_trend"] = results.rsquared
+
+    # Warn if the trend accounts for a very large portion of the signal's variance
+    if results.rsquared > 0.75:
+        warnings.warn(
+            f"Linear detrending removed a significant portion "
+            f"({results.rsquared:.2%}) of the data's variance. "
+            "Ensure this is the expected behavior.",
+            UserWarning,
+        )
 
     if propagated_errors is not None:
         errors_valid = propagated_errors[valid_indices]
@@ -38,7 +57,7 @@ def detrend(x, data, errors=None):
         new_err_sq = np.square(errors_valid) + np.square(prediction_se)
         propagated_errors[valid_indices] = np.sqrt(new_err_sq)
 
-    return detrended_data, propagated_errors
+    return detrended_data, propagated_errors, diagnostics
 
 
 def normalize(data, errors=None):
@@ -178,7 +197,9 @@ def handle_censored_data(
     return numeric_series.to_numpy()
 
 
-def detrend_loess(x, y, errors=None, frac=0.5, **kwargs):
+def detrend_loess(
+    x: np.ndarray, y: np.ndarray, errors: Optional[np.ndarray] = None, frac: float = 0.5, **kwargs
+) -> Tuple[np.ndarray, Optional[np.ndarray], Dict]:
     """
     Removes a non-linear trend from a time series using LOESS.
 
@@ -190,6 +211,7 @@ def detrend_loess(x, y, errors=None, frac=0.5, **kwargs):
     if not isinstance(frac, (int, float)) or not (0 < frac <= 1):
         raise ValueError("`frac` must be a number between 0 and 1.")
 
+    diagnostics = {"variance_explained_by_trend": np.nan, "trend_removed": False}
     # 2. Prepare data
     valid_indices = ~np.isnan(y)
     num_valid = np.sum(valid_indices)
@@ -203,37 +225,54 @@ def detrend_loess(x, y, errors=None, frac=0.5, **kwargs):
             f"A minimum of {min_points_for_loess} is required. Skipping.",
             UserWarning,
         )
-        return y, errors
+        return y, errors, diagnostics
 
     x_valid = x[valid_indices]
     y_valid = y[valid_indices]
+    original_variance = np.var(y_valid)
 
     smoothed_y = sm.nonparametric.lowess(y_valid, x_valid, frac=frac, **kwargs)[:, 1]
     residuals = y_valid - smoothed_y
     detrended_y = np.full_like(y, np.nan)
     detrended_y[valid_indices] = residuals
 
+    # Calculate diagnostics
+    residual_variance = np.var(residuals)
+    if original_variance > 0:
+        variance_explained = 1 - (residual_variance / original_variance)
+        diagnostics["variance_explained_by_trend"] = variance_explained
+        if variance_explained > 0.75:
+            warnings.warn(
+                f"LOESS detrending removed a significant portion "
+                f"({variance_explained:.2%}) of the data's variance. "
+                "Ensure this is the expected behavior.",
+                UserWarning,
+            )
+    diagnostics["trend_removed"] = True
+
     if errors is not None:
         warnings.warn(
-            "Error propagation for LOESS detrending is not supported. "
-            "Errors will not be modified.",
+            "Error propagation for LOESS detrending is not currently supported. "
+            "The uncertainties on the detrended data will be the same as the "
+            "original uncertainties, which may be an underestimate. This is a "
+            "known limitation.",
             UserWarning,
         )
 
-    return detrended_y, errors
+    return detrended_y, errors, diagnostics
 
 
 def preprocess_data(
-    data_series,
-    time_numeric,
-    error_series=None,
-    censor_strategy="drop",
-    censor_options=None,
-    log_transform_data=False,
-    detrend_method=None,
-    normalize_data=False,
-    detrend_options=None,
-):
+    data_series: pd.Series,
+    time_numeric: np.ndarray,
+    error_series: Optional[pd.Series] = None,
+    censor_strategy: str = "drop",
+    censor_options: Optional[Dict] = None,
+    log_transform_data: bool = False,
+    detrend_method: Optional[str] = None,
+    normalize_data: bool = False,
+    detrend_options: Optional[Dict] = None,
+) -> Tuple[np.ndarray, Optional[np.ndarray], Dict]:
     """
     A wrapper function that applies a series of preprocessing steps in a
     defined order:
@@ -246,6 +285,8 @@ def preprocess_data(
         detrend_options = {}
     if censor_options is None:
         censor_options = {}
+
+    diagnostics = {}
 
     # 1. Handle censored data
     processed_data = handle_censored_data(
@@ -266,12 +307,13 @@ def preprocess_data(
         )
 
     # 3. Detrend
+    detrend_diagnostics = {}
     if detrend_method == "linear":
-        processed_data, processed_errors = detrend(
+        processed_data, processed_errors, detrend_diagnostics = detrend(
             time_numeric, processed_data, errors=processed_errors
         )
     elif detrend_method == "loess":
-        processed_data, processed_errors = detrend_loess(
+        processed_data, processed_errors, detrend_diagnostics = detrend_loess(
             time_numeric, processed_data, errors=processed_errors, **detrend_options
         )
     elif detrend_method is not None:
@@ -279,9 +321,10 @@ def preprocess_data(
             f"Unknown detrending method '{detrend_method}'. No detrending applied.",
             UserWarning,
         )
+    diagnostics["detrending"] = detrend_diagnostics
 
     # 4. Normalize
     if normalize_data:
         processed_data, processed_errors = normalize(processed_data, processed_errors)
 
-    return processed_data, processed_errors
+    return processed_data, processed_errors, diagnostics

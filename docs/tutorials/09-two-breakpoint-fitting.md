@@ -37,9 +37,9 @@ def interpret_results_2bp(fit_results, param_name="Parameter"):
     """
     Generates a human-readable interpretation for a 2-breakpoint fit.
     """
-    n_bp = fit_results.get('n_breakpoints')
+    n_breakpoints = fit_results.get('n_breakpoints')
 
-    if n_bp == 2:
+    if n_breakpoints == 2:
         beta1, beta2, beta3 = fit_results['beta1'], fit_results['beta2'], fit_results['beta3']
         bp1, bp2 = fit_results['breakpoint1'], fit_results['breakpoint2']
         interp1, interp2, interp3 = get_scientific_interpretation(beta1), get_scientific_interpretation(beta2), get_scientific_interpretation(beta3)

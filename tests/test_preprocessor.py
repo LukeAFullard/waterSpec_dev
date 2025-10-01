@@ -23,10 +23,11 @@ def test_detrend(sample_data):
     """Test the detrend function."""
     trended_data = sample_data
     time = np.arange(len(trended_data))
-    detrended, _ = detrend(time, trended_data.copy())
+    detrended, _, diagnostics = detrend(time, trended_data.copy())
     assert np.mean(detrended) == pytest.approx(0)
     # For a linear trend, the detrended data should not be the same
     assert not np.allclose(detrended, trended_data)
+    assert diagnostics["r_squared_of_trend"] > 0.99
 
 
 def test_normalize(sample_data):
@@ -80,8 +81,9 @@ def test_detrend_loess(sample_data):
     """Test the LOESS detrending function."""
     time = np.arange(len(sample_data))
     trended_data = sample_data + np.sin(time)
-    detrended, _ = detrend_loess(time, trended_data)
+    detrended, _, diagnostics = detrend_loess(time, trended_data)
     assert np.var(detrended) < np.var(trended_data)
+    assert diagnostics["trend_removed"] is True
 
 
 def test_detrend_loess_with_options(sample_data):
@@ -92,10 +94,10 @@ def test_detrend_loess_with_options(sample_data):
     trended_data[5] = 20
 
     # Detrend with default options (which include robustness iterations)
-    detrended_default, _ = detrend_loess(time, trended_data.copy())
+    detrended_default, _, _ = detrend_loess(time, trended_data.copy())
 
     # Detrend with robustness iterations turned off
-    detrended_no_iter, _ = detrend_loess(time, trended_data.copy(), it=0)
+    detrended_no_iter, _, _ = detrend_loess(time, trended_data.copy(), it=0)
 
     # The results should be different because the outlier is handled differently
     assert not np.array_equal(detrended_default, detrended_no_iter)
@@ -106,14 +108,18 @@ def test_preprocess_data_wrapper(sample_data):
     time = np.arange(len(sample_data))
     data_series = pd.Series(sample_data)
 
-    processed, errors = preprocess_data(data_series, time, detrend_method="linear")
+    processed, errors, diagnostics = preprocess_data(
+        data_series, time, detrend_method="linear"
+    )
     assert errors is None
     assert np.mean(processed) == pytest.approx(0)
+    assert diagnostics["detrending"]["trend_removed"] is True
 
     with pytest.warns(UserWarning, match="Unknown detrending method"):
-        processed, errors = preprocess_data(
+        _, _, diagnostics = preprocess_data(
             data_series, time, detrend_method="bad_method"
         )
+        assert diagnostics["detrending"] == {}
 
 
 # --- New tests for error propagation and wrapper functionality ---
@@ -149,7 +155,7 @@ def test_preprocess_data_with_transforms(sample_data):
     error_series = pd.Series(np.full_like(sample_data, 0.1))
 
     # Apply all transformations
-    processed_data, processed_errors = preprocess_data(
+    processed_data, processed_errors, _ = preprocess_data(
         data_series,
         time,
         error_series=error_series,
@@ -183,7 +189,7 @@ def test_preprocess_data_error_propagation_correctness(sample_data):
     error_series = pd.Series(initial_errors)
 
     # --- Run the full pipeline using the wrapper ---
-    _, processed_errors_from_wrapper = preprocess_data(
+    _, processed_errors_from_wrapper, _ = preprocess_data(
         data_series,
         time,
         error_series=error_series.copy(),
@@ -199,7 +205,7 @@ def test_preprocess_data_error_propagation_correctness(sample_data):
     # 1. Log transform
     data_manual, errors_manual = log_transform(data_manual, errors_manual)
     # 2. Detrend
-    data_manual, errors_manual = detrend(time, data_manual, errors_manual)
+    data_manual, errors_manual, _ = detrend(time, data_manual, errors_manual)
     # 3. Normalize
     _, errors_manual = normalize(data_manual, errors_manual)
 
@@ -227,7 +233,7 @@ def test_detrend_loess_with_errors(sample_data):
     errors = np.full_like(trended_data, 0.1)
 
     # Detrend with LOESS
-    detrended_data, detrended_errors = detrend_loess(
+    detrended_data, detrended_errors, _ = detrend_loess(
         time, trended_data.copy(), errors=errors.copy(), frac=0.5
     )
 
@@ -245,7 +251,7 @@ def test_detrend_with_nan_in_errors(sample_data):
     errors[3] = np.nan
 
     # The warning is no longer issued; NaNs are propagated directly.
-    _, detrended_errors = detrend(time, trended_data.copy(), errors=errors.copy())
+    _, detrended_errors, _ = detrend(time, trended_data.copy(), errors=errors.copy())
 
     # The NaN should propagate through the calculation.
     assert np.isnan(detrended_errors[3])
@@ -266,7 +272,7 @@ def test_preprocess_data_nan_propagation():
     error_series = pd.Series(np.linspace(0.1, 0.5, 12))
 
     with pytest.warns(UserWarning, match="Non-numeric or unhandled censored values"):
-        processed_data, processed_errors = preprocess_data(
+        processed_data, processed_errors, _ = preprocess_data(
             data_series_censored,
             time,
             error_series=error_series,
