@@ -36,6 +36,15 @@ def load_data(
         raise ValueError("The provided data file is empty.")
 
     # 3. Create a mapping of original column names to lowercase
+    # First, check for ambiguities (duplicate lowercased column names)
+    lower_cols = pd.Series([c.lower() for c in df.columns])
+    if lower_cols.duplicated().any():
+        counts = lower_cols.value_counts()
+        duplicates = counts[counts > 1].index.tolist()
+        raise ValueError(
+            "Duplicate column names found (case-insensitive): "
+            f"{duplicates}. Please rename columns to be unique."
+        )
     col_map = {col.lower(): col for col in df.columns}
     time_col_lower = time_col.lower()
     data_col_lower = data_col.lower()

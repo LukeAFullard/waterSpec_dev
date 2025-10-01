@@ -87,7 +87,7 @@ def test_analysis_raises_error_for_insufficient_data_post_processing(tmp_path):
             time_col="time",
             data_col="value",
             censor_strategy="drop",
-            censor_options={"censor_symbol": "<"},
+                censor_options={"left_censor_symbol": "<"},
         )
 
 # --- Tests for Gaps in preprocessor.py ---
@@ -260,7 +260,7 @@ def test_load_data_all_nan_data(tmp_path):
     series = [np.nan] * 10
     file_path = create_test_data_file(tmp_path, time, series)
 
-    with pytest.raises(ValueError, match="No valid data remains after removing rows"):
+    with pytest.raises(ValueError, match="The data column 'value' contains no valid data."):
         load_data(file_path, time_col="time", data_col="value")
 
 

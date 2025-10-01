@@ -205,7 +205,7 @@ class Analysis:
                 failed_model_reasons.append(f"Standard model (0 breakpoints): {reason}")
                 self.logger.warning(f"Standard model fit failed: {reason}")
         except Exception as e:
-            reason = f"An unexpected error occurred: {e}"
+            reason = f"An unexpected error occurred ({type(e).__name__}): {e}"
             failed_model_reasons.append(f"Standard model (0 breakpoints): {reason}")
             self.logger.error("Standard model fit crashed.", exc_info=True)
 
@@ -239,7 +239,7 @@ class Analysis:
                         f"Segmented model ({n_bp} bp) fit failed: {reason}"
                     )
             except Exception as e:
-                reason = f"An unexpected error occurred: {e}"
+                reason = f"An unexpected error occurred ({type(e).__name__}): {e}"
                 failed_model_reasons.append(f"Segmented model ({n_bp} bp): {reason}")
                 self.logger.error(
                     f"Segmented model ({n_bp} bp) fit crashed.", exc_info=True

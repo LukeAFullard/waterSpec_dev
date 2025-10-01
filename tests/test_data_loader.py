@@ -242,3 +242,17 @@ def test_load_high_frequency_data(tmp_path):
     # Check that the time difference is approximately 0.1 seconds
     time_diffs = np.diff(time_numeric)
     assert np.all(np.isclose(time_diffs, 0.1))
+
+
+def test_load_data_ambiguous_columns(tmp_path):
+    """
+    Test that a file with case-insensitive duplicate column names raises a
+    ValueError. This is a regression test for a previously fixed bug.
+    """
+    file_path = tmp_path / "ambiguous_cols.csv"
+    # The column names "Value" and "value" are ambiguous
+    file_path.write_text("timestamp,Value,value\n2023-01-01,10,100")
+    with pytest.raises(
+        ValueError, match="Duplicate column names found \\(case-insensitive\\)"
+    ):
+        load_data(file_path, time_col="timestamp", data_col="Value")

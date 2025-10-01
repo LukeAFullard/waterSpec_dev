@@ -10,7 +10,7 @@ def calculate_periodogram(
     Calculates the Lomb-Scargle periodogram for a time series.
 
     This function requires a pre-computed frequency grid. Using a log-spaced
-    grid is recommended for spectral analysis. The `waterSpec.generate_log_spaced_grid`
+    grid is recommended for spectral analysis. The `waterSpec.generate_frequency_grid`
     function can be used to create a suitable grid.
 
     Args:

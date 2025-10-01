@@ -23,6 +23,11 @@ def generate_frequency_grid(time_numeric, num_points=200, grid_type="log"):
     Returns:
         np.ndarray: The frequency grid.
     """
+    if time_numeric.size < 2:
+        raise ValueError(
+            "At least two data points are required to generate a frequency grid."
+        )
+
     duration = np.max(time_numeric) - np.min(time_numeric)
     if duration <= 0:
         raise ValueError(

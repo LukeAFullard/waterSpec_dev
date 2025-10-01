@@ -490,7 +490,7 @@ def test_analysis_model_fitting_failure_reporting(
         "Segmented model (1 bp): Davies test p-value > threshold." in summary
     )
     assert (
-        "Segmented model (2 bp): An unexpected error occurred: "
+            "Segmented model (2 bp): An unexpected error occurred (Exception): "
         "Unexpected crash during 2-breakpoint fit." in summary
     )
 
