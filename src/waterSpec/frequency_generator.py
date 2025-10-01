@@ -5,6 +5,13 @@ This module provides functions for generating frequency grids for spectral analy
 import numpy as np
 import warnings
 
+# Define a constant for the coefficient of variation (CV) threshold.
+# If the CV of sampling intervals exceeds this value, the sampling is
+# considered highly irregular, and a warning is issued. A high CV
+# means the standard deviation of intervals is large relative to the median
+# interval, making the concept of a single Nyquist frequency less reliable.
+CV_THRESHOLD_FOR_IRREGULAR_SAMPLING = 0.5
+
 
 def generate_frequency_grid(time_numeric, num_points=200, grid_type="log"):
     """
@@ -27,6 +34,12 @@ def generate_frequency_grid(time_numeric, num_points=200, grid_type="log"):
     Returns:
         np.ndarray: The frequency grid, in units of Hz.
     """
+    # --- Input Validation ---
+    if not isinstance(num_points, int):
+        raise TypeError("num_points must be an integer.")
+    if num_points <= 1:
+        raise ValueError("num_points must be an integer greater than 1.")
+
     if time_numeric.size < 2:
         raise ValueError(
             "At least two data points are required to generate a frequency grid."
@@ -53,7 +66,7 @@ def generate_frequency_grid(time_numeric, num_points=200, grid_type="log"):
     # misleading. A high coefficient of variation suggests this.
     # A threshold of 0.5 means the std dev is 50% of the median interval.
     interval_cv = np.std(sampling_intervals) / median_sampling_interval
-    if interval_cv > 0.5:
+    if interval_cv > CV_THRESHOLD_FOR_IRREGULAR_SAMPLING:
         warnings.warn(
             f"The time series has highly irregular sampling (CV of intervals = {interval_cv:.2f}). "
             "The concept of a single Nyquist frequency may be misleading. "

@@ -195,11 +195,12 @@ def test_fit_standard_model_insufficient_data():
 
     results = fit_standard_model(frequency, power)
 
-    # Check that all results are NaN
+    # Check that all results are NaN/inf and a failure reason is given
     assert np.isnan(results["beta"])
-    assert np.isnan(results["bic"])
+    assert results["bic"] == np.inf
     assert np.isnan(results["beta_ci_lower"])
     assert np.isnan(results["beta_ci_upper"])
+    assert "failure_reason" in results
 
 
 def test_fit_standard_model_is_reproducible(synthetic_spectrum):
@@ -247,8 +248,8 @@ def test_fit_segmented_spectrum_handles_exceptions(
 
     results = fit_segmented_spectrum(frequency, power)
 
-    assert "model_summary" in results
-    assert "failed with an unexpected error" in results["model_summary"]
+    assert "failure_reason" in results
+    assert "failed with an unexpected error" in results["failure_reason"]
     assert "Segmented regression failed" in caplog.text
 
 
@@ -270,6 +271,7 @@ def test_fit_segmented_spectrum_p_threshold(multifractal_spectrum, mocker):
             "breakpoint1": {"estimate": np.log(0.1)},
             "alpha1": {"estimate": -0.5},
             "beta1": {"estimate": -1.3},
+            "const": {"estimate": 1.0},
         },
     }
     mock_fit_result.summary.return_value = "Mock Summary"
@@ -288,8 +290,8 @@ def test_fit_segmented_spectrum_p_threshold(multifractal_spectrum, mocker):
         frequency, power, n_breakpoints=1, p_threshold=0.05
     )
 
-    assert "model_summary" in results_rejected
-    assert "No significant breakpoint found" in results_rejected["model_summary"]
+    assert "failure_reason" in results_rejected
+    assert "No significant breakpoint found" in results_rejected["failure_reason"]
     assert "breakpoints" not in results_rejected  # The fit details should not be present
 
     # --- Case 2: p_threshold is higher than the p-value (e.g., 0.15 > 0.1) ---
@@ -298,8 +300,7 @@ def test_fit_segmented_spectrum_p_threshold(multifractal_spectrum, mocker):
         frequency, power, n_breakpoints=1, p_threshold=0.15, ci_method="parametric"
     )
 
-    assert "model_summary" in results_accepted
-    assert "No significant breakpoint found" not in results_accepted["model_summary"]
+    assert "failure_reason" not in results_accepted
     assert "breakpoints" in results_accepted  # The fit details should be present
     assert results_accepted["davies_p_value"] == 0.1
 
@@ -414,15 +415,15 @@ def test_fit_segmented_spectrum_insufficient_data():
     Test that fit_segmented_spectrum fails gracefully when there are not
     enough data points for the requested number of breakpoints.
     """
-    # For a 1-breakpoint model, at least 10 points are required (5 per segment)
-    frequency = np.linspace(0.1, 1, 9)
-    power = np.linspace(1, 10, 9)
+    # For a 1-breakpoint model, at least 20 points are required (10 per segment)
+    frequency = np.linspace(0.1, 1, 19)
+    power = np.linspace(1, 10, 19)
 
     results = fit_segmented_spectrum(frequency, power, n_breakpoints=1)
 
     assert "bic" in results and results["bic"] == np.inf
-    assert "model_summary" in results
-    assert "Not enough data points" in results["model_summary"]
+    assert "failure_reason" in results
+    assert "Not enough data points" in results["failure_reason"]
 
 
 def test_fit_segmented_spectrum_multi_breakpoint_warning(multifractal_spectrum, caplog):
@@ -545,8 +546,8 @@ def test_fit_segmented_spectrum_white_noise():
     power = np.ones_like(frequency) + rng.normal(0, 0.1, len(frequency))
 
     results = fit_segmented_spectrum(frequency, power)
-    assert "model_summary" in results
-    assert "No significant breakpoint found" in results["model_summary"]
+    assert "failure_reason" in results
+    assert "No significant breakpoint found" in results["failure_reason"]
     assert results["bic"] == np.inf
 
 

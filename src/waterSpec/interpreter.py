@@ -67,6 +67,12 @@ PERSISTENCE_EVENT_DRIVEN_THRESHOLD = 0.5
 PERSISTENCE_MIXED_THRESHOLD = 1.0
 
 
+# A constant to define the threshold for confidence interval width. If the
+# width of a 95% CI for a parameter (like beta) exceeds this value, a
+# warning is generated, as it suggests high uncertainty in the estimate.
+CI_WIDTH_THRESHOLD_FOR_WARNING = 0.5
+
+
 def get_scientific_interpretation(beta):
     """Provides a scientific interpretation of the spectral exponent (beta)."""
     if np.isclose(beta, 0, atol=BETA_TOLERANCE):
@@ -171,7 +177,7 @@ def _generate_segment_interpretation(
 def interpret_results(
     fit_results,
     param_name="Parameter",
-    uncertainty_threshold=0.5,
+    uncertainty_threshold=CI_WIDTH_THRESHOLD_FOR_WARNING,
     breakpoint_uncertainty_threshold=10,
 ):
     """

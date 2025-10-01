@@ -6,6 +6,12 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
+# Define a constant for the R-squared threshold above which a warning is
+# issued to the user about the amount of variance removed by detrending.
+# A high R-squared might indicate that the linear trend is a dominant
+# feature of the data, and its removal should be consciously validated.
+R_SQUARED_THRESHOLD_FOR_DETRENDING_WARNING = 0.75
+
 
 def detrend(
     x: np.ndarray, data: np.ndarray, errors: Optional[np.ndarray] = None
@@ -40,7 +46,7 @@ def detrend(
     diagnostics["r_squared_of_trend"] = results.rsquared
 
     # Warn if the trend accounts for a very large portion of the signal's variance
-    if results.rsquared > 0.75:
+    if results.rsquared > R_SQUARED_THRESHOLD_FOR_DETRENDING_WARNING:
         warnings.warn(
             f"Linear detrending removed a significant portion "
             f"({results.rsquared:.2%}) of the data's variance. "
