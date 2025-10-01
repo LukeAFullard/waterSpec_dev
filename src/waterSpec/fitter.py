@@ -55,12 +55,34 @@ def _calculate_aic(y: np.ndarray, y_pred: np.ndarray, n_params: int) -> float:
     return aic
 
 
+def _moving_block_bootstrap_indices(
+    n_points: int, block_size: int, rng: np.random.Generator
+) -> np.ndarray:
+    """
+    Generates bootstrap indices for a single moving-block bootstrap sample.
+
+    Args:
+        n_points: The total number of data points.
+        block_size: The size of each block.
+        rng: The random number generator.
+
+    Returns:
+        An array of indices for one bootstrap sample.
+    """
+    indices = []
+    while len(indices) < n_points:
+        start = rng.integers(0, n_points - block_size + 1)
+        indices.extend(list(range(start, start + block_size)))
+    return np.array(indices[:n_points])
+
+
 def fit_standard_model(
     frequency: np.ndarray,
     power: np.ndarray,
     method: str = "theil-sen",
     ci_method: str = "bootstrap",
     bootstrap_type: str = "residuals",
+    bootstrap_block_size: Optional[int] = None,
     n_bootstraps: int = 1000,
     ci: int = 95,
     seed: Optional[int] = None,
@@ -79,8 +101,11 @@ def fit_standard_model(
         method (str, optional): The fitting method ('theil-sen' or 'ols').
         ci_method (str, optional): Method for CI calculation.
         bootstrap_type (str, optional): The bootstrap method to use. Can be
-            'pairs' (default), which resamples (x, y) pairs, or 'residuals',
-            which resamples the model residuals.
+            'pairs', 'residuals', or 'block'. 'block' is recommended for
+            data with suspected autocorrelation.
+        bootstrap_block_size (int, optional): The block size for the moving
+            block bootstrap. If None, a rule-of-thumb `n_points**(1/3)` is
+            used. Only applicable when `bootstrap_type` is 'block'.
         n_bootstraps (int, optional): Number of bootstrap samples.
         ci (int, optional): The desired confidence interval in percent.
         seed (int, optional): A seed for the random number generator.
@@ -100,9 +125,9 @@ def fit_standard_model(
         raise ValueError("'ci' must be between 0 and 100.")
     if method not in ["ols", "theil-sen"]:
         raise ValueError(f"Unknown fitting method: '{method}'. Choose 'ols' or 'theil-sen'.")
-    if bootstrap_type not in ["pairs", "residuals"]:
+    if bootstrap_type not in ["pairs", "residuals", "block"]:
         raise ValueError(
-            f"Unknown bootstrap_type: '{bootstrap_type}'. Choose 'pairs' or 'residuals'."
+            f"Unknown bootstrap_type: '{bootstrap_type}'. Choose 'pairs', 'residuals', or 'block'."
         )
     valid_indices = (frequency > 0) & (power > 0)
     if np.sum(valid_indices) < 2:
@@ -199,6 +224,22 @@ def fit_standard_model(
         n_points = len(log_freq)
         error_counts = {}
 
+        if bootstrap_type == "block":
+            block_size = bootstrap_block_size
+            if block_size is None:
+                block_size = int(np.ceil(n_points ** (1 / 3)))
+                logger.info(
+                    f"No 'bootstrap_block_size' provided for block bootstrap. "
+                    f"Using rule-of-thumb size: {block_size}"
+                )
+            # Ensure block size is valid
+            block_size = max(1, min(block_size, n_points))
+            if block_size >= n_points:
+                logger.warning(
+                    f"Block size ({block_size}) is >= number of points "
+                    f"({n_points}). This is equivalent to a 'pairs' bootstrap."
+                )
+
         for _ in range(n_bootstraps):
             try:
                 if bootstrap_type == "pairs":
@@ -213,6 +254,10 @@ def fit_standard_model(
                     # Create a new synthetic dataset
                     resampled_log_power = log_power_fit + resampled_residuals
                     resampled_log_freq = log_freq  # Keep original frequencies
+                elif bootstrap_type == "block":
+                    indices = _moving_block_bootstrap_indices(n_points, block_size, rng)
+                    resampled_log_freq = log_freq[indices]
+                    resampled_log_power = log_power[indices]
                 else:
                     # This case is handled by the initial validation, but included for safety
                     continue
@@ -316,6 +361,7 @@ def _bootstrap_segmented_fit(
     ci,
     seed,
     bootstrap_type="residuals",
+    bootstrap_block_size: Optional[int] = None,
     logger=None,
 ):
     """
@@ -337,6 +383,20 @@ def _bootstrap_segmented_fit(
     if bootstrap_type == "residuals":
         initial_fitted_power = pw_fit.predict(log_freq)
         initial_residuals = log_power - initial_fitted_power
+    elif bootstrap_type == "block":
+        block_size = bootstrap_block_size
+        if block_size is None:
+            block_size = int(np.ceil(n_points ** (1 / 3)))
+            logger.info(
+                f"No 'bootstrap_block_size' provided for segmented block "
+                f"bootstrap. Using rule-of-thumb size: {block_size}"
+            )
+        block_size = max(1, min(block_size, n_points))
+        if block_size >= n_points:
+            logger.warning(
+                f"Block size ({block_size}) is >= number of points "
+                f"({n_points}). This is equivalent to a 'pairs' bootstrap."
+            )
 
     # Extract the starting breakpoints from the initial fit's results.
     # This was the source of a bug where bootstrap CIs would always fail.
@@ -373,6 +433,15 @@ def _bootstrap_segmented_fit(
                 )
                 resampled_log_power_sorted = initial_fitted_power + resampled_residuals
                 resampled_log_freq_sorted = log_freq  # Keep original frequencies
+            elif bootstrap_type == "block":
+                indices = _moving_block_bootstrap_indices(n_points, block_size, rng)
+                resampled_log_freq = log_freq[indices]
+                resampled_log_power = log_power[indices]
+                # Sort the resampled data by frequency, which is required
+                # for the piecewise regression library.
+                sort_order = np.argsort(resampled_log_freq)
+                resampled_log_freq_sorted = resampled_log_freq[sort_order]
+                resampled_log_power_sorted = resampled_log_power[sort_order]
             else:
                 continue
 
@@ -561,6 +630,7 @@ def fit_segmented_spectrum(
     p_threshold: float = 0.05,
     ci_method: str = "bootstrap",
     bootstrap_type: str = "residuals",
+    bootstrap_block_size: Optional[int] = None,
     n_bootstraps: int = 1000,
     ci: int = 95,
     seed: Optional[int] = None,
@@ -580,8 +650,11 @@ def fit_segmented_spectrum(
         ci_method (str, optional): The method for calculating confidence
             intervals ('bootstrap' or 'parametric'). Defaults to 'bootstrap'.
         bootstrap_type (str, optional): The bootstrap method to use. Can be
-            'pairs' (default), which resamples (x, y) pairs, or 'residuals',
-            which resamples the model residuals.
+            'pairs', 'residuals', or 'block'. 'block' is recommended for
+            data with suspected autocorrelation.
+        bootstrap_block_size (int, optional): The block size for the moving
+            block bootstrap. If None, a rule-of-thumb `n_points**(1/3)` is
+            used. Only applicable when `bootstrap_type` is 'block'.
         n_bootstraps (int, optional): Number of bootstrap samples for CI.
             Only used if `ci_method` is `'bootstrap'`. Defaults to 1000.
         ci (int, optional): The desired confidence interval in percent.
@@ -832,6 +905,7 @@ def fit_segmented_spectrum(
                 ci,
                 seed,
                 bootstrap_type=bootstrap_type,
+                bootstrap_block_size=bootstrap_block_size,
                 logger=logger,
             )
             results.update(ci_results)
