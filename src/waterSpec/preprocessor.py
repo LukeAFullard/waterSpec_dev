@@ -137,36 +137,19 @@ def normalize(data, errors=None):
 def log_transform(data, errors=None):
     """
     Applies a natural logarithm transformation to the data and propagates errors.
-    This function returns new arrays and does not modify inputs.
+    This function assumes that the input data has already been sanitized to
+    ensure all values are positive. It returns new arrays and does not
+    modify inputs.
     """
     transformed_data = np.copy(data)
     transformed_errors = np.copy(errors) if errors is not None else None
 
-    # First, find non-positive values and handle them.
-    # We consider all non-NaN values for this check.
-    initial_valid_mask = ~np.isnan(transformed_data)
-    non_positive_mask = (transformed_data <= 0) & initial_valid_mask
-
-    if np.any(non_positive_mask):
-        num_non_positive = np.sum(non_positive_mask)
-        warnings.warn(
-            f"Log-transform requires all data to be positive. Found {num_non_positive} "
-            f"non-positive value(s), which will be converted to NaN.",
-            UserWarning,
-        )
-        # Set non-positive values to NaN
-        transformed_data[non_positive_mask] = np.nan
-        if transformed_errors is not None:
-            transformed_errors[non_positive_mask] = np.nan
-
-    # Now, proceed with the original logic. All remaining values are positive.
     valid_indices = ~np.isnan(transformed_data)
     valid_data = transformed_data[valid_indices]
 
     if transformed_errors is not None:
         valid_errors = transformed_errors[valid_indices]
-        # Propagate errors before transforming data: new_err = old_err / value
-        # This is now safe because valid_data only contains positive numbers.
+        # Propagate errors: new_err = old_err / value
         transformed_errors[valid_indices] = valid_errors / valid_data
 
     transformed_data[valid_indices] = np.log(valid_data)
@@ -342,9 +325,12 @@ def detrend_loess(
             # Calculate the standard deviation of the trends as the uncertainty
             trend_uncertainty = np.std(bootstrap_trends, axis=0)
 
-            # Add in quadrature with original errors
-            new_err_sq = np.square(errors_valid) + np.square(trend_uncertainty)
-            propagated_errors[valid_indices] = np.sqrt(new_err_sq)
+            # Propagate errors: new_err^2 = original_err^2 + trend_err^2
+            # The uncertainty of the detrended signal is the quadrature sum of the
+            # original measurement error and the uncertainty in the trend model.
+            propagated_errors[valid_indices] = np.sqrt(
+                np.square(errors_valid) + np.square(trend_uncertainty)
+            )
         else:
             warnings.warn(
                 "Error propagation for LOESS detrending is not currently supported "
@@ -407,6 +393,22 @@ def preprocess_data(
 
     # 2. Log-transform
     if log_transform_data:
+        # Sanitize data for log-transform: convert non-positive values to NaN.
+        # This is done here to catch values that may have been introduced by
+        # censoring strategies (e.g., 'use_detection_limit' with a limit of 0).
+        non_positive_mask = (~np.isnan(processed_data)) & (processed_data <= 0)
+        if np.any(non_positive_mask):
+            num_non_positive = np.sum(non_positive_mask)
+            warnings.warn(
+                f"Log-transform requires all data to be positive. Found {num_non_positive} "
+                "non-positive value(s) (potentially from censoring), which will be "
+                "converted to NaN before transformation.",
+                UserWarning,
+            )
+            processed_data[non_positive_mask] = np.nan
+            if processed_errors is not None:
+                processed_errors[non_positive_mask] = np.nan
+
         processed_data, processed_errors = log_transform(
             processed_data, processed_errors
         )
