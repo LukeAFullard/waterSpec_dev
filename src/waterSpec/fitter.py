@@ -14,6 +14,15 @@ except ImportError:
         "spectrum fitting. Install it with 'pip install piecewise-regression' "
         "or include it in your environment."
     )
+try:
+    from statsmodels.stats.stattools import durbin_watson
+except ImportError:
+    durbin_watson = None
+    _STATSMODELS_MISSING_MSG = (
+        "The 'statsmodels' package is required for residual bootstrapping and "
+        "autocorrelation checks. Install it with 'pip install statsmodels' "
+        "or include it in your environment."
+    )
 
 
 def _calculate_bic(y: np.ndarray, y_pred: np.ndarray, n_params: int) -> float:
@@ -51,6 +60,7 @@ def fit_standard_model(
     power: np.ndarray,
     method: str = "theil-sen",
     ci_method: str = "bootstrap",
+    bootstrap_type: str = "pairs",
     n_bootstraps: int = 1000,
     ci: int = 95,
     seed: Optional[int] = None,
@@ -68,6 +78,9 @@ def fit_standard_model(
         power (np.ndarray): The power array.
         method (str, optional): The fitting method ('theil-sen' or 'ols').
         ci_method (str, optional): Method for CI calculation.
+        bootstrap_type (str, optional): The bootstrap method to use. Can be
+            'pairs' (default), which resamples (x, y) pairs, or 'residuals',
+            which resamples the model residuals.
         n_bootstraps (int, optional): Number of bootstrap samples.
         ci (int, optional): The desired confidence interval in percent.
         seed (int, optional): A seed for the random number generator.
@@ -87,6 +100,10 @@ def fit_standard_model(
         raise ValueError("'ci' must be between 0 and 100.")
     if method not in ["ols", "theil-sen"]:
         raise ValueError(f"Unknown fitting method: '{method}'. Choose 'ols' or 'theil-sen'.")
+    if bootstrap_type not in ["pairs", "residuals"]:
+        raise ValueError(
+            f"Unknown bootstrap_type: '{bootstrap_type}'. Choose 'pairs' or 'residuals'."
+        )
     valid_indices = (frequency > 0) & (power > 0)
     if np.sum(valid_indices) < 2:
         return {"beta": np.nan, "bic": np.nan, "beta_ci_lower": np.nan, "beta_ci_upper": np.nan}
@@ -147,6 +164,24 @@ def fit_standard_model(
     # 4. Calculate Confidence Intervals
     beta_ci_lower, beta_ci_upper = np.nan, np.nan
     if ci_method == "bootstrap":
+        # Check for autocorrelation in residuals if using residual bootstrap
+        if bootstrap_type == "residuals" and durbin_watson is None:
+            logger.error(_STATSMODELS_MISSING_MSG)
+            raise ImportError(_STATSMODELS_MISSING_MSG)
+
+        residuals = log_power - log_power_fit
+        if durbin_watson:
+            dw_stat = durbin_watson(residuals)
+            fit_results["durbin_watson_stat"] = dw_stat
+            # A DW statistic between 1.5 and 2.5 is generally considered normal.
+            # Values outside this range suggest autocorrelation.
+            if not 1.5 < dw_stat < 2.5:
+                logger.warning(
+                    f"Durbin-Watson statistic is {dw_stat:.2f}, indicating "
+                    "potential autocorrelation in the model residuals. "
+                    "The 'residuals' bootstrap method is recommended in this case."
+                )
+
         rng = np.random.default_rng(seed)
         beta_estimates = []
         n_points = len(log_freq)
@@ -154,10 +189,23 @@ def fit_standard_model(
 
         for _ in range(n_bootstraps):
             try:
-                indices = rng.choice(np.arange(n_points), size=n_points, replace=True)
-                resampled_log_freq = log_freq[indices]
-                resampled_log_power = log_power[indices]
+                if bootstrap_type == "pairs":
+                    indices = rng.choice(np.arange(n_points), size=n_points, replace=True)
+                    resampled_log_freq = log_freq[indices]
+                    resampled_log_power = log_power[indices]
+                elif bootstrap_type == "residuals":
+                    # Resample residuals
+                    resampled_residuals = rng.choice(
+                        residuals - np.mean(residuals), size=n_points, replace=True
+                    )
+                    # Create a new synthetic dataset
+                    resampled_log_power = log_power_fit + resampled_residuals
+                    resampled_log_freq = log_freq  # Keep original frequencies
+                else:
+                    # This case is handled by the initial validation, but included for safety
+                    continue
 
+                # Refit the model on the resampled data
                 if method == "ols":
                     resampled_slope = stats.linregress(
                         resampled_log_freq, resampled_log_power
@@ -197,10 +245,20 @@ def fit_standard_model(
                     f"succeeded (success rate < {MIN_BOOTSTRAP_SUCCESS_RATIO:.0%}). "
                     "The resulting confidence interval may be less reliable."
                 )
-            p_lower = (100 - ci) / 2
-            p_upper = 100 - p_lower
-            beta_ci_lower = np.percentile(beta_estimates, p_lower)
-            beta_ci_upper = np.percentile(beta_estimates, p_upper)
+            # Filter out non-finite values (NaN, inf) before calculating percentiles
+            finite_betas = [b for b in beta_estimates if np.isfinite(b)]
+            if len(finite_betas) < MIN_BOOTSTRAP_SAMPLES:
+                logger.warning(
+                    f"After filtering, only {len(finite_betas)} finite bootstrap "
+                    f"estimates remain (minimum required: {MIN_BOOTSTRAP_SAMPLES}). "
+                    "Confidence intervals are unreliable and will be set to NaN."
+                )
+                beta_ci_lower, beta_ci_upper = np.nan, np.nan
+            else:
+                p_lower = (100 - ci) / 2
+                p_upper = 100 - p_lower
+                beta_ci_lower = np.percentile(finite_betas, p_lower)
+                beta_ci_upper = np.percentile(finite_betas, p_upper)
 
     elif ci_method == "parametric":
         if method == "ols":
@@ -209,10 +267,13 @@ def fit_standard_model(
                 t_val = stats.t.ppf((1 + ci / 100) / 2, len(log_freq) - 2)
                 half_width = t_val * stderr
                 slope_ci_lower, slope_ci_upper = slope - half_width, slope + half_width
+                # Note: The CI for beta is inverted because beta = -slope.
+                # A lower bound on the slope corresponds to an upper bound on beta.
                 beta_ci_lower, beta_ci_upper = -slope_ci_upper, -slope_ci_lower
         elif method == "theil-sen":
             slope_ci_lower = fit_results.get("slope_ci_lower", np.nan)
             slope_ci_upper = fit_results.get("slope_ci_upper", np.nan)
+            # Note: The CI for beta is inverted because beta = -slope.
             beta_ci_lower, beta_ci_upper = -slope_ci_upper, -slope_ci_lower
     else:
         raise ValueError(f"Unknown ci_method: '{ci_method}'")
@@ -235,7 +296,16 @@ def fit_standard_model(
 MIN_POINTS_PER_SEGMENT = 10
 
 
-def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed, logger=None):
+def _bootstrap_segmented_fit(
+    pw_fit,
+    log_freq,
+    log_power,
+    n_bootstraps,
+    ci,
+    seed,
+    bootstrap_type="pairs",
+    logger=None,
+):
     """
     Performs robust bootstrap resampling for a fitted piecewise model.
     This also calculates the confidence interval of the fitted line itself.
@@ -250,6 +320,11 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
     bootstrap_fits = []  # Store each bootstrap fit line
     successful_fits = 0
     error_counts = {}
+
+    # For residual bootstrap, we need the initial fitted values and residuals
+    if bootstrap_type == "residuals":
+        initial_fitted_power = pw_fit.predict(log_freq)
+        initial_residuals = log_power - initial_fitted_power
 
     # Extract the starting breakpoints from the initial fit's results.
     # This was the source of a bug where bootstrap CIs would always fail.
@@ -269,15 +344,25 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
 
     for _ in range(n_bootstraps):
         try:
-            indices = rng.choice(np.arange(n_points), size=n_points, replace=True)
-            resampled_log_freq = log_freq[indices]
-            resampled_log_power = log_power[indices]
+            if bootstrap_type == "pairs":
+                indices = rng.choice(np.arange(n_points), size=n_points, replace=True)
+                resampled_log_freq = log_freq[indices]
+                resampled_log_power = log_power[indices]
 
-            # Sort the resampled data by frequency, as required by some
-            # regression algorithms to avoid errors.
-            sort_order = np.argsort(resampled_log_freq)
-            resampled_log_freq_sorted = resampled_log_freq[sort_order]
-            resampled_log_power_sorted = resampled_log_power[sort_order]
+                # Sort the resampled data by frequency
+                sort_order = np.argsort(resampled_log_freq)
+                resampled_log_freq_sorted = resampled_log_freq[sort_order]
+                resampled_log_power_sorted = resampled_log_power[sort_order]
+            elif bootstrap_type == "residuals":
+                resampled_residuals = rng.choice(
+                    initial_residuals - np.mean(initial_residuals),
+                    size=n_points,
+                    replace=True,
+                )
+                resampled_log_power_sorted = initial_fitted_power + resampled_residuals
+                resampled_log_freq_sorted = log_freq  # Keep original frequencies
+            else:
+                continue
 
             bootstrap_pw_fit = piecewise_regression.Fit(
                 resampled_log_freq_sorted,
@@ -356,18 +441,36 @@ def _bootstrap_segmented_fit(pw_fit, log_freq, log_power, n_bootstraps, ci, seed
 
     # Calculate CIs for the fitted line itself
     bootstrap_fits_arr = np.array(bootstrap_fits)
-    ci_results["fit_ci_lower"] = np.percentile(bootstrap_fits_arr, lower_p, axis=0)
-    ci_results["fit_ci_upper"] = np.percentile(bootstrap_fits_arr, upper_p, axis=0)
+    # Filter out any columns (frequencies) that contain non-finite values
+    # before calculating percentiles for the fit CI.
+    finite_fit_cols = np.all(np.isfinite(bootstrap_fits_arr), axis=0)
+    if np.any(finite_fit_cols):
+        ci_results["fit_ci_lower"] = np.percentile(
+            bootstrap_fits_arr[:, finite_fit_cols], lower_p, axis=0
+        )
+        ci_results["fit_ci_upper"] = np.percentile(
+            bootstrap_fits_arr[:, finite_fit_cols], upper_p, axis=0
+        )
 
     for i in range(n_breakpoints + 1):
-        lower = np.percentile(bootstrap_betas[i], lower_p)
-        upper = np.percentile(bootstrap_betas[i], upper_p)
-        ci_results["betas_ci"].append((lower, upper))
+        # Filter out non-finite beta estimates before calculating CIs
+        finite_betas = [b for b in bootstrap_betas[i] if np.isfinite(b)]
+        if len(finite_betas) >= MIN_BOOTSTRAP_SAMPLES:
+            lower = np.percentile(finite_betas, lower_p)
+            upper = np.percentile(finite_betas, upper_p)
+            ci_results["betas_ci"].append((lower, upper))
+        else:
+            ci_results["betas_ci"].append((np.nan, np.nan))
 
     for i in range(n_breakpoints):
-        lower = np.percentile(bootstrap_breakpoints[i], lower_p)
-        upper = np.percentile(bootstrap_breakpoints[i], upper_p)
-        ci_results["breakpoints_ci"].append((lower, upper))
+        # Filter out non-finite breakpoint estimates
+        finite_bps = [bp for bp in bootstrap_breakpoints[i] if np.isfinite(bp)]
+        if len(finite_bps) >= MIN_BOOTSTRAP_SAMPLES:
+            lower = np.percentile(finite_bps, lower_p)
+            upper = np.percentile(finite_bps, upper_p)
+            ci_results["breakpoints_ci"].append((lower, upper))
+        else:
+            ci_results["breakpoints_ci"].append((np.nan, np.nan))
 
     return ci_results
 
@@ -404,7 +507,8 @@ def _extract_parametric_segmented_cis(pw_fit, n_breakpoints, ci=95, logger=None)
         alpha_ci = alpha_info.get("confidence_interval")
 
         if alpha_ci and all(c is not None for c in alpha_ci):
-            # Beta is the negative of the slope, so the CI is inverted.
+            # The CI for beta is inverted because beta = -slope. A lower bound
+            # on the slope corresponds to an upper bound on beta.
             betas_ci.append((-alpha_ci[1], -alpha_ci[0]))
         else:
             betas_ci.append((np.nan, np.nan))
@@ -428,6 +532,7 @@ def fit_segmented_spectrum(
     n_breakpoints: int = 1,
     p_threshold: float = 0.05,
     ci_method: str = "bootstrap",
+    bootstrap_type: str = "pairs",
     n_bootstraps: int = 1000,
     ci: int = 95,
     seed: Optional[int] = None,
@@ -446,6 +551,9 @@ def fit_segmented_spectrum(
             Defaults to 0.05.
         ci_method (str, optional): The method for calculating confidence
             intervals ('bootstrap' or 'parametric'). Defaults to 'bootstrap'.
+        bootstrap_type (str, optional): The bootstrap method to use. Can be
+            'pairs' (default), which resamples (x, y) pairs, or 'residuals',
+            which resamples the model residuals.
         n_bootstraps (int, optional): Number of bootstrap samples for CI.
             Only used if `ci_method` is `'bootstrap'`. Defaults to 1000.
         ci (int, optional): The desired confidence interval in percent.
@@ -627,9 +735,30 @@ def fit_segmented_spectrum(
 
     # --- Calculate Confidence Intervals based on the chosen method ---
     if ci_method == "bootstrap":
+        if bootstrap_type == "residuals" and durbin_watson is None:
+            logger.error(_STATSMODELS_MISSING_MSG)
+            raise ImportError(_STATSMODELS_MISSING_MSG)
+
+        if durbin_watson:
+            dw_stat = durbin_watson(results["residuals"])
+            results["durbin_watson_stat"] = dw_stat
+            if not 1.5 < dw_stat < 2.5:
+                logger.warning(
+                    f"Durbin-Watson statistic is {dw_stat:.2f}, indicating "
+                    "potential autocorrelation in the model residuals. "
+                    "The 'residuals' bootstrap method is recommended."
+                )
+
         if n_bootstraps > 0:
             ci_results = _bootstrap_segmented_fit(
-                pw_fit, log_freq, log_power, n_bootstraps, ci, seed, logger=logger
+                pw_fit,
+                log_freq,
+                log_power,
+                n_bootstraps,
+                ci,
+                seed,
+                bootstrap_type=bootstrap_type,
+                logger=logger,
             )
             results.update(ci_results)
         else:

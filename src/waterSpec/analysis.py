@@ -159,7 +159,14 @@ class Analysis:
         self.logger.info("Periodogram calculation complete.")
 
     def _perform_model_selection(
-        self, fit_method, ci_method, n_bootstraps, p_threshold, max_breakpoints, seed
+        self,
+        fit_method,
+        ci_method,
+        bootstrap_type,
+        n_bootstraps,
+        p_threshold,
+        max_breakpoints,
+        seed,
     ):
         """
         Performs fits for models with different numbers of breakpoints and
@@ -177,6 +184,7 @@ class Analysis:
                 self.power,
                 method=fit_method,
                 ci_method=ci_method,
+                bootstrap_type=bootstrap_type,
                 n_bootstraps=n_bootstraps,
                 seed=seed,
                 logger=self.logger,
@@ -208,6 +216,7 @@ class Analysis:
                     n_breakpoints=n_breakpoints,
                     p_threshold=p_threshold,
                     ci_method=ci_method,
+                    bootstrap_type=bootstrap_type,
                     n_bootstraps=n_bootstraps,
                     seed=seed,
                     logger=self.logger,
@@ -339,6 +348,7 @@ class Analysis:
         self,
         fit_method,
         ci_method,
+        bootstrap_type,
         n_bootstraps,
         fap_threshold,
         grid_type,
@@ -355,6 +365,8 @@ class Analysis:
             raise ValueError("`fit_method` must be 'theil-sen' or 'ols'.")
         if ci_method not in ["bootstrap", "parametric"]:
             raise ValueError("`ci_method` must be 'bootstrap' or 'parametric'.")
+        if bootstrap_type not in ["pairs", "residuals"]:
+            raise ValueError("`bootstrap_type` must be 'pairs' or 'residuals'.")
         if not isinstance(n_bootstraps, int) or n_bootstraps < 0:
             raise ValueError("`n_bootstraps` must be a non-negative integer.")
         if not (isinstance(fap_threshold, float) and 0 < fap_threshold < 1):
@@ -385,6 +397,7 @@ class Analysis:
         output_dir,
         fit_method="theil-sen",
         ci_method="bootstrap",
+        bootstrap_type="pairs",
         n_bootstraps=1000,
         fap_threshold=0.01,
         grid_type="log",
@@ -412,6 +425,11 @@ class Analysis:
                 intervals. Can be 'bootstrap' (default) for a robust,
                 non-parametric method, or 'parametric' for a faster method
                 based on statistical theory.
+            bootstrap_type (str, optional): The bootstrap method to use if
+                `ci_method` is 'bootstrap'. Can be 'pairs' (default), which
+                resamples (x,y) pairs, or 'residuals', which resamples model
+                residuals. The 'residuals' method is recommended if
+                autocorrelation is present.
             n_bootstraps (int, optional): Number of bootstrap samples for CI.
                 Only used if `ci_method` is 'bootstrap'. Defaults to 1000.
             grid_type (str, optional): Type of frequency grid ('log' or 'linear').
@@ -455,6 +473,7 @@ class Analysis:
         self._validate_run_parameters(
             fit_method,
             ci_method,
+            bootstrap_type,
             n_bootstraps,
             fap_threshold,
             grid_type,
@@ -473,7 +492,13 @@ class Analysis:
         # 3. Fit Spectrum and Select Best Model
         try:
             fit_results = self._perform_model_selection(
-                fit_method, ci_method, n_bootstraps, p_threshold, max_breakpoints, seed
+                fit_method,
+                ci_method,
+                bootstrap_type,
+                n_bootstraps,
+                p_threshold,
+                max_breakpoints,
+                seed,
             )
         except RuntimeError as e:
             self.logger.error(f"Analysis failed during model fitting: {e}")

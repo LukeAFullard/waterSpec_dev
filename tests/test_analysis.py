@@ -381,6 +381,7 @@ def test_analysis_max_breakpoints_selects_best_model(
         ANY,  # power
         method="theil-sen",
         ci_method="bootstrap",
+        bootstrap_type="pairs",
         n_bootstraps=0,
         seed=None,
         logger=ANY,
@@ -391,6 +392,7 @@ def test_analysis_max_breakpoints_selects_best_model(
         n_breakpoints=1,
         p_threshold=0.05,
         ci_method="bootstrap",
+        bootstrap_type="pairs",
         n_bootstraps=0,
         seed=None,
         logger=ANY,
