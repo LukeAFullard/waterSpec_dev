@@ -37,7 +37,7 @@ class Analysis:
         censor_strategy="drop",
         censor_options=None,
         log_transform_data=False,
-        detrend_method="linear",
+        detrend_method=None,
         normalize_data=False,
         detrend_options=None,
         min_valid_data_points=10,
@@ -65,7 +65,11 @@ class Analysis:
             censor_options (dict, optional): Options for the censoring strategy.
             log_transform_data (bool, optional): If True, log-transform the data.
             detrend_method (str, optional): Method to detrend the time series
-                ('linear', 'loess', or None). Defaults to 'linear'.
+                ('linear', 'loess', or None). Defaults to None.
+                **Warning:** Detrending can significantly affect the estimated
+                spectral slope (beta), often removing low-frequency power and
+                steepening the spectrum. It is recommended to use `None` unless
+                there is a strong, known trend in the data that must be removed.
             normalize_data (bool, optional): If True, normalize the data.
             detrend_options (dict, optional): Options for the detrending method.
             min_valid_data_points (int, optional): The minimum number of valid

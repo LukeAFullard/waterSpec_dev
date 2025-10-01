@@ -13,20 +13,19 @@ def generate_frequency_grid(time_numeric, num_points=200, grid_type="log"):
     A log-spaced grid is often a good choice for spectral slope analysis, while
     a linear grid is better for resolving specific peaks in a periodogram.
 
-    Important: The units of the frequency grid are determined by the units of
-    the input `time_numeric` array. If the time is in days, the resulting
-    frequency will be in cycles per day (1/day).
+    Note: The input `time_numeric` array is expected to be in seconds, as
+    produced by the `data_loader`. Therefore, the resulting frequency grid will
+    be in units of Hertz (Hz), or cycles per second.
 
     Args:
-        time_numeric (np.ndarray): The numeric time array. Its units dictate
-            the units of the output frequency grid.
+        time_numeric (np.ndarray): The numeric time array, in seconds.
         num_points (int, optional): The number of frequency points to generate.
                                     Defaults to 200.
         grid_type (str, optional): The type of grid to generate ('log' or 'linear').
                                    Defaults to 'log'.
 
     Returns:
-        np.ndarray: The frequency grid, in units of 1/[time_units].
+        np.ndarray: The frequency grid, in units of Hz.
     """
     if time_numeric.size < 2:
         raise ValueError(
