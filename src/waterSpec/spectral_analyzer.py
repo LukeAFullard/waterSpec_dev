@@ -145,12 +145,13 @@ from typing import Dict, List, Tuple
 def find_peaks_via_residuals(fit_results: Dict, fdr_level: float = 0.05) -> Tuple[List[Dict], float]:
     """
     Finds significant peaks by identifying outliers in the residuals of the
-    spectral fit using the Benjamini-Hochberg False Discovery Rate (FDR)
+    spectral fit using the Benjamini-Yekutieli False Discovery Rate (FDR)
     procedure.
 
-    This method is more powerful than Bonferroni correction for multiple
-    comparisons, providing better sensitivity to detect true peaks while
-    controlling the false discovery rate.
+    This method is more robust than the standard Benjamini-Hochberg procedure
+    as it accounts for potential positive correlations between tests (i.e.,
+    between adjacent frequencies in the periodogram), providing better control
+    over the false discovery rate.
 
     Args:
         fit_results (dict): The dictionary returned by the fitting functions.
@@ -192,8 +193,8 @@ def find_peaks_via_residuals(fit_results: Dict, fdr_level: float = 0.05) -> Tupl
     z_scores = (residuals - residual_median) / residual_mad_std
     p_values = 1 - stats.norm.cdf(z_scores)
 
-    # Apply Benjamini-Hochberg FDR correction
-    is_significant, _ = fdrcorrection(p_values, alpha=fdr_level, method="indep")
+    # Apply Benjamini-Yekutieli FDR correction for correlated tests
+    is_significant, _ = fdrcorrection(p_values, alpha=fdr_level, method="negcorr")
 
     if not np.any(is_significant):
         return [], np.inf
