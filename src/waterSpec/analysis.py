@@ -39,6 +39,7 @@ class Analysis:
         data_col,
         error_col=None,
         time_format=None,
+        input_time_unit=None,
         sheet_name=0,
         time_unit="seconds",
         param_name=None,
@@ -65,15 +66,18 @@ class Analysis:
                 errors. If provided, these will be used for weighted periodogram
                 calculation. Defaults to None.
             time_format (str, optional): The specific `strptime` format of the
-                time column to speed up parsing. If None, it is inferred.
+                time column to speed up parsing. If None, it is inferred. Not
+                used if `input_time_unit` is provided.
+            input_time_unit (str, optional): The unit of a numeric time column.
+                Use this if your time column consists of numbers (e.g., days,
+                seconds) instead of datetime strings. Can be 'seconds', 'days',
+                or 'hours'. Defaults to None.
             sheet_name (str or int, optional): If loading an Excel file, specify
                 the sheet name or index. Defaults to 0.
-            time_unit (str, optional): The unit of time for the analysis. This
-                parameter is critical as it defines both the interpretation of the
-                input time data and the units of the output frequency grid. For
-                example, if `time_unit` is 'days', the input time values are
-                assumed to be in days, and the resulting frequencies will be in
-                '1/days'. Can be 'seconds', 'days', or 'hours'. Defaults to 'seconds'.
+            time_unit (str, optional): The desired output unit for time and
+                frequency. The time values will be converted to this unit, and
+                the frequency grid will be in 1/`time_unit`. Can be 'seconds',
+                'days', or 'hours'. Defaults to 'seconds'.
             param_name (str, optional): A descriptive name for the data parameter
                 being analyzed (e.g., "Nitrate Concentration"). Used for plot
                 titles and summaries. If None, defaults to `data_col`.
@@ -122,6 +126,7 @@ class Analysis:
             data_col,
             error_col=error_col,
             time_format=time_format,
+            input_time_unit=input_time_unit,
             sheet_name=sheet_name,
             output_time_unit=self.time_unit,
         )
