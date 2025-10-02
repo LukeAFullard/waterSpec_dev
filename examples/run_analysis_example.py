@@ -1,81 +1,65 @@
 """
 This script demonstrates how to use the waterSpec Analysis class to perform
-spectral analysis on a time series. It shows both a default analysis and an
-advanced analysis that considers up to 2 breakpoints, while also demonstrating
-best practices like verbose logging and checking for uncertainty warnings.
+a changepoint analysis on a time series.
 """
 
 import os
-from waterSpec import Analysis
+import sys
+
+# Add the project root to the Python path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
+from src.waterSpec import Analysis
 
 
 def main():
     """
-    Runs two types of analysis on sample data to demonstrate key features.
+    Runs a changepoint analysis on sample data.
     """
     # Use the sample data included in the repository that is known to have
     # segmented characteristics.
     file_path = 'examples/segmented_data.csv'
     param_name = "Synthetic Segmented Signal"
-    output_dir = "example_outputs"
+    output_dir = "example_output/changepoint_analysis"
+    os.makedirs(output_dir, exist_ok=True)
 
-    print(f"--- Initializing Analysis for: {param_name} ---")
+
+    print(f"--- Initializing Changepoint Analysis for: {param_name} ---")
     try:
-        # Initialize the analyzer with verbose=True to get detailed logs
+        # Initialize the analyzer with changepoint_mode='auto' to trigger
+        # an analysis that splits the data into two segments.
         analyzer = Analysis(
             file_path=file_path,
             time_col='timestamp',
             data_col='value',
             param_name=param_name,
             verbose=True,
+            changepoint_mode='auto',
         )
     except (FileNotFoundError, ValueError) as e:
         print(f"\nERROR: Failed to initialize analyzer. Details: {e}")
         return
 
-    # --- 1. Default Analysis (max_breakpoints=1) ---
-    print("\n--- Running Default Analysis (comparing 0 and 1 breakpoint models) ---")
-    default_output_path = os.path.join(output_dir, "default_analysis")
+    print("\n--- Running Changepoint Analysis ---")
     try:
-        results_default = analyzer.run_full_analysis(
-            output_dir=default_output_path, seed=42
-        )
-        print("\n--- Default Analysis Summary ---")
-        print(results_default['summary_text'])
-        # Check for uncertainty warnings
-        if results_default['uncertainty_warnings']:
-            print("\n--- Uncertainty Warnings Detected ---")
-            for warning in results_default['uncertainty_warnings']:
-                print(f"- {warning}")
-    except Exception as e:
-        print(f"Default analysis failed with an unexpected error: {e}")
-
-    # --- 2. Two-Breakpoint Analysis (max_breakpoints=2) ---
-    print(
-        "\n--- Running Two-Breakpoint Analysis (comparing 0, 1, and 2 "
-        "breakpoint models) ---"
-    )
-    twobp_output_path = os.path.join(output_dir, "2bp_analysis")
-    try:
-        # Reuse the same analyzer object for a different analysis
-        results_2bp = analyzer.run_full_analysis(
-            output_dir=twobp_output_path,
-            max_breakpoints=2,
+        results = analyzer.run_full_analysis(
+            output_dir=output_dir,
             seed=42,
+            n_bootstraps=10,  # Reduced for a quick example run
+            changepoint_plot_style='separate'
         )
-        print("\n--- Two-Breakpoint Analysis Summary ---")
-        print(results_2bp['summary_text'])
-        # Check for uncertainty warnings
-        if results_2bp['uncertainty_warnings']:
-            print("\n--- Uncertainty Warnings Detected ---")
-            for warning in results_2bp['uncertainty_warnings']:
-                print(f"- {warning}")
+        print("\n--- Changepoint Analysis Summary ---")
+        print(results['summary_text'])
+
     except Exception as e:
-        print(f"Two-breakpoint analysis failed with an unexpected error: {e}")
+        import traceback
+        print(f"Changepoint analysis failed with an unexpected error: {e}")
+        traceback.print_exc()
+
 
     print(
-        f"\nAnalysis complete. Check the '{default_output_path}' and "
-        f"'{twobp_output_path}' directories for plots and summaries."
+        f"\nAnalysis complete. Check the '{output_dir}' directory for plots and summaries."
     )
 
 

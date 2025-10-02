@@ -569,13 +569,13 @@ class Analysis:
 
         # Fit models
         fit_results = self._perform_model_selection(
-            analysis_kwargs.get("fit_method", "theil-sen"),
-            analysis_kwargs.get("ci_method", "bootstrap"),
-            analysis_kwargs.get("bootstrap_type", "block"),
-            analysis_kwargs.get("n_bootstraps", 1000),
-            analysis_kwargs.get("p_threshold", 0.05),
-            analysis_kwargs.get("max_breakpoints", 1),
-            analysis_kwargs.get("seed"),
+            fit_method=analysis_kwargs.get("fit_method", "theil-sen"),
+            ci_method=analysis_kwargs.get("ci_method", "bootstrap"),
+            bootstrap_type=analysis_kwargs.get("bootstrap_type", "block"),
+            n_bootstraps=analysis_kwargs.get("n_bootstraps", 1000),
+            p_threshold=analysis_kwargs.get("p_threshold", 0.05),
+            max_breakpoints=analysis_kwargs.get("max_breakpoints", 1),
+            seed=analysis_kwargs.get("seed"),
         )
 
         # Detect peaks
