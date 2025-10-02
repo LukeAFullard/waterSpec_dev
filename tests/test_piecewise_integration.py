@@ -14,7 +14,7 @@ def test_fit_segmented_spectrum_against_known_data():
     """
     # 1. Generate synthetic data with known parameters
     # This code is adapted from the official piecewise-regression documentation
-    np.random.seed(0)
+    rng = np.random.default_rng(0)
     alpha_1 = -4
     alpha_2 = -2
     constant = 100
@@ -25,7 +25,7 @@ def test_fit_segmented_spectrum_against_known_data():
         constant
         + alpha_1 * xx
         + (alpha_2 - alpha_1) * np.maximum(xx - breakpoint_1, 0)
-        + np.random.normal(size=n_points)
+        + rng.normal(size=n_points)
     )
 
     # In our library, frequency is x and power is y. The fitting is done on

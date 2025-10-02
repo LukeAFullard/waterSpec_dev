@@ -143,8 +143,8 @@ def fit_standard_model(
             "failure_reason": failure_reason,
         }
 
-    log_freq = np.log10(frequency[valid_indices])
-    log_power = np.log10(power[valid_indices])
+    log_freq = np.log(frequency[valid_indices])
+    log_power = np.log(power[valid_indices])
     n_points = len(log_power)
 
     if n_points < 30 and "bootstrap" in ci_method:
@@ -489,7 +489,7 @@ def _bootstrap_segmented_fit(
                 bp_info = estimates.get(f"breakpoint{i+1}", {})
                 bp_val = bp_info.get("estimate")
                 if bp_val is not None:
-                    bootstrap_breakpoints[i].append(10**bp_val)
+                    bootstrap_breakpoints[i].append(np.exp(bp_val))
                 else:
                     bootstrap_breakpoints[i].append(np.nan)
 
@@ -672,7 +672,7 @@ def _extract_parametric_segmented_cis(pw_fit, n_breakpoints, ci=95, logger=None)
         bp_ci_log = bp_info.get("confidence_interval")
         if bp_ci_log and all(c is not None for c in bp_ci_log):
             # Convert from log space back to frequency space
-            breakpoints_ci.append((10**bp_ci_log[0], 10**bp_ci_log[1]))
+            breakpoints_ci.append((np.exp(bp_ci_log[0]), np.exp(bp_ci_log[1])))
         else:
             breakpoints_ci.append((np.nan, np.nan))
 
@@ -784,8 +784,8 @@ def fit_segmented_spectrum(
             "aic": np.inf,
         }
 
-    log_freq = np.log10(frequency[valid_indices])
-    log_power = np.log10(power[valid_indices])
+    log_freq = np.log(frequency[valid_indices])
+    log_power = np.log(power[valid_indices])
     n_points = len(log_power)
 
     if n_points < 30 and "bootstrap" in ci_method:
@@ -871,7 +871,7 @@ def fit_segmented_spectrum(
         bp_info = estimates.get(f"breakpoint{i}", {})
         bp_log_freq = bp_info.get("estimate")
         if bp_log_freq is not None:
-            breakpoints.append(10**bp_log_freq)
+            breakpoints.append(np.exp(bp_log_freq))
             log_breakpoints.append(bp_log_freq)
         else:
             breakpoints.append(np.nan)

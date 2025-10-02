@@ -393,10 +393,10 @@ def test_detrend_wls_correctness():
     errors, producing a different (and more accurate) result than OLS.
     """
     # 1. Create synthetic data where OLS and WLS give different results
-    np.random.seed(0)
+    rng = np.random.default_rng(0)
     time = np.arange(20)
     true_trend = 0.5 * time
-    noise = np.random.normal(0, 0.5, size=time.shape)
+    noise = rng.normal(0, 0.5, size=time.shape)
     data = true_trend + noise
 
     # 2. Create non-uniform errors. Make the first half of the points

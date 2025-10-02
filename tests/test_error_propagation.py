@@ -12,8 +12,8 @@ def test_error_propagation_with_detrend_and_normalize():
     # 1. Create Sample Data
     time = np.arange(100, dtype=float)
     trend = 2 * time + 50
-    np.random.seed(0)
-    noise = np.random.randn(100) * 5
+    rng = np.random.default_rng(0)
+    noise = rng.standard_normal(100) * 5
     data_with_noise = trend + noise
     errors = np.full_like(data_with_noise, 10.0, dtype=float)
 
