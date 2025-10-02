@@ -258,3 +258,31 @@ def test_load_data_ambiguous_columns(tmp_path):
         ValueError, match="Duplicate column names found \\(case-insensitive\\)"
     ):
         load_data(file_path, time_col="timestamp", data_col="Value")
+
+
+def test_load_data_time_unit_conversion(tmp_path):
+    """Test time unit conversion for the output time array."""
+    file_path = tmp_path / "time_conversion.csv"
+    file_path.write_text("timestamp,value\n2023-01-01T00:00:00Z,1\n2023-01-02T00:00:00Z,2")
+
+    # Default is seconds
+    time_sec, _, _ = load_data(file_path, time_col="timestamp", data_col="value")
+    assert np.isclose(time_sec[1], 86400.0)
+
+    # Test conversion to days
+    time_days, _, _ = load_data(
+        file_path, time_col="timestamp", data_col="value", output_time_unit="days"
+    )
+    assert np.isclose(time_days[1], 1.0)
+
+    # Test conversion to hours
+    time_hours, _, _ = load_data(
+        file_path, time_col="timestamp", data_col="value", output_time_unit="hours"
+    )
+    assert np.isclose(time_hours[1], 24.0)
+
+    # Test invalid unit
+    with pytest.raises(ValueError, match="Invalid output_time_unit"):
+        load_data(
+            file_path, time_col="timestamp", data_col="value", output_time_unit="weeks"
+        )
