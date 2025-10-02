@@ -211,7 +211,10 @@ def handle_censored_data(
     # --- Regex for censored values with numbers (e.g., '<5', '>10.2') ---
     l_sym = re.escape(left_censor_symbol)
     r_sym = re.escape(right_censor_symbol)
-    pattern = re.compile(f"^({l_sym}|{r_sym})\\s*([0-9.eE+-]+)$", re.IGNORECASE)
+    pattern = re.compile(
+    f"^({l_sym}|{r_sym})\\s*([0-9.,]+(?:[eE][+-]?[0-9]+)?)\\s*.*$",
+    re.IGNORECASE
+    )
 
     # Iterate over the series to find and replace censored values
     for idx, value in str_series.items():
