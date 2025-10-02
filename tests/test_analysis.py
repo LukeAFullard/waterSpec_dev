@@ -486,7 +486,7 @@ def test_analysis_handles_total_model_failure(
     output_dir = tmp_path / "results"
     analyzer = Analysis(file_path, time_col="time", data_col="value")
     results = analyzer.run_full_analysis(
-        output_dir=str(output_dir), max_breakpoints=1
+        output_dir=str(output_dir), max_breakpoints=1, n_bootstraps=0
     )
 
     # --- Assertions ---

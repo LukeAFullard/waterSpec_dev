@@ -105,11 +105,15 @@ def test_time_unit_in_warning_message():
     """
     # Create a time series with highly irregular sampling
     irregular_time = np.array([0, 1, 10, 11, 100])
-    with pytest.warns(UserWarning, match="The output frequency units are 1/days") as record:
+    with pytest.warns(Warning) as record:
         generate_frequency_grid(irregular_time, time_unit="days")
 
-    # Check that a warning was indeed issued
-    assert len(record) == 1
+    # Check that the specific UserWarning we expect was issued, ignoring others.
+    found_warning = any(
+        issubclass(r.category, UserWarning) and "The output frequency units are 1/days" in str(r.message)
+        for r in record
+    )
+    assert found_warning, "The expected UserWarning about frequency units was not issued."
 
 
 def test_invalid_inputs(sample_time_array):

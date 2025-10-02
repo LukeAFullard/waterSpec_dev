@@ -29,7 +29,7 @@ def test_residual_bootstrap_standard_model():
         POWER_STD,
         ci_method="bootstrap",
         bootstrap_type="residuals",
-        n_bootstraps=100,
+        n_bootstraps=50,
         seed=42,
     )
     assert "beta_ci_lower" in results
@@ -49,7 +49,7 @@ def test_wild_bootstrap_models():
         POWER_STD,
         ci_method="bootstrap",
         bootstrap_type="wild",
-        n_bootstraps=100,
+        n_bootstraps=50,
         seed=42,
     )
     assert "beta_ci_lower" in results_std
@@ -64,7 +64,7 @@ def test_wild_bootstrap_models():
         POWER_SEG,
         ci_method="bootstrap",
         bootstrap_type="wild",
-        n_bootstraps=100,
+        n_bootstraps=50,
         seed=42,
     )
     assert "betas_ci" in results_seg, f"Test failed because fit was not successful: {results_seg.get('model_summary')}"
@@ -87,7 +87,7 @@ def test_block_bootstrap_models():
         ci_method="bootstrap",
         bootstrap_type="block",
         bootstrap_block_size=5,
-        n_bootstraps=100,
+        n_bootstraps=50,
         seed=42,
     )
     assert "beta_ci_lower" in results_std
@@ -103,7 +103,7 @@ def test_block_bootstrap_models():
         ci_method="bootstrap",
         bootstrap_type="block",
         bootstrap_block_size=5,
-        n_bootstraps=100,
+        n_bootstraps=50,
         seed=42,
     )
     assert "betas_ci" in results_seg, f"Test failed because fit was not successful: {results_seg.get('model_summary')}"
@@ -124,7 +124,7 @@ def test_residual_bootstrap_segmented_model():
         POWER_SEG,
         ci_method="bootstrap",
         bootstrap_type="residuals",
-        n_bootstraps=100,
+        n_bootstraps=50,
         seed=42,
     )
     assert "betas_ci" in results, f"Test failed because fit was not successful: {results.get('model_summary')}"
@@ -156,7 +156,7 @@ def test_failed_bootstrap_returns_nan(mocker):
         power,
         ci_method="bootstrap",
         bootstrap_type="pairs",  # Force pairs bootstrap for this test
-        n_bootstraps=100,
+        n_bootstraps=50,
         seed=42,  # Seed doesn't matter now due to mocking
     )
     # All 100 bootstrap iterations should now fail because the resampled

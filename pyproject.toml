@@ -22,6 +22,7 @@ dependencies = [
     "openpyxl>=3.1.5",
     "piecewise-regression>=1.5.0",
     "statsmodels>=0.14.5",
+    "ruptures>=1.1.9",
 ]
 
 [project.optional-dependencies]

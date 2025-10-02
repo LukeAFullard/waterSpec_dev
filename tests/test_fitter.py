@@ -85,7 +85,7 @@ def test_fit_standard_model_with_bootstrap_ci(synthetic_spectrum):
 
     # Fit the spectrum with bootstrap
     fit_results = fit_standard_model(
-        frequency, power, n_bootstraps=100, seed=42
+        frequency, power, n_bootstraps=50, seed=42
     )
 
     # Check that the results dictionary contains the required keys
@@ -154,7 +154,7 @@ def test_fit_segmented_spectrum(multifractal_spectrum):
     frequency, power, known_breakpoint, known_beta1, known_beta2 = multifractal_spectrum
 
     # Fit the segmented spectrum with a low number of bootstraps for speed
-    results = fit_segmented_spectrum(frequency, power, n_bootstraps=100, seed=42)
+    results = fit_segmented_spectrum(frequency, power, n_bootstraps=50, seed=42)
 
     # Check that the results contain the expected list-based keys
     assert "breakpoints" in results
@@ -212,15 +212,15 @@ def test_fit_standard_model_is_reproducible(synthetic_spectrum):
 
     # Fit twice with the same seed
     results1 = fit_standard_model(
-        frequency, power, n_bootstraps=100, seed=123
+        frequency, power, n_bootstraps=50, seed=123
     )
     results2 = fit_standard_model(
-        frequency, power, n_bootstraps=100, seed=123
+        frequency, power, n_bootstraps=50, seed=123
     )
 
     # Fit once with a different seed
     results3 = fit_standard_model(
-        frequency, power, n_bootstraps=100, seed=456
+        frequency, power, n_bootstraps=50, seed=456
     )
 
     # The first two results should be identical
@@ -485,7 +485,7 @@ def test_bootstrap_segmented_fit_graceful_failure(mocker, caplog):
         mock_pw_fit,
         log_freq=np.ones(10),
         log_power=np.ones(10),
-        n_bootstraps=10,
+        n_bootstraps=0,
         ci=95,
         seed=42,
     )

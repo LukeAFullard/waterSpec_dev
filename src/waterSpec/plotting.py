@@ -1,3 +1,7 @@
+import os
+import re
+from typing import Dict
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -15,30 +19,12 @@ def _is_fit_successful(fit_results):
     return is_standard_success or is_segmented_success
 
 
-def plot_spectrum(
-    frequency,
-    power,
-    fit_results,
-    output_path=None,
-    param_name="Parameter",
-):
+def _plot_single_spectrum(ax, frequency, power, fit_results, title=""):
     """
-    Generates and saves a plot of the power spectrum and its fit.
-    The plot type is determined from the `fit_results` dictionary.
-
-    Args:
-        frequency (np.ndarray): The frequency array.
-        power (np.ndarray): The power array.
-        fit_results (dict): The dictionary of results from the workflow.
-        output_path (str, optional): The path to save the plot image. If None,
-            the plot is displayed. Defaults to None.
-        param_name (str, optional): The name of the parameter being plotted.
-            Defaults to "Parameter".
+    Plots a single power spectrum and its fit on a given matplotlib Axes object.
     """
-    plt.figure(figsize=(10, 6))
-
     # Plot the raw power spectrum
-    plt.loglog(frequency, power, "o", markersize=5, alpha=0.6, label="Raw Periodogram")
+    ax.loglog(frequency, power, "o", markersize=5, alpha=0.6, label="Raw Periodogram")
 
     if _is_fit_successful(fit_results):
         analysis_type = fit_results.get("chosen_model_type")
@@ -52,19 +38,19 @@ def plot_spectrum(
 
             # Plot the main fit line
             fit_line = np.exp(intercept - beta * log_freq)
-            plt.loglog(
+            ax.loglog(
                 np.exp(log_freq),
                 fit_line,
                 "r-",
                 linewidth=2,
-                label=f"Standard Fit (β ≈ {beta:.2f})",
+                label=f"Fit (β ≈ {beta:.2f})",
             )
 
             # Plot the confidence interval if available
             if beta_ci_lower is not None and beta_ci_upper is not None:
                 lower_bound = np.exp(intercept - beta_ci_upper * log_freq)
                 upper_bound = np.exp(intercept - beta_ci_lower * log_freq)
-                plt.fill_between(
+                ax.fill_between(
                     np.exp(log_freq),
                     lower_bound,
                     upper_bound,
@@ -83,7 +69,7 @@ def plot_spectrum(
             fit_ci_lower = fit_results.get("fit_ci_lower")
             fit_ci_upper = fit_results.get("fit_ci_upper")
             if fit_ci_lower is not None and fit_ci_upper is not None:
-                plt.fill_between(
+                ax.fill_between(
                     np.exp(log_freq),
                     np.exp(fit_ci_lower),
                     np.exp(fit_ci_upper),
@@ -91,65 +77,19 @@ def plot_spectrum(
                     alpha=0.3,
                     label="95% CI on Fit",
                 )
-
-            # If CIs for slopes are available (from parametric method), plot them
-            elif "betas_ci" in fit_results and fit_results["betas_ci"]:
-                for i in range(n_breakpoints + 1):
-                    # Defensive check to prevent IndexError if CIs are incomplete
-                    if i < len(fit_results["betas_ci"]) and fit_results["betas_ci"][
-                        i
-                    ] is not None and all(np.isfinite(fit_results["betas_ci"][i])):
-                        beta_ci_lower, beta_ci_upper = fit_results["betas_ci"][i]
-                        intercept = fit_results["intercepts"][i]
-
-                        # Define the mask for this segment
-                        if n_breakpoints == 0:  # Should not happen in this branch, but for safety
-                            mask = np.ones_like(log_freq, dtype=bool)
-                        elif i == 0:
-                            mask = log_freq <= log_bps[0]
-                        elif i == n_breakpoints:
-                            mask = log_freq > log_bps[i - 1]
-                        else:
-                            mask = (log_freq > log_bps[i - 1]) & (
-                                log_freq <= log_bps[i]
-                            )
-
-                        # We need to reconstruct the line for this segment
-                        # The intercept is for the start of the segment's domain
-                        segment_log_freq = log_freq[mask]
-
-                        # The model is y = intercept - beta * x
-                        # The uncertainty comes from beta, so we swap the upper/lower CIs
-                        lower_bound_power = intercept - beta_ci_upper * segment_log_freq
-                        upper_bound_power = intercept - beta_ci_lower * segment_log_freq
-
-                        plt.fill_between(
-                            np.exp(segment_log_freq),
-                            np.exp(lower_bound_power),
-                            np.exp(upper_bound_power),
-                            color=colors[i % len(colors)],
-                            alpha=0.2,
-                            label=f"95% CI on β{i+1}",
-                        )
-
-
             # Plot each segment
             for i in range(n_breakpoints + 1):
-                # Define the mask for this segment
-                if n_breakpoints == 0:
-                    mask = np.ones_like(log_freq, dtype=bool)
-                    label = f"Fit (β ≈ {fit_results['betas'][0]:.2f})"
-                elif i == 0:
+                if i == 0:
                     mask = log_freq <= log_bps[0]
-                    label = f"Low-Freq Fit (β1 ≈ {fit_results['betas'][0]:.2f})"
+                    label = f"Low-Freq (β1≈{fit_results['betas'][0]:.2f})"
                 elif i == n_breakpoints:
                     mask = log_freq > log_bps[i - 1]
-                    label = f"High-Freq Fit (β{i+1} ≈ {fit_results['betas'][i]:.2f})"
+                    label = f"High-Freq (β{i+1}≈{fit_results['betas'][i]:.2f})"
                 else:
                     mask = (log_freq > log_bps[i - 1]) & (log_freq <= log_bps[i])
-                    label = f"Mid-Freq Fit (β{i+1} ≈ {fit_results['betas'][i]:.2f})"
+                    label = f"Mid-Freq (β{i+1}≈{fit_results['betas'][i]:.2f})"
 
-                plt.loglog(
+                ax.loglog(
                     np.exp(log_freq[mask]),
                     np.exp(log_power_fit[mask]),
                     color=colors[i % len(colors)],
@@ -161,71 +101,98 @@ def plot_spectrum(
             # Plot breakpoint vertical lines
             linestyles = ["--", ":", "-."]
             for i, bp_freq in enumerate(fit_results["breakpoints"]):
-                plt.axvline(
+                ax.axvline(
                     x=bp_freq,
                     color="k",
                     linestyle=linestyles[i % len(linestyles)],
                     alpha=0.8,
-                    label=f"Breakpoint {i+1} ≈ {_format_period(bp_freq)}",
+                    label=f"BP {i+1} ≈ {_format_period(bp_freq)}",
                 )
     else:
-        # If the fit was not successful, add a prominent annotation
-        plt.text(
-            0.5,
-            0.5,
-            "Spectral model fitting failed",
-            ha="center",
-            va="center",
-            transform=plt.gca().transAxes,
-            fontsize=14,
-            color="red",
-            bbox=dict(facecolor="white", alpha=0.8, boxstyle="round,pad=0.5"),
+        ax.text(
+            0.5, 0.5, "Fit Failed", ha="center", va="center", transform=ax.transAxes
         )
 
-    # Plot the FAP level and annotate significant peaks if available
-    fap_level = fit_results.get("fap_level")
-    if fap_level is not None:
-        fap_threshold_val = fit_results.get("fap_threshold")
-        label = "FAP Threshold"
-        if isinstance(fap_threshold_val, (float, int)):
-            label += f" ({fap_threshold_val*100:.0f}%)"
-        plt.axhline(fap_level, ls="--", color="k", alpha=0.8, label=label)
-
-    significant_peaks = fit_results.get("significant_peaks", [])
-    for i, peak in enumerate(significant_peaks):
-        peak_freq = peak["frequency"]
-        peak_power = peak["power"]
-
-        # Create annotation text based on which significance info is available
-        if "fap" in peak:
-            annotation_text = f'Period: {_format_period(peak_freq)}\n(FAP: {peak["fap"]:.2E})'
-        elif "residual" in peak:
-            annotation_text = f"Period: {_format_period(peak_freq)}\n(Residual: {peak['residual']:.2f})"
-        else:
-            annotation_text = f"Period: {_format_period(peak_freq)}"
-
-        # Stagger annotations to reduce overlap
-        vertical_offset = 1.5 if i % 2 == 0 else 2.5
-        plt.annotate(
-            annotation_text,
-            xy=(peak_freq, peak_power),
-            xytext=(peak_freq, peak_power * vertical_offset),
+    # Plot FAP level and peaks
+    if "fap_level" in fit_results:
+        ax.axhline(
+            fit_results["fap_level"], ls="--", color="k", alpha=0.8, label="FAP Level"
+        )
+    for i, peak in enumerate(fit_results.get("significant_peaks", [])):
+        ax.annotate(
+            f"{_format_period(peak['frequency'])}",
+            xy=(peak["frequency"], peak["power"]),
+            xytext=(peak["frequency"], peak["power"] * (1.5 if i % 2 == 0 else 2.5)),
             arrowprops=dict(facecolor="black", shrink=0.05, width=1, headwidth=4),
             ha="center",
-            fontsize=9,
-            bbox=dict(boxstyle="round,pad=0.3", fc="yellow", ec="k", lw=1, alpha=0.9),
         )
 
-    plt.title(f"Power Spectrum for {param_name}", fontsize=16)
-    plt.xlabel("Frequency")
-    plt.ylabel("Power")
-    plt.grid(True, which="both", ls="--", alpha=0.5)
-    plt.legend()
+    ax.set_title(title, fontsize=14)
+    ax.set_xlabel("Frequency")
+    ax.set_ylabel("Power")
+    ax.grid(True, which="both", ls="--", alpha=0.5)
+    ax.legend()
+
+
+def plot_spectrum(
+    frequency,
+    power,
+    fit_results,
+    output_path=None,
+    param_name="Parameter",
+):
+    """
+    Generates and saves a plot of the power spectrum and its fit.
+    """
+    fig, ax = plt.subplots(figsize=(10, 6))
+    _plot_single_spectrum(
+        ax, frequency, power, fit_results, title=f"Power Spectrum for {param_name}"
+    )
     plt.tight_layout()
 
     if output_path:
         plt.savefig(output_path, dpi=300)
     else:
         plt.show()
+    plt.close()
 
+
+def plot_changepoint_analysis(results: Dict, output_dir: str, param_name: str):
+    """
+    Creates a side-by-side comparison plot for a changepoint analysis.
+    """
+    before_seg = results["segment_before"]
+    after_seg = results["segment_after"]
+    cp_time_str = results["changepoint_time"]
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), sharey=True)
+
+    # Plot "Before" segment
+    _plot_single_spectrum(
+        ax1,
+        before_seg["frequency"],
+        before_seg["power"],
+        before_seg,
+        title=f"Before Changepoint (~{cp_time_str})",
+    )
+
+    # Plot "After" segment
+    _plot_single_spectrum(
+        ax2,
+        after_seg["frequency"],
+        after_seg["power"],
+        after_seg,
+        title=f"After Changepoint (~{cp_time_str})",
+    )
+
+    fig.suptitle(f"Changepoint Analysis for {param_name}", fontsize=18)
+    plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust for suptitle
+
+    # Sanitize param_name for use in filename
+    sanitized_name = re.sub(r"(?u)[^-\w.]", "", str(param_name).strip().replace(" ", "_"))
+    output_path = os.path.join(
+        output_dir, f"{sanitized_name}_changepoint_comparison.png"
+    )
+
+    plt.savefig(output_path, dpi=300)
     plt.close()
