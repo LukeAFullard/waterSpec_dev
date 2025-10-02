@@ -81,7 +81,7 @@ def fit_standard_model(
     power: np.ndarray,
     method: str = "theil-sen",
     ci_method: str = "bootstrap",
-    bootstrap_type: str = "residuals",
+    bootstrap_type: str = "block",
     bootstrap_block_size: Optional[int] = None,
     n_bootstraps: int = 1000,
     ci: int = 95,
@@ -143,8 +143,8 @@ def fit_standard_model(
             "failure_reason": failure_reason,
         }
 
-    log_freq = np.log(frequency[valid_indices])
-    log_power = np.log(power[valid_indices])
+    log_freq = np.log10(frequency[valid_indices])
+    log_power = np.log10(power[valid_indices])
     n_points = len(log_power)
 
     if n_points < 30 and "bootstrap" in ci_method:
@@ -489,7 +489,7 @@ def _bootstrap_segmented_fit(
                 bp_info = estimates.get(f"breakpoint{i+1}", {})
                 bp_val = bp_info.get("estimate")
                 if bp_val is not None:
-                    bootstrap_breakpoints[i].append(np.exp(bp_val))
+                    bootstrap_breakpoints[i].append(10**bp_val)
                 else:
                     bootstrap_breakpoints[i].append(np.nan)
 
@@ -672,7 +672,7 @@ def _extract_parametric_segmented_cis(pw_fit, n_breakpoints, ci=95, logger=None)
         bp_ci_log = bp_info.get("confidence_interval")
         if bp_ci_log and all(c is not None for c in bp_ci_log):
             # Convert from log space back to frequency space
-            breakpoints_ci.append((np.exp(bp_ci_log[0]), np.exp(bp_ci_log[1])))
+            breakpoints_ci.append((10 ** bp_ci_log[0], 10 ** bp_ci_log[1]))
         else:
             breakpoints_ci.append((np.nan, np.nan))
 
@@ -685,7 +685,7 @@ def fit_segmented_spectrum(
     n_breakpoints: int = 1,
     p_threshold: float = 0.05,
     ci_method: str = "bootstrap",
-    bootstrap_type: str = "residuals",
+    bootstrap_type: str = "block",
     bootstrap_block_size: Optional[int] = None,
     n_bootstraps: int = 1000,
     ci: int = 95,
@@ -748,6 +748,10 @@ def fit_segmented_spectrum(
         raise ValueError("'frequency' and 'power' must have the same shape.")
     if not np.all(np.isfinite(frequency)) or not np.all(np.isfinite(power)):
         raise ValueError("Input arrays must contain finite values.")
+    if bootstrap_type not in ["pairs", "residuals", "block", "wild"]:
+        raise ValueError(
+            f"Unknown bootstrap_type: '{bootstrap_type}'. Choose 'pairs', 'residuals', 'block', or 'wild'."
+        )
     if n_breakpoints <= 0:
         raise ValueError("'n_breakpoints' must be a positive integer.")
     if not 0 < p_threshold < 1:
@@ -784,8 +788,8 @@ def fit_segmented_spectrum(
             "aic": np.inf,
         }
 
-    log_freq = np.log(frequency[valid_indices])
-    log_power = np.log(power[valid_indices])
+    log_freq = np.log10(frequency[valid_indices])
+    log_power = np.log10(power[valid_indices])
     n_points = len(log_power)
 
     if n_points < 30 and "bootstrap" in ci_method:
@@ -871,7 +875,7 @@ def fit_segmented_spectrum(
         bp_info = estimates.get(f"breakpoint{i}", {})
         bp_log_freq = bp_info.get("estimate")
         if bp_log_freq is not None:
-            breakpoints.append(np.exp(bp_log_freq))
+            breakpoints.append(10**bp_log_freq)
             log_breakpoints.append(bp_log_freq)
         else:
             breakpoints.append(np.nan)

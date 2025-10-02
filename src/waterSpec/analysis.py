@@ -566,7 +566,7 @@ class Analysis:
         fit_results = self._perform_model_selection(
             analysis_kwargs.get("fit_method", "theil-sen"),
             analysis_kwargs.get("ci_method", "bootstrap"),
-            analysis_kwargs.get("bootstrap_type", "residuals"),
+            analysis_kwargs.get("bootstrap_type", "block"),
             analysis_kwargs.get("n_bootstraps", 1000),
             analysis_kwargs.get("p_threshold", 0.05),
             analysis_kwargs.get("max_breakpoints", 1),
@@ -689,8 +689,10 @@ class Analysis:
             raise ValueError("`fit_method` must be 'theil-sen' or 'ols'.")
         if ci_method not in ["bootstrap", "parametric"]:
             raise ValueError("`ci_method` must be 'bootstrap' or 'parametric'.")
-        if bootstrap_type not in ["pairs", "residuals"]:
-            raise ValueError("`bootstrap_type` must be 'pairs' or 'residuals'.")
+        if bootstrap_type not in ["pairs", "residuals", "block", "wild"]:
+            raise ValueError(
+                "`bootstrap_type` must be 'pairs', 'residuals', 'block', or 'wild'."
+            )
         if not isinstance(n_bootstraps, int) or n_bootstraps < 0:
             raise ValueError("`n_bootstraps` must be a non-negative integer.")
         if not (isinstance(fap_threshold, float) and 0 < fap_threshold < 1):
@@ -723,7 +725,7 @@ class Analysis:
         output_dir,
         fit_method="theil-sen",
         ci_method="bootstrap",
-        bootstrap_type="residuals",
+        bootstrap_type="block",
         n_bootstraps=1000,
         samples_per_peak=5,
         nyquist_factor=1.0,

@@ -37,9 +37,9 @@ def _plot_single_spectrum(ax, frequency, power, fit_results, title=""):
             beta_ci_upper = fit_results.get("beta_ci_upper")
 
             # Plot the main fit line
-            fit_line = np.exp(intercept - beta * log_freq)
+            fit_line = 10 ** (intercept - beta * log_freq)
             ax.loglog(
-                np.exp(log_freq),
+                10**log_freq,
                 fit_line,
                 "r-",
                 linewidth=2,
@@ -48,10 +48,10 @@ def _plot_single_spectrum(ax, frequency, power, fit_results, title=""):
 
             # Plot the confidence interval if available
             if beta_ci_lower is not None and beta_ci_upper is not None:
-                lower_bound = np.exp(intercept - beta_ci_upper * log_freq)
-                upper_bound = np.exp(intercept - beta_ci_lower * log_freq)
+                lower_bound = 10 ** (intercept - beta_ci_upper * log_freq)
+                upper_bound = 10 ** (intercept - beta_ci_lower * log_freq)
                 ax.fill_between(
-                    np.exp(log_freq),
+                    10**log_freq,
                     lower_bound,
                     upper_bound,
                     color="r",
@@ -62,7 +62,7 @@ def _plot_single_spectrum(ax, frequency, power, fit_results, title=""):
         elif analysis_type == "segmented":
             n_breakpoints = fit_results.get("n_breakpoints", 0)
             log_power_fit = fit_results.get("fitted_log_power")
-            log_bps = [np.log(bp) for bp in fit_results["breakpoints"]]
+            log_bps = [np.log10(bp) for bp in fit_results["breakpoints"]]
             colors = ["r", "m", "g"]
 
             # Plot the confidence interval for the entire fit if available
@@ -70,9 +70,9 @@ def _plot_single_spectrum(ax, frequency, power, fit_results, title=""):
             fit_ci_upper = fit_results.get("fit_ci_upper")
             if fit_ci_lower is not None and fit_ci_upper is not None:
                 ax.fill_between(
-                    np.exp(log_freq),
-                    np.exp(fit_ci_lower),
-                    np.exp(fit_ci_upper),
+                    10**log_freq,
+                    10**fit_ci_lower,
+                    10**fit_ci_upper,
                     color="gray",
                     alpha=0.3,
                     label="95% CI on Fit",
@@ -90,8 +90,8 @@ def _plot_single_spectrum(ax, frequency, power, fit_results, title=""):
                     label = f"Mid-Freq (β{i+1}≈{fit_results['betas'][i]:.2f})"
 
                 ax.loglog(
-                    np.exp(log_freq[mask]),
-                    np.exp(log_power_fit[mask]),
+                    10 ** log_freq[mask],
+                    10 ** log_power_fit[mask],
                     color=colors[i % len(colors)],
                     linestyle="-",
                     linewidth=2.5,
@@ -258,9 +258,9 @@ def _plot_fit_line(ax, fit_results, color, label_prefix=""):
     if analysis_type == "standard":
         beta = fit_results.get("beta")
         intercept = fit_results.get("intercept")
-        fit_line = np.exp(intercept - beta * log_freq)
+        fit_line = 10 ** (intercept - beta * log_freq)
         ax.loglog(
-            np.exp(log_freq),
+            10**log_freq,
             fit_line,
             "-",
             color=color,
@@ -272,8 +272,8 @@ def _plot_fit_line(ax, fit_results, color, label_prefix=""):
         betas = fit_results.get("betas", [])
         beta_str = ", ".join([f"β{i+1}≈{b:.2f}" for i, b in enumerate(betas)])
         ax.loglog(
-            np.exp(log_freq),
-            np.exp(log_power_fit),
+            10**log_freq,
+            10**log_power_fit,
             "-",
             color=color,
             linewidth=2.5,
