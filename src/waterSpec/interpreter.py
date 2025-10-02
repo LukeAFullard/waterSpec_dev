@@ -85,8 +85,10 @@ def get_scientific_interpretation(beta):
         return "β ≈ 2 (Brownian Noise): Random walk process."
     elif beta < 0:
         return (
-            "β < 0 (Warning: Physically Unrealistic): This may indicate aliasing, "
-            "inappropriate detrending, or white noise dominance. Review your "
+            "β < 0 (Anti-persistent): Indicates a mean-reverting process where "
+            "high values tend to be followed by low values. While this can be a "
+            "physical phenomenon (e.g., in turbulent flows), it can also "
+            "indicate over-detrending or aliasing artifacts. Review "
             "preprocessing choices."
         )
     elif 0 < beta < 1:

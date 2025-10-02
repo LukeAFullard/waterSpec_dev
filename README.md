@@ -233,11 +233,23 @@ results = analyzer.run_full_analysis(
 - Assumes normally distributed errors
 - Good for initial analyses
 
-**Bootstrap types:**
-- `'pairs'`: Resamples (frequency, power) pairs (default)
-- `'residuals'`: Resamples model residuals (assumes model is correct)
-- `'block'`: Moving block bootstrap (accounts for autocorrelation)
-- `'wild'`: Wild bootstrap (accounts for heteroscedasticity)
+### Choosing the Right Bootstrap Method
+
+Bootstrapping is a powerful technique for estimating confidence intervals, but the best method depends on the characteristics of your data. `waterSpec` offers four types, controlled by the `bootstrap_type` parameter. Here’s a guide to help you choose:
+
+| Method         | When to Use                                                                                                | How it Works                                                                       |
+|----------------|------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
+| **`'pairs'`**  | **Default choice.** Good when you are uncertain about the model's fit or assumptions.                        | Resamples (frequency, power) data points together. Makes the fewest assumptions.   |
+| **`'residuals'`**| When your spectral model is a very good fit and residuals appear random (no autocorrelation).              | Resamples the model's residuals. More powerful if the model is correct.            |
+| **`'block'`**  | When you suspect **autocorrelation** in the data (i.e., values are correlated with their neighbors).           | Resamples blocks of data to preserve the original correlation structure.           |
+| **`'wild'`**   | When you suspect **heteroscedasticity** (i.e., the variance of the residuals is not constant).                 | Creates synthetic residuals with a zero mean but preserves their original variance. |
+
+**Decision Flowchart:**
+
+1.  **Start with `'pairs'`** if you are unsure. It's the most robust and makes the fewest assumptions.
+2.  **Inspect your model fit.** If the fitted line follows the data well and the residuals look like random noise, **`'residuals'`** can provide more statistical power.
+3.  **Check for autocorrelation.** Use the `durbin_watson_stat` in the results or plot the residuals. If you see patterns (e.g., runs of positive or negative residuals), your data is likely autocorrelated. Switch to **`'block'`**.
+4.  **Check for heteroscedasticity.** If the spread of your residuals changes across the frequency range, the variance is not constant. Switch to **`'wild'`**.
 
 ---
 
@@ -369,6 +381,17 @@ Always report confidence intervals alongside point estimates. Wide CIs indicate 
 - May indicate aliasing (undersample high frequencies)
 - Could suggest inappropriate preprocessing (over-detrending)
 - Check for white noise dominance in your signal
+
+---
+
+## Future Work
+
+While `waterSpec` focuses on frequency-domain analysis, future versions may incorporate time-domain methods to provide a more holistic view of system dynamics. A planned enhancement is the integration of **changepoint detection** algorithms (e.g., PELT).
+
+This would allow users to:
+- Identify discrete shifts in the mean or variance of a time series.
+- Automatically segment the data around these changepoints.
+- Perform separate spectral analyses on each segment to understand how system behavior has changed over time.
 
 ---
 
