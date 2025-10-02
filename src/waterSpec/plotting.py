@@ -157,42 +157,114 @@ def plot_spectrum(
     plt.close()
 
 
-def plot_changepoint_analysis(results: Dict, output_dir: str, param_name: str):
+def plot_changepoint_analysis(
+    results: Dict, output_dir: str, param_name: str, plot_style: str = "separate"
+):
     """
-    Creates a side-by-side comparison plot for a changepoint analysis.
+    Creates a comparison plot for a changepoint analysis.
+
+    Args:
+        results (Dict): The results dictionary from the changepoint analysis.
+        output_dir (str): The directory to save the plot.
+        param_name (str): The name of the parameter being analyzed.
+        plot_style (str): The style of plot, either 'separate' or 'combined'.
     """
     before_seg = results["segment_before"]
     after_seg = results["segment_after"]
     cp_time_str = results["changepoint_time"]
-
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), sharey=True)
-
-    # Plot "Before" segment
-    _plot_single_spectrum(
-        ax1,
-        before_seg["frequency"],
-        before_seg["power"],
-        before_seg,
-        title=f"Before Changepoint (~{cp_time_str})",
+    sanitized_name = re.sub(
+        r"(?u)[^-\w.]", "", str(param_name).strip().replace(" ", "_")
     )
 
-    # Plot "After" segment
-    _plot_single_spectrum(
-        ax2,
-        after_seg["frequency"],
-        after_seg["power"],
-        after_seg,
-        title=f"After Changepoint (~{cp_time_str})",
-    )
+    if plot_style == "separate":
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), sharey=True)
+        _plot_single_spectrum(
+            ax1,
+            before_seg["frequency"],
+            before_seg["power"],
+            before_seg,
+            title=f"Before Changepoint (~{cp_time_str})",
+        )
+        _plot_single_spectrum(
+            ax2,
+            after_seg["frequency"],
+            after_seg["power"],
+            after_seg,
+            title=f"After Changepoint (~{cp_time_str})",
+        )
+        fig.suptitle(f"Changepoint Analysis for {param_name}", fontsize=18)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        filename = f"{sanitized_name}_changepoint_separate.png"
 
-    fig.suptitle(f"Changepoint Analysis for {param_name}", fontsize=18)
-    plt.tight_layout(rect=[0, 0, 1, 0.96])  # Adjust for suptitle
+    elif plot_style == "combined":
+        fig, ax = plt.subplots(figsize=(12, 8))
+        # Plot "Before" segment
+        ax.loglog(
+            before_seg["frequency"],
+            before_seg["power"],
+            "o",
+            color="blue",
+            alpha=0.5,
+            label=f"Before ~{cp_time_str}",
+        )
+        # Plot "After" segment
+        ax.loglog(
+            after_seg["frequency"],
+            after_seg["power"],
+            "s",
+            color="green",
+            alpha=0.5,
+            markersize=5,
+            label=f"After ~{cp_time_str}",
+        )
+        # Manually plot fit lines with distinct colors
+        _plot_fit_line(ax, before_seg, color="darkblue", label_prefix="Before")
+        _plot_fit_line(ax, after_seg, color="darkgreen", label_prefix="After")
+        ax.set_title(f"Changepoint Analysis for {param_name}", fontsize=16)
+        ax.set_xlabel("Frequency")
+        ax.set_ylabel("Power")
+        ax.grid(True, which="both", ls="--", alpha=0.5)
+        ax.legend()
+        plt.tight_layout()
+        filename = f"{sanitized_name}_changepoint_combined.png"
 
-    # Sanitize param_name for use in filename
-    sanitized_name = re.sub(r"(?u)[^-\w.]", "", str(param_name).strip().replace(" ", "_"))
-    output_path = os.path.join(
-        output_dir, f"{sanitized_name}_changepoint_comparison.png"
-    )
+    else:
+        raise ValueError("plot_style must be 'separate' or 'combined'.")
 
+    output_path = os.path.join(output_dir, filename)
     plt.savefig(output_path, dpi=300)
     plt.close()
+
+
+def _plot_fit_line(ax, fit_results, color, label_prefix=""):
+    """A helper to plot just the fit line and CI on a given axis."""
+    if not _is_fit_successful(fit_results):
+        return
+
+    analysis_type = fit_results.get("chosen_model_type")
+    log_freq = fit_results.get("log_freq")
+
+    if analysis_type == "standard":
+        beta = fit_results.get("beta")
+        intercept = fit_results.get("intercept")
+        fit_line = np.exp(intercept - beta * log_freq)
+        ax.loglog(
+            np.exp(log_freq),
+            fit_line,
+            "-",
+            color=color,
+            linewidth=2.5,
+            label=f"{label_prefix} Fit (β≈{beta:.2f})",
+        )
+    elif analysis_type == "segmented":
+        log_power_fit = fit_results.get("fitted_log_power")
+        betas = fit_results.get("betas", [])
+        beta_str = ", ".join([f"β{i+1}≈{b:.2f}" for i, b in enumerate(betas)])
+        ax.loglog(
+            np.exp(log_freq),
+            np.exp(log_power_fit),
+            "-",
+            color=color,
+            linewidth=2.5,
+            label=f"{label_prefix} Fit ({beta_str})",
+        )

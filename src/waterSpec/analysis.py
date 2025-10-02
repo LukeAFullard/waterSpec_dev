@@ -426,7 +426,7 @@ class Analysis:
         self.logger.info(f"Plot saved to {plot_path}")
         self.logger.info(f"Summary saved to {summary_path}")
 
-    def _generate_changepoint_outputs(self, results, output_dir):
+    def _generate_changepoint_outputs(self, results, output_dir, plot_style="separate"):
         """
         Generates and saves the plot and summary text file for a changepoint analysis.
         """
@@ -434,14 +434,19 @@ class Analysis:
         os.makedirs(output_dir, exist_ok=True)
         sanitized_name = self._sanitize_filename(self.param_name)
 
-        # Generate the side-by-side comparison plot
+        # Generate the comparison plot with the specified style
         plot_changepoint_analysis(
             results,
             output_dir,
             self.param_name,
+            plot_style=plot_style,
+        )
+
+        plot_filename = (
+            f"{sanitized_name}_changepoint_{plot_style}.png"
         )
         plot_path = os.path.join(
-            output_dir, f"{sanitized_name}_changepoint_comparison.png"
+            output_dir, plot_filename
         )
 
         # Save the combined summary text
@@ -526,7 +531,11 @@ class Analysis:
         )
 
         # Generate and save outputs
-        self._generate_changepoint_outputs(combined_results, output_dir)
+        self._generate_changepoint_outputs(
+            combined_results,
+            output_dir,
+            plot_style=analysis_kwargs.get("changepoint_plot_style", "separate"),
+        )
 
         return combined_results
 
@@ -727,6 +736,7 @@ class Analysis:
         p_threshold=0.05,
         max_breakpoints=1,
         seed=None,
+        changepoint_plot_style="separate",
     ):
         """
         Runs the complete analysis workflow and saves all outputs to a directory.
@@ -827,6 +837,7 @@ class Analysis:
             "p_threshold": p_threshold,
             "max_breakpoints": max_breakpoints,
             "seed": seed,
+            "changepoint_plot_style": changepoint_plot_style,
         }
 
         # Determine changepoint
