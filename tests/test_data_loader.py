@@ -286,3 +286,38 @@ def test_load_data_time_unit_conversion(tmp_path):
         load_data(
             file_path, time_col="timestamp", data_col="value", output_time_unit="weeks"
         )
+
+
+def test_load_data_with_numeric_time_input(tmp_path):
+    """Test loading data where the time column is already numeric."""
+    file_path = tmp_path / "numeric_time.csv"
+    file_path.write_text("time_days,value\n0,10\n1,20\n2,30")
+
+    # 1. Test input in 'days' and default output in 'seconds'
+    time_sec, data, _ = load_data(
+        file_path,
+        time_col="time_days",
+        data_col="value",
+        input_time_unit="days",
+    )
+    assert data.iloc[0] == 10
+    assert np.allclose(time_sec, [0, 86400, 172800])
+
+    # 2. Test input in 'days' and output in 'hours'
+    time_hours, _, _ = load_data(
+        file_path,
+        time_col="time_days",
+        data_col="value",
+        input_time_unit="days",
+        output_time_unit="hours",
+    )
+    assert np.allclose(time_hours, [0, 24, 48])
+
+    # 3. Test invalid input unit
+    with pytest.raises(ValueError, match="Invalid input_time_unit"):
+        load_data(
+            file_path,
+            time_col="time_days",
+            data_col="value",
+            input_time_unit="years",
+        )
