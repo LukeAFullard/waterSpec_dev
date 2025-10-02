@@ -27,18 +27,16 @@ def synthetic_signal():
 
 def test_calculate_periodogram_finds_peak_frequency(synthetic_signal):
     """
-    Test that calculate_periodogram correctly identifies the peak frequency
-    of a synthetic signal when a grid is provided.
+    Test that calculate_periodogram (using autopower) correctly identifies
+    the peak frequency of a synthetic signal.
     """
     time, y, known_frequency = synthetic_signal
 
-    # Generate a frequency grid for the test. The function now requires it.
-    # The grid must span the known frequency.
-    duration = np.max(time) - np.min(time)
-    test_frequency = np.linspace(1 / duration, 0.5 / np.median(np.diff(time)), 500)
-
-    # Calculate the periodogram
-    frequency, power, _ = calculate_periodogram(time, y, frequency=test_frequency)
+    # Calculate the periodogram using autopower.
+    # Use a dense grid to ensure the peak is found accurately.
+    frequency, power, _ = calculate_periodogram(
+        time, y, samples_per_peak=10, nyquist_factor=2
+    )
 
     # Find the frequency with the maximum power
     peak_frequency = frequency[np.argmax(power)]
@@ -49,36 +47,21 @@ def test_calculate_periodogram_finds_peak_frequency(synthetic_signal):
 
 def test_calculate_periodogram_with_dy(synthetic_signal):
     """
-    Test that calculate_periodogram runs without error when `dy` is provided.
+    Test that calculate_periodogram runs without error when `dy` is provided
+    and that the output shapes are consistent.
     """
-    time, y, known_frequency = synthetic_signal
+    time, y, _ = synthetic_signal
     # Create a dummy error array
     dy = np.ones_like(y) * 0.1
 
-    # Generate a frequency grid
-    duration = np.max(time) - np.min(time)
-    test_frequency = np.linspace(1 / duration, 0.5 / np.median(np.diff(time)), 500)
+    # Calculate the periodogram. The main assertion is that this runs without crashing.
+    frequency, power, ls_obj = calculate_periodogram(time, y, dy=dy)
 
-    # Calculate the periodogram
-    # The main assertion is that this runs without crashing.
-    frequency, power, ls_obj = calculate_periodogram(
-        time, y, frequency=test_frequency, dy=dy
-    )
-
-    # Check that the output shapes are correct
-    assert frequency.shape == test_frequency.shape
-    assert power.shape == test_frequency.shape
+    # Check that the output shapes are correct and consistent
+    assert frequency.ndim == 1
+    assert power.ndim == 1
+    assert frequency.shape == power.shape
     assert not np.isnan(power).any()
-
-
-def test_calculate_periodogram_raises_error_without_frequency():
-    """
-    Test that calculate_periodogram raises a ValueError if no frequency is provided.
-    """
-    time = np.arange(10)
-    y = np.sin(time)
-    with pytest.raises(ValueError, match="A frequency grid must be provided"):
-        calculate_periodogram(time, y, frequency=None)
 
 
 def test_find_significant_peaks(synthetic_signal):
@@ -87,15 +70,13 @@ def test_find_significant_peaks(synthetic_signal):
     """
     time, y, known_frequency = synthetic_signal
 
-    # Generate a frequency grid
-    duration = np.max(time) - np.min(time)
-    frequency = np.linspace(1 / duration, 0.5 / np.median(np.diff(time)), 1000)
-
-    # First, calculate the periodogram to get the ls object and power
-    frequency, power, ls_obj = calculate_periodogram(time, y, frequency=frequency)
+    # First, calculate the periodogram to get the ls object and power.
+    # Use a dense grid to ensure the peak is found accurately.
+    frequency, power, ls_obj = calculate_periodogram(
+        time, y, samples_per_peak=10, nyquist_factor=2
+    )
 
     # Find peaks with a reasonable FAP threshold
-    # Note: bootstrap can be slow, so we may want to use a faster method for CI/CD tests
     peaks, fap_level = find_significant_peaks(
         ls_obj, frequency, power, fap_threshold=0.05, fap_method="baluev"
     )
@@ -111,15 +92,16 @@ def test_find_significant_peaks(synthetic_signal):
     assert peaks[0]["fap"] < 1e-5
 
 
-# --- Tests for the new find_peaks_via_residuals function ---
+# --- Tests for the find_peaks_via_residuals function ---
 
 
 @pytest.fixture
 def sample_fit_results():
     """
     Creates a sample fit_results dictionary with one clear peak in the residuals.
+    This uses log10, consistent with the fitter module.
     """
-    log_freq = np.linspace(np.log(1e-4), np.log(0.5), 100)
+    log_freq = np.linspace(np.log10(1e-4), np.log10(0.5), 100)
     fitted_log_power = -1.5 * log_freq + 2
     rng = np.random.default_rng(0)
 
@@ -146,7 +128,7 @@ def test_find_peaks_via_residuals_finds_peak(sample_fit_results):
     assert len(peaks) == 1
     assert peaks[0]["residual"] == pytest.approx(3.0)
     # Check that the returned frequency matches the one at index 50
-    expected_freq = np.exp(sample_fit_results["log_freq"][50])
+    expected_freq = 10 ** sample_fit_results["log_freq"][50]
     assert peaks[0]["frequency"] == pytest.approx(expected_freq)
     # The threshold should be the value of the smallest significant peak's residual
     assert threshold == pytest.approx(3.0)
@@ -160,7 +142,6 @@ def test_find_peaks_via_residuals_no_significant_peak(sample_fit_results):
     from waterSpec.spectral_analyzer import find_peaks_via_residuals
 
     # Overwrite the residuals with a sample that has no extreme outliers.
-    # A normal distribution is used for this purpose.
     rng = np.random.default_rng(0)
     sample_fit_results["residuals"] = rng.normal(loc=0, scale=0.1, size=100)
 

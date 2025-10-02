@@ -19,11 +19,11 @@ def synthetic_spectrum():
 
     # Generate the power spectrum with some noise
     # power = C * frequency ** -beta
-    # On a log-log plot, this is: log(power) = log(C) - beta * log(frequency)
+    # On a log-log plot, this is: log10(power) = log10(C) - beta * log10(frequency)
     rng = np.random.default_rng(42)
     noise = rng.normal(0, 0.1, n_points)
-    log_power = -known_beta * np.log(frequency) + noise
-    power = np.exp(log_power)
+    log_power = -known_beta * np.log10(frequency) + noise
+    power = 10**log_power
 
     return frequency, power, known_beta
 
@@ -141,8 +141,8 @@ def multifractal_spectrum():
     # Add some noise
     rng = np.random.default_rng(42)
     noise = rng.normal(0, 0.1, n_points)
-    log_power = np.log(power) + noise
-    power = np.exp(log_power)
+    log_power = np.log10(power) + noise
+    power = 10**log_power
 
     return frequency, power, breakpoint_freq, beta1, beta2
 
@@ -268,7 +268,7 @@ def test_fit_segmented_spectrum_p_threshold(multifractal_spectrum, mocker):
         "bic": 100,
         "r_squared": 0.9,
         "estimates": {
-            "breakpoint1": {"estimate": np.log(0.1)},
+            "breakpoint1": {"estimate": np.log10(0.1)},
             "alpha1": {"estimate": -0.5},
             "beta1": {"estimate": -1.3},
             "const": {"estimate": 1.0},
@@ -277,7 +277,7 @@ def test_fit_segmented_spectrum_p_threshold(multifractal_spectrum, mocker):
     mock_fit_result.summary.return_value = "Mock Summary"
     # The predict method needs to return something with the correct shape
     valid_indices = (frequency > 0) & (power > 0)
-    log_freq = np.log(frequency[valid_indices])
+    log_freq = np.log10(frequency[valid_indices])
     mock_fit_result.predict.return_value = np.zeros_like(log_freq)
 
     mocker.patch(
