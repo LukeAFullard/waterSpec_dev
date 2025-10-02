@@ -144,15 +144,24 @@ def log_transform(data, errors=None):
     transformed_data = np.copy(data)
     transformed_errors = np.copy(errors) if errors is not None else None
 
-    valid_indices = ~np.isnan(transformed_data)
-    valid_data = transformed_data[valid_indices]
+    # Identify non-positive data points, which will result in NaNs after log transform.
+    # This must be done before the transformation itself.
+    non_positive_mask = (data <= 0)
 
     if transformed_errors is not None:
+        # Where data is non-positive, error propagation is undefined and should also be NaN.
+        transformed_errors[non_positive_mask] = np.nan
+        # Propagate errors for valid data points: new_err = old_err / value
+        # We need to avoid division by zero where data is non-positive.
+        valid_indices = ~non_positive_mask & ~np.isnan(data)
+        valid_data = data[valid_indices]
         valid_errors = transformed_errors[valid_indices]
-        # Propagate errors: new_err = old_err / value
         transformed_errors[valid_indices] = valid_errors / valid_data
 
-    transformed_data[valid_indices] = np.log(valid_data)
+    # Now, apply the log transform. This will correctly produce NaNs for non-positive values.
+    # Using np.errstate to suppress warnings about invalid values (log of non-positive).
+    with np.errstate(invalid='ignore'):
+        transformed_data = np.log(data)
 
     return transformed_data, transformed_errors
 

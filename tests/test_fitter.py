@@ -439,33 +439,33 @@ def test_fit_segmented_spectrum_multi_breakpoint_warning(multifractal_spectrum, 
     assert "Fitting a model with 2 breakpoints" in caplog.text
 
 
-def test_fit_standard_model_bootstrap_warning(synthetic_spectrum, mocker, caplog):
+def test_fit_standard_model_raises_error_on_low_success(synthetic_spectrum, mocker):
     """
-    Test that a warning is issued if too few bootstrap iterations succeed.
+    Test that a ValueError is raised if the bootstrap success rate is below
+    the 50% threshold.
     """
     from collections import namedtuple
     frequency, power, known_beta = synthetic_spectrum
 
-    # The initial fit must succeed. We create a mock result that mimics the
-    # output of stats.linregress (a namedtuple that is unpackable and has attributes).
+    # Mock the result of a successful fit.
     LinregressResult = namedtuple(
         "LinregressResult", ["slope", "intercept", "rvalue", "pvalue", "stderr"]
     )
     mock_success_result = LinregressResult(-known_beta, 1.0, 0.9, 0.0, 0.1)
 
-    # The first call is for the initial fit. The subsequent calls are for the
-    # bootstrap loop. We make half of them fail to trigger the warning.
+    # The first call is for the initial fit. For the bootstrap iterations,
+    # we simulate a 40% success rate (4 successes, 6 failures).
     side_effects = (
         [mock_success_result]  # Initial fit
-        + [RuntimeError("Failed fit")] * 5  # 5 failures
-        + [mock_success_result] * 5  # 5 successes
+        + [RuntimeError("Failed fit")] * 6  # 6 failures
+        + [mock_success_result] * 4  # 4 successes
     )
     mocker.patch("waterSpec.fitter.stats.linregress", side_effect=side_effects)
 
-    fit_standard_model(
-        frequency, power, method="ols", n_bootstraps=10, seed=42
-    )
-    assert "Only 5/10 bootstrap iterations succeeded" in caplog.text
+    with pytest.raises(ValueError, match=r"Bootstrap success rate \(40%\) was below"):
+        fit_standard_model(
+            frequency, power, method="ols", n_bootstraps=10, seed=42
+        )
 
 
 def test_bootstrap_segmented_fit_graceful_failure(mocker, caplog):
@@ -496,10 +496,12 @@ def test_bootstrap_segmented_fit_graceful_failure(mocker, caplog):
     assert np.all(np.isnan(results["breakpoints_ci"]))
 
 
-def test_bootstrap_segmented_fit_iteration_warning(multifractal_spectrum, mocker, caplog):
+def test_bootstrap_segmented_fit_raises_error_on_low_success(
+    multifractal_spectrum, mocker
+):
     """
-    Test that a warning is issued if too few bootstrap iterations succeed
-    in the segmented fitting process.
+    Test that a ValueError is raised if the bootstrap success rate is below
+    the required threshold in segmented fitting.
     """
     frequency, power, _, _, _ = multifractal_spectrum
 
@@ -525,17 +527,17 @@ def test_bootstrap_segmented_fit_iteration_warning(multifractal_spectrum, mocker
     # The subsequent calls are for the bootstrap iterations. We make most fail.
     side_effects = (
         [mock_successful_fit]  # Initial fit
-        + [mock_failed_fit] * 8  # 8 failures
+        + [mock_failed_fit] * 8  # 8 failures (80% failure rate)
         + [mock_successful_fit] * 2  # 2 successes
     )
     mocker.patch(
         "waterSpec.fitter.piecewise_regression.Fit", side_effect=side_effects
     )
 
-    fit_segmented_spectrum(
-        frequency, power, n_breakpoints=1, n_bootstraps=10, seed=42
-    )
-    assert "Only 2/10 bootstrap iterations succeeded for the segmented model (minimum required: 50)" in caplog.text
+    with pytest.raises(ValueError, match=r"Bootstrap success rate \(20%\) was below"):
+        fit_segmented_spectrum(
+            frequency, power, n_breakpoints=1, n_bootstraps=10, seed=42
+        )
 
 
 def test_fit_segmented_spectrum_white_noise():

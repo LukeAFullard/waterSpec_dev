@@ -57,12 +57,10 @@ def detect_changepoint_pelt(
 
     # Validate we have enough data
     if n < 2 * min_size:
-        warnings.warn(
+        raise ValueError(
             f"Time series too short (n={n}) for changepoint detection with "
-            f"min_size={min_size}. Minimum required: {2*min_size}",
-            UserWarning
+            f"min_size={min_size}. Minimum required: {2*min_size}."
         )
-        return None
 
     # Reshape data for ruptures (requires 2D: samples × features)
     signal = data.reshape(-1, 1)
