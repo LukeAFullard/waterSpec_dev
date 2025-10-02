@@ -370,6 +370,13 @@ class SiteComparison:
             raise RuntimeError("Model fitting failed for all attempted models.")
 
         best_model = min(all_models, key=lambda x: x["bic"])
+
+        # Add metadata for interpretation and plotting
+        if best_model.get("n_breakpoints", 0) == 0:
+            best_model["chosen_model_type"] = "standard"
+        else:
+            best_model["chosen_model_type"] = "segmented"
+
         return best_model
 
     def _detect_significant_peaks(

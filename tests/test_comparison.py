@@ -111,49 +111,67 @@ def test_site_comparison_insufficient_data_raises_error(tmp_path):
     with pytest.raises(ValueError, match="Not enough valid data points \\(5\\) for site 'BadSite'"):
         SiteComparison(site1_config, site2_config)
 
-@patch("src.waterSpec.comparison.SiteComparison._run_site_analysis")
-def test_site_comparison_summary_logic(mock_run_analysis, tmp_path):
-    """Test the summary logic based on mocked analysis results for two sites."""
-    # Define a minimal set of keys needed for plotting to avoid KeyErrors
-    plotting_keys = {
-        "frequency": np.array([0.1, 0.2, 0.3]),
-        "power": np.array([10, 5, 2]),
+@patch("src.waterSpec.comparison.fit_segmented_spectrum")
+@patch("src.waterSpec.comparison.fit_standard_model")
+def test_site_comparison_generates_correct_summary_and_plot_data(
+    mock_fit_standard, mock_fit_segmented, tmp_path
+):
+    """
+    Test that the full comparison workflow correctly processes data and generates
+    the necessary outputs by mocking the underlying model fitters.
+    """
+    # Mock the underlying fitters to return predictable results
+    # Site 1 will get a standard model fit
+    mock_fit_standard.return_value = {
+        "beta": 1.8,
+        "intercept": 1,
         "log_freq": np.log10(np.array([0.1, 0.2, 0.3])),
-        "intercept": 1.0,
-        "significant_peaks": [],
+        "bic": 100,
+        "n_breakpoints": 0,
+    }
+    # Site 2 will get a segmented model fit
+    mock_fit_segmented.return_value = {
+        "betas": [-0.2, 2.0],
+        "breakpoints": [0.1],
+        "fitted_log_power": np.array([1, 2, 3]),
+        "log_freq": np.log10(np.array([0.1, 0.2, 0.3])),
+        "bic": 90,
+        "n_breakpoints": 1,
     }
 
-    # Mock the results for two sites to control the comparison
-    mock_run_analysis.side_effect = [
-        {  # Site 1: High persistence
-            "beta": 1.8,
-            "site_name": "Site1",
-            "n_points": 100,
-            "summary_text": "Standard Analysis for: Site1\nValue: β = 1.80",
-            "chosen_model_type": "standard",
-            **plotting_keys,
-        },
-        {  # Site 2: Low persistence
-            "beta": 0.2,
-            "site_name": "Site2",
-            "n_points": 100,
-            "summary_text": "Standard Analysis for: Site2\nValue: β = 0.20",
-            "chosen_model_type": "standard",
-            **plotting_keys,
-        },
-    ]
+    # Create dummy data files
+    time = pd.date_range("2023-01-01", periods=100, freq="D")
+    series = np.random.rand(100)
+    file1_path = create_test_data_file(tmp_path, "data1.csv", time, series)
+    file2_path = create_test_data_file(tmp_path, "data2.csv", time, series)
 
-    # Create dummy files, as they are needed for initialization
-    time = pd.date_range("2023-01-01", periods=20, freq="D")
-    series = np.random.rand(20)
-    file1_path = create_test_data_file(tmp_path, "dummy1.csv", time, series)
-    file2_path = create_test_data_file(tmp_path, "dummy2.csv", time, series)
-
-    site1_config = {"name": "Site1", "file_path": file1_path, "time_col": "time", "data_col": "value"}
-    site2_config = {"name": "Site2", "file_path": file2_path, "time_col": "time", "data_col": "value"}
+    site1_config = {"name": "HighPersistenceSite", "file_path": file1_path, "time_col": "time", "data_col": "value"}
+    site2_config = {"name": "LowPersistenceSite", "file_path": file2_path, "time_col": "time", "data_col": "value"}
 
     comparison = SiteComparison(site1_config, site2_config)
-    results = comparison.run_comparison(output_dir=tmp_path)
+    # For Site 1, force only standard model. For Site 2, allow segmented.
+    # This ensures our mocks are called as expected.
+    with patch.object(comparison, '_run_site_analysis', wraps=comparison._run_site_analysis) as spy:
+        results = comparison.run_comparison(
+            output_dir=tmp_path, n_bootstraps=0, max_breakpoints=0
+        )
+        # Manually trigger second analysis for second site with different settings
+        analysis_kwargs = {"max_breakpoints": 1, "n_bootstraps": 0, "seed": 43, "fit_method": "theil-sen", "ci_method": "bootstrap", "bootstrap_type": "block", "samples_per_peak": 5, "nyquist_factor": 1.0, "max_freq": None, "peak_detection_method": "fap", "fap_threshold": 0.01, "fap_method": "baluev", "peak_fdr_level": 0.05, "normalization": "standard", "p_threshold": 0.05}
+        comparison.results["site2"] = comparison._run_site_analysis(comparison.site2_data, "LowPersistenceSite", analysis_kwargs)
+        comparison.results["summary_text"] = comparison._generate_comparison_summary(comparison.results)
 
-    summary = results["summary_text"]
-    assert "Site2 shows significantly LOWER persistence than Site1 (-1.60)" in summary
+
+    # Check that the summary logic is correct
+    summary = comparison.results["summary_text"]
+    assert "LowPersistenceSite shows significantly LOWER persistence than HighPersistenceSite (-2.00)" in summary
+
+    # Check that the results dictionary for site 1 has plotting keys
+    site1_res = comparison.results["site1"]
+    assert "log_freq" in site1_res
+    assert "intercept" in site1_res
+    assert site1_res["chosen_model_type"] == "standard"
+
+    # Check that the results dictionary for site 2 has plotting keys
+    site2_res = comparison.results["site2"]
+    assert "fitted_log_power" in site2_res
+    assert site2_res["chosen_model_type"] == "segmented"
