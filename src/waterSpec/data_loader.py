@@ -108,6 +108,15 @@ def load_data(
             raise ValueError(f"Time column '{time_col}' has no valid numeric data.")
 
     else:
+        # If input_time_unit is not set, we expect a datetime-like column.
+        # Raise an error if the column is numeric, as this is ambiguous.
+        if pd.api.types.is_numeric_dtype(df[time_col_orig].dtype):
+            raise ValueError(
+                f"The time column '{time_col}' is numeric, but `input_time_unit` was not provided. "
+                "To process numeric time values, please specify `input_time_unit` "
+                "(e.g., 'seconds', 'days', or 'hours')."
+            )
+
         # Time is a datetime-like object, parse it
         original_time_na = df[time_col_orig].isna().sum()
         try:

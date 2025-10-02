@@ -321,3 +321,18 @@ def test_load_data_with_numeric_time_input(tmp_path):
             data_col="value",
             input_time_unit="years",
         )
+
+
+def test_load_data_numeric_time_without_unit_raises_error(tmp_path):
+    """
+    Test that load_data raises a ValueError if the time column is numeric
+    but input_time_unit is not provided.
+    """
+    file_path = tmp_path / "numeric_time_no_unit.csv"
+    file_path.write_text("time,value\n1,10\n2,20\n3,30")
+
+    with pytest.raises(
+        ValueError,
+        match="The time column 'time' is numeric, but `input_time_unit` was not provided.",
+    ):
+        load_data(file_path, time_col="time", data_col="value")

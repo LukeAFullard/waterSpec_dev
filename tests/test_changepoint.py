@@ -58,6 +58,7 @@ def test_auto_changepoint_detection(synthetic_data_with_changepoint, tmpdir):
         file_path=file_path,
         time_col="time",
         data_col="value",
+        input_time_unit="seconds",
         changepoint_mode='auto',
         changepoint_options={'model': 'l2'} # Use l2 for mean shift detection
     )
@@ -91,6 +92,7 @@ def test_manual_changepoint(synthetic_data_with_changepoint, tmpdir):
         file_path=file_path,
         time_col="time",
         data_col="value",
+        input_time_unit="seconds",
         changepoint_mode='manual',
         changepoint_index=cp_index,
         param_name="ManualTest"
@@ -119,6 +121,7 @@ def test_no_changepoint_found(synthetic_data_no_changepoint, tmpdir):
         file_path=file_path,
         time_col="time",
         data_col="value",
+        input_time_unit="seconds",
         changepoint_mode='auto',
         changepoint_options={'model': 'l2', 'penalty': 1000} # High penalty
     )
@@ -138,6 +141,7 @@ def test_invalid_changepoint_index(synthetic_data_with_changepoint):
             file_path=file_path,
             time_col="time",
             data_col="value",
+            input_time_unit="seconds",
             changepoint_mode='manual',
             changepoint_index=1000 # Out of bounds
         )
@@ -153,6 +157,7 @@ def test_changepoint_edge_cases(synthetic_data_with_changepoint, tmpdir):
         file_path=file_path,
         time_col="time",
         data_col="value",
+        input_time_unit="seconds",
         changepoint_mode='manual',
         changepoint_index=5  # Creates a "before" segment of only 5 points
     )
@@ -164,6 +169,7 @@ def test_changepoint_edge_cases(synthetic_data_with_changepoint, tmpdir):
         file_path=file_path,
         time_col="time",
         data_col="value",
+        input_time_unit="seconds",
         changepoint_mode='manual',
         changepoint_index=395  # Creates an "after" segment of only 5 points
     )
