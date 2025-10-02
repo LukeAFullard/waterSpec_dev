@@ -3,57 +3,65 @@ from astropy.timeseries import LombScargle
 from scipy.signal import find_peaks
 
 
-def calculate_periodogram(time, data, frequency=None, dy=None, normalization=None):
+def calculate_periodogram(
+    time: np.ndarray,
+    data: np.ndarray,
+    dy: np.ndarray = None,
+    normalization: str = None,
+    nyquist_factor: float = 1.0,
+    samples_per_peak: int = 5,
+    minimum_frequency: float = None,
+    maximum_frequency: float = None,
+) -> tuple[np.ndarray, np.ndarray, LombScargle]:
     """
-    Calculates the Lomb-Scargle periodogram for a time series.
+    Calculates the Lomb-Scargle periodogram using Astropy's `autopower` method.
 
-    This function requires a pre-computed frequency grid. Using a log-spaced
-    grid is recommended for spectral analysis. The `waterSpec.generate_frequency_grid`
-    function can be used to create a suitable grid.
+    This function automatically generates an appropriate frequency grid based on
+    the data properties and the provided parameters.
 
     The normalization is chosen automatically based on the presence of measurement
-    errors (`dy`), but can be overridden.
+    errors (`dy`), but can be overridden. If errors are provided, 'psd' is the
+    default, which is essential for quantitative spectral slope analysis.
 
     Args:
         time (np.ndarray): The time array.
         data (np.ndarray): The data values.
-        frequency (np.ndarray): The frequency grid to use for the periodogram.
         dy (np.ndarray, optional): Measurement uncertainties for each data point.
-                                   If provided, `normalization` defaults to 'psd'.
-                                   Defaults to None.
-        normalization (str, optional): The normalization method to use.
-            - If `None` (default): Automatically selects 'psd' if `dy` is given,
-              otherwise 'standard'.
-            - 'psd': Computes a power spectral density, suitable for quantitative
-              analysis and slope fitting. Requires `dy` for proper scaling.
-            - 'standard': Computes a dimensionless power (0-1), useful for
-              detecting significant peaks.
-            See Astropy documentation for other options.
+            If provided, `normalization` defaults to 'psd'. Defaults to None.
+        normalization (str, optional): The normalization method. Defaults to 'psd'
+            if `dy` is given, otherwise 'standard'.
+        nyquist_factor (float, optional): The factor by which to scale the Nyquist
+            frequency. Defaults to 1.0.
+        samples_per_peak (int, optional): The number of samples to generate per
+            periodogram peak. Higher values lead to a denser frequency grid.
+            Defaults to 5.
+        minimum_frequency (float, optional): The lowest frequency to include in
+            the grid. Defaults to a value determined by `autopower`.
+        maximum_frequency (float, optional): The highest frequency to include in
+            the grid. Overrides `nyquist_factor` if set. Defaults to None.
 
     Returns:
         tuple[np.ndarray, np.ndarray, LombScargle]: A tuple containing:
-                                       - frequency
-                                       - power
-                                       - The LombScargle object instance
+            - frequency: The automatically generated frequency grid.
+            - power: The power values for the corresponding frequencies.
+            - ls_instance: The LombScargle object instance.
     """
-    if frequency is None:
-        raise ValueError(
-            "A frequency grid must be provided. The use of autopower has been "
-            "removed to prevent incorrect grid generation."
-        )
-
-    # Automatically select normalization if not specified
+    # Automatically select normalization if not specified.
+    # 'psd' is crucial for physical units when errors are known.
     if normalization is None:
-        if dy is not None:
-            normalization = "psd"
-        else:
-            normalization = "standard"
+        normalization = "psd" if dy is not None else "standard"
 
-    ls = LombScargle(time, data, dy=dy)
+    ls_instance = LombScargle(time, data, dy=dy)
 
-    power = ls.power(frequency, normalization=normalization)
+    frequency, power = ls_instance.autopower(
+        nyquist_factor=nyquist_factor,
+        samples_per_peak=samples_per_peak,
+        minimum_frequency=minimum_frequency,
+        maximum_frequency=maximum_frequency,
+        normalization=normalization,
+    )
 
-    return frequency, power, ls
+    return frequency, power, ls_instance
 
 
 import warnings
@@ -205,8 +213,8 @@ def find_peaks_via_residuals(fit_results: Dict, fdr_level: float = 0.05) -> Tupl
     for peak_idx in significant_peak_indices:
         significant_peaks.append(
             {
-                "frequency": np.exp(log_freq[peak_idx]),
-                "power": np.exp(log_power[peak_idx]),
+                "frequency": 10 ** log_freq[peak_idx],
+                "power": 10 ** log_power[peak_idx],
                 "residual": residuals[peak_idx],
             }
         )

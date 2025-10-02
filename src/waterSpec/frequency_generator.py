@@ -23,19 +23,13 @@ def generate_frequency_grid(
     time_unit: str = "seconds",
 ):
     """
+    .. deprecated:: 0.2.0
+        This function is deprecated and will be removed in a future version.
+        Use the `autopower` method of an `astropy.timeseries.LombScargle`
+        object for robust, automatic frequency grid generation.
+
     Generates a frequency grid, with options for linear or log spacing, and
     flexible upper frequency limits.
-
-    This function is unit-agnostic. The units of the output frequency grid are
-    the inverse of the units of the input `time_numeric` array. The `time_unit`
-    parameter should be used to document this relationship for downstream tasks.
-    For example, if `time_numeric` is in days, set `time_unit='days'`, and the
-    resulting frequency grid will be in cycles per day.
-
-    For irregularly sampled data, the concept of a single Nyquist frequency is
-    not well-defined. This function uses a robust heuristic:
-    `0.5 / median_sampling_interval`. Users can adjust this heuristic with the
-    `nyquist_factor` or override it completely with `max_freq`.
 
     Args:
         time_numeric (np.ndarray): The numeric time array, in units specified
@@ -61,6 +55,12 @@ def generate_frequency_grid(
     Returns:
         np.ndarray: The frequency grid, in units of `1 / time_unit`.
     """
+    warnings.warn(
+        "`generate_frequency_grid` is deprecated and will be removed in a future version. "
+        "Use `astropy.timeseries.LombScargle.autopower()` for robust frequency grid generation.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     # --- Input Validation ---
     if not isinstance(num_points, int) or num_points <= 1:
         raise ValueError("num_points must be an integer greater than 1.")
