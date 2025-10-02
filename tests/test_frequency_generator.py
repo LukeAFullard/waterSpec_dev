@@ -78,3 +78,50 @@ def test_nyquist_frequency_is_robust_to_outliers():
 
     # The maximum frequency in the grid should be based on the median, not the mean.
     assert np.max(grid) == pytest.approx(expected_nyquist)
+
+
+def test_max_freq_override(sample_time_array):
+    """Test that `max_freq` overrides the automatic Nyquist calculation."""
+    custom_max_freq = 0.75
+    grid = generate_frequency_grid(sample_time_array, max_freq=custom_max_freq)
+    assert np.max(grid) == pytest.approx(custom_max_freq)
+
+
+def test_nyquist_factor(sample_time_array):
+    """Test that `nyquist_factor` correctly scales the Nyquist frequency."""
+    # Default Nyquist for the sample array
+    median_interval = np.median(np.diff(sample_time_array))
+    expected_nyquist = 0.5 / median_interval
+
+    # With a factor of 0.5, the max frequency should be half
+    grid = generate_frequency_grid(sample_time_array, nyquist_factor=0.5)
+    assert np.max(grid) == pytest.approx(0.5 * expected_nyquist)
+
+
+def test_time_unit_in_warning_message():
+    """
+    Test that the `time_unit` is correctly reflected in the warning for
+    highly irregular sampling.
+    """
+    # Create a time series with highly irregular sampling
+    irregular_time = np.array([0, 1, 10, 11, 100])
+    with pytest.warns(UserWarning, match="The output frequency units are 1/days") as record:
+        generate_frequency_grid(irregular_time, time_unit="days")
+
+    # Check that a warning was indeed issued
+    assert len(record) == 1
+
+
+def test_invalid_inputs(sample_time_array):
+    """Test that invalid inputs for new parameters raise ValueError."""
+    with pytest.raises(ValueError, match="nyquist_factor must be a positive number"):
+        generate_frequency_grid(sample_time_array, nyquist_factor=0)
+
+    with pytest.raises(ValueError, match="nyquist_factor must be a positive number"):
+        generate_frequency_grid(sample_time_array, nyquist_factor=-1.0)
+
+    with pytest.raises(ValueError, match="max_freq, if provided, must be a positive number"):
+        generate_frequency_grid(sample_time_array, max_freq=0)
+
+    with pytest.raises(ValueError, match="max_freq, if provided, must be a positive number"):
+        generate_frequency_grid(sample_time_array, max_freq=-10.0)

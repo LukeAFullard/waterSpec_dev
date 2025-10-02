@@ -33,6 +33,7 @@ class Analysis:
         error_col=None,
         time_format=None,
         sheet_name=0,
+        time_unit="seconds",
         param_name=None,
         censor_strategy="drop",
         censor_options=None,
@@ -57,6 +58,10 @@ class Analysis:
                 time column to speed up parsing. If None, it is inferred.
             sheet_name (str or int, optional): If loading an Excel file, specify
                 the sheet name or index. Defaults to 0.
+            time_unit (str, optional): The desired unit for the time array, which
+                also determines the unit of the frequency grid (e.g., if
+                `time_unit` is 'days', frequency is in '1/days').
+                Can be 'seconds', 'days', or 'hours'. Defaults to 'seconds'.
             param_name (str, optional): A descriptive name for the data parameter
                 being analyzed (e.g., "Nitrate Concentration"). Used for plot
                 titles and summaries. If None, defaults to `data_col`.
@@ -83,6 +88,7 @@ class Analysis:
         if not isinstance(min_valid_data_points, int) or min_valid_data_points <= 0:
             raise ValueError("`min_valid_data_points` must be a positive integer.")
         self.min_valid_data_points = min_valid_data_points
+        self.time_unit = time_unit
 
         # Load and preprocess data
         self.logger.info("Loading and preprocessing data...")
@@ -93,6 +99,7 @@ class Analysis:
             error_col=error_col,
             time_format=time_format,
             sheet_name=sheet_name,
+            output_time_unit=self.time_unit,
         )
         processed_data, processed_errors, diagnostics = preprocess_data(
             data_series,
@@ -147,11 +154,18 @@ class Analysis:
         s = re.sub(r"(?u)[^-\w.]", "", s)
         return s
 
-    def _calculate_periodogram(self, grid_type, normalization, num_grid_points):
+    def _calculate_periodogram(
+        self, grid_type, normalization, num_grid_points, max_freq, nyquist_factor
+    ):
         """Generates frequency grid and calculates the Lomb-Scargle periodogram."""
         self.logger.info("Calculating Lomb-Scargle periodogram...")
         self.frequency = generate_frequency_grid(
-            self.time, num_points=num_grid_points, grid_type=grid_type
+            self.time,
+            num_points=num_grid_points,
+            grid_type=grid_type,
+            max_freq=max_freq,
+            nyquist_factor=nyquist_factor,
+            time_unit=self.time_unit,
         )
         self.frequency, self.power, self.ls_obj = calculate_periodogram(
             self.time,
@@ -363,6 +377,8 @@ class Analysis:
         peak_fdr_level,
         p_threshold,
         max_breakpoints,
+        nyquist_factor,
+        max_freq,
     ):
         """Validates parameters for the `run_full_analysis` method."""
         if fit_method not in ["theil-sen", "ols"]:
@@ -395,6 +411,10 @@ class Analysis:
             raise ValueError("`p_threshold` must be a float between 0 and 1.")
         if max_breakpoints not in [0, 1, 2]:
             raise ValueError("`max_breakpoints` must be an integer (0, 1, or 2).")
+        if not isinstance(nyquist_factor, (int, float)) or nyquist_factor <= 0:
+            raise ValueError("`nyquist_factor` must be a positive number.")
+        if max_freq is not None and (not isinstance(max_freq, (int, float)) or max_freq <= 0):
+            raise ValueError("`max_freq`, if provided, must be a positive number.")
 
     def run_full_analysis(
         self,
@@ -403,13 +423,15 @@ class Analysis:
         ci_method="bootstrap",
         bootstrap_type="residuals",
         n_bootstraps=1000,
-        fap_threshold=0.01,
         grid_type="log",
         num_grid_points=200,
-        fap_method="baluev",
-        normalization="standard",
+        nyquist_factor=1.0,
+        max_freq=None,
         peak_detection_method="fap",
+        fap_threshold=0.01,
+        fap_method="baluev",
         peak_fdr_level=0.05,
+        normalization="standard",
         p_threshold=0.05,
         max_breakpoints=1,
         seed=None,
@@ -440,6 +462,12 @@ class Analysis:
                 Defaults to 'log'.
             num_grid_points (int, optional): The number of points to generate
                 for the frequency grid. Defaults to 200.
+            nyquist_factor (float, optional): Scaling factor for the heuristic
+                Nyquist frequency (0.5 / median interval). Ignored if `max_freq`
+                is set. Defaults to 1.0.
+            max_freq (float, optional): User-defined maximum frequency for the
+                grid, overriding automatic calculation. The unit should be the
+                inverse of `time_unit`. Defaults to None.
             peak_detection_method (str, optional): Method for peak detection.
                 The available options are:
 
@@ -490,10 +518,14 @@ class Analysis:
             peak_fdr_level,
             p_threshold,
             max_breakpoints,
+            nyquist_factor,
+            max_freq,
         )
 
         # 2. Calculate Periodogram
-        self._calculate_periodogram(grid_type, normalization, num_grid_points)
+        self._calculate_periodogram(
+            grid_type, normalization, num_grid_points, max_freq, nyquist_factor
+        )
 
         # 3. Fit Spectrum and Select Best Model
         try:

@@ -13,15 +13,32 @@ def load_data(
     error_col: Optional[str] = None,
     time_format: Optional[str] = None,
     sheet_name: Union[int, str] = 0,
+    output_time_unit: str = "seconds",
 ) -> Tuple[np.ndarray, pd.Series, Optional[pd.Series]]:
     """
     Loads time series data from a CSV, JSON, or Excel file, performing robust
-    validation.
+    validation and returning time as a numeric array in the specified units.
 
-    Note: The time column should contain absolute timestamps (e.g., '2023-01-15 10:30:00')
-    that can be parsed by `pandas.to_datetime`. The function calculates time
-    differences in seconds relative to the first timestamp for all downstream
-    frequency analysis.
+    Args:
+        file_path (str): The path to the data file.
+        time_col (str): The name of the column containing timestamps.
+        data_col (str): The name of the column containing data values.
+        error_col (Optional[str], optional): The name of the column containing
+            error values. Defaults to None.
+        time_format (Optional[str], optional): The `strftime` format for parsing
+            the time column. If None, `pd.to_datetime` will infer the format.
+            Defaults to None.
+        sheet_name (Union[int, str], optional): The name or index of the sheet
+            to read from for Excel files. Defaults to 0.
+        output_time_unit (str, optional): The desired unit for the output time
+            array. Can be 'seconds', 'days', or 'hours'. Defaults to 'seconds'.
+
+    Returns:
+        Tuple[np.ndarray, pd.Series, Optional[pd.Series]]: A tuple containing:
+            - A NumPy array of numeric time values, in the unit specified by
+              `output_time_unit`, relative to the first timestamp.
+            - A Pandas Series of data values.
+            - A Pandas Series of error values, or None if not provided.
     """
     # 1. Validate file existence
     if not os.path.exists(file_path):
@@ -204,4 +221,16 @@ def load_data(
             UserWarning,
         )
 
-    return time_numeric_sec, clean_df["data"], clean_df.get("error")
+    # 8. Convert time to the desired output unit
+    if output_time_unit == "seconds":
+        time_out = time_numeric_sec
+    elif output_time_unit == "days":
+        time_out = time_numeric_sec / 86400.0
+    elif output_time_unit == "hours":
+        time_out = time_numeric_sec / 3600.0
+    else:
+        raise ValueError(
+            "Invalid output_time_unit. Choose from 'seconds', 'days', or 'hours'."
+        )
+
+    return time_out, clean_df["data"], clean_df.get("error")
