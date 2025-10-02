@@ -1,0 +1,66 @@
+Changepoint Analysis (Auto Detection)
+============================================================
+
+Changepoint Located: 5.2 months
+  Segment BEFORE: n=165
+  Segment AFTER:  n=335
+
+------------------------------------------------------------
+
+REGIME COMPARISON:
+  Before: β ≈ 0.31 (Low (Event-driven))
+  After:  β ≈ 0.98 (Medium (Mixed))
+
+  * Significant INCREASE in persistence (+0.67)
+    System may have shifted toward more storage-dominated pathways.
+
+============================================================
+
+Automatic Analysis for: Synthetic Segmented Signal (Before 5.2 months)
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -416.13  (β = 0.31)
+
+  Models that failed to fit:
+    - Segmented model (1 breakpoint(s)): Model did not converge.
+
+==> Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: Synthetic Segmented Signal (Before 5.2 months)
+Value: β = 0.31
+Persistence Level: Low (Event-driven)
+Scientific Meaning: 0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport.
+Contextual Comparison: Similar to E. coli (Surface runoff-dominated).
+
+-----------------------------------
+Significant Periodicities Found (at 1.0% FAP Level):
+  - Period: 2.2 months
+
+============================================================
+
+Automatic Analysis for: Synthetic Segmented Signal (After 5.2 months)
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -945.89  (β = 0.05)
+  - Segmented (1 BP) BIC = -1013.84 (β1=0.98, β2=-0.11)
+
+==> Chosen Model: Segmented 1bp
+-----------------------------------
+
+Details for Chosen (Segmented 1bp) Model:
+Segmented Analysis for: Synthetic Segmented Signal (After 5.2 months)
+Low-Frequency (Long-term) Fit:
+  β1 = 0.98
+  Interpretation: β ≈ 1 (Pink Noise): Stronger persistence, common in natural systems.
+  Persistence: Medium (Mixed)
+--- Breakpoint 1 @ ~18.7 days ---
+High-Frequency (Short-term) Fit:
+  β2 = -0.11
+  Interpretation: β ≈ 0 (White Noise): Uncorrelated, random process.
+  Persistence: Low (Event-driven)
+
+-----------------------------------
+Significant Periodicities Found (at 1.0% FAP Level):
+  - Period: 7.4 months
