@@ -5,7 +5,38 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from waterSpec.plotting import plot_spectrum
+from waterSpec.plotting import plot_spectrum, plot_changepoint_analysis
+
+
+@pytest.fixture
+def changepoint_results_data():
+    """Provides a mock results dictionary for changepoint analysis."""
+    # Create some dummy data for two segments
+    freq = np.logspace(-3, 0, 50)
+    power = np.ones_like(freq)
+    fit_res = {
+        "chosen_model_type": "standard",
+        "beta": 1.0,
+        "log_freq": np.log(freq),
+        "intercept": 0,
+    }
+
+    results = {
+        "changepoint_time": "10 days",
+        "segment_before": {
+            "frequency": freq,
+            "power": power * 1.5,
+            **fit_res,
+            "beta": 0.5,
+        },
+        "segment_after": {
+            "frequency": freq,
+            "power": power * 0.5,
+            **fit_res,
+            "beta": 1.8,
+        },
+    }
+    return results
 
 
 @pytest.fixture
@@ -26,6 +57,27 @@ def test_plot_spectrum_saves_file(spectrum_data, tmp_path):
     plot_spectrum(frequency, power, fit_results, output_path=str(output_file))
 
     assert os.path.exists(output_file)
+
+
+def test_plot_changepoint_analysis_combined_style(
+    changepoint_results_data, tmp_path
+):
+    """
+    Test that `plot_changepoint_analysis` with `plot_style='combined'`
+    creates a single combined plot.
+    """
+    output_dir = tmp_path / "changepoint_combined"
+    os.makedirs(output_dir)
+
+    plot_changepoint_analysis(
+        changepoint_results_data,
+        str(output_dir),
+        param_name="TestParam",
+        plot_style="combined",
+    )
+
+    expected_file = output_dir / "TestParam_changepoint_combined.png"
+    assert expected_file.exists()
 
 
 @patch("matplotlib.pyplot.savefig")

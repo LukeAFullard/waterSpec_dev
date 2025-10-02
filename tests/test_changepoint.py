@@ -81,24 +81,33 @@ def test_auto_changepoint_detection(synthetic_data_with_changepoint, tmpdir):
 
 def test_manual_changepoint(synthetic_data_with_changepoint, tmpdir):
     """
-    Test that manual changepoint specification correctly segments the data.
+    Test that manual changepoint specification correctly segments the data and
+    that the plot style option is respected.
     """
     file_path, cp_index = synthetic_data_with_changepoint
+    output_dir = str(tmpdir)
 
     analyzer = Analysis(
         file_path=file_path,
         time_col="time",
         data_col="value",
         changepoint_mode='manual',
-        changepoint_index=cp_index
+        changepoint_index=cp_index,
+        param_name="ManualTest"
     )
 
-    results = analyzer.run_full_analysis(output_dir=str(tmpdir), n_bootstraps=0)
+    results = analyzer.run_full_analysis(
+        output_dir=output_dir, n_bootstraps=0, changepoint_plot_style='combined'
+    )
 
     assert results['changepoint_analysis'] is True
     assert results['changepoint_index'] == cp_index
     assert results['segment_before']['n_points'] == cp_index
     assert results['segment_after']['n_points'] == len(analyzer.time) - cp_index
+
+    # Check that the correct combined plot was created
+    expected_file = os.path.join(output_dir, "ManualTest_changepoint_combined.png")
+    assert os.path.exists(expected_file)
 
 def test_no_changepoint_found(synthetic_data_no_changepoint, tmpdir):
     """
