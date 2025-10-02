@@ -279,3 +279,87 @@ def _plot_fit_line(ax, fit_results, color, label_prefix=""):
             linewidth=2.5,
             label=f"{label_prefix} Fit ({beta_str})",
         )
+
+
+def plot_site_comparison(
+    results: Dict, output_dir: str, plot_style: str = "separate"
+):
+    """
+    Creates a comparison plot for a two-site analysis.
+
+    Args:
+        results (Dict): The results dictionary from the site comparison analysis.
+        output_dir (str): The directory to save the plot.
+        plot_style (str): The style of plot, either 'separate' or 'overlaid'.
+
+    Returns:
+        matplotlib.figure.Figure: The figure object for the plot.
+    """
+    site1_results = results["site1"]
+    site2_results = results["site2"]
+    site1_name = site1_results["site_name"]
+    site2_name = site2_results["site_name"]
+    comparison_name = results["comparison_name"]
+    sanitized_name = re.sub(
+        r"(?u)[^-\w.]", "", str(comparison_name).strip().replace(" ", "_")
+    )
+
+    if plot_style == "separate":
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(18, 7), sharey=True)
+        _plot_single_spectrum(
+            ax1,
+            site1_results["frequency"],
+            site1_results["power"],
+            site1_results,
+            title=f"Spectrum for {site1_name}",
+        )
+        _plot_single_spectrum(
+            ax2,
+            site2_results["frequency"],
+            site2_results["power"],
+            site2_results,
+            title=f"Spectrum for {site2_name}",
+        )
+        fig.suptitle(f"Site Comparison: {site1_name} vs. {site2_name}", fontsize=18)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        filename = f"{sanitized_name}_comparison_separate.png"
+
+    elif plot_style == "overlaid":
+        fig, ax = plt.subplots(figsize=(12, 8))
+        # Plot Site 1
+        ax.loglog(
+            site1_results["frequency"],
+            site1_results["power"],
+            "o",
+            color="blue",
+            alpha=0.5,
+            label=f"Periodogram for {site1_name}",
+        )
+        # Plot Site 2
+        ax.loglog(
+            site2_results["frequency"],
+            site2_results["power"],
+            "s",
+            color="green",
+            alpha=0.5,
+            markersize=5,
+            label=f"Periodogram for {site2_name}",
+        )
+        # Plot fit lines
+        _plot_fit_line(ax, site1_results, color="darkblue", label_prefix=site1_name)
+        _plot_fit_line(ax, site2_results, color="darkgreen", label_prefix=site2_name)
+        ax.set_title(f"Site Comparison: {site1_name} vs. {site2_name}", fontsize=16)
+        ax.set_xlabel("Frequency")
+        ax.set_ylabel("Power")
+        ax.grid(True, which="both", ls="--", alpha=0.5)
+        ax.legend()
+        plt.tight_layout()
+        filename = f"{sanitized_name}_comparison_overlaid.png"
+
+    else:
+        raise ValueError("plot_style must be 'separate' or 'overlaid'.")
+
+    output_path = os.path.join(output_dir, filename)
+    fig.savefig(output_path, dpi=300)
+    plt.close(fig)
+    return fig
