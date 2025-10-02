@@ -379,7 +379,7 @@ def _bootstrap_segmented_fit(
     n_bootstraps,
     ci,
     seed,
-    bootstrap_type="residuals",
+    bootstrap_type="block",
     bootstrap_block_size: Optional[int] = None,
     logger=None,
 ):

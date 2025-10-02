@@ -235,21 +235,23 @@ results = analyzer.run_full_analysis(
 
 ### Choosing the Right Bootstrap Method
 
-Bootstrapping is a powerful technique for estimating confidence intervals, but the best method depends on the characteristics of your data. `waterSpec` offers four types, controlled by the `bootstrap_type` parameter. Here’s a guide to help you choose:
+Bootstrapping is a powerful technique for estimating confidence intervals. The best method depends on your data's characteristics. For **spectral analysis**, residuals are almost always autocorrelated due to spectral leakage and the nature of power-law fits. Therefore, the block bootstrap is the recommended default.
+
+`waterSpec` offers four types, controlled by the `bootstrap_type` parameter. Here’s a guide to help you choose:
 
 | Method         | When to Use                                                                                                | How it Works                                                                       |
 |----------------|------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| **`'pairs'`**  | **Default choice.** Good when you are uncertain about the model's fit or assumptions.                        | Resamples (frequency, power) data points together. Makes the fewest assumptions.   |
-| **`'residuals'`**| When your spectral model is a very good fit and residuals appear random (no autocorrelation).              | Resamples the model's residuals. More powerful if the model is correct.            |
-| **`'block'`**  | When you suspect **autocorrelation** in the data (i.e., values are correlated with their neighbors).           | Resamples blocks of data to preserve the original correlation structure.           |
-| **`'wild'`**   | When you suspect **heteroscedasticity** (i.e., the variance of the residuals is not constant).                 | Creates synthetic residuals with a zero mean but preserves their original variance. |
+| **`'block'`**  | **Default and recommended for all spectral analysis.** Use this unless you have a strong reason not to.        | Resamples blocks of data to preserve the inherent autocorrelation in spectral data. |
+| **`'wild'`**   | When you suspect **heteroscedasticity** (i.e., the variance of the residuals changes systematically with frequency). | Creates synthetic residuals with a zero mean but preserves their original variance. |
+| **`'residuals'`**| **Use with caution.** Only if your model fits exceptionally well and a Durbin-Watson test shows no autocorrelation. | Resamples the model's residuals. Assumes residuals are independent, which is rare in spectral analysis. |
+| **`'pairs'`**  | **Not recommended for spectral data.** This method violates the spectral structure and should be avoided.     | Resamples (frequency, power) data points together. Does not preserve correlation structure. |
 
-**Decision Flowchart:**
 
-1.  **Start with `'pairs'`** if you are unsure. It's the most robust and makes the fewest assumptions.
-2.  **Inspect your model fit.** If the fitted line follows the data well and the residuals look like random noise, **`'residuals'`** can provide more statistical power.
-3.  **Check for autocorrelation.** Use the `durbin_watson_stat` in the results or plot the residuals. If you see patterns (e.g., runs of positive or negative residuals), your data is likely autocorrelated. Switch to **`'block'`**.
-4.  **Check for heteroscedasticity.** If the spread of your residuals changes across the frequency range, the variance is not constant. Switch to **`'wild'`**.
+**Decision Flowchart for Spectral Analysis:**
+
+1.  **Start with `'block'`.** This is the safest and most theoretically sound choice for spectral data, as it correctly handles the autocorrelation present in periodogram residuals.
+2.  **Check for heteroscedasticity.** If the spread of your residuals changes systematically across the frequency range, the variance is not constant. Switch to **`'wild'`**.
+3.  **Avoid `'residuals'` and `'pairs'`.** The `'residuals'` bootstrap is generally invalid because spectral residuals are correlated by construction. The `'pairs'` bootstrap shuffles frequencies, destroying the spectral structure of the data, and should not be used.
 
 ---
 
