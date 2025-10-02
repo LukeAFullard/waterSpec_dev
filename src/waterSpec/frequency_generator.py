@@ -122,9 +122,7 @@ def generate_frequency_grid(
         )
 
     if grid_type == "log":
-        frequency_grid = np.logspace(
-            np.log10(min_freq), np.log10(max_f), num=num_points
-        )
+        frequency_grid = np.geomspace(min_freq, max_f, num=num_points)
     elif grid_type == "linear":
         frequency_grid = np.linspace(min_freq, max_f, num=num_points)
     else:

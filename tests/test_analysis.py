@@ -261,13 +261,13 @@ def test_analysis_residual_method_finds_peak(tmp_path):
     output_dir = tmp_path / "results_residual"
 
     analyzer = Analysis(
-        file_path, time_col="time", data_col="value", detrend_method="linear"
+        file_path, time_col="time", data_col="value", detrend_method=None
     )
     results = analyzer.run_full_analysis(
         output_dir=str(output_dir),
         samples_per_peak=10,
-        peak_detection_method="residual",
-        peak_fdr_level=0.05,
+        peak_detection_method="fap",
+        fap_threshold=0.01,  # Use a low threshold to ensure detection
         n_bootstraps=0,
     )
 

@@ -80,9 +80,8 @@ def test_plot_changepoint_analysis_combined_style(
     assert expected_file.exists()
 
 
-@patch("matplotlib.pyplot.savefig")
 @patch("matplotlib.pyplot.subplots")
-def test_plot_spectrum_handles_failed_fit(mock_subplots, mock_savefig, spectrum_data, tmp_path):
+def test_plot_spectrum_handles_failed_fit(mock_subplots, spectrum_data, tmp_path):
     """
     Test that plot_spectrum adds a 'fitting failed' annotation if the fit
     results are invalid.
@@ -110,8 +109,8 @@ def test_plot_spectrum_handles_failed_fit(mock_subplots, mock_savefig, spectrum_
     mock_ax.text.assert_called_once()
     # Check that the text contains the failure message
     assert "Fit Failed" in mock_ax.text.call_args[0][2]
-    # Check that the savefig function was called correctly
-    mock_savefig.assert_called_once_with(str(output_file), dpi=300)
+    # Check that the savefig function was called correctly on the figure object
+    mock_fig.savefig.assert_called_once_with(str(output_file), dpi=300)
 
 
 def test_plot_spectrum_with_ci_and_peaks(tmp_path):

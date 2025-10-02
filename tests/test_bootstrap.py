@@ -3,12 +3,12 @@ import pytest
 from waterSpec.fitter import fit_standard_model, fit_segmented_spectrum
 
 # --- Test Data ---
-np.random.seed(0)
+rng = np.random.default_rng(0)
 
 # Data for standard model (single power-law)
 FREQUENCY_STD = np.logspace(np.log10(1e-3), np.log10(1e-1), 50)
 BETA_STD = 1.5
-POWER_STD = FREQUENCY_STD ** (-BETA_STD) * (1 + np.random.normal(0, 0.1, size=50))
+POWER_STD = FREQUENCY_STD ** (-BETA_STD) * (1 + rng.normal(0, 0.1, size=50))
 
 # Data for segmented model (with a breakpoint)
 f1 = np.logspace(np.log10(1e-4), np.log10(1e-2), 25, endpoint=False)
@@ -16,7 +16,7 @@ p1 = f1 ** (-1.0)
 f2 = np.logspace(np.log10(1e-2), np.log10(1e-1), 25)
 p2 = (f2 ** (-2.5)) * (p1[-1] / (f2[0] ** (-2.5))) # Scale to connect smoothly
 FREQUENCY_SEG = np.concatenate((f1, f2))
-POWER_SEG = np.concatenate((p1, p2)) * (1 + np.random.normal(0, 0.1, size=50))
+POWER_SEG = np.concatenate((p1, p2)) * (1 + rng.normal(0, 0.1, size=50))
 
 
 def test_residual_bootstrap_standard_model():
@@ -182,7 +182,8 @@ def test_ci_coverage():
 
     for i in range(n_simulations):
         # Generate a new dataset for each simulation
-        sim_power = FREQUENCY_STD ** (-true_beta) * (1 + np.random.normal(0, 0.2, size=50))
+        rng = np.random.default_rng(i)
+        sim_power = FREQUENCY_STD ** (-true_beta) * (1 + rng.normal(0, 0.2, size=50))
         results = fit_standard_model(
             FREQUENCY_STD,
             sim_power,

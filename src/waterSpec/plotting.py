@@ -140,9 +140,13 @@ def plot_spectrum(
     fit_results,
     output_path=None,
     param_name="Parameter",
+    show: bool = False,
 ):
     """
-    Generates and saves a plot of the power spectrum and its fit.
+    Generates, saves, or shows a plot of the power spectrum and its fit.
+
+    Returns:
+        matplotlib.figure.Figure: The figure object for the plot.
     """
     fig, ax = plt.subplots(figsize=(10, 6))
     _plot_single_spectrum(
@@ -151,10 +155,13 @@ def plot_spectrum(
     plt.tight_layout()
 
     if output_path:
-        plt.savefig(output_path, dpi=300)
-    else:
+        fig.savefig(output_path, dpi=300)
+
+    if show:
         plt.show()
-    plt.close()
+
+    plt.close(fig)
+    return fig
 
 
 def plot_changepoint_analysis(
@@ -168,6 +175,9 @@ def plot_changepoint_analysis(
         output_dir (str): The directory to save the plot.
         param_name (str): The name of the parameter being analyzed.
         plot_style (str): The style of plot, either 'separate' or 'combined'.
+
+    Returns:
+        matplotlib.figure.Figure: The figure object for the plot.
     """
     before_seg = results["segment_before"]
     after_seg = results["segment_after"]
@@ -232,8 +242,9 @@ def plot_changepoint_analysis(
         raise ValueError("plot_style must be 'separate' or 'combined'.")
 
     output_path = os.path.join(output_dir, filename)
-    plt.savefig(output_path, dpi=300)
-    plt.close()
+    fig.savefig(output_path, dpi=300)
+    plt.close(fig)
+    return fig
 
 
 def _plot_fit_line(ax, fit_results, color, label_prefix=""):
