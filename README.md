@@ -372,20 +372,6 @@ Always report confidence intervals alongside point estimates. Wide CIs indicate 
 
 ---
 
-## Roadmap
-
-Planned features for future releases:
-
-- [ ] Wavelet analysis for time-varying spectra
-- [ ] Multitaper spectral estimation
-- [ ] Nonstationary spectral analysis
-- [ ] Automated report generation (PDF/HTML)
-- [ ] Interactive plotting with Plotly
-- [ ] Support for multivariate spectral analysis
-- [ ] Integration with common hydrological data formats
-
----
-
 ## Contributing
 
 Contributions are welcome! Please:
