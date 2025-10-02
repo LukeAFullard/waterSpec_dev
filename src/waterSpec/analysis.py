@@ -77,6 +77,9 @@ class Analysis:
                 there is a strong, known trend in the data that must be removed.
             normalize_data (bool, optional): If True, normalize the data.
             detrend_options (dict, optional): Options for the detrending method.
+                For 'loess', this can include `frac` (float) and `n_bootstrap`
+                (int) for error propagation. See `preprocessor.detrend_loess`
+                for details.
             min_valid_data_points (int, optional): The minimum number of valid
                 data points required to proceed with an analysis. Defaults to 10.
             verbose (bool, optional): If True, sets logging level to INFO.
@@ -228,6 +231,9 @@ class Analysis:
         for n_breakpoints in range(1, max_breakpoints + 1):
             self.logger.info(f"Fitting segmented model with {n_breakpoints} breakpoint(s)...")
             try:
+                # If a seed is provided, increment it for each model to ensure
+                # that bootstrap samples are independent across models.
+                model_seed = seed + n_breakpoints if seed is not None else None
                 seg_results = fit_segmented_spectrum(
                     self.frequency,
                     self.power,
@@ -236,7 +242,7 @@ class Analysis:
                     ci_method=ci_method,
                     bootstrap_type=bootstrap_type,
                     n_bootstraps=n_bootstraps,
-                    seed=seed,
+                    seed=model_seed,
                     logger=self.logger,
                 )
                 if "bic" in seg_results and np.isfinite(seg_results["bic"]):
@@ -556,7 +562,9 @@ class Analysis:
 
         # 5. Interpret Results
         self.logger.info("Interpreting final results and generating summary...")
-        interp_results = interpret_results(fit_results, param_name=self.param_name)
+        interp_results = interpret_results(
+            fit_results, param_name=self.param_name, time_unit=self.time_unit
+        )
         self.results = {**fit_results, **interp_results}
 
         # Add preprocessing diagnostics to the final results

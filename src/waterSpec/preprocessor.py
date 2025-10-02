@@ -256,9 +256,16 @@ def detrend_loess(
     estimates trend uncertainty using a residual-resampling bootstrap.
 
     Args:
+        x (np.ndarray): The independent variable (e.g., time).
+        y (np.ndarray): The dependent variable (data series).
+        errors (np.ndarray, optional): Measurement errors for `y`.
         frac (float): The fraction of data used for each y-value estimation.
+            This is a key parameter for LOESS.
         n_bootstrap (int): The number of bootstrap iterations to perform for
-            uncertainty estimation. If 0, no bootstrapping is performed.
+            uncertainty estimation. If 0, no bootstrapping is performed and
+            error propagation is not fully supported.
+        **kwargs: Additional keyword arguments passed to
+            `statsmodels.nonparametric.lowess`.
     """
     # 1. Validate parameters
     if not isinstance(frac, (int, float)) or not (0 < frac <= 1):
@@ -333,10 +340,11 @@ def detrend_loess(
             )
         else:
             warnings.warn(
-                "Error propagation for LOESS detrending is not currently supported "
-                "without bootstrapping (set `n_bootstrap` > 0). The uncertainties "
-                "on the detrended data will be the same as the original, which may "
-                "be an underestimate.",
+                "Error propagation for LOESS detrending is not currently "
+                "supported without bootstrapping. To enable it, set "
+                "`n_bootstrap` > 0 in the `detrend_options` dictionary. "
+                "The uncertainties on the detrended data will be the same as "
+                "the original, which may be an underestimate.",
                 UserWarning,
             )
 

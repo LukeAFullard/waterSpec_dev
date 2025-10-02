@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import pandas as pd
 
@@ -118,18 +120,36 @@ DAYS_PER_MONTH = 30.44  # Average days in a month
 DAYS_PER_YEAR = 365.25  # Accounts for leap years
 
 
-def _format_period(frequency_hz):
+def _format_period(frequency, time_unit="seconds"):
     """
-    Converts a frequency in Hz to a human-readable period string.
+    Converts a frequency to a human-readable period string.
 
-    Note: This function assumes the input frequency is in units of 1/seconds (Hz),
-    which is consistent with the `time_numeric_sec` output from `load_data`.
+    Args:
+        frequency (float): The frequency value, in units of 1/time_unit.
+        time_unit (str): The time unit of the original time series, e.g.,
+            'seconds', 'days', 'hours'.
     """
-    if frequency_hz <= 0:
+    if frequency <= 0:
         return "N/A"
 
-    period_seconds = 1 / frequency_hz
-    period_days = period_seconds / SECONDS_PER_DAY
+    period_native_units = 1 / frequency
+
+    # Convert period to days for standardized formatting
+    if time_unit == "seconds":
+        period_days = period_native_units / SECONDS_PER_DAY
+    elif time_unit == "hours":
+        period_days = period_native_units / 24.0
+    elif time_unit == "days":
+        period_days = period_native_units
+    else:
+        # This case should ideally not be reached if inputs are validated upstream
+        # but as a fallback, treat the native unit as days.
+        warnings.warn(
+            f"Unsupported time_unit '{time_unit}' encountered in period formatting. "
+            "Assuming frequency is in 1/days.",
+            UserWarning,
+        )
+        period_days = period_native_units
 
     # Switch to years if > 1.5 years, and months if > 1.5 months for intuitive formatting.
     if period_days >= DAYS_PER_YEAR * 1.5:
@@ -181,6 +201,7 @@ def _generate_segment_interpretation(
 def interpret_results(
     fit_results,
     param_name="Parameter",
+    time_unit="seconds",
     uncertainty_threshold=CI_WIDTH_THRESHOLD_FOR_WARNING,
     breakpoint_uncertainty_threshold=10,
 ):
@@ -264,11 +285,14 @@ def interpret_results(
             )
 
             bp_name = f"Breakpoint {i+1} Period"
-            bp_str = f"~{_format_period(bp_freq)}"
+            bp_str = f"~{_format_period(bp_freq, time_unit=time_unit)}"
             if np.all(np.isfinite(bp_ci)):
                 # Note: A lower frequency corresponds to a higher period, so the
                 # order of the CI bounds must be swapped when formatting.
-                period_ci_str = f"{_format_period(bp_ci[1])}–{_format_period(bp_ci[0])}"
+                period_ci_str = (
+                    f"{_format_period(bp_ci[1], time_unit=time_unit)}–"
+                    f"{_format_period(bp_ci[0], time_unit=time_unit)}"
+                )
                 bp_str += f" (95% CI: {period_ci_str}{ci_method_str})"
                 # To assess uncertainty, calculate the ratio of the CI in
                 # period space. A large ratio indicates high uncertainty.
@@ -345,7 +369,9 @@ def interpret_results(
             peaks_summary += "Significant Periodicities Found:\n"
 
         for peak in fit_results["significant_peaks"]:
-            period_str = f"  - Period: {_format_period(peak['frequency'])}"
+            period_str = (
+                f"  - Period: {_format_period(peak['frequency'], time_unit=time_unit)}"
+            )
             if "residual" in peak:
                 peaks_summary += (
                     f"{period_str} (Fit Residual: {peak['residual']:.2f})\n"
