@@ -33,12 +33,12 @@ def _calculate_bic(y: np.ndarray, y_pred: np.ndarray, n_params: int) -> float:
     rss = np.sum((y - y_pred) ** 2)
     if rss < 1e-12:
         warnings.warn(
-            "Near-zero RSS found, indicating a perfect fit. "
-            "This may be due to overfitting or numerical instability. "
-            "Returning BIC as -infinity, consistent with AIC.",
+            "Near-zero RSS found, indicating a perfect fit. This may be due to "
+            "overfitting or numerical instability. Returning a very large "
+            "negative BIC to prevent downstream issues with -inf.",
             UserWarning,
         )
-        return -np.inf
+        return -1e300
     bic = n * np.log(rss / n) + n_params * np.log(n)
     return bic
 
