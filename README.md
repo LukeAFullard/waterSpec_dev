@@ -384,14 +384,51 @@ Always report confidence intervals alongside point estimates. Wide CIs indicate 
 
 ---
 
-## Future Work
+## Changepoint Analysis
 
-While `waterSpec` focuses on frequency-domain analysis, future versions may incorporate time-domain methods to provide a more holistic view of system dynamics. A planned enhancement is the integration of **changepoint detection** algorithms (e.g., PELT).
+Environmental systems often undergo regime shifts due to interventions, extreme events, or gradual changes. `waterSpec` supports both automatic and manual changepoint detection to analyze distinct behavioral regimes separately.
 
-This would allow users to:
-- Identify discrete shifts in the mean or variance of a time series.
-- Automatically segment the data around these changepoints.
-- Perform separate spectral analyses on each segment to understand how system behavior has changed over time.
+### Automatic Detection
+
+Use `changepoint_mode='auto'` to let the PELT (Pruned Exact Linear Time) algorithm find the most likely single changepoint in your data. You can customize the detection by passing `changepoint_options`.
+
+```python
+from waterSpec import Analysis
+
+analyzer = Analysis(
+    file_path='data.csv',
+    time_col='date',
+    data_col='nitrate',
+    changepoint_mode='auto',
+    changepoint_options={
+        'model': 'rbf',  # Detects changes in mean and variance
+        'min_size': 50,  # Minimum number of data points per segment
+    }
+)
+results = analyzer.run_full_analysis(output_dir='output/auto_changepoint_analysis')
+```
+
+### Manual Specification
+
+If you know when a change occurred (e.g., a management intervention), you can specify the changepoint index directly using `changepoint_mode='manual'`.
+
+```python
+from waterSpec import Analysis
+
+# You know a management change occurred at data point index 450
+analyzer = Analysis(
+    file_path='data.csv',
+    time_col='date',
+    data_col='nitrate',
+    changepoint_mode='manual',
+    changepoint_index=450,
+)
+results = analyzer.run_full_analysis(output_dir='output/manual_changepoint_analysis')
+```
+
+Both modes produce:
+- A side-by-side comparison plot of the power spectra for the "before" and "after" segments.
+- A detailed summary file comparing the spectral exponent (β) and other metrics between the two regimes.
 
 ---
 

@@ -46,7 +46,7 @@ def test_analysis_warns_for_ignored_fap_params(tmp_path, caplog):
         output_dir=str(output_dir),
         peak_detection_method="residual",
         fap_method="bootstrap",  # Non-default value to trigger warning
-        n_bootstraps=10,
+        n_bootstraps=0,
     )
     assert "'fap_method' and 'fap_threshold' parameters are ignored" in caplog.text
 
@@ -66,7 +66,7 @@ def test_analysis_raises_error_for_unknown_peak_method(tmp_path):
         analyzer.run_full_analysis(
             output_dir=str(output_dir),
             peak_detection_method="invalid_method",
-            n_bootstraps=10,
+            n_bootstraps=0,
         )
 
 def test_analysis_raises_error_for_insufficient_data_post_processing(tmp_path):
