@@ -137,21 +137,19 @@ def _format_period(frequency, time_unit="seconds"):
     period_native_units = 1 / frequency
 
     # Convert period to days for standardized formatting
-    if time_unit == "seconds":
+    if time_unit == "milliseconds":
+        period_days = period_native_units / (SECONDS_PER_DAY * 1000)
+    elif time_unit == "seconds":
         period_days = period_native_units / SECONDS_PER_DAY
     elif time_unit == "hours":
         period_days = period_native_units / 24.0
     elif time_unit == "days":
         period_days = period_native_units
     else:
-        # This case should ideally not be reached if inputs are validated upstream
-        # but as a fallback, treat the native unit as days.
-        warnings.warn(
-            f"Unsupported time_unit '{time_unit}' encountered in period formatting. "
-            "Assuming frequency is in 1/days.",
-            UserWarning,
+        raise ValueError(
+            f"Unsupported time_unit: '{time_unit}'. Must be one of 'milliseconds', "
+            "'seconds', 'hours', or 'days'."
         )
-        period_days = period_native_units
 
     # Switch to years if > 1.5 years, and months if > 1.5 months for intuitive formatting.
     if period_days >= DAYS_PER_YEAR * 1.5:
