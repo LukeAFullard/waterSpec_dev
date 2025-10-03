@@ -136,7 +136,7 @@ def normalize(data, errors=None):
 
 def log_transform(data, errors=None):
     """
-    Applies a natural logarithm transformation to the data and propagates errors.
+    Applies a base-10 logarithm transformation to the data and propagates errors.
     This function assumes that the input data has already been sanitized to
     ensure all values are positive. It returns new arrays and does not
     modify inputs.
@@ -151,17 +151,18 @@ def log_transform(data, errors=None):
     if transformed_errors is not None:
         # Where data is non-positive, error propagation is undefined and should also be NaN.
         transformed_errors[non_positive_mask] = np.nan
-        # Propagate errors for valid data points: new_err = old_err / value
-        # We need to avoid division by zero where data is non-positive.
+        # Propagate errors for valid data points. For a base-10 log, the formula is:
+        # σ_log10(x) = σ_x / (x * ln(10))
         valid_indices = ~non_positive_mask & ~np.isnan(data)
         valid_data = data[valid_indices]
         valid_errors = transformed_errors[valid_indices]
-        transformed_errors[valid_indices] = valid_errors / valid_data
+        # Using np.log(10) which is the natural logarithm of 10.
+        transformed_errors[valid_indices] = valid_errors / (valid_data * np.log(10))
 
-    # Now, apply the log transform. This will correctly produce NaNs for non-positive values.
+    # Now, apply the log10 transform. This will correctly produce NaNs for non-positive values.
     # Using np.errstate to suppress warnings about invalid values (log of non-positive).
     with np.errstate(invalid='ignore'):
-        transformed_data = np.log(data)
+        transformed_data = np.log10(data)
 
     return transformed_data, transformed_errors
 
