@@ -225,14 +225,26 @@ def load_data(
         if len(time_numeric_ns) > 1:
             time_diffs = np.diff(time_numeric_ns)
             if not np.all(time_diffs > 0):
-                first_violation_idx = np.flatnonzero(time_diffs <= 0)[0] + 1
-                violating_timestamp = clean_df["time"].iloc[first_violation_idx]
-                raise ValueError(
-                    "Time column is not strictly monotonic increasing. This can be "
-                    "caused by duplicate or out-of-order timestamps. First "
-                    f"violation found at index {first_violation_idx} with value: "
-                    f"{violating_timestamp}"
-                )
+                # Find the location of the first violation
+                first_violation_idx = np.flatnonzero(time_diffs <= 0)[0]
+                violating_timestamp = clean_df["time"].iloc[first_violation_idx + 1]
+
+                # Distinguish between duplicate and out-of-order timestamps
+                if time_diffs[first_violation_idx] == 0:
+                    raise ValueError(
+                        f"Duplicate timestamp found in time column '{time_col}'. "
+                        "The data must have unique and strictly increasing time points. "
+                        f"First duplicate found at index {first_violation_idx + 1} "
+                        f"with value: {violating_timestamp}"
+                    )
+                else:  # time_diffs[first_violation_idx] < 0
+                    # This case should be rare after sorting, but we handle it.
+                    raise ValueError(
+                        "Time column is not strictly monotonic increasing after sorting, "
+                        "which may indicate a data corruption or sorting issue. First "
+                        f"out-of-order timestamp found at index {first_violation_idx + 1} "
+                        f"with value: {violating_timestamp}"
+                    )
         # Convert to seconds relative to the first measurement
         time_numeric_sec = (time_numeric_ns - time_numeric_ns[0]) / 1e9
     else:
@@ -243,14 +255,23 @@ def load_data(
         if len(time_numeric) > 1:
             time_diffs = np.diff(time_numeric)
             if not np.all(time_diffs > 0):
-                first_violation_idx = np.flatnonzero(time_diffs <= 0)[0] + 1
-                violating_timestamp = clean_df["time"].iloc[first_violation_idx]
-                raise ValueError(
-                    "Time column is not strictly monotonic increasing. This can be "
-                    "caused by duplicate or out-of-order timestamps. First "
-                    f"violation found at index {first_violation_idx} with value: "
-                    f"{violating_timestamp}"
-                )
+                first_violation_idx = np.flatnonzero(time_diffs <= 0)[0]
+                violating_timestamp = clean_df["time"].iloc[first_violation_idx + 1]
+
+                if time_diffs[first_violation_idx] == 0:
+                    raise ValueError(
+                        f"Duplicate timestamp found in time column '{time_col}'. "
+                        "The data must have unique and strictly increasing time points. "
+                        f"First duplicate found at index {first_violation_idx + 1} "
+                        f"with value: {violating_timestamp}"
+                    )
+                else:
+                    raise ValueError(
+                        "Time column is not strictly monotonic increasing after sorting, "
+                        "which may indicate a data corruption or sorting issue. First "
+                        f"out-of-order timestamp found at index {first_violation_idx + 1} "
+                        f"with value: {violating_timestamp}"
+                    )
 
         # Convert input time to seconds for internal consistency
         if input_time_unit == "seconds":

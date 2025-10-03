@@ -112,26 +112,48 @@ def test_load_data_unparseable_time(tmp_path):
         load_data(file_path, time_col="time", data_col="value")
 
 
-def test_load_non_monotonic_time(tmp_path):
+def test_load_data_raises_on_duplicate_timestamps(tmp_path):
     """
-    Test that non-monotonic time (a duplicate timestamp) raises a ValueError
-    with a detailed error message.
+    Test that duplicate timestamps raise a specific ValueError.
     """
-    file_path = tmp_path / "non_monotonic.csv"
-    # Create a file with a duplicate timestamp.
+    file_path = tmp_path / "duplicate_time.csv"
+    # Create a file with a duplicate timestamp. The loader should sort this and
+    # then find the duplicate.
     file_path.write_text(
-        "timestamp,concentration\n2023-01-01,10.3\n2023-01-01,10.1\n2023-01-02,10.5"
+        "timestamp,concentration\n2023-01-01,10.3\n2023-01-02,10.5\n2023-01-01,10.1"
     )
 
-    # After sorting, the duplicate '2023-01-01' will be at index 1.
-    # The error message should identify this specific timestamp.
+    # The error message should specifically mention duplicate timestamps.
     expected_error_msg = (
-        "Time column is not strictly monotonic increasing. This can be "
-        "caused by duplicate or out-of-order timestamps. First "
-        "violation found at index 1 with value: 2023-01-01 00:00:00"
+        "Duplicate timestamp found in time column 'timestamp'. "
+        "The data must have unique and strictly increasing time points. "
+        "First duplicate found at index 1 with value: 2023-01-01 00:00:00"
     )
     with pytest.raises(ValueError, match=expected_error_msg):
         load_data(file_path, time_col="timestamp", data_col="concentration")
+
+
+def test_load_data_raises_on_duplicate_numeric_timestamps(tmp_path):
+    """
+    Test that duplicate numeric timestamps raise a specific ValueError.
+    """
+    file_path = tmp_path / "duplicate_numeric_time.csv"
+    # Create a file with a duplicate numeric timestamp.
+    file_path.write_text("time_hours,value\n10,10.3\n12,10.5\n10,10.1")
+
+    # The error message should specifically mention duplicate timestamps.
+    expected_error_msg = (
+        "Duplicate timestamp found in time column 'time_hours'. "
+        "The data must have unique and strictly increasing time points. "
+        "First duplicate found at index 1 with value: 10"
+    )
+    with pytest.raises(ValueError, match=expected_error_msg):
+        load_data(
+            file_path,
+            time_col="time_hours",
+            data_col="value",
+            input_time_unit="hours",
+        )
 
 
 def test_load_data_from_excel_sheet_by_name():
