@@ -295,8 +295,10 @@ class Analysis:
             self.logger.info(f"Fitting segmented model with {n_breakpoints} breakpoint(s)...")
             try:
                 # If a seed is provided, increment it for each model to ensure
-                # that bootstrap samples are independent across models.
-                model_seed = seed + n_breakpoints if seed is not None else None
+                # that bootstrap samples are independent across models. A large
+                # increment (e.g., 10000) is used to prevent overlapping
+                # random sequences between model bootstraps.
+                model_seed = (seed + n_breakpoints * 10000) if seed is not None else None
                 seg_results = fit_segmented_spectrum(
                     self.frequency,
                     self.power,

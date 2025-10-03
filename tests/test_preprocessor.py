@@ -44,10 +44,8 @@ def test_log_transform(sample_data):
     """Test the log_transform function with valid data."""
     transformed_data, errors = log_transform(sample_data.copy())
     assert errors is None
-    expected_data = np.log(sample_data)
+    expected_data = np.log10(sample_data)
     np.testing.assert_array_almost_equal(transformed_data, expected_data)
-
-
 
 
 def test_preprocess_data_handles_non_positive_for_log():
@@ -139,13 +137,14 @@ def test_preprocess_data_wrapper(sample_data):
 
 
 def test_log_transform_with_errors(sample_data):
-    """Test that log_transform correctly propagates errors."""
+    """Test that log_transform correctly propagates errors for log10."""
     data = sample_data.copy()
     errors = np.full_like(data, 0.1)
 
-    transformed_data, transformed_errors = log_transform(data, errors)
+    _transformed_data, transformed_errors = log_transform(data, errors)
 
-    expected_errors = 0.1 / sample_data
+    # For f(x) = log10(x), the error propagation is σ_f = σ_x / (x * ln(10))
+    expected_errors = errors / (data * np.log(10))
     np.testing.assert_array_almost_equal(transformed_errors, expected_errors)
 
 

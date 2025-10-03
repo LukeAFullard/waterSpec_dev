@@ -228,13 +228,15 @@ def fit_standard_model(
         if bootstrap_type == "block":
             block_size = bootstrap_block_size
             if block_size is None:
-                block_size = int(np.ceil(n_points ** (1 / 3)))
+                # Rule-of-thumb for block size, with a minimum of 3 for effectiveness.
+                block_size = max(3, int(np.ceil(n_points ** (1 / 3))))
                 logger.info(
                     f"No 'bootstrap_block_size' provided for block bootstrap. "
                     f"Using rule-of-thumb size: {block_size}"
                 )
-            # Ensure block size is valid
-            block_size = max(1, min(block_size, n_points))
+
+            # Ensure block size is valid and not larger than the dataset
+            block_size = min(block_size, n_points)
             if block_size >= n_points:
                 logger.warning(
                     f"Block size ({block_size}) is >= number of points "
@@ -405,12 +407,14 @@ def _bootstrap_segmented_fit(
     elif bootstrap_type == "block":
         block_size = bootstrap_block_size
         if block_size is None:
-            block_size = int(np.ceil(n_points ** (1 / 3)))
+            # Rule-of-thumb for block size, with a minimum of 3 for effectiveness.
+            block_size = max(3, int(np.ceil(n_points ** (1 / 3))))
             logger.info(
                 f"No 'bootstrap_block_size' provided for segmented block "
                 f"bootstrap. Using rule-of-thumb size: {block_size}"
             )
-        block_size = max(1, min(block_size, n_points))
+        # Ensure block size is valid and not larger than the dataset
+        block_size = min(block_size, n_points)
         if block_size >= n_points:
             logger.warning(
                 f"Block size ({block_size}) is >= number of points "
@@ -815,13 +819,29 @@ def fit_segmented_spectrum(
             "aic": np.inf,
         }
 
-    # Check for convergence and statistical significance
-    davies_p_value = pw_fit.davies if n_breakpoints == 1 else None
+    # Check for convergence and statistical significance.
+    # The Davies test p-value may not always be available.
+    try:
+        davies_p_value = pw_fit.davies
+        if davies_p_value is not None and n_breakpoints > 1:
+            logger.info(
+                f"Davies test p-value ({davies_p_value:.3f}) was found for a "
+                f"{n_breakpoints}-breakpoint model. This is unusual but will be stored."
+            )
+    except AttributeError:
+        davies_p_value = None
+        if n_breakpoints == 1:
+            logger.warning(
+                "Could not access Davies test p-value for the 1-breakpoint model. "
+                "The 'piecewise-regression' library version may have changed."
+            )
+
     if not converged or (davies_p_value is not None and davies_p_value > p_threshold):
         failure_reason = "Model did not converge."
         if davies_p_value is not None and davies_p_value > p_threshold:
             failure_reason = (
-                f"No significant breakpoint found (Davies test p > {p_threshold})."
+                f"No significant breakpoint found (Davies test p-value "
+                f"{davies_p_value:.3f} > {p_threshold})."
             )
         logger.warning(failure_reason)
         return {
@@ -881,19 +901,21 @@ def fit_segmented_spectrum(
             breakpoints.append(np.nan)
             log_breakpoints.append(np.nan)
 
-    # Check if breakpoints are too close to the boundaries
+    # Check if any breakpoints are too close to the boundaries
     log_freq_range = log_freq.max() - log_freq.min()
     boundary_threshold = 0.05  # 5% of the log-frequency range
-    for bp_log in log_breakpoints:
+    boundary_violations = []
+    for i, bp_log in enumerate(log_breakpoints):
         if np.isfinite(bp_log) and (
             bp_log < log_freq.min() + boundary_threshold * log_freq_range
             or bp_log > log_freq.max() - boundary_threshold * log_freq_range
         ):
-            logger.warning(
-                "A breakpoint is very close to the data boundary, "
-                "which may indicate an unstable fit."
-            )
-            break  # Only need to warn once
+            boundary_violations.append(i + 1)
+    if boundary_violations:
+        logger.warning(
+            f"Breakpoint(s) {boundary_violations} are very close to the data "
+            "boundaries, which may indicate an unstable fit."
+        )
 
     slopes = []
     current_slope = estimates.get("alpha1", {}).get("estimate")
