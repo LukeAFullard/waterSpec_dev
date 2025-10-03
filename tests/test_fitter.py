@@ -468,9 +468,9 @@ def test_fit_standard_model_raises_error_on_low_success(synthetic_spectrum, mock
         )
 
 
-def test_bootstrap_segmented_fit_graceful_failure(mocker, caplog):
+def test_bootstrap_segmented_fit_raises_error_on_failure(mocker):
     """
-    Test that _bootstrap_segmented_fit fails gracefully if the initial
+    Test that _bootstrap_segmented_fit raises a RuntimeError if the initial
     fit object has no valid estimates.
     """
     from waterSpec.fitter import _bootstrap_segmented_fit
@@ -481,19 +481,17 @@ def test_bootstrap_segmented_fit_graceful_failure(mocker, caplog):
     mock_pw_fit.n_breakpoints = 1
     mock_pw_fit.predict.return_value = np.ones(10)  # Dummy return for predict
 
-    results = _bootstrap_segmented_fit(
-        mock_pw_fit,
-        log_freq=np.ones(10),
-        log_power=np.ones(10),
-        n_bootstraps=0,
-        ci=95,
-        seed=42,
-    )
-    assert "Could not perform bootstrap" in caplog.text
-
-    # Check that the results contain NaNs as expected
-    assert np.all(np.isnan(results["betas_ci"]))
-    assert np.all(np.isnan(results["breakpoints_ci"]))
+    with pytest.raises(
+        RuntimeError, match="Bootstrap confidence intervals cannot be calculated"
+    ):
+        _bootstrap_segmented_fit(
+            mock_pw_fit,
+            log_freq=np.ones(10),
+            log_power=np.ones(10),
+            n_bootstraps=0,
+            ci=95,
+            seed=42,
+        )
 
 
 def test_bootstrap_segmented_fit_raises_error_on_low_success(
