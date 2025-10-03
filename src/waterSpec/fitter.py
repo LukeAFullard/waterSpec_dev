@@ -143,8 +143,11 @@ def fit_standard_model(
             "failure_reason": failure_reason,
         }
 
+    # Floor power values to prevent log10(-inf)
+    floored_power = np.maximum(power[valid_indices], 1e-100)
+
     log_freq = np.log10(frequency[valid_indices])
-    log_power = np.log10(power[valid_indices])
+    log_power = np.log10(floored_power)
     n_points = len(log_power)
 
     if n_points < 30 and "bootstrap" in ci_method:
@@ -235,6 +238,14 @@ def fit_standard_model(
                 )
             # Ensure block size is valid
             block_size = max(1, min(block_size, n_points))
+            if n_points < 3 * block_size:
+                logger.warning(
+                    f"The number of data points ({n_points}) is less than 3 "
+                    f"times the block size ({block_size}). The block "
+                    "bootstrap may be ineffective. Consider using a smaller "
+                    "block size or a different bootstrap method if results "
+                    "are unstable."
+                )
             if block_size >= n_points:
                 logger.warning(
                     f"Block size ({block_size}) is >= number of points "
@@ -411,6 +422,14 @@ def _bootstrap_segmented_fit(
                 f"bootstrap. Using rule-of-thumb size: {block_size}"
             )
         block_size = max(1, min(block_size, n_points))
+        if n_points < 3 * block_size:
+            logger.warning(
+                f"The number of data points ({n_points}) is less than 3 "
+                f"times the block size ({block_size}). The block "
+                "bootstrap may be ineffective. Consider using a smaller "
+                "block size or a different bootstrap method if results "
+                "are unstable."
+            )
         if block_size >= n_points:
             logger.warning(
                 f"Block size ({block_size}) is >= number of points "
@@ -576,7 +595,13 @@ def _bootstrap_segmented_fit(
     bootstrap_fits_arr = np.array(bootstrap_fits)
 
     # This check handles cases where bootstrap runs failed and produced no fits.
-    if bootstrap_fits_arr.ndim == 2 and bootstrap_fits_arr.shape[1] > 0:
+    if bootstrap_fits_arr.size == 0:
+        logger.warning(
+            "No successful bootstrap fits were generated for the segmented "
+            "model, so confidence intervals for the fit line cannot be "
+            "calculated."
+        )
+    elif bootstrap_fits_arr.ndim == 2 and bootstrap_fits_arr.shape[1] > 0:
         # Initialize full-size arrays with NaNs. This ensures that if the
         # bootstrap fails for some frequencies, those points are excluded from
         # plotting without causing a dimension mismatch.
@@ -788,8 +813,10 @@ def fit_segmented_spectrum(
             "aic": np.inf,
         }
 
+    # Floor power values to prevent log10(-inf)
+    floored_power = np.maximum(power[valid_indices], 1e-100)
     log_freq = np.log10(frequency[valid_indices])
-    log_power = np.log10(power[valid_indices])
+    log_power = np.log10(floored_power)
     n_points = len(log_power)
 
     if n_points < 30 and "bootstrap" in ci_method:
