@@ -285,8 +285,12 @@ class Analysis:
                 reason = standard_results.get("failure_reason", "Unknown error")
                 failed_model_reasons.append(f"Standard model (0 breakpoints): {reason}")
                 self.logger.warning(f"Standard model fit failed: {reason}")
+        except (ValueError, ImportError) as e:
+            reason = f"A critical error occurred during standard model setup: {e}"
+            failed_model_reasons.append(f"Standard model (0 breakpoints): {reason}")
+            self.logger.error(f"Standard model fit crashed due to a critical error: {e}", exc_info=True)
         except Exception as e:
-            reason = f"An unexpected error occurred ({type(e).__name__}): {e}"
+            reason = f"An unexpected error occurred: {e}"
             failed_model_reasons.append(f"Standard model (0 breakpoints): {reason}")
             self.logger.error("Standard model fit crashed.", exc_info=True)
 
@@ -325,8 +329,14 @@ class Analysis:
                     self.logger.warning(
                         f"Segmented model ({n_breakpoints} breakpoint(s)) fit failed: {reason}"
                     )
+            except (ValueError, ImportError) as e:
+                reason = f"A critical error occurred during segmented model setup: {e}"
+                failed_model_reasons.append(f"Segmented model ({n_breakpoints} breakpoint(s)): {reason}")
+                self.logger.error(
+                    f"Segmented model ({n_breakpoints} breakpoint(s)) fit crashed due to a critical error: {e}", exc_info=True
+                )
             except Exception as e:
-                reason = f"An unexpected error occurred ({type(e).__name__}): {e}"
+                reason = f"An unexpected error occurred: {e}"
                 failed_model_reasons.append(f"Segmented model ({n_breakpoints} breakpoint(s)): {reason}")
                 self.logger.error(
                     f"Segmented model ({n_breakpoints} breakpoint(s)) fit crashed.", exc_info=True

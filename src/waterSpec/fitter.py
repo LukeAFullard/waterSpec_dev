@@ -149,6 +149,7 @@ def fit_standard_model(
     log_power = np.log10(power[valid_indices])
     n_points = len(log_power)
 
+
     if n_points < 30 and "bootstrap" in ci_method:
         logger.warning(
             f"Dataset has only {n_points} points. Bootstrap CIs may be "
@@ -163,7 +164,11 @@ def fit_standard_model(
             slope, intercept, r_value, _, stderr = res
             r_squared = r_value**2
             # Calculate adjusted R-squared
-            adj_r_squared = 1 - (1 - r_squared) * (n_points - 1) / (n_points - 2)
+            dof = n_points - 2
+            if dof > 0:
+                adj_r_squared = 1 - (1 - r_squared) * (n_points - 1) / dof
+            else:
+                adj_r_squared = np.nan
             fit_results.update({
                 "r_squared": r_squared,
                 "adj_r_squared": adj_r_squared,
@@ -176,11 +181,24 @@ def fit_standard_model(
 
         fit_results.update({"beta": -slope, "intercept": intercept})
 
-    except Exception as e:
+    except (ValueError, np.linalg.LinAlgError) as e:
         failure_reason = (
-            f"Initial standard model fit failed with method '{method}'. Error: {e}"
+            f"Initial standard model fit failed with method '{method}' due to a numerical or data issue: {e}"
         )
         logger.warning(failure_reason)
+        return {
+            "beta": np.nan,
+            "bic": np.inf,
+            "aic": np.inf,
+            "beta_ci_lower": np.nan,
+            "beta_ci_upper": np.nan,
+            "failure_reason": failure_reason,
+        }
+    except Exception:
+        failure_reason = (
+            f"An unexpected error occurred during the initial standard model fit with method '{method}'."
+        )
+        logger.error(failure_reason, exc_info=True)
         return {
             "beta": np.nan,
             "bic": np.inf,
@@ -289,13 +307,20 @@ def fit_standard_model(
                         resampled_log_power, resampled_log_freq
                     )[0]
                 beta_estimates.append(-resampled_slope)
-            except Exception as e:
+            except (ValueError, np.linalg.LinAlgError) as e:
                 error_type = type(e).__name__
                 error_counts[error_type] = error_counts.get(error_type, 0) + 1
                 # Log the specific error for a failed iteration
-                msg = f"Bootstrap iteration failed with error: {e}"
+                msg = f"Bootstrap iteration failed with a numerical error: {e}"
                 if logger:
                     logger.debug(msg)
+                continue
+            except Exception:
+                error_type = "Exception"
+                error_counts[error_type] = error_counts.get(error_type, 0) + 1
+                # Log the specific error for a failed iteration
+                if logger:
+                    logger.debug("An unexpected error occurred in a bootstrap iteration.", exc_info=True)
                 continue
 
         MIN_BOOTSTRAP_SAMPLES = 50  # Min samples for a reliable CI
@@ -349,13 +374,19 @@ def fit_standard_model(
     elif ci_method == "parametric":
         if method == "ols":
             stderr = fit_results.get("stderr", np.nan)
-            if np.isfinite(stderr):
-                t_val = stats.t.ppf((1 + ci / 100) / 2, len(log_freq) - 2)
+            dof = len(log_freq) - 2
+            if np.isfinite(stderr) and dof > 0:
+                t_val = stats.t.ppf((1 + ci / 100) / 2, dof)
                 half_width = t_val * stderr
                 slope_ci_lower, slope_ci_upper = slope - half_width, slope + half_width
                 # Note: The CI for beta is inverted because beta = -slope.
                 # A lower bound on the slope corresponds to an upper bound on beta.
                 beta_ci_lower, beta_ci_upper = -slope_ci_upper, -slope_ci_lower
+            elif dof <= 0:
+                logger.warning(
+                    f"Not enough data points ({len(log_freq)}) to calculate "
+                    "parametric confidence intervals (requires > 2). CIs will be NaN."
+                )
         elif method == "theil-sen":
             slope_ci_lower = fit_results.get("slope_ci_lower", np.nan)
             slope_ci_upper = fit_results.get("slope_ci_upper", np.nan)
@@ -533,13 +564,22 @@ def _bootstrap_segmented_fit(
             # Store the predicted line from this bootstrap sample
             bootstrap_fits.append(bootstrap_pw_fit.predict(log_freq))
             successful_fits += 1
-        except Exception as e:
+        except (ValueError, np.linalg.LinAlgError, RuntimeError) as e:
             error_type = type(e).__name__
             error_counts[error_type] = error_counts.get(error_type, 0) + 1
             # Log the specific error for a failed iteration
-            msg = f"Segmented bootstrap iteration failed with error: {e}"
+            msg = f"Segmented bootstrap iteration failed with a numerical/runtime error: {e}"
             if logger:
                 logger.debug(msg)
+            continue
+        except Exception:
+            error_type = "Exception"
+            error_counts[error_type] = error_counts.get(error_type, 0) + 1
+            if logger:
+                logger.debug(
+                    "An unexpected error occurred in a segmented bootstrap iteration.",
+                    exc_info=True,
+                )
             continue
 
     MIN_BOOTSTRAP_SAMPLES = 50  # Min samples for a reliable CI
@@ -832,9 +872,18 @@ def fit_segmented_spectrum(
         )
         fit_summary = pw_fit.get_results()
         converged = fit_summary.get("converged", False)
-    except Exception as e:
-        failure_reason = f"Segmented regression failed with an unexpected error: {e}"
+    except (ValueError, RuntimeError, np.linalg.LinAlgError) as e:
+        failure_reason = f"Segmented regression failed with a numerical or data issue: {e}"
         logger.warning(failure_reason)
+        return {
+            "failure_reason": failure_reason,
+            "n_breakpoints": n_breakpoints,
+            "bic": np.inf,
+            "aic": np.inf,
+        }
+    except Exception:
+        failure_reason = "Segmented regression failed with an unexpected error."
+        logger.error(failure_reason, exc_info=True)
         return {
             "failure_reason": failure_reason,
             "n_breakpoints": n_breakpoints,
