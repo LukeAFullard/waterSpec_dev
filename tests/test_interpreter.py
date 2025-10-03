@@ -243,3 +243,18 @@ def test_interpret_results_segmented_with_ci():
 
     # The period CI should be (2.0 months–4.0 months)
     assert "(95% CI: 2.0 months–4.0 months" in summary
+
+
+def test_format_period_handles_milliseconds():
+    """Test that the milliseconds time unit is correctly handled."""
+    # A frequency of 1 / (10 * 86400 * 1000) in 1/ms should be 10 days
+    freq_in_ms = 1 / (10 * 86400 * 1000)
+    assert _format_period(freq_in_ms, time_unit="milliseconds") == "10.0 days"
+
+
+def test_format_period_raises_for_unsupported_unit():
+    """Test that an unsupported time unit raises a ValueError."""
+    with pytest.raises(ValueError) as excinfo:
+        _format_period(0.1, time_unit="furlongs_per_fortnight")
+    assert "Unsupported time_unit: 'furlongs_per_fortnight'" in str(excinfo.value)
+    assert "Must be one of" in str(excinfo.value)
