@@ -299,10 +299,8 @@ class Analysis:
             self.logger.info(f"Fitting segmented model with {n_breakpoints} breakpoint(s)...")
             try:
                 # If a seed is provided, increment it for each model to ensure
-                # that bootstrap samples are independent across models. A large
-                # increment (e.g., 10000) is used to prevent overlapping
-                # random sequences between model bootstraps.
-                model_seed = (seed + n_breakpoints * 10000) if seed is not None else None
+                # that bootstrap samples are independent across models.
+                model_seed = (seed + n_breakpoints) if seed is not None else None
                 seg_results = fit_segmented_spectrum(
                     self.frequency,
                     self.power,
@@ -523,12 +521,21 @@ class Analysis:
         self.logger.info(
             f"Analyzing segment AFTER changepoint (n={len(time_after)})..."
         )
+
+        # To ensure the bootstrap samples for the second segment are
+        # independent, create a new set of analysis arguments with an
+        # incremented seed. A large increment prevents overlap with the seeds
+        # used in the first segment's model selection.
+        analysis_kwargs_after = analysis_kwargs.copy()
+        if analysis_kwargs_after.get("seed") is not None:
+            analysis_kwargs_after["seed"] += 10000
+
         results_after = self._run_segment_analysis(
             time_after,
             data_after,
             errors_after,
             segment_name=f"After {cp_time_str}",
-            **analysis_kwargs,
+            **analysis_kwargs_after,
         )
 
         # Combine results

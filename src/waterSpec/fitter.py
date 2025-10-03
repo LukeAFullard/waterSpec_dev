@@ -475,13 +475,11 @@ def _bootstrap_segmented_fit(
     initial_estimates = initial_results.get("estimates")
 
     if not initial_estimates:
-        logger.warning("Could not perform bootstrap: initial fit failed or produced no estimates.")
-        return {
-            "betas_ci": [(np.nan, np.nan)] * (n_breakpoints + 1),
-            "breakpoints_ci": [(np.nan, np.nan)] * n_breakpoints,
-            "fit_ci_lower": None,
-            "fit_ci_upper": None,
-        }
+        raise RuntimeError(
+            "Bootstrap confidence intervals cannot be calculated because the "
+            "initial segmented fit did not produce valid estimates. This may "
+            "indicate a version incompatibility with piecewise-regression."
+        )
 
     for _ in range(n_bootstraps):
         try:
