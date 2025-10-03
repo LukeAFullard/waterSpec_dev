@@ -130,6 +130,8 @@ def fit_standard_model(
         raise ValueError(
             f"Unknown bootstrap_type: '{bootstrap_type}'. Choose 'pairs', 'residuals', 'block', or 'wild'."
         )
+    # Add a small floor to power to prevent log(0) issues with very weak signals.
+    power = np.maximum(power, 1e-100)
     valid_indices = (frequency > 0) & (power > 0)
     if np.sum(valid_indices) < 2:
         failure_reason = "Not enough valid (positive) data points to fit the model."
@@ -237,6 +239,12 @@ def fit_standard_model(
 
             # Ensure block size is valid and not larger than the dataset
             block_size = min(block_size, n_points)
+            if n_points < 3 * block_size:
+                logger.warning(
+                    f"The number of data points ({n_points}) is less than 3 times "
+                    f"the block size ({block_size}). The block bootstrap may be "
+                    "ineffective."
+                )
             if block_size >= n_points:
                 logger.warning(
                     f"Block size ({block_size}) is >= number of points "
@@ -415,6 +423,12 @@ def _bootstrap_segmented_fit(
             )
         # Ensure block size is valid and not larger than the dataset
         block_size = min(block_size, n_points)
+        if n_points < 3 * block_size:
+            logger.warning(
+                f"The number of data points ({n_points}) is less than 3 times "
+                f"the block size ({block_size}). The block bootstrap may be "
+                "ineffective."
+            )
         if block_size >= n_points:
             logger.warning(
                 f"Block size ({block_size}) is >= number of points "
@@ -577,7 +591,14 @@ def _bootstrap_segmented_fit(
     }
 
     # Calculate CIs for the fitted line itself
-    bootstrap_fits_arr = np.array(bootstrap_fits)
+    if not bootstrap_fits:
+        logger.warning(
+            "All bootstrap iterations failed for the segmented model; "
+            "the confidence interval of the fit line cannot be calculated."
+        )
+        bootstrap_fits_arr = np.array([])
+    else:
+        bootstrap_fits_arr = np.array(bootstrap_fits)
 
     # This check handles cases where bootstrap runs failed and produced no fits.
     if bootstrap_fits_arr.ndim == 2 and bootstrap_fits_arr.shape[1] > 0:
@@ -776,6 +797,8 @@ def fit_segmented_spectrum(
         )
         logger.warning(msg)
 
+    # Add a small floor to power to prevent log(0) issues with very weak signals.
+    power = np.maximum(power, 1e-100)
     valid_indices = (frequency > 0) & (power > 0)
     min_points = MIN_POINTS_PER_SEGMENT * (n_breakpoints + 1)
     if np.sum(valid_indices) < min_points:
