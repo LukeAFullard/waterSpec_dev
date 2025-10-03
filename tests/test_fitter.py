@@ -249,7 +249,7 @@ def test_fit_segmented_spectrum_handles_exceptions(
     results = fit_segmented_spectrum(frequency, power)
 
     assert "failure_reason" in results
-    assert "failed with an unexpected error" in results["failure_reason"]
+    assert "failed with a numerical or data issue" in results["failure_reason"]
     assert "Segmented regression failed" in caplog.text
 
 
@@ -379,7 +379,7 @@ def test_fit_standard_model_graceful_failure(synthetic_spectrum, mocker):
     results = fit_standard_model(frequency, power, method="ols")
 
     assert "failure_reason" in results
-    assert "Unexpected Scipy error" in results["failure_reason"]
+    assert "An unexpected error occurred" in results["failure_reason"]
     # The BIC should be infinite so this model is never chosen
     assert results["bic"] == np.inf
     # The beta value should be NaN
