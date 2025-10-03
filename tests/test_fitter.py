@@ -615,3 +615,42 @@ def test_fit_segmented_spectrum_fallback_on_missing_package(
     # (e.g., they don't contain segmented-specific keys)
     assert "beta" in results
     assert "breakpoints" not in results
+
+
+def test_fit_standard_model_low_success_raises_detailed_error(synthetic_spectrum, mocker):
+    """
+    Test that a ValueError raised due to low bootstrap success includes a
+    detailed summary of the errors that occurred.
+    """
+    from collections import namedtuple
+    frequency, power, known_beta = synthetic_spectrum
+
+    # Mock the result of a successful fit.
+    LinregressResult = namedtuple(
+        "LinregressResult", ["slope", "intercept", "rvalue", "pvalue", "stderr"]
+    )
+    mock_success_result = LinregressResult(-known_beta, 1.0, 0.9, 0.0, 0.1)
+
+    # We simulate a 40% success rate with a mix of different error types.
+    side_effects = (
+        [mock_success_result]  # Initial fit must succeed
+        + [ValueError("Fit failed")] * 3  # 3 ValueErrors
+        + [RuntimeError("Another issue")] * 3  # 3 RuntimeErrors
+        + [mock_success_result] * 4  # 4 successes
+    )
+    mocker.patch("waterSpec.fitter.stats.linregress", side_effect=side_effects)
+
+    # The error message should now contain the summary of errors.
+    with pytest.raises(ValueError) as excinfo:
+        fit_standard_model(
+            frequency, power, method="ols", n_bootstraps=10, seed=42
+        )
+
+    # Check for the main error message components
+    error_msg = str(excinfo.value)
+    assert "Bootstrap success rate (40%) was below" in error_msg
+    assert "Only 4/10 iterations succeeded" in error_msg
+    # Check for the detailed error summary
+    assert "Errors:" in error_msg
+    assert "ValueError: 3" in error_msg
+    assert "Exception: 3" in error_msg

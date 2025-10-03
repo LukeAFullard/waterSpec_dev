@@ -334,11 +334,12 @@ def fit_standard_model(
             logger.warning(f"Bootstrap errors occurred: {error_summary}")
 
         if n_bootstraps > 0 and success_rate < MIN_SUCCESS_RATE:
+            error_summary = ", ".join(
+                [f"{err}: {count}" for err, count in error_counts.items()]
+            )
             raise ValueError(
-                f"Bootstrap success rate ({success_rate:.0%}) was below the "
-                f"required threshold ({MIN_SUCCESS_RATE:.0%}). "
-                f"Only {len(beta_estimates)}/{n_bootstraps} iterations succeeded. "
-                "Cannot provide reliable confidence intervals."
+                f"Bootstrap success rate ({success_rate:.0%}) was below the required threshold ({MIN_SUCCESS_RATE:.0%}). "
+                f"Only {len(beta_estimates)}/{n_bootstraps} iterations succeeded. Errors: {error_summary}"
             )
 
         if len(beta_estimates) < MIN_BOOTSTRAP_SAMPLES:
@@ -593,11 +594,12 @@ def _bootstrap_segmented_fit(
         logger.warning(f"Bootstrap errors occurred: {error_summary}")
 
     if n_bootstraps > 0 and success_rate < MIN_SUCCESS_RATE:
+        error_summary = ", ".join(
+            [f"{err}: {count}" for err, count in error_counts.items()]
+        )
         raise ValueError(
-            f"Bootstrap success rate ({success_rate:.0%}) was below the "
-            f"required threshold ({MIN_SUCCESS_RATE:.0%}). "
-            f"Only {successful_fits}/{n_bootstraps} iterations succeeded. "
-            "Cannot provide reliable confidence intervals."
+            f"Bootstrap success rate ({success_rate:.0%}) was below the required threshold ({MIN_SUCCESS_RATE:.0%}). "
+            f"Only {successful_fits}/{n_bootstraps} iterations succeeded. Errors: {error_summary}"
         )
 
     if successful_fits < MIN_BOOTSTRAP_SAMPLES:
