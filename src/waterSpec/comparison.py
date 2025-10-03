@@ -174,10 +174,11 @@ class SiteComparison:
 
         self.logger.info(f"Analyzing site: {self.site2_name}...")
         # Use a different seed for the second site if a seed is provided
-        if seed is not None:
-            analysis_kwargs["seed"] = seed + 1
+        site2_seed = (seed + 1) if seed is not None else None
         results_site2 = self._run_site_analysis(
-            self.site2_data, self.site2_name, analysis_kwargs
+            self.site2_data,
+            self.site2_name,
+            {**analysis_kwargs, "seed": site2_seed},
         )
 
         # Combine results
