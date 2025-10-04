@@ -597,7 +597,9 @@ def _bootstrap_segmented_fit(
 
     MIN_BOOTSTRAP_SAMPLES = 50  # Min samples for a reliable CI
     success_rate = successful_fits / n_bootstraps if n_bootstraps > 0 else 0
-    MIN_SUCCESS_RATE = 0.5
+    # Raise an error if the success rate is below 80%, as high failure rates
+    # can lead to unreliable CIs.
+    MIN_SUCCESS_RATE = 0.8
 
     if error_counts:
         error_summary = ", ".join(
@@ -609,6 +611,7 @@ def _bootstrap_segmented_fit(
         error_summary = ", ".join(
             [f"{err}: {count}" for err, count in error_counts.items()]
         )
+        # This error is caught by the calling function to trigger a fallback.
         raise ValueError(
             f"Bootstrap success rate ({success_rate:.0%}) was below the required threshold ({MIN_SUCCESS_RATE:.0%}). "
             f"Only {successful_fits}/{n_bootstraps} iterations succeeded. Errors: {error_summary}"
@@ -620,21 +623,14 @@ def _bootstrap_segmented_fit(
             f"succeeded for the segmented model (minimum required: {MIN_BOOTSTRAP_SAMPLES}). "
             "Confidence intervals are unreliable and will be set to NaN."
         )
+        # This case is now less likely to be hit first, but is kept as a
+        # safeguard for when n_bootstraps is very low.
         return {
             "betas_ci": [(np.nan, np.nan)] * (n_breakpoints + 1),
             "breakpoints_ci": [(np.nan, np.nan)] * n_breakpoints,
             "fit_ci_lower": None,
             "fit_ci_upper": None,
         }
-
-    # Warn if the success rate is low, but still above the minimum sample count
-    MIN_BOOTSTRAP_SUCCESS_RATIO = 0.9
-    if successful_fits < n_bootstraps * MIN_BOOTSTRAP_SUCCESS_RATIO:
-        logger.warning(
-            f"Only {successful_fits}/{n_bootstraps} bootstrap iterations for the "
-            f"segmented model succeeded (success rate < {MIN_BOOTSTRAP_SUCCESS_RATIO:.0%}). "
-            "The confidence intervals may be less reliable."
-        )
 
     lower_p, upper_p = (100 - ci) / 2, 100 - (100 - ci) / 2
     ci_results = {
@@ -1120,18 +1116,30 @@ def fit_segmented_spectrum(
                 )
 
         if n_bootstraps > 0:
-            ci_results = _bootstrap_segmented_fit(
-                pw_fit,
-                log_freq,
-                log_power,
-                n_bootstraps,
-                ci,
-                seed,
-                bootstrap_type=bootstrap_type,
-                bootstrap_block_size=bootstrap_block_size,
-                logger=logger,
-            )
-            results.update(ci_results)
+            try:
+                ci_results = _bootstrap_segmented_fit(
+                    pw_fit,
+                    log_freq,
+                    log_power,
+                    n_bootstraps,
+                    ci,
+                    seed,
+                    bootstrap_type=bootstrap_type,
+                    bootstrap_block_size=bootstrap_block_size,
+                    logger=logger,
+                )
+                results.update(ci_results)
+            except ValueError as e:
+                logger.warning(
+                    f"Segmented bootstrap failed due to a high error rate: {e}. "
+                    "Falling back to parametric confidence intervals, which may be less reliable."
+                )
+                ci_results = _extract_parametric_segmented_cis(
+                    pw_fit, results["residuals"], n_breakpoints, ci=ci, logger=logger
+                )
+                results.update(ci_results)
+                # Add a field to indicate that a fallback occurred.
+                results["ci_method_fallback"] = "parametric"
         else:
             # If bootstrap is chosen but n_bootstraps is 0, return NaNs.
             results["betas_ci"] = [(np.nan, np.nan)] * (n_breakpoints + 1)

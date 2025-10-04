@@ -494,48 +494,6 @@ def test_bootstrap_segmented_fit_raises_error_on_failure(mocker):
         )
 
 
-def test_bootstrap_segmented_fit_raises_error_on_low_success(
-    multifractal_spectrum, mocker
-):
-    """
-    Test that a ValueError is raised if the bootstrap success rate is below
-    the required threshold in segmented fitting.
-    """
-    frequency, power, _, _, _ = multifractal_spectrum
-
-    # Mock for a successful fit (initial or bootstrap)
-    mock_successful_fit = mocker.MagicMock()
-    mock_successful_fit.get_results.return_value = {
-        "converged": True,
-        "estimates": {
-            "breakpoint1": {"estimate": 1.0},
-            "alpha1": {"estimate": 1.0},
-            "beta1": {"estimate": 1.0},
-        },
-    }
-    mock_successful_fit.davies = 0.01  # To pass the p-value check
-    mock_successful_fit.predict.return_value = np.zeros_like(power)
-    mock_successful_fit.n_breakpoints = 1
-
-    # Mock for a failed bootstrap fit
-    mock_failed_fit = mocker.MagicMock()
-    mock_failed_fit.get_results.return_value = {"converged": False}
-
-    # The first call is for the initial fit, which must succeed.
-    # The subsequent calls are for the bootstrap iterations. We make most fail.
-    side_effects = (
-        [mock_successful_fit]  # Initial fit
-        + [mock_failed_fit] * 8  # 8 failures (80% failure rate)
-        + [mock_successful_fit] * 2  # 2 successes
-    )
-    mocker.patch(
-        "waterSpec.fitter.piecewise_regression.Fit", side_effect=side_effects
-    )
-
-    with pytest.raises(ValueError, match=r"Bootstrap success rate \(20%\) was below"):
-        fit_segmented_spectrum(
-            frequency, power, n_breakpoints=1, n_bootstraps=10, seed=42
-        )
 
 
 def test_fit_segmented_spectrum_white_noise():
@@ -583,6 +541,45 @@ def test_fit_segmented_spectrum_invalid_numeric_args(multifractal_spectrum):
 
     with pytest.raises(ValueError, match="'ci' must be between 0 and 100"):
         fit_segmented_spectrum(frequency, power, ci=100)
+
+
+def test_fit_segmented_spectrum_fallback_on_bootstrap_failure(
+    multifractal_spectrum, mocker, caplog
+):
+    """
+    Test that fit_segmented_spectrum falls back to parametric CIs if the
+    bootstrap process fails with a ValueError (e.g., due to low success rate).
+    """
+    frequency, power, _, _, _ = multifractal_spectrum
+
+    # Mock the bootstrap function to simulate a failure
+    mocker.patch(
+        "waterSpec.fitter._bootstrap_segmented_fit",
+        side_effect=ValueError("Low success rate"),
+    )
+
+    # Spy on the parametric fallback function to ensure it's called
+    spy_parametric_cis = mocker.spy(
+        waterSpec.fitter, "_extract_parametric_segmented_cis"
+    )
+
+    # Run the fit. It should fail bootstrap and fall back to parametric.
+    results = fit_segmented_spectrum(frequency, power, n_bootstraps=100, seed=42)
+
+    # 1. Check that a warning was logged about the fallback
+    assert "Falling back to parametric confidence intervals" in caplog.text
+
+    # 2. Check that the parametric CI function was called
+    spy_parametric_cis.assert_called_once()
+
+    # 3. Check that the results dictionary indicates a fallback occurred
+    assert "ci_method_fallback" in results
+    assert results["ci_method_fallback"] == "parametric"
+
+    # 4. Check that CIs were still produced
+    assert "betas_ci" in results
+    assert len(results["betas_ci"]) == 2
+    assert np.all(np.isfinite(results["betas_ci"][0]))
 
 
 def test_fit_segmented_spectrum_fallback_on_missing_package(
