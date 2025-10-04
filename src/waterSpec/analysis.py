@@ -184,7 +184,8 @@ class Analysis:
 
     def _setup_logger(self, level):
         """Configures a logger for the Analysis instance."""
-        self.logger = logging.getLogger(f"waterSpec.{self.param_name}")
+        # Make logger name unique per instance to prevent race conditions
+        self.logger = logging.getLogger(f"waterSpec.{self.param_name}.{id(self)}")
         # Prevent duplicate handlers if logger is already configured
         if not self.logger.handlers:
             self.logger.setLevel(level)
@@ -501,6 +502,21 @@ class Analysis:
         errors_after = (
             self.errors[changepoint_idx:] if self.errors is not None else None
         )
+
+        # Explicitly validate segment sizes after splitting, as preprocessing
+        # could have removed data points unevenly.
+        if len(data_before) < self.min_valid_data_points:
+            raise ValueError(
+                f"Segment before changepoint has insufficient valid data "
+                f"({len(data_before)} points) after preprocessing. Minimum "
+                f"required: {self.min_valid_data_points}."
+            )
+        if len(data_after) < self.min_valid_data_points:
+            raise ValueError(
+                f"Segment after changepoint has insufficient valid data "
+                f"({len(data_after)} points) after preprocessing. Minimum "
+                f"required: {self.min_valid_data_points}."
+            )
 
         cp_time_str = get_changepoint_time(
             changepoint_idx, self.time, self.time_unit
