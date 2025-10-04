@@ -1,8 +1,14 @@
+from importlib.metadata import version, PackageNotFoundError
+
 """
 waterSpec: A Python package for spectral analysis of environmental time series.
 """
 
-__version__ = "0.0.1"
+try:
+    __version__ = version("waterSpec")
+except PackageNotFoundError:
+    # If the package is not installed, we don't have a version number
+    __version__ = "unknown"
 
 from .analysis import Analysis
 from .data_loader import load_data

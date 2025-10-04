@@ -6,14 +6,14 @@ import warnings
 import numpy as np
 from typing import Optional, Tuple, Dict
 
+_RUPTURES_MISSING_MSG = (
+    "The 'ruptures' package is required for automatic changepoint detection. "
+    "Install it with 'pip install ruptures'."
+)
 try:
     import ruptures as rpt
 except ImportError:
     rpt = None
-    _RUPTURES_MISSING_MSG = (
-        "The 'ruptures' package is required for automatic changepoint detection. "
-        "Install it with 'pip install ruptures'."
-    )
 
 def detect_changepoint_pelt(
     time: np.ndarray,

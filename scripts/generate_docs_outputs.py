@@ -32,13 +32,13 @@ def generate_periodic_data():
 def generate_segmented_data():
     """Generates synthetic data with a spectral break for tutorials."""
     print("Generating synthetic data with spectral break...")
-    np.random.seed(42)
+    rng = np.random.default_rng(42)
     n_points = 500
-    time = np.sort(np.random.uniform(0, n_points, n_points))
+    time = np.sort(rng.uniform(0, n_points, n_points))
     hurst = 0.9
     f = FBM(n=n_points - 1, hurst=hurst, length=n_points, method="daviesharte")
     fbm_signal = f.fbm()
-    noise = np.random.normal(0, 15, n_points)
+    noise = rng.normal(0, 15, n_points)
     combined_signal = fbm_signal + noise
     df = pd.DataFrame(
         {"timestamp": pd.to_datetime(time, unit="D"), "value": combined_signal}
