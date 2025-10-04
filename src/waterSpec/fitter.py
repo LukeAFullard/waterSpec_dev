@@ -817,6 +817,20 @@ def fit_segmented_spectrum(
     Returns:
         dict: A dictionary containing the fit results, including CIs.
 
+    Notes:
+        While the function enforces a minimum of 10 data points per segment
+        (`MIN_POINTS_PER_SEGMENT`), this is a technical minimum for the fit to
+        run and does not guarantee statistical power. For reliable results, a
+        larger sample size is strongly recommended.
+
+        - **1-breakpoint models:** A minimum of 50 data points is recommended to
+          reliably detect a change in slope and calculate stable confidence
+          intervals.
+        - **2-breakpoint models:** A minimum of 100 data points is recommended.
+
+        Insufficient data can lead to models that fail to detect true
+        breakpoints or produce wide, unreliable confidence intervals.
+
     Warning:
         For models with `n_breakpoints > 1`, this function does not perform a
         statistical significance test for the breakpoints (such as the Davies
