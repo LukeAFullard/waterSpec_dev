@@ -179,6 +179,13 @@ def handle_censored_data(
     """
     Handles censored data in a pandas Series using a robust, regex-based
     approach that supports custom symbols and various formats.
+
+    .. note::
+        This function processes non-detect symbols (e.g., "ND", "BDL") before
+        handling censored numerical values (e.g., "<5"). Non-detect symbols
+        are always converted to ``np.nan``, regardless of the chosen ``strategy``.
+        This means strategies like "multiplier" or "use_detection_limit" do not
+        apply to them.
     """
     if not isinstance(data_series, pd.Series):
         series = pd.Series(data_series).copy()
