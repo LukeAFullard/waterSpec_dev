@@ -545,10 +545,16 @@ def _bootstrap_segmented_fit(
             # Bug fix: Correctly get results from the bootstrap fit object.
             bootstrap_results = bootstrap_pw_fit.get_results()
             if not bootstrap_results.get("converged"):
+                if logger:
+                    logger.debug("Segmented bootstrap iteration failed to converge.")
                 continue
 
             estimates = bootstrap_results.get("estimates")
             if not estimates:
+                if logger:
+                    logger.debug(
+                        "Segmented bootstrap iteration converged but returned no estimates."
+                    )
                 continue
 
             # Safely extract breakpoints
