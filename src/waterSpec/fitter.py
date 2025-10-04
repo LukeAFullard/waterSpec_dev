@@ -1017,7 +1017,8 @@ def fit_segmented_spectrum(
     if boundary_violations:
         logger.warning(
             f"Breakpoint(s) {boundary_violations} are very close to the data "
-            "boundaries, which may indicate an unstable fit."
+            "boundaries (within 5% of the log-frequency range), which may "
+            "indicate an unstable fit."
         )
 
     slopes = []
