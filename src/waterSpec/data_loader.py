@@ -44,6 +44,18 @@ def load_data(
               `output_time_unit`, relative to the first measurement.
             - A Pandas Series of data values.
             - A Pandas Series of error values, or None if not provided.
+
+    Note on Time Precision:
+        This function converts time data to 64-bit floating-point numbers
+        (float64) for internal calculations. While it mitigates precision loss
+        for absolute timestamps by making them relative before conversion,
+        float64 has a finite precision of about 15-16 significant digits.
+        For time series that span multiple decades with sub-second resolution,
+        this could lead to a loss of precision. For instance, a time series
+        spanning 50 years with nanosecond resolution represents a range that
+        exceeds the precision of float64, and the smallest time differences
+        may not be preserved. Users with extremely high-resolution, long-duration
+        datasets should be aware of this limitation.
     """
     # 1. Validate file existence
     if not os.path.exists(file_path):
