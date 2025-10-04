@@ -816,6 +816,15 @@ def fit_segmented_spectrum(
 
     Returns:
         dict: A dictionary containing the fit results, including CIs.
+
+    Warning:
+        For models with `n_breakpoints > 1`, this function does not perform a
+        statistical significance test for the breakpoints (such as the Davies
+        test). Model selection is based on the Bayesian Information Criterion
+        (BIC) alone. This approach may lead to overfitting, particularly with
+        noisy data, as BIC might favor more complex models that do not
+        represent a statistically significant improvement. Users should interpret
+        multi-breakpoint models with caution and consider the physical context.
     """
     logger = logger or logging.getLogger(__name__)
     if piecewise_regression is None:
