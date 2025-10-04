@@ -489,6 +489,34 @@ def _bootstrap_segmented_fit(
             "indicate a version incompatibility with piecewise-regression."
         )
 
+    # Extract the initial breakpoint estimates to use as start_values.
+    # This helps stabilize the bootstrap fits by starting them from a good
+    # initial guess, which is critical for preventing convergence failures.
+    start_values = []
+    for i in range(1, n_breakpoints + 1):
+        bp_info = initial_estimates.get(f"breakpoint{i}", {})
+        bp_val = bp_info.get("estimate")
+        if bp_val is not None:
+            start_values.append(bp_val)
+        else:
+            # If any breakpoint estimate is missing, it's safer not to provide
+            # start_values, as the library expects a full list.
+            logger.warning(
+                f"Could not extract initial estimate for breakpoint {i}. "
+                "Bootstrap iterations will not use start_values, which may "
+                "reduce stability."
+            )
+            start_values = None
+            break
+
+    # If start_values list is incomplete, set to None so the library uses its own guess.
+    if start_values is not None and len(start_values) != n_breakpoints:
+        logger.warning(
+            "Could not extract all initial breakpoint estimates. Bootstrap "
+            "iterations will not use start_values."
+        )
+        start_values = None
+
     for _ in range(n_bootstraps):
         try:
             if bootstrap_type == "pairs":
@@ -529,6 +557,7 @@ def _bootstrap_segmented_fit(
                 resampled_log_freq_sorted,
                 resampled_log_power_sorted,
                 n_breakpoints=n_breakpoints,
+                start_values=start_values,
             )
 
             # Bug fix: Correctly get results from the bootstrap fit object.
