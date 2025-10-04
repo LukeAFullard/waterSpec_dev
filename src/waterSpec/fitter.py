@@ -5,6 +5,8 @@ from typing import Dict, Optional
 import numpy as np
 from scipy import stats
 
+from .preprocessor import _moving_block_bootstrap_indices
+
 try:
     import piecewise_regression
 except ImportError:
@@ -53,27 +55,6 @@ def _calculate_aic(y: np.ndarray, y_pred: np.ndarray, n_params: int) -> float:
         return -np.inf  # A perfect fit corresponds to a minimal AIC
     aic = n * np.log(rss / n) + 2 * n_params
     return aic
-
-
-def _moving_block_bootstrap_indices(
-    n_points: int, block_size: int, rng: np.random.Generator
-) -> np.ndarray:
-    """
-    Generates bootstrap indices for a single moving-block bootstrap sample.
-
-    Args:
-        n_points: The total number of data points.
-        block_size: The size of each block.
-        rng: The random number generator.
-
-    Returns:
-        An array of indices for one bootstrap sample.
-    """
-    indices = []
-    while len(indices) < n_points:
-        start = rng.integers(0, n_points - block_size + 1)
-        indices.extend(list(range(start, start + block_size)))
-    return np.array(indices[:n_points])
 
 
 def fit_standard_model(
@@ -224,14 +205,13 @@ def fit_standard_model(
     fit_results["aic"] = aic
 
     # 4. Calculate Confidence Intervals
+    residuals = log_power - log_power_fit
     beta_ci_lower, beta_ci_upper = np.nan, np.nan
     if ci_method == "bootstrap":
         # Check for autocorrelation in residuals if using residual bootstrap
         if bootstrap_type == "residuals" and durbin_watson is None:
             logger.error(_STATSMODELS_MISSING_MSG)
             raise ImportError(_STATSMODELS_MISSING_MSG)
-
-        residuals = log_power - log_power_fit
         if durbin_watson:
             dw_stat = durbin_watson(residuals)
             fit_results["durbin_watson_stat"] = dw_stat
@@ -382,6 +362,16 @@ def fit_standard_model(
 
     elif ci_method == "parametric":
         if method == "ols":
+            # Shapiro-Wilk test for normality of residuals
+            if len(residuals) > 3:
+                shapiro_stat, shapiro_p = stats.shapiro(residuals)
+                if shapiro_p < 0.05:
+                    logger.warning(
+                        f"Residuals may not be normally distributed (Shapiro-Wilk "
+                        f"p-value: {shapiro_p:.3f}). Parametric confidence "
+                        "intervals may be unreliable."
+                    )
+
             stderr = fit_results.get("stderr", np.nan)
             dof = len(log_freq) - 2
             if np.isfinite(stderr) and dof > 0:
@@ -407,7 +397,6 @@ def fit_standard_model(
     fit_results.update({"beta_ci_lower": beta_ci_lower, "beta_ci_upper": beta_ci_upper})
 
     # 5. Check for heteroscedasticity and store supplementary data
-    residuals = log_power - log_power_fit
     if len(residuals) > 1:
         # Check for correlation between fitted values and the magnitude of residuals
         spearman_corr, _ = stats.spearmanr(log_power_fit, np.abs(residuals))
@@ -718,7 +707,9 @@ def _bootstrap_segmented_fit(
     return ci_results
 
 
-def _extract_parametric_segmented_cis(pw_fit, n_breakpoints, ci=95, logger=None):
+def _extract_parametric_segmented_cis(
+    pw_fit, residuals, n_breakpoints, ci=95, logger=None
+):
     """
     Extracts parametric CIs from a fitted piecewise_regression model.
 
@@ -732,6 +723,16 @@ def _extract_parametric_segmented_cis(pw_fit, n_breakpoints, ci=95, logger=None)
         "Consider using ci_method='bootstrap' for more robust results."
     )
     logger.warning(msg)
+
+    # Shapiro-Wilk test for normality of residuals
+    if len(residuals) > 3:
+        shapiro_stat, shapiro_p = stats.shapiro(residuals)
+        if shapiro_p < 0.05:
+            logger.warning(
+                f"Residuals may not be normally distributed (Shapiro-Wilk "
+                f"p-value: {shapiro_p:.3f}). Parametric confidence "
+                "intervals may be unreliable."
+            )
 
     results = pw_fit.get_results()
     if not results or "estimates" not in results:
@@ -1114,7 +1115,7 @@ def fit_segmented_spectrum(
             results["breakpoints_ci"] = [(np.nan, np.nan)] * n_breakpoints
     elif ci_method == "parametric":
         ci_results = _extract_parametric_segmented_cis(
-            pw_fit, n_breakpoints, ci=ci, logger=logger
+            pw_fit, results["residuals"], n_breakpoints, ci=ci, logger=logger
         )
         results.update(ci_results)
 

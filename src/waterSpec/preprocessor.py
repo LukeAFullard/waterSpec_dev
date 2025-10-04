@@ -6,6 +6,37 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 
+
+def _moving_block_bootstrap_indices(
+    n_points: int, block_size: int, rng: np.random.Generator
+) -> np.ndarray:
+    """
+    Generates bootstrap indices for a single moving-block bootstrap sample.
+
+    This function is used for block bootstrapping procedures where the
+    correlation structure of the data (e.g., time series residuals) needs to
+    be preserved.
+
+    Args:
+        n_points: The total number of data points.
+        block_size: The size of each block.
+        rng: The random number generator.
+
+    Returns:
+        An array of indices for one bootstrap sample.
+    """
+    indices = []
+    # Ensure block size is valid
+    block_size = min(block_size, n_points)
+    if block_size <= 0:
+        return np.arange(n_points)
+
+    while len(indices) < n_points:
+        start = rng.integers(0, n_points - block_size + 1)
+        indices.extend(list(range(start, start + block_size)))
+    return np.array(indices[:n_points])
+
+
 # Define a constant for the R-squared threshold above which a warning is
 # issued to the user about the amount of variance removed by detrending.
 # A high R-squared might indicate that the linear trend is a dominant
@@ -269,11 +300,13 @@ def detrend_loess(
     errors: Optional[np.ndarray] = None,
     frac: float = 0.5,
     n_bootstrap: int = 0,
+    bootstrap_block_size: Optional[int] = None,
+    seed: Optional[int] = None,
     **kwargs,
 ) -> Tuple[np.ndarray, Optional[np.ndarray], Dict]:
     """
     Removes a non-linear trend from a time series using LOESS and optionally
-    estimates trend uncertainty using a residual-resampling bootstrap.
+    estimates trend uncertainty using a block bootstrap on the residuals.
 
     Args:
         x (np.ndarray): The independent variable (e.g., time).
@@ -284,6 +317,11 @@ def detrend_loess(
         n_bootstrap (int): The number of bootstrap iterations to perform for
             uncertainty estimation. If 0, no bootstrapping is performed and
             error propagation is not fully supported.
+        bootstrap_block_size (int, optional): The block size for the moving
+            block bootstrap of residuals. If None, a rule-of-thumb
+            `n_points**(1/3)` is used.
+        seed (int, optional): A seed for the random number generator to ensure
+            reproducibility of the bootstrap. Defaults to None.
         **kwargs: Additional keyword arguments passed to
             `statsmodels.nonparametric.lowess`.
     """
@@ -336,13 +374,23 @@ def detrend_loess(
     if propagated_errors is not None:
         errors_valid = propagated_errors[valid_indices]
         if n_bootstrap > 0:
-            # --- Bootstrap to estimate trend uncertainty ---
+            # --- Block bootstrap to estimate trend uncertainty ---
+            rng = np.random.default_rng(seed)
+            if bootstrap_block_size is None:
+                # Rule-of-thumb for block size, with a minimum of 3.
+                block_size = max(3, int(np.ceil(num_valid ** (1 / 3))))
+            else:
+                block_size = bootstrap_block_size
+
             bootstrap_trends = np.zeros((n_bootstrap, num_valid))
             for i in range(n_bootstrap):
-                # Resample residuals and create a synthetic dataset
-                resampled_residuals = np.random.choice(
-                    residuals, size=num_valid, replace=True
+                # Resample residuals using moving blocks to preserve autocorrelation
+                indices = _moving_block_bootstrap_indices(
+                    num_valid, block_size, rng
                 )
+                resampled_residuals = residuals[indices]
+
+                # Create a synthetic dataset
                 synthetic_y = trend + resampled_residuals
                 # Fit LOESS to the synthetic data
                 bootstrap_trends[i, :] = sm.nonparametric.lowess(
