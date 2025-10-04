@@ -217,11 +217,10 @@ def load_data(
     clean_df = clean_df.sort_values(by="time").reset_index(drop=True)
 
     if not input_time_unit:
-        # Convert datetime to nanoseconds since epoch. Using float64 is safer
-        # as it avoids np.int64 overflow for dates far from the epoch.
-        time_numeric_ns = clean_df["time"].view(np.int64).to_numpy().astype(np.float64)
+        # Convert datetime to int64 nanoseconds since epoch.
+        time_numeric_ns = clean_df["time"].view(np.int64).to_numpy()
 
-        # Check for strict monotonicity
+        # Check for strict monotonicity on the high-precision integer representation
         if len(time_numeric_ns) > 1:
             time_diffs = np.diff(time_numeric_ns)
             if not np.all(time_diffs > 0):
@@ -238,15 +237,17 @@ def load_data(
                         f"with value: {violating_timestamp}"
                     )
                 else:  # time_diffs[first_violation_idx] < 0
-                    # This case should be rare after sorting, but we handle it.
                     raise ValueError(
                         "Time column is not strictly monotonic increasing after sorting, "
                         "which may indicate a data corruption or sorting issue. First "
                         f"out-of-order timestamp found at index {first_violation_idx + 1} "
                         f"with value: {violating_timestamp}"
                     )
-        # Convert to seconds relative to the first measurement
-        time_numeric_sec = (time_numeric_ns - time_numeric_ns[0]) / 1e9
+
+        # To preserve precision, make time relative *before* converting to float.
+        # This avoids precision loss for timestamps far from the Unix epoch.
+        time_numeric_ns_relative = time_numeric_ns - time_numeric_ns[0]
+        time_numeric_sec = time_numeric_ns_relative.astype(np.float64) / 1e9
     else:
         # Time is already numeric.
         time_numeric = clean_df["time"].to_numpy().astype(np.float64)
