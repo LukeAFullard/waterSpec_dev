@@ -106,7 +106,11 @@ def fit_standard_model(
             for heteroscedastic residuals.
         bootstrap_block_size (int, optional): The block size for the moving
             block bootstrap. If None, a rule-of-thumb `n_points**(1/3)` is
-            used. Only applicable when `bootstrap_type` is 'block'.
+            used. This default may be too small for data with strong
+            autocorrelation. For best results, users should choose a block
+            size that reflects the data's correlation length (e.g., ~10x the
+            period of the longest significant cycle). Only applicable when
+            `bootstrap_type` is 'block'.
         n_bootstraps (int, optional): Number of bootstrap samples.
         ci (int, optional): The desired confidence interval in percent.
         seed (int, optional): A seed for the random number generator.
@@ -233,11 +237,12 @@ def fit_standard_model(
             if not 1.5 < dw_stat < 2.5:
                 logger.warning(
                     f"Durbin-Watson statistic is {dw_stat:.2f}, indicating "
-                    "potential autocorrelation in the model residuals. The "
-                    "'residuals' bootstrap method assumes independent residuals "
-                    "and may produce unreliable confidence intervals. Consider "
-                    "using a 'pairs' bootstrap or more advanced methods like "
-                    "block bootstrapping if autocorrelation is significant."
+                    "potential first-order autocorrelation in the model "
+                    "residuals. This test does not detect higher-order "
+                    "correlation structures. The 'residuals' bootstrap method "
+                    "assumes independent residuals and may produce unreliable "
+                    "confidence intervals. Consider using 'pairs' or 'block' "
+                    "bootstrap if autocorrelation is suspected."
                 )
 
         rng = np.random.default_rng(seed)
@@ -398,11 +403,22 @@ def fit_standard_model(
 
     fit_results.update({"beta_ci_lower": beta_ci_lower, "beta_ci_upper": beta_ci_upper})
 
-    # 5. Store supplementary data for plotting and diagnostics
+    # 5. Check for heteroscedasticity and store supplementary data
+    residuals = log_power - log_power_fit
+    if len(residuals) > 1:
+        # Check for correlation between fitted values and the magnitude of residuals
+        spearman_corr, _ = stats.spearmanr(log_power_fit, np.abs(residuals))
+        if np.abs(spearman_corr) > 0.3:
+            logger.warning(
+                "Residuals show potential heteroscedasticity (Spearman "
+                f"correlation: {spearman_corr:.2f}). The BIC value may be less "
+                "reliable for model selection."
+            )
+
     fit_results.update({
         "log_freq": log_freq,
         "log_power": log_power,
-        "residuals": log_power - log_power_fit,
+        "residuals": residuals,
         "fitted_log_power": log_power_fit,
     })
 
@@ -776,7 +792,11 @@ def fit_segmented_spectrum(
             heteroscedastic residuals.
         bootstrap_block_size (int, optional): The block size for the moving
             block bootstrap. If None, a rule-of-thumb `n_points**(1/3)` is
-            used. Only applicable when `bootstrap_type` is 'block'.
+            used. This default may be too small for data with strong
+            autocorrelation. For best results, users should choose a block
+            size that reflects the data's correlation length (e.g., ~10x the
+            period of the longest significant cycle). Only applicable when
+            `bootstrap_type` is 'block'.
         n_bootstraps (int, optional): Number of bootstrap samples for CI.
             Only used if `ci_method` is `'bootstrap'`. Defaults to 1000.
         ci (int, optional): The desired confidence interval in percent.
@@ -1032,6 +1052,17 @@ def fit_segmented_spectrum(
         intercepts = [np.nan] * (n_breakpoints + 1)
     results["intercepts"] = intercepts
 
+    # --- Check for heteroscedasticity ---
+    residuals = results["residuals"]
+    if len(residuals) > 1:
+        spearman_corr, _ = stats.spearmanr(fitted_log_power, np.abs(residuals))
+        if np.abs(spearman_corr) > 0.3:
+            logger.warning(
+                "Residuals show potential heteroscedasticity (Spearman "
+                f"correlation: {spearman_corr:.2f}). The BIC value may be less "
+                "reliable for model selection."
+            )
+
     # --- Calculate Confidence Intervals based on the chosen method ---
     if ci_method == "bootstrap":
         if bootstrap_type == "residuals" and durbin_watson is None:
@@ -1044,11 +1075,12 @@ def fit_segmented_spectrum(
             if not 1.5 < dw_stat < 2.5:
                 logger.warning(
                     f"Durbin-Watson statistic is {dw_stat:.2f}, indicating "
-                    "potential autocorrelation in the model residuals. The "
-                    "'residuals' bootstrap method assumes independent residuals "
-                    "and may produce unreliable confidence intervals. Consider "
-                    "using a 'pairs' bootstrap or more advanced methods like "
-                    "block bootstrapping if autocorrelation is significant."
+                    "potential first-order autocorrelation in the model "
+                    "residuals. This test does not detect higher-order "
+                    "correlation structures. The 'residuals' bootstrap method "
+                    "assumes independent residuals and may produce unreliable "
+                    "confidence intervals. Consider using 'pairs' or 'block' "
+                    "bootstrap if autocorrelation is suspected."
                 )
 
         if n_bootstraps > 0:

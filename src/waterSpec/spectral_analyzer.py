@@ -155,6 +155,15 @@ def find_peaks_via_residuals(fit_results: Dict, fdr_level: float = 0.05) -> Tupl
     between adjacent frequencies in the periodogram), providing better control
     over the false discovery rate.
 
+    .. note::
+        While the Benjamini-Yekutieli (``method="negcorr"``) correction is
+        appropriate for general-purpose correlated tests, the correlation
+        structure of a periodogram is specific (e.g., adjacent frequencies
+        are highly correlated). For advanced use cases, more specialized FDR
+        methods, such as permutation-based approaches that preserve the
+        spectral structure, might be more powerful. The current implementation
+        is a robust general-purpose choice.
+
     Args:
         fit_results (dict): The dictionary returned by the fitting functions.
                             Must contain 'residuals', 'fitted_log_power', 'log_freq',
