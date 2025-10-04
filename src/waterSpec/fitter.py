@@ -398,8 +398,8 @@ def fit_standard_model(
 
     # 5. Check for heteroscedasticity and store supplementary data
     if len(residuals) > 1:
-        # Check for correlation between fitted values and the magnitude of residuals
-        spearman_corr, _ = stats.spearmanr(log_power_fit, np.abs(residuals))
+        # Check for correlation between frequency and the magnitude of residuals
+        spearman_corr, _ = stats.spearmanr(log_freq, np.abs(residuals))
         if np.abs(spearman_corr) > 0.3:
             logger.warning(
                 "Residuals show potential heteroscedasticity (Spearman "
@@ -1091,7 +1091,7 @@ def fit_segmented_spectrum(
     # --- Check for heteroscedasticity ---
     residuals = results["residuals"]
     if len(residuals) > 1:
-        spearman_corr, _ = stats.spearmanr(fitted_log_power, np.abs(residuals))
+        spearman_corr, _ = stats.spearmanr(log_freq, np.abs(residuals))
         if np.abs(spearman_corr) > 0.3:
             logger.warning(
                 "Residuals show potential heteroscedasticity (Spearman "
