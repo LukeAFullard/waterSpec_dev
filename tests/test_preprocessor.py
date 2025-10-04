@@ -237,26 +237,22 @@ def test_normalize_zero_std_dev():
     assert np.all(np.isnan(normalized_errors))
 
 
-def test_detrend_loess_with_errors(sample_data):
-    """Test that LOESS detrending correctly warns when not propagating errors."""
+def test_detrend_loess_with_errors_raises_error(sample_data):
+    """
+    Test that LOESS detrending correctly raises a ValueError when errors are
+    provided without enabling bootstrapping.
+    """
     time = np.arange(len(sample_data))
-    # Create some non-linear data with noise
     trended_data = np.sin(time * 0.5) + time * 0.1
     errors = np.full_like(trended_data, 0.1)
 
-    # Detrend with LOESS without bootstrapping
-    with pytest.warns(
-        UserWarning,
-        match="Error propagation for LOESS detrending is not currently supported "
-        "without bootstrapping",
+    # Detrending with errors but without bootstrapping should raise a ValueError.
+    with pytest.raises(
+        ValueError, match="Error propagation for LOESS detrending requires bootstrapping"
     ):
-        _detrended_data, detrended_errors, _ = detrend_loess(
+        detrend_loess(
             time, trended_data.copy(), errors=errors.copy(), frac=0.5, n_bootstrap=0
         )
-
-    # Without bootstrapping, errors should be returned unchanged.
-    assert detrended_errors is not None
-    np.testing.assert_array_almost_equal(detrended_errors, errors)
 
 
 def test_detrend_loess_bootstrap_error_propagation(sample_data):

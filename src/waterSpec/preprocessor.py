@@ -352,13 +352,12 @@ def detrend_loess(
                 np.square(errors_valid) + np.square(trend_uncertainty)
             )
         else:
-            warnings.warn(
-                "Error propagation for LOESS detrending is not currently "
-                "supported without bootstrapping. To enable it, set "
-                "`n_bootstrap` > 0 in the `detrend_options` dictionary. "
-                "The uncertainties on the detrended data will be the same as "
-                "the original, which may be an underestimate.",
-                UserWarning,
+            # If errors are provided, bootstrapping is required for propagation.
+            # Raise an error to prevent silent underestimation of uncertainty.
+            raise ValueError(
+                "Error propagation for LOESS detrending requires bootstrapping. "
+                "Please set `n_bootstrap` to a value > 0 (e.g., 100) to "
+                "estimate trend uncertainty, or handle errors manually."
             )
 
     return detrended_y, propagated_errors, diagnostics
