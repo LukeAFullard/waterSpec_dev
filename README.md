@@ -2,27 +2,25 @@
 
 ![waterSpec Logo](assets/logo.png)
 
-`waterSpec` is a Python package for performing spectral analysis on environmental time series, particularly those that are irregularly sampled. It provides two core capabilities:
+`waterSpec` is a Python package for performing spectral analysis on environmental time series, particularly those that are irregularly sampled.
 
-## Core Features
+## Key Features
 
-### 1. Spectral Power Coefficient (Beta) Estimation
+- **Estimate spectral slopes (β) from irregularly sampled time series**
+  - Based on the Lomb–Scargle periodogram (LS).
+  - Fits linear or segmented regressions (with one or two automatically detected breakpoints) on the log–log spectrum.
+  - Supports uncertainty estimation with bootstrap resampling.
 
-Estimate the **spectral exponent (β)** that characterizes how variance is distributed across timescales in your data. `waterSpec` automatically fits and compares:
+- **Split a time series and compare before/after a given date**
+  - Quantify changes in spectral slopes across interventions, events, or management actions.
+  - Test significance of changes in slope or breakpoint position.
 
-- **Linear models**: A single power-law relationship across all frequencies
-- **Segmented models**: Multiple power-law regimes separated by breakpoints, revealing shifts in system behavior
+- **Compare two different time series**
+  - Directly compare spectral slopes between sites (e.g. upstream vs downstream) or variables (e.g. concentration vs discharge).
+  - Includes statistical testing of differences.
 
-The package uses the **Bayesian Information Criterion (BIC)** to objectively select the best model, balancing goodness-of-fit against model complexity.
-
-### 2. Peak Detection
-
-Identify **statistically significant periodicities** in your time series using:
-
-- **False Alarm Probability (FAP)**: Traditional, robust method independent of background model
-- **Residual-based detection**: FDR-corrected outlier analysis relative to the fitted spectrum
-
-Both methods provide quantitative significance levels and handle irregularly sampled data.
+- **Identify significant spectral peaks**
+  - Detect narrowband oscillations or dominant periodicities.
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
@@ -39,29 +37,6 @@ Environmental time series contain information at many timescales. `waterSpec` he
 - **How uncertain are my results?** Robust bootstrap confidence intervals quantify the reliability of all estimates.
 
 The package implements methods inspired by **Liang et al. (2021)**, who used spectral analysis to characterize agricultural contaminant transport in watersheds.
-
----
-
-## Key Features
-
-### 🎯 Automatic Model Selection
-Fits both **linear** (single power-law) and **segmented** (multi-regime) spectral models, then uses the Bayesian Information Criterion (BIC) to objectively choose the best model for your data—preventing both underfitting and overfitting.
-
-### 📊 Robust Statistical Analysis
-- **Bootstrap confidence intervals** for all parameters (spectral exponents, breakpoints)
-- **Multiple peak detection methods**: False Alarm Probability (FAP) or residual-based with FDR correction
-- **Handles irregular sampling** via Lomb-Scargle periodogram
-- **Autocorrelation-aware bootstrapping** with block and wild bootstrap options
-
-### 🔬 Designed for Environmental Data
-- **Flexible preprocessing**: censored data handling, log-transforms, linear/LOESS detrending, normalization
-- **Physical interpretation**: automatic comparison to benchmark transport regimes (e.g., nitrate, TSS, E. coli)
-- **Traffic-light persistence indicators**: instant visual assessment of system behavior
-
-### 📈 Publication-Ready Outputs
-- High-resolution plots with confidence bands, breakpoint annotations, and detected periodicities
-- Detailed text summaries with scientific interpretation and uncertainty quantification
-- All results returned as structured dictionaries for further analysis
 
 ---
 
