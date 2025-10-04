@@ -130,7 +130,7 @@ class SiteComparison:
         fit_method="theil-sen",
         ci_method="bootstrap",
         bootstrap_type="block",
-        n_bootstraps=1000,
+        n_bootstraps=200,
         samples_per_peak=5,
         nyquist_factor=1.0,
         max_freq=None,
