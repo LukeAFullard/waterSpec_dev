@@ -198,11 +198,14 @@ def fit_standard_model(
             "beta_ci_upper": np.nan,
             "failure_reason": failure_reason,
         }
-    except Exception:
+    except Exception as e:
         failure_reason = (
-            f"An unexpected error occurred during the initial standard model fit with method '{method}'."
+            f"An unexpected error occurred during the initial standard model fit with method '{method}': {e!r}"
         )
-        logger.error(failure_reason, exc_info=True)
+        logger.error(
+            f"An unexpected error occurred during the initial standard model fit with method '{method}'.",
+            exc_info=True,
+        )
         return {
             "beta": np.nan,
             "bic": np.inf,
@@ -901,9 +904,11 @@ def fit_segmented_spectrum(
             "bic": np.inf,
             "aic": np.inf,
         }
-    except Exception:
-        failure_reason = "Segmented regression failed with an unexpected error."
-        logger.error(failure_reason, exc_info=True)
+    except Exception as e:
+        failure_reason = f"Segmented regression failed with an unexpected error: {e!r}"
+        logger.error(
+            "Segmented regression failed with an unexpected error.", exc_info=True
+        )
         return {
             "failure_reason": failure_reason,
             "n_breakpoints": n_breakpoints,
