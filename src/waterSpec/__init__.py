@@ -1,26 +1,16 @@
+# src/waterSpec/__init__.py
+
+"""
+WaterSpec: Spectral analysis toolkit for hydrological and environmental time series.
+
+This package estimates spectral slopes (β) using Lomb–Scargle and segmented regressions,
+supports confidence intervals via bootstrap resampling, and provides interpretive diagnostics.
+"""
+
+from importlib import import_module
 from importlib.metadata import version, PackageNotFoundError
 
-"""
-waterSpec: A Python package for spectral analysis of environmental time series.
-"""
-
-try:
-    __version__ = version("waterSpec")
-except PackageNotFoundError:
-    # If the package is not installed, we don't have a version number
-    __version__ = "unknown"
-
-from .analysis import Analysis
-from .data_loader import load_data
-from .fitter import fit_segmented_spectrum, fit_standard_model
-from .frequency_generator import generate_frequency_grid
-from .interpreter import interpret_results
-from .plotting import plot_spectrum
-from .preprocessor import preprocess_data
-from .spectral_analyzer import calculate_periodogram
-
 __all__ = [
-    "Analysis",
     "load_data",
     "preprocess_data",
     "calculate_periodogram",
@@ -29,4 +19,74 @@ __all__ = [
     "fit_segmented_spectrum",
     "interpret_results",
     "plot_spectrum",
+    "Analysis",
 ]
+
+# ---- Metadata ----
+try:
+    __version__ = version("waterSpec")
+except PackageNotFoundError:
+    __version__ = "unknown"
+
+# ---- Lazy import helper ----
+def _lazy_import(func_name, module_name, dep_message=None):
+    """Return a wrapper that imports the target function on first call."""
+    def _wrapper(*args, **kwargs):
+        try:
+            module = import_module(f"waterSpec.{module_name}")
+        except ImportError as e:
+            msg = dep_message or str(e)
+            raise ImportError(msg) from e
+        func = getattr(module, func_name)
+        return func(*args, **kwargs)
+    _wrapper.__name__ = func_name
+    return _wrapper
+
+# ---- Public API (lazy wrappers) ----
+
+load_data = _lazy_import(
+    "load_data", "data_loader",
+)
+
+preprocess_data = _lazy_import(
+    "preprocess_data", "preprocessor",
+    dep_message="statsmodels is required for data preprocessing. Install with `pip install statsmodels`."
+)
+
+calculate_periodogram = _lazy_import(
+    "calculate_periodogram", "spectral_analyzer",
+    dep_message="astropy is required for periodogram calculation. Install with `pip install astropy`."
+)
+
+generate_frequency_grid = _lazy_import(
+    "generate_frequency_grid", "frequency_generator"
+)
+
+fit_standard_model = _lazy_import(
+    "fit_standard_model", "fitter",
+)
+
+fit_segmented_spectrum = _lazy_import(
+    "fit_segmented_spectrum", "fitter",
+    dep_message="piecewise_regression is required for segmented spectrum fitting. Install with `pip install piecewise-regression`."
+)
+
+interpret_results = _lazy_import(
+    "interpret_results", "interpreter"
+)
+
+plot_spectrum = _lazy_import(
+    "plot_spectrum", "plotting",
+    dep_message="matplotlib is required for plotting. Install with `pip install matplotlib`."
+)
+
+def Analysis(*args, **kwargs):
+    """Lazy load Analysis class."""
+    try:
+        module = import_module("waterSpec.analysis")
+    except ImportError as e:
+        raise ImportError(
+            "Failed to import Analysis class. Check that all required dependencies are installed."
+        ) from e
+    cls = getattr(module, "Analysis")
+    return cls(*args, **kwargs)
