@@ -10,7 +10,7 @@ def test_top_level_imports():
     """
     assert isinstance(generate_frequency_grid, types.FunctionType)
     assert isinstance(calculate_periodogram, types.FunctionType)
-    assert issubclass(Analysis, object)
+    assert isinstance(Analysis, types.FunctionType)
 
 
 def test_version_is_present():
