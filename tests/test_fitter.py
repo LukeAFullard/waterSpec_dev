@@ -77,6 +77,69 @@ def test_fit_standard_model_theil_sen(synthetic_spectrum):
     assert "stderr" not in fit_results
 
 
+def test_beta_sign_convention(mocker):
+    """
+    Test that beta is correctly calculated as the negative of the slope.
+    This test directly mocks the underlying fitting function.
+    """
+    # Use some dummy data, as the fit itself is mocked.
+    # We need at least 20 points for a 1-breakpoint segmented fit.
+    frequency = np.logspace(-2, 0, 20)
+    power = np.logspace(0, -2, 20)
+
+    # 1. Test standard model (OLS)
+    # Mock the return from linregress to control the slope. It should return
+    # a tuple: (slope, intercept, rvalue, pvalue, stderr).
+    mocker.patch(
+        "waterSpec.fitter.stats.linregress",
+        return_value=(-1.5, 1, 0.9, 0.01, 0.05),  # slope = -1.5
+    )
+
+    # Run the standard model fit, disabling bootstrap CIs for this test
+    fit_results_standard = fit_standard_model(
+        frequency, power, method="ols", ci_method="parametric"
+    )
+
+    # Assert that beta is the negative of the slope
+    assert fit_results_standard["beta"] == -(-1.5)
+
+    # 2. Test segmented model
+    # Mock the results from the piecewise_regression library
+    mock_estimates = {
+        "alpha1": {"estimate": -0.5},  # slope1 = -0.5 -> beta1 = 0.5
+        "beta1": {"estimate": -1.3},  # slope2 = slope1 + beta1 = -1.8 -> beta2 = 1.8
+        "breakpoint1": {"estimate": np.log10(0.1)},
+        "const": {"estimate": 1.0},
+    }
+    mock_fit_result = mocker.MagicMock()
+    mock_fit_result.get_results.return_value = {
+        "converged": True,
+        "bic": 100,
+        "estimates": mock_estimates,
+    }
+    mock_fit_result.davies = 0.01  # Pass p-value threshold
+
+    # The predict method needs to return something with the correct shape
+    valid_indices = (frequency > 0) & (power > 0)
+    log_freq = np.log10(frequency[valid_indices])
+    mock_fit_result.predict.return_value = np.zeros_like(log_freq)
+
+    mocker.patch(
+        "waterSpec.fitter.piecewise_regression.Fit", return_value=mock_fit_result
+    )
+
+    # Run the segmented fit
+    results_segmented = fit_segmented_spectrum(
+        frequency, power, n_breakpoints=1, ci_method="parametric"
+    )
+
+    # Check the beta values
+    assert "betas" in results_segmented
+    assert len(results_segmented["betas"]) == 2
+    assert results_segmented["betas"][0] == pytest.approx(-(-0.5))
+    assert results_segmented["betas"][1] == pytest.approx(-(-0.5 + -1.3))
+
+
 def test_fit_standard_model_with_bootstrap_ci(synthetic_spectrum):
     """
     Test that fit_standard_model returns a confidence interval for beta.
