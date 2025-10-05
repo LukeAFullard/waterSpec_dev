@@ -397,13 +397,15 @@ def fit_standard_model(
     fit_results.update({"beta_ci_lower": beta_ci_lower, "beta_ci_upper": beta_ci_upper})
 
     # 5. Check for heteroscedasticity and store supplementary data
+    spearman_corr_log_freq, spearman_corr_freq = np.nan, np.nan
     if len(residuals) > 1:
         # Check for correlation between frequency and the magnitude of residuals
-        spearman_corr, _ = stats.spearmanr(log_freq, np.abs(residuals))
-        if np.abs(spearman_corr) > 0.3:
+        spearman_corr_log_freq, _ = stats.spearmanr(log_freq, np.abs(residuals))
+        spearman_corr_freq, _ = stats.spearmanr(10**log_freq, np.abs(residuals))
+        if np.abs(spearman_corr_log_freq) > 0.3:
             logger.warning(
                 "Residuals show potential heteroscedasticity (Spearman "
-                f"correlation: {spearman_corr:.2f}). The BIC value may be less "
+                f"correlation with log_freq: {spearman_corr_log_freq:.2f}). The BIC value may be less "
                 "reliable for model selection."
             )
 
@@ -412,6 +414,8 @@ def fit_standard_model(
         "log_power": log_power,
         "residuals": residuals,
         "fitted_log_power": log_power_fit,
+        "spearman_corr_log_freq": spearman_corr_log_freq,
+        "spearman_corr_freq": spearman_corr_freq,
     })
 
     return fit_results
@@ -1115,14 +1119,18 @@ def fit_segmented_spectrum(
 
     # --- Check for heteroscedasticity ---
     residuals = results["residuals"]
+    spearman_corr_log_freq, spearman_corr_freq = np.nan, np.nan
     if len(residuals) > 1:
-        spearman_corr, _ = stats.spearmanr(log_freq, np.abs(residuals))
-        if np.abs(spearman_corr) > 0.3:
+        spearman_corr_log_freq, _ = stats.spearmanr(log_freq, np.abs(residuals))
+        spearman_corr_freq, _ = stats.spearmanr(10**log_freq, np.abs(residuals))
+        if np.abs(spearman_corr_log_freq) > 0.3:
             logger.warning(
                 "Residuals show potential heteroscedasticity (Spearman "
-                f"correlation: {spearman_corr:.2f}). The BIC value may be less "
+                f"correlation with log_freq: {spearman_corr_log_freq:.2f}). The BIC value may be less "
                 "reliable for model selection."
             )
+    results["spearman_corr_log_freq"] = spearman_corr_log_freq
+    results["spearman_corr_freq"] = spearman_corr_freq
 
     # --- Calculate Confidence Intervals based on the chosen method ---
     if ci_method == "bootstrap":
