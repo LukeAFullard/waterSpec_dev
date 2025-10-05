@@ -6,22 +6,21 @@ import numpy as np
 import pandas as pd
 
 
-def load_data(
-    file_path: str,
+def process_dataframe(
+    df: pd.DataFrame,
     time_col: str,
     data_col: str,
     error_col: Optional[str] = None,
     time_format: Optional[str] = None,
     input_time_unit: Optional[str] = None,
-    sheet_name: Union[int, str] = 0,
     output_time_unit: str = "seconds",
 ) -> Tuple[np.ndarray, pd.Series, Optional[pd.Series]]:
     """
-    Loads time series data from a CSV, JSON, or Excel file, performing robust
+    Processes a DataFrame containing time series data, performing robust
     validation and returning time as a numeric array in the specified units.
 
     Args:
-        file_path (str): The path to the data file.
+        df (pd.DataFrame): The input DataFrame.
         time_col (str): The name of the column containing timestamps.
         data_col (str): The name of the column containing data values.
         error_col (Optional[str], optional): The name of the column containing
@@ -33,8 +32,6 @@ def load_data(
             if it's already numeric. Can be 'seconds', 'days', or 'hours'.
             If None, the time column is assumed to be a datetime-like object
             that needs parsing. Defaults to None.
-        sheet_name (Union[int, str], optional): The name or index of the sheet
-            to read from for Excel files. Defaults to 0.
         output_time_unit (str, optional): The desired unit for the output time
             array. Can be 'seconds', 'days', or 'hours'. Defaults to 'seconds'.
 
@@ -44,41 +41,12 @@ def load_data(
               `output_time_unit`, relative to the first measurement.
             - A Pandas Series of data values.
             - A Pandas Series of error values, or None if not provided.
-
-    Note on Time Precision:
-        This function converts time data to 64-bit floating-point numbers
-        (float64) for internal calculations. While it mitigates precision loss
-        for absolute timestamps by making them relative before conversion,
-        float64 has a finite precision of about 15-16 significant digits.
-        For time series that span multiple decades with sub-second resolution,
-        this could lead to a loss of precision. For instance, a time series
-        spanning 50 years with nanosecond resolution represents a range that
-        exceeds the precision of float64, and the smallest time differences
-        may not be preserved. Users with extremely high-resolution, long-duration
-        datasets should be aware of this limitation.
     """
-    # 1. Validate file existence
-    if not os.path.exists(file_path):
-        raise FileNotFoundError(f"The specified file was not found: {file_path}")
-
-    # 2. Load data from file
-    _, file_extension = os.path.splitext(file_path)
-    try:
-        if file_extension.lower() == ".csv":
-            # low_memory=False prevents pandas from inferring column types from
-            # chunks of the file, which can lead to mixed-type columns.
-            df = pd.read_csv(file_path, low_memory=False, index_col=False)
-        elif file_extension.lower() in [".xlsx", ".xls"]:
-            df = pd.read_excel(file_path, sheet_name=sheet_name)
-        elif file_extension.lower() == ".json":
-            df = pd.read_json(file_path)
-        else:
-            raise ValueError(f"Unsupported file format: {file_extension}")
-    except Exception as e:
-        raise IOError(f"Failed to read the file at {file_path}. Reason: {e}")
-
+    if not isinstance(df, pd.DataFrame):
+        raise TypeError("Input `df` must be a pandas DataFrame.")
     if df.empty:
-        raise ValueError("The provided data file is empty.")
+        raise ValueError("The provided DataFrame is empty.")
+    df = df.copy()
 
     # 3. Create a mapping of original column names to lowercase
     # First, check for ambiguities (duplicate lowercased column names)
@@ -96,9 +64,9 @@ def load_data(
 
     # Check for column existence (case-insensitive)
     if time_col_lower not in col_map:
-        raise ValueError(f"Time column '{time_col}' not found in the file.")
+        raise ValueError(f"Time column '{time_col}' not found in the DataFrame.")
     if data_col_lower not in col_map:
-        raise ValueError(f"Data column '{data_col}' not found in the file.")
+        raise ValueError(f"Data column '{data_col}' not found in the DataFrame.")
 
     # Get original column names from the map
     time_col_orig = col_map[time_col_lower]
@@ -322,3 +290,71 @@ def load_data(
         )
 
     return time_out, clean_df["data"], clean_df.get("error")
+
+
+def load_data(
+    file_path: str,
+    time_col: str,
+    data_col: str,
+    error_col: Optional[str] = None,
+    time_format: Optional[str] = None,
+    input_time_unit: Optional[str] = None,
+    sheet_name: Union[int, str] = 0,
+    output_time_unit: str = "seconds",
+) -> Tuple[np.ndarray, pd.Series, Optional[pd.Series]]:
+    """
+    Loads time series data from a CSV, JSON, or Excel file and processes it.
+
+    This function serves as a wrapper that first loads data from a file into a
+    pandas DataFrame and then passes it to the `process_dataframe` function
+    for validation, cleaning, and transformation.
+
+    Args:
+        file_path (str): The path to the data file.
+        time_col (str): The name of the column containing timestamps.
+        data_col (str): The name of the column containing data values.
+        error_col (Optional[str], optional): The name of the column containing
+            error values. Defaults to None.
+        time_format (Optional[str], optional): The `strftime` format for parsing
+            datetime-like columns. Passed to `process_dataframe`.
+        input_time_unit (Optional[str], optional): The unit of the time column
+            if it's already numeric. Passed to `process_dataframe`.
+        sheet_name (Union[int, str], optional): The name or index of the sheet
+            to read from for Excel files. Defaults to 0.
+        output_time_unit (str, optional): The desired unit for the output time
+            array. Passed to `process_dataframe`.
+
+    Returns:
+        Tuple[np.ndarray, pd.Series, Optional[pd.Series]]: A tuple containing:
+            - A NumPy array of numeric time values.
+            - A Pandas Series of data values.
+            - A Pandas Series of error values, or None.
+    """
+    # 1. Validate file existence
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"The specified file was not found: {file_path}")
+
+    # 2. Load data from file
+    _, file_extension = os.path.splitext(file_path)
+    try:
+        if file_extension.lower() == ".csv":
+            df = pd.read_csv(file_path, low_memory=False, index_col=False)
+        elif file_extension.lower() in [".xlsx", ".xls"]:
+            df = pd.read_excel(file_path, sheet_name=sheet_name)
+        elif file_extension.lower() == ".json":
+            df = pd.read_json(file_path)
+        else:
+            raise ValueError(f"Unsupported file format: {file_extension}")
+    except Exception as e:
+        raise IOError(f"Failed to read the file at {file_path}. Reason: {e}")
+
+    # 3. Process the loaded DataFrame
+    return process_dataframe(
+        df,
+        time_col,
+        data_col,
+        error_col=error_col,
+        time_format=time_format,
+        input_time_unit=input_time_unit,
+        output_time_unit=output_time_unit,
+    )

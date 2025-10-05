@@ -53,7 +53,7 @@ def test_analysis_class_initialization(tmp_path):
     time, series = generate_synthetic_series()
     file_path = create_test_data_file(tmp_path, time, series)
 
-    analyzer = Analysis(file_path, time_col="time", data_col="value")
+    analyzer = Analysis(file_path=file_path, time_col="time", data_col="value")
 
     assert analyzer is not None
     assert len(analyzer.time) == 1024
@@ -66,7 +66,9 @@ def test_analysis_run_full_analysis_creates_outputs(tmp_path):
     file_path = "examples/sample_data.csv"
     output_dir = tmp_path / "results"
 
-    analyzer = Analysis(file_path, time_col="timestamp", data_col="concentration")
+    analyzer = Analysis(
+        file_path=file_path, time_col="timestamp", data_col="concentration"
+    )
     results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=0)
 
     # Check that output files were created
@@ -100,7 +102,7 @@ def test_analysis_with_known_beta(tmp_path, known_beta, tolerance):
     file_path = create_test_data_file(tmp_path, time, series)
 
     analyzer = Analysis(
-        file_path, time_col="time", data_col="value", detrend_method=None
+        file_path=file_path, time_col="time", data_col="value", detrend_method=None
     )
 
     # For steep spectra (beta=2.0), low-frequency power can sometimes cause
@@ -154,7 +156,7 @@ def test_analysis_auto_chooses_segmented_with_mock(
     )
     output_dir = tmp_path / "results"
 
-    analyzer = Analysis(file_path, time_col="time", data_col="value")
+    analyzer = Analysis(file_path=file_path, time_col="time", data_col="value")
     results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=0)
 
     assert results["chosen_model"] == "segmented_1bp"
@@ -175,7 +177,7 @@ def test_analysis_insufficient_data(tmp_path):
         match="Not enough valid data points \\(5\\) remaining after "
         "preprocessing. Minimum required: 10.",
     ):
-        Analysis(file_path, time_col="time", data_col="value")
+        Analysis(file_path=file_path, time_col="time", data_col="value")
 
 
 def test_analysis_min_valid_data_points_configurable(tmp_path):
@@ -186,11 +188,14 @@ def test_analysis_min_valid_data_points_configurable(tmp_path):
 
     # This should fail with the default of 10
     with pytest.raises(ValueError, match="Minimum required: 10"):
-        Analysis(file_path, time_col="time", data_col="value")
+        Analysis(file_path=file_path, time_col="time", data_col="value")
 
     # This should pass with a custom threshold of 8
     analyzer = Analysis(
-        file_path, time_col="time", data_col="value", min_valid_data_points=8
+        file_path=file_path,
+        time_col="time",
+        data_col="value",
+        min_valid_data_points=8,
     )
     assert len(analyzer.data) == 8
 
@@ -205,7 +210,7 @@ def test_analysis_min_valid_data_points_invalid(tmp_path, invalid_value):
         ValueError, match="`min_valid_data_points` must be a positive integer."
     ):
         Analysis(
-            file_path,
+            file_path=file_path,
             time_col="time",
             data_col="value",
             min_valid_data_points=invalid_value,
@@ -220,7 +225,7 @@ def test_analysis_zero_variance_data(tmp_path):
     output_dir = tmp_path / "results"
 
     analyzer = Analysis(
-        file_path, time_col="time", data_col="value", detrend_method=None
+        file_path=file_path, time_col="time", data_col="value", detrend_method=None
     )
     results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=0)
 
@@ -233,7 +238,9 @@ def test_analysis_fap_threshold_is_configurable(tmp_path):
     output_dir = tmp_path / "results"
     custom_fap = 0.05
 
-    analyzer = Analysis(file_path, time_col="timestamp", data_col="concentration")
+    analyzer = Analysis(
+        file_path=file_path, time_col="timestamp", data_col="concentration"
+    )
     results = analyzer.run_full_analysis(
         output_dir=str(output_dir),
         n_bootstraps=0,
@@ -261,7 +268,7 @@ def test_analysis_residual_method_finds_peak(tmp_path):
     output_dir = tmp_path / "results_residual"
 
     analyzer = Analysis(
-        file_path, time_col="time", data_col="value", detrend_method=None
+        file_path=file_path, time_col="time", data_col="value", detrend_method=None
     )
     results = analyzer.run_full_analysis(
         output_dir=str(output_dir),
@@ -288,7 +295,7 @@ def test_analysis_with_censored_data(tmp_path):
 
     # Run the analysis with a strategy to handle censored data
     analyzer = Analysis(
-        file_path,
+        file_path=file_path,
         time_col="date",
         data_col="concentration",
         censor_strategy="use_detection_limit",
@@ -367,7 +374,7 @@ def test_analysis_max_breakpoints_selects_best_model(
         tmp_path, pd.date_range("2023", periods=100), np.random.rand(100)
     )
     output_dir = tmp_path / "results"
-    analyzer = Analysis(file_path, time_col="time", data_col="value")
+    analyzer = Analysis(file_path=file_path, time_col="time", data_col="value")
     results = analyzer.run_full_analysis(
         output_dir=str(output_dir), max_breakpoints=2, n_bootstraps=0
     )
@@ -416,7 +423,7 @@ def test_analysis_parametric_ci_is_propagated(tmp_path):
     time, series = generate_synthetic_series(n_points=100, beta=1.0)
     file_path = create_test_data_file(tmp_path, time, series)
 
-    analyzer = Analysis(file_path, time_col="time", data_col="value")
+    analyzer = Analysis(file_path=file_path, time_col="time", data_col="value")
     results = analyzer.run_full_analysis(
         output_dir=tmp_path, ci_method="parametric", n_bootstraps=0
     )
@@ -451,7 +458,7 @@ def test_run_full_analysis_invalid_parameters(tmp_path, param, value, message):
     """Test that run_full_analysis raises errors for invalid parameters."""
     time, series = generate_synthetic_series(n_points=100)
     file_path = create_test_data_file(tmp_path, time, series)
-    analyzer = Analysis(file_path, time_col="time", data_col="value")
+    analyzer = Analysis(file_path=file_path, time_col="time", data_col="value")
 
     kwargs = {"output_dir": str(tmp_path)}
     kwargs[param] = value
@@ -484,7 +491,7 @@ def test_analysis_handles_total_model_failure(
         tmp_path, pd.date_range("2023", periods=100), np.random.rand(100)
     )
     output_dir = tmp_path / "results"
-    analyzer = Analysis(file_path, time_col="time", data_col="value")
+    analyzer = Analysis(file_path=file_path, time_col="time", data_col="value")
     results = analyzer.run_full_analysis(
         output_dir=str(output_dir), max_breakpoints=1, n_bootstraps=0
     )
@@ -530,7 +537,7 @@ def test_analysis_retains_failure_reasons_on_partial_success(
     file_path = create_test_data_file(
         tmp_path, pd.date_range("2023", periods=100), np.random.rand(100)
     )
-    analyzer = Analysis(file_path, "time", "value")
+    analyzer = Analysis(file_path=file_path, time_col="time", data_col="value")
     results = analyzer.run_full_analysis(output_dir=tmp_path, n_bootstraps=0)
 
     # The successful model should be chosen
@@ -547,7 +554,12 @@ def test_analysis_warns_on_ignored_peak_fdr_level(tmp_path, mocker):
     peak_detection_method is 'fap'.
     """
     file_path = "examples/sample_data.csv"
-    analyzer = Analysis(file_path, "timestamp", "concentration", verbose=True)
+    analyzer = Analysis(
+        file_path=file_path,
+        time_col="timestamp",
+        data_col="concentration",
+        verbose=True,
+    )
 
     # Spy on the logger to check for the warning
     spy_logger = mocker.spy(analyzer.logger, "warning")
@@ -571,7 +583,12 @@ def test_peak_detection_ignored_parameter_warning(tmp_path, mocker):
     the 'residual' peak detection method, as they will be ignored.
     """
     file_path = "examples/sample_data.csv"
-    analyzer = Analysis(file_path, "timestamp", "concentration", verbose=True)
+    analyzer = Analysis(
+        file_path=file_path,
+        time_col="timestamp",
+        data_col="concentration",
+        verbose=True,
+    )
     spy_logger = mocker.spy(analyzer.logger, "warning")
 
     # Test for ignored fap parameters when using 'residual' method

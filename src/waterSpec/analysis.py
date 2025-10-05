@@ -5,13 +5,14 @@ import warnings
 from typing import Dict, Optional
 
 import numpy as np
+import pandas as pd
 
 from .changepoint_detector import (
     detect_changepoint_pelt,
     get_changepoint_time,
     validate_changepoint,
 )
-from .data_loader import load_data
+from .data_loader import load_data, process_dataframe
 from .fitter import fit_segmented_spectrum, fit_standard_model
 from .frequency_generator import generate_frequency_grid
 from .interpreter import interpret_results
@@ -34,81 +35,72 @@ class Analysis:
 
     def __init__(
         self,
-        file_path,
-        time_col,
-        data_col,
-        error_col=None,
-        time_format=None,
-        input_time_unit=None,
-        sheet_name=0,
-        time_unit="seconds",
-        param_name=None,
-        censor_strategy="drop",
-        censor_options=None,
-        log_transform_data=False,
-        detrend_method=None,
-        normalize_data=False,
-        detrend_options=None,
-        min_valid_data_points=10,
-        verbose=False,
-        changepoint_mode: str = "none",  # "none", "auto", "manual"
-        changepoint_index: Optional[int] = None,  # For manual mode
-        changepoint_options: Optional[Dict] = None,  # For auto mode
+        time_col: str,
+        data_col: str,
+        file_path: Optional[str] = None,
+        dataframe: Optional[pd.DataFrame] = None,
+        error_col: Optional[str] = None,
+        time_format: Optional[str] = None,
+        input_time_unit: Optional[str] = None,
+        sheet_name: int = 0,
+        time_unit: str = "seconds",
+        param_name: Optional[str] = None,
+        censor_strategy: str = "drop",
+        censor_options: Optional[Dict] = None,
+        log_transform_data: bool = False,
+        detrend_method: Optional[str] = None,
+        normalize_data: bool = False,
+        detrend_options: Optional[Dict] = None,
+        min_valid_data_points: int = 10,
+        verbose: bool = False,
+        changepoint_mode: str = "none",
+        changepoint_index: Optional[int] = None,
+        changepoint_options: Optional[Dict] = None,
     ):
         """
         Initializes the Analysis object by loading and preprocessing the data.
 
+        The constructor accepts either a file path or a pandas DataFrame.
+
         Args:
-            file_path (str): The full path to the data file (CSV or Excel).
             time_col (str): The name of the column containing timestamps.
             data_col (str): The name of the column containing data values.
+            file_path (str, optional): The full path to the data file (CSV,
+                JSON, or Excel). Required if `dataframe` is not provided.
+            dataframe (pd.DataFrame, optional): A pandas DataFrame containing
+                the time series data. Required if `file_path` is not provided.
             error_col (str, optional): The name of the column for measurement
                 errors. If provided, these will be used for weighted periodogram
                 calculation. Defaults to None.
-            time_format (str, optional): The specific `strptime` format of the
-                time column to speed up parsing. If None, it is inferred. Not
-                used if `input_time_unit` is provided.
-            input_time_unit (str, optional): The unit of a numeric time column.
-                Use this if your time column consists of numbers (e.g., days,
-                seconds) instead of datetime strings. Can be 'seconds', 'days',
-                or 'hours'. Defaults to None.
-            sheet_name (str or int, optional): If loading an Excel file, specify
-                the sheet name or index. Defaults to 0.
+            time_format (str, optional): The `strptime` format of the time
+                column. If None, it is inferred. Not used if `input_time_unit`
+                is provided.
+            input_time_unit (str, optional): The unit of a numeric time column
+                (e.g., 'seconds', 'days').
+            sheet_name (int, optional): If loading an Excel file, specify the
+                sheet index. Defaults to 0.
             time_unit (str, optional): The desired output unit for time and
-                frequency. The time values will be converted to this unit, and
-                the frequency grid will be in 1/`time_unit`. Can be 'seconds',
-                'days', or 'hours'. Defaults to 'seconds'.
+                frequency ('seconds', 'days', or 'hours'). Defaults to 'seconds'.
             param_name (str, optional): A descriptive name for the data parameter
-                being analyzed (e.g., "Nitrate Concentration"). Used for plot
-                titles and summaries. If None, defaults to `data_col`.
+                (e.g., "Nitrate Concentration"). Used for plot titles.
+                Defaults to `data_col`.
             censor_strategy (str, optional): The strategy for handling censored
-                (non-detect) data. See `preprocess.py` for options.
+                data. See `preprocess.py` for options.
             censor_options (dict, optional): Options for the censoring strategy.
             log_transform_data (bool, optional): If True, log-transform the data.
             detrend_method (str, optional): Method to detrend the time series
-                ('linear', 'loess', or None). Defaults to None.
-                **Warning:** Detrending can significantly affect the estimated
-                spectral slope (beta), often removing low-frequency power and
-                steepening the spectrum. It is recommended to use `None` unless
-                there is a strong, known trend in the data that must be removed.
+                ('linear', 'loess', or None).
             normalize_data (bool, optional): If True, normalize the data.
             detrend_options (dict, optional): Options for the detrending method.
-                For 'loess', this can include `frac` (float) and `n_bootstrap`
-                (int) for error propagation. See `preprocessor.detrend_loess`
-                for details.
-            min_valid_data_points (int, optional): The minimum number of valid
-                data points required to proceed with an analysis. Defaults to 10.
+            min_valid_data_points (int, optional): Minimum valid data points
+                required to proceed. Defaults to 10.
             verbose (bool, optional): If True, sets logging level to INFO.
-                Defaults to False (logging level WARNING).
-            changepoint_mode (str, optional): Defines the changepoint analysis approach.
-                - "none" (default): Standard analysis with no segmentation.
-                - "auto": Automatic changepoint detection using the PELT algorithm.
-                - "manual": Analysis with a user-specified changepoint.
-            changepoint_index (int, optional): The index of the changepoint.
-                Required if `changepoint_mode` is "manual".
-            changepoint_options (dict, optional): A dictionary of parameters for
-                automatic changepoint detection. See `changepoint_detector.py`
-                for options (e.g., `model`, `penalty`, `min_size`).
+            changepoint_mode (str, optional): Defines the changepoint analysis
+                approach: "none", "auto", or "manual".
+            changepoint_index (int, optional): The index of the changepoint for
+                "manual" mode.
+            changepoint_options (dict, optional): Parameters for automatic
+                changepoint detection (e.g., `model`, `penalty`).
         """
         self.param_name = param_name if param_name is not None else data_col
         self._setup_logger(level=logging.INFO if verbose else logging.WARNING)
@@ -118,18 +110,34 @@ class Analysis:
         self.min_valid_data_points = min_valid_data_points
         self.time_unit = time_unit
 
-        # Load and preprocess data
+        # Data loading and preprocessing
         self.logger.info("Loading and preprocessing data...")
-        time_numeric, data_series, error_series = load_data(
-            file_path,
-            time_col,
-            data_col,
-            error_col=error_col,
-            time_format=time_format,
-            input_time_unit=input_time_unit,
-            sheet_name=sheet_name,
-            output_time_unit=self.time_unit,
-        )
+        if file_path is not None and dataframe is None:
+            time_numeric, data_series, error_series = load_data(
+                file_path=file_path,
+                time_col=time_col,
+                data_col=data_col,
+                error_col=error_col,
+                time_format=time_format,
+                input_time_unit=input_time_unit,
+                sheet_name=sheet_name,
+                output_time_unit=self.time_unit,
+            )
+        elif dataframe is not None and file_path is None:
+            time_numeric, data_series, error_series = process_dataframe(
+                df=dataframe,
+                time_col=time_col,
+                data_col=data_col,
+                error_col=error_col,
+                time_format=time_format,
+                input_time_unit=input_time_unit,
+                output_time_unit=self.time_unit,
+            )
+        elif file_path is not None and dataframe is not None:
+            raise ValueError("Please provide either `file_path` or `dataframe`, not both.")
+        else:
+            raise ValueError("Either `file_path` or `dataframe` must be provided.")
+
         processed_data, processed_errors, diagnostics = preprocess_data(
             data_series,
             time_numeric,
