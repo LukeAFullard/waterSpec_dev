@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import warnings
+from typing import TYPE_CHECKING, Dict, List, Tuple
+
 import numpy as np
-from astropy.timeseries import LombScargle
 from scipy.signal import find_peaks
+
+if TYPE_CHECKING:
+    from astropy.timeseries import LombScargle
 
 
 def calculate_periodogram(
@@ -48,6 +53,13 @@ def calculate_periodogram(
             - power: The power values for the corresponding frequencies.
             - ls_instance: The LombScargle object instance.
     """
+    try:
+        from astropy.timeseries import LombScargle
+    except ImportError:
+        raise ImportError(
+            "astropy is required for periodogram calculation (LombScargle)."
+        )
+
     # Automatically select normalization if not specified.
     # 'psd' is crucial for physical units when errors are known.
     if normalization is None:
@@ -66,12 +78,14 @@ def calculate_periodogram(
     return frequency, power, ls_instance
 
 
-import warnings
-
-
 def find_significant_peaks(
-    ls, frequency, power, fap_threshold=0.01, fap_method="baluev", **fap_kwargs
-):
+    ls: LombScargle,
+    frequency: np.ndarray,
+    power: np.ndarray,
+    fap_threshold: float = 0.01,
+    fap_method: str = "baluev",
+    **fap_kwargs,
+) -> tuple[list[dict], float]:
     """
     Finds statistically significant peaks in a periodogram using a False Alarm
     Probability threshold.
@@ -139,12 +153,9 @@ def find_significant_peaks(
     return significant_peaks, fap_level
 
 
-from scipy import stats
-from statsmodels.stats.multitest import fdrcorrection
-from typing import Dict, List, Tuple
-
-
-def find_peaks_via_residuals(fit_results: Dict, fdr_level: float = 0.05) -> Tuple[List[Dict], float]:
+def find_peaks_via_residuals(
+    fit_results: Dict, fdr_level: float = 0.05
+) -> Tuple[List[Dict], float]:
     """
     Finds significant peaks by identifying outliers in the residuals of the
     spectral fit using the Benjamini-Yekutieli False Discovery Rate (FDR)
@@ -177,6 +188,15 @@ def find_peaks_via_residuals(fit_results: Dict, fdr_level: float = 0.05) -> Tupl
                - float: The minimum residual value of a significant peak, which
                         can be used as an effective threshold for plotting.
     """
+    try:
+        from scipy import stats
+        from statsmodels.stats.multitest import fdrcorrection
+    except ImportError:
+        raise ImportError(
+            "scipy and statsmodels are required for FDR peak finding. "
+            "Install with `pip install scipy statsmodels`"
+        )
+
     required_keys = ["residuals", "fitted_log_power", "log_freq", "log_power"]
     if not all(key in fit_results for key in required_keys):
         missing_keys = [key for key in required_keys if key not in fit_results]
