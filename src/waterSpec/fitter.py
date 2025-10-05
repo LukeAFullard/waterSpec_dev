@@ -315,16 +315,18 @@ def fit_standard_model(
         success_rate = len(beta_estimates) / n_bootstraps if n_bootstraps > 0 else 0
         MIN_SUCCESS_RATE = 0.5
 
+        error_summary = ""
         if error_counts:
             error_summary = ", ".join(
                 [f"{err}: {count}" for err, count in error_counts.items()]
             )
             logger.warning(f"Bootstrap errors occurred: {error_summary}")
 
+        fit_results["bootstrap_success_rate"] = success_rate
+        fit_results["bootstrap_n_success"] = len(beta_estimates)
+        fit_results["bootstrap_error_summary"] = error_summary
+
         if n_bootstraps > 0 and success_rate < MIN_SUCCESS_RATE:
-            error_summary = ", ".join(
-                [f"{err}: {count}" for err, count in error_counts.items()]
-            )
             raise ValueError(
                 f"Bootstrap success rate ({success_rate:.0%}) was below the required threshold ({MIN_SUCCESS_RATE:.0%}). "
                 f"Only {len(beta_estimates)}/{n_bootstraps} iterations succeeded. Errors: {error_summary}"
@@ -634,6 +636,7 @@ def _bootstrap_segmented_fit(
     # can lead to unreliable CIs.
     MIN_SUCCESS_RATE = 0.8
 
+    error_summary = ""
     if error_counts:
         error_summary = ", ".join(
             [f"{err}: {count}" for err, count in error_counts.items()]
@@ -641,9 +644,6 @@ def _bootstrap_segmented_fit(
         logger.warning(f"Bootstrap errors occurred: {error_summary}")
 
     if n_bootstraps > 0 and success_rate < MIN_SUCCESS_RATE:
-        error_summary = ", ".join(
-            [f"{err}: {count}" for err, count in error_counts.items()]
-        )
         # This error is caught by the calling function to trigger a fallback.
         raise ValueError(
             f"Bootstrap success rate ({success_rate:.0%}) was below the required threshold ({MIN_SUCCESS_RATE:.0%}). "
@@ -733,6 +733,9 @@ def _bootstrap_segmented_fit(
         else:
             ci_results["breakpoints_ci"].append((np.nan, np.nan))
 
+    ci_results["bootstrap_success_rate"] = success_rate
+    ci_results["bootstrap_n_success"] = successful_fits
+    ci_results["bootstrap_error_summary"] = error_summary
     return ci_results
 
 
