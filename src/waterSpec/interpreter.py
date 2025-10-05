@@ -76,7 +76,15 @@ CI_WIDTH_THRESHOLD_FOR_WARNING = 0.5
 
 
 def get_scientific_interpretation(beta):
-    """Provides a scientific interpretation of the spectral exponent (beta)."""
+    """
+    Provides a scientific interpretation of the spectral exponent (beta).
+
+    .. note::
+        The spectral exponent, beta (β), is defined as the negative of the
+        slope of the log-log power spectrum (P(f) ∝ f^−β). A positive beta
+        indicates persistence (long-term memory), where low frequencies have
+        more power, while a negative beta indicates anti-persistence.
+    """
     if np.isclose(beta, 0, atol=BETA_TOLERANCE):
         return "β ≈ 0 (White Noise): Uncorrelated, random process."
     elif np.isclose(beta, 1, atol=BETA_TOLERANCE):

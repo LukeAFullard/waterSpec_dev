@@ -76,6 +76,12 @@ def fit_standard_model(
     This function consolidates the fitting, BIC calculation, and confidence
     interval estimation into a single, robust workflow.
 
+    .. note::
+        The spectral exponent, beta (β), is defined as the negative of the
+        slope of the log-log power spectrum (P(f) ∝ f^−β). A positive beta
+        indicates persistence (long-term memory), where low frequencies have
+        more power, while a negative beta indicates anti-persistence.
+
     Args:
         frequency (np.ndarray): The frequency array.
         power (np.ndarray): The power array.
@@ -817,6 +823,12 @@ def fit_segmented_spectrum(
 ) -> Dict:
     """
     Fits a segmented regression and estimates confidence intervals.
+
+    .. note::
+        The spectral exponent, beta (β), is defined as the negative of the
+        slope of the log-log power spectrum (P(f) ∝ f^−β). A positive beta
+        indicates persistence (long-term memory), where low frequencies have
+        more power, while a negative beta indicates anti-persistence.
 
     Args:
         frequency (np.ndarray): The frequency array.
