@@ -90,7 +90,7 @@ def test_load_data_empty_file(tmp_path):
     """Test that loading an empty file raises a ValueError."""
     file_path = tmp_path / "empty.csv"
     file_path.write_text("timestamp,concentration\n")
-    with pytest.raises(ValueError, match="The provided data file is empty"):
+    with pytest.raises(ValueError, match="The provided DataFrame is empty"):
         load_data(file_path, time_col="timestamp", data_col="concentration")
 
 

@@ -40,7 +40,12 @@ def test_analysis_warns_for_ignored_fap_params(tmp_path, caplog):
     file_path = "examples/sample_data.csv"
     output_dir = tmp_path / "results"
 
-    analyzer = Analysis(file_path, time_col="timestamp", data_col="concentration", verbose=True)
+    analyzer = Analysis(
+        file_path=file_path,
+        time_col="timestamp",
+        data_col="concentration",
+        verbose=True,
+    )
 
     analyzer.run_full_analysis(
         output_dir=str(output_dir),
@@ -57,7 +62,10 @@ def test_analysis_raises_error_for_unknown_peak_method(tmp_path):
     file_path = "examples/sample_data.csv"
     output_dir = tmp_path / "results"
     analyzer = Analysis(
-        file_path, time_col="timestamp", data_col="concentration", verbose=True
+        file_path=file_path,
+        time_col="timestamp",
+        data_col="concentration",
+        verbose=True,
     )
 
     with pytest.raises(
@@ -83,7 +91,7 @@ def test_analysis_raises_error_for_insufficient_data_post_processing(tmp_path):
         match=r"Not enough valid data points \(5\) remaining after preprocessing. Minimum required: 10.",
     ):
         Analysis(
-            file_path,
+            file_path=file_path,
             time_col="time",
             data_col="value",
             censor_strategy="drop",
@@ -246,7 +254,7 @@ def test_preprocess_handles_non_numeric_censored_values(tmp_path):
         match=r"Not enough valid data points \(4\) remaining after preprocessing. Minimum required: 10.",
     ):
         Analysis(
-            file_path,
+            file_path=file_path,
             time_col="time",
             data_col="value",
         )
