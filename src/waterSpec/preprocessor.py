@@ -4,7 +4,6 @@ from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
 
 
 def _moving_block_bootstrap_indices(
@@ -62,6 +61,12 @@ def detrend(
 
     This function returns new arrays and does not modify inputs.
     """
+    try:
+        import statsmodels.api as sm
+    except ImportError:
+        raise ImportError(
+            "statsmodels is required for detrending. Install with `pip install statsmodels`"
+        )
     # Create copies to avoid modifying the original arrays
     detrended_data = np.copy(data)
     propagated_errors = np.copy(errors) if errors is not None else None
@@ -325,6 +330,12 @@ def detrend_loess(
         **kwargs: Additional keyword arguments passed to
             `statsmodels.nonparametric.lowess`.
     """
+    try:
+        import statsmodels.api as sm
+    except ImportError:
+        raise ImportError(
+            "statsmodels is required for detrending. Install with `pip install statsmodels`"
+        )
     # 1. Validate parameters
     if not isinstance(frac, (int, float)) or not (0 < frac <= 1):
         raise ValueError("`frac` must be a number between 0 and 1.")
