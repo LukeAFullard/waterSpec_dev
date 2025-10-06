@@ -425,11 +425,12 @@ def test_fit_segmented_spectrum_with_parametric_ci(multifractal_spectrum, caplog
     assert breakpoint_ci[0] <= known_breakpoint <= breakpoint_ci[1]
 
 
-def test_fit_standard_model_graceful_failure(synthetic_spectrum, mocker):
+def test_fit_standard_model_graceful_failure(synthetic_spectrum, mocker, caplog):
     """
     Test that fit_standard_model fails gracefully if the underlying Scipy
     function raises an unexpected exception.
     """
+    import logging
     frequency, power, _ = synthetic_spectrum
 
     # Mock the underlying fitting function to raise an error
@@ -438,9 +439,16 @@ def test_fit_standard_model_graceful_failure(synthetic_spectrum, mocker):
         side_effect=RuntimeError("Unexpected Scipy error"),
     )
 
-    # The function should catch the error and re-raise it as a RuntimeError
-    with pytest.raises(RuntimeError, match="An unexpected error occurred"):
-        fit_standard_model(frequency, power, method="ols")
+    caplog.set_level(logging.DEBUG)
+
+    # The function should catch the error and return a dict with failure_reason
+    results = fit_standard_model(frequency, power, method="ols")
+
+    assert isinstance(results, dict)
+    assert "failure_reason" in results
+    assert "An unexpected error occurred" in results["failure_reason"]
+    assert "Unexpected Scipy error" in results["failure_reason"]
+    assert "traceback" in results
 
 
 def test_calculate_bic_edge_cases():
@@ -496,10 +504,10 @@ def test_fit_segmented_spectrum_multi_breakpoint_warning(multifractal_spectrum, 
     assert "Fitting a model with 2 breakpoints" in caplog.text
 
 
-def test_fit_standard_model_raises_error_on_low_success(synthetic_spectrum, mocker):
+def test_fit_standard_model_handles_low_bootstrap_success(synthetic_spectrum, mocker, caplog):
     """
-    Test that a ValueError is raised if the bootstrap success rate is below
-    the 50% threshold.
+    Test that the function handles low bootstrap success rates gracefully
+    by returning a failure reason and logging an error.
     """
     from collections import namedtuple
     frequency, power, known_beta = synthetic_spectrum
@@ -519,10 +527,15 @@ def test_fit_standard_model_raises_error_on_low_success(synthetic_spectrum, mock
     )
     mocker.patch("waterSpec.fitter.stats.linregress", side_effect=side_effects)
 
-    with pytest.raises(ValueError, match=r"Bootstrap success rate \(40%\) was below"):
-        fit_standard_model(
-            frequency, power, method="ols", n_bootstraps=10, seed=42
-        )
+    results = fit_standard_model(
+        frequency, power, method="ols", n_bootstraps=10, seed=42, ci_method="bootstrap", bootstrap_type="residuals"
+    )
+
+    assert isinstance(results, dict)
+    assert "failure_reason" in results
+    assert "Bootstrap success rate (40%) was below" in results["failure_reason"]
+    assert "ERROR" in caplog.text
+    assert "Bootstrap success rate (40%) was below" in caplog.text
 
 
 def test_bootstrap_segmented_fit_raises_error_on_failure(mocker):
@@ -669,10 +682,9 @@ def test_fit_segmented_spectrum_fallback_on_missing_package(
     assert "breakpoints" not in results
 
 
-def test_fit_standard_model_low_success_raises_detailed_error(synthetic_spectrum, mocker):
+def test_fit_standard_model_low_success_returns_detailed_error(synthetic_spectrum, mocker):
     """
-    Test that a ValueError raised due to low bootstrap success includes a
-    detailed summary of the errors that occurred.
+    Test that a low bootstrap success returns a detailed summary of the errors.
     """
     from collections import namedtuple
     frequency, power, known_beta = synthetic_spectrum
@@ -692,20 +704,16 @@ def test_fit_standard_model_low_success_raises_detailed_error(synthetic_spectrum
     )
     mocker.patch("waterSpec.fitter.stats.linregress", side_effect=side_effects)
 
-    # The error message should now contain the summary of errors.
-    with pytest.raises(ValueError) as excinfo:
-        fit_standard_model(
-            frequency, power, method="ols", n_bootstraps=10, seed=42
-        )
+    results = fit_standard_model(
+        frequency, power, method="ols", n_bootstraps=10, seed=42, ci_method="bootstrap", bootstrap_type="residuals"
+    )
 
-    # Check for the main error message components
-    error_msg = str(excinfo.value)
-    assert "Bootstrap success rate (40%) was below" in error_msg
-    assert "Only 4/10 iterations succeeded" in error_msg
-    # Check for the detailed error summary
-    assert "Errors:" in error_msg
-    assert "ValueError: 3" in error_msg
-    assert "RuntimeError: 3" in error_msg
+    assert isinstance(results, dict)
+    assert "failure_reason" in results
+    assert "Bootstrap success rate (40%) was below" in results["failure_reason"]
+    assert "bootstrap_error_summary" in results
+    assert "ValueError: 3" in results["bootstrap_error_summary"]
+    assert "RuntimeError: 3" in results["bootstrap_error_summary"]
 
 
 @pytest.mark.parametrize("ci_method", ["parametric", "bootstrap"])

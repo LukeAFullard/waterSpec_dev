@@ -32,7 +32,8 @@ __all__ = [
 try:
     __version__ = version("waterSpec")
 except PackageNotFoundError:
-    __version__ = "unknown"
+    # Fallback version if the package is not installed.
+    __version__ = "0.0.0"
 
 # ---- Lazy import helper ----
 def _lazy_import(func_name, module_name, dep_message=None):
