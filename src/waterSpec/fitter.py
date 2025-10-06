@@ -104,6 +104,13 @@ def fit_standard_model(
         logger (logging.Logger, optional): A logger for warnings.
     """
     logger = logger or logging.getLogger(__name__)
+
+    # Ensure frequency and power are sorted by frequency.
+    # This prevents issues with downstream operations that assume sorted data.
+    order = np.argsort(frequency)
+    frequency = frequency[order]
+    power = power[order]
+
     # 1. Validate inputs and filter data
     if not isinstance(frequency, np.ndarray) or not isinstance(power, np.ndarray):
         raise TypeError("Input 'frequency' and 'power' must be numpy arrays.")
@@ -884,6 +891,13 @@ def fit_segmented_spectrum(
         multi-breakpoint models with caution and consider the physical context.
     """
     logger = logger or logging.getLogger(__name__)
+
+    # Ensure frequency and power are sorted by frequency.
+    # This prevents issues with downstream operations that assume sorted data.
+    order = np.argsort(frequency)
+    frequency = frequency[order]
+    power = power[order]
+
     if piecewise_regression is None:
         logger.warning(
             "Segmented fitting failed because the 'piecewise-regression' "
