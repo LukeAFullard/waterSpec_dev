@@ -373,7 +373,7 @@ def fit_standard_model(
     elif ci_method == "parametric":
         if method == "ols":
             # Shapiro-Wilk test for normality of residuals
-            if len(residuals) > 3:
+            if 3 < len(residuals) <= 5000:
                 shapiro_stat, shapiro_p = stats.shapiro(residuals)
                 if shapiro_p < 0.05:
                     logger.warning(
@@ -381,6 +381,8 @@ def fit_standard_model(
                         f"p-value: {shapiro_p:.3f}). Parametric confidence "
                         "intervals may be unreliable."
                     )
+            elif len(residuals) > 5000:
+                logger.info("Dataset too large for Shapiro-Wilk test; skipping normality check.")
 
             stderr = fit_results.get("stderr", np.nan)
             dof = len(log_freq) - 2
@@ -774,7 +776,7 @@ def _extract_parametric_segmented_cis(
     logger.warning(msg)
 
     # Shapiro-Wilk test for normality of residuals
-    if len(residuals) > 3:
+    if 3 < len(residuals) <= 5000:
         shapiro_stat, shapiro_p = stats.shapiro(residuals)
         if shapiro_p < 0.05:
             logger.warning(
@@ -782,6 +784,8 @@ def _extract_parametric_segmented_cis(
                 f"p-value: {shapiro_p:.3f}). Parametric confidence "
                 "intervals may be unreliable."
             )
+    elif len(residuals) > 5000:
+        logger.info("Dataset too large for Shapiro-Wilk test; skipping normality check.")
 
     results = pw_fit.get_results()
     if not results or "estimates" not in results:
