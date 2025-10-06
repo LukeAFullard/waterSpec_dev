@@ -14,7 +14,10 @@ def _moving_block_bootstrap_indices(
 
     This function is used for block bootstrapping procedures where the
     correlation structure of the data (e.g., time series residuals) needs to
-    be preserved.
+    be preserved. This implementation uses a circular block bootstrap to
+    ensure that all data points have an equal probability of being included,
+    avoiding the bias from non-circular methods where `n_points` is not
+    divisible by `block_size`.
 
     Args:
         n_points: The total number of data points.
@@ -24,15 +27,19 @@ def _moving_block_bootstrap_indices(
     Returns:
         An array of indices for one bootstrap sample.
     """
-    indices = []
     # Ensure block size is valid
     block_size = min(block_size, n_points)
     if block_size <= 0:
         return np.arange(n_points)
 
+    indices = []
     while len(indices) < n_points:
-        start = rng.integers(0, n_points - block_size + 1)
-        indices.extend(list(range(start, start + block_size)))
+        # Choose a random start and create a block of indices, wrapping around
+        start = rng.integers(0, n_points)
+        block = (start + np.arange(block_size)) % n_points
+        indices.extend(block)
+
+    # Truncate to the original number of points
     return np.array(indices[:n_points])
 
 
