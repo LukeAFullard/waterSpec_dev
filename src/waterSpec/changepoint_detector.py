@@ -85,43 +85,6 @@ def detect_changepoint_pelt(
     return changepoints[0]
 
 
-def validate_changepoint(
-    changepoint_idx: int,
-    time: np.ndarray,
-    min_segment_size: int = 20,
-) -> Tuple[bool, Optional[str]]:
-    """
-    Validates that a changepoint produces adequately sized segments.
-
-    Returns:
-        (is_valid, warning_message)
-    """
-    n = len(time)
-
-    if not (0 < changepoint_idx < n):
-        return False, f"Changepoint index {changepoint_idx} out of bounds [1, {n-1}]"
-
-    n_before = changepoint_idx
-    n_after = n - changepoint_idx
-
-    if n_before < min_segment_size:
-        return False, f"Segment before changepoint too small ({n_before} < {min_segment_size})"
-
-    if n_after < min_segment_size:
-        return False, f"Segment after changepoint too small ({n_after} < {min_segment_size})"
-
-    # Warn if segments are highly imbalanced
-    ratio = max(n_before, n_after) / min(n_before, n_after)
-    if ratio > 5:
-        msg = (
-            f"Changepoint creates imbalanced segments (ratio {ratio:.1f}:1). "
-            "Results may be less reliable for the smaller segment."
-        )
-        return True, msg
-
-    return True, None
-
-
 def get_changepoint_time(
     changepoint_idx: int,
     time: np.ndarray,

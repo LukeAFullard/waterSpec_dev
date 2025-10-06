@@ -161,7 +161,7 @@ def test_changepoint_edge_cases(synthetic_data_with_changepoint, tmpdir):
         changepoint_mode='manual',
         changepoint_index=5  # Creates a "before" segment of only 5 points
     )
-    with pytest.raises(ValueError, match="Segment before changepoint too small"):
+    with pytest.raises(ValueError, match="insufficient valid data"):
         analyzer_start.run_full_analysis(output_dir=str(tmpdir))
 
     # Case 2: Changepoint is too close to the end of the series
@@ -173,7 +173,7 @@ def test_changepoint_edge_cases(synthetic_data_with_changepoint, tmpdir):
         changepoint_mode='manual',
         changepoint_index=395  # Creates an "after" segment of only 5 points
     )
-    with pytest.raises(ValueError, match="Segment after changepoint too small"):
+    with pytest.raises(ValueError, match="insufficient valid data"):
         analyzer_end.run_full_analysis(output_dir=str(tmpdir))
 
 
