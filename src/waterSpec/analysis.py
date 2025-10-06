@@ -56,7 +56,6 @@ class Analysis:
         normalize_data: bool = False,
         detrend_options: Optional[Dict] = None,
         min_valid_data_points: int = 10,
-        verbose: bool = False,
         changepoint_mode: str = "none",
         changepoint_index: Optional[int] = None,
         changepoint_options: Optional[Dict] = None,
@@ -97,7 +96,7 @@ class Analysis:
             changepoint_options (dict, optional): Options for auto changepoint.
         """
         self.param_name = param_name if param_name is not None else data_col
-        self._setup_logger(level=logging.INFO if verbose else logging.WARNING)
+        self.logger = logging.getLogger(__name__)
 
         if not isinstance(min_valid_data_points, int) or min_valid_data_points <= 0:
             raise ValueError("`min_valid_data_points` must be a positive integer.")
@@ -215,15 +214,6 @@ class Analysis:
         self.frequency = None
         self.power = None
         self.ls_obj = None
-
-    def _setup_logger(self, level):
-        """Configures a logger for the Analysis instance."""
-        # Library-style logging: Get a logger and set the level.
-        # The application is responsible for configuring handlers.
-        # The f"waterSpec.{self.param_name}" creates a child logger of the
-        # main "waterSpec" logger, allowing for hierarchical configuration.
-        self.logger = logging.getLogger(f"waterSpec.{self.param_name}")
-        self.logger.setLevel(level)
 
     def _detect_changepoint(self) -> Optional[int]:
         """Detects changepoint if in auto mode."""
