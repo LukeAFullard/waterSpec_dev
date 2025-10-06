@@ -11,7 +11,6 @@ import pandas as pd
 from .changepoint_detector import (
     detect_changepoint_pelt,
     get_changepoint_time,
-    validate_changepoint,
 )
 from .data_loader import load_data, process_dataframe
 from .fitter import fit_segmented_spectrum, fit_standard_model
@@ -521,16 +520,7 @@ class Analysis:
         """
         Performs separate spectral analysis on segments before/after changepoint.
         """
-        # Validate changepoint
-        is_valid, warning = validate_changepoint(
-            changepoint_idx, self.time, min_segment_size=self.min_valid_data_points
-        )
-        if not is_valid:
-            raise ValueError(f"Invalid changepoint: {warning}")
-        if warning:
-            self.logger.warning(warning)
-
-        # Split data
+        # Split data into segments
         time_before = self.time[:changepoint_idx]
         data_before = self.data[:changepoint_idx]
         errors_before = (
@@ -543,20 +533,33 @@ class Analysis:
             self.errors[changepoint_idx:] if self.errors is not None else None
         )
 
-        # Explicitly validate segment sizes after splitting, as preprocessing
-        # could have removed data points unevenly.
-        if len(data_before) < self.min_valid_data_points:
+        # --- Segment Validation ---
+        # This is the critical validation step. It happens *after* splitting the
+        # preprocessed data, ensuring the segments used for fitting are valid.
+        n_before, n_after = len(data_before), len(data_after)
+
+        if n_before < self.min_valid_data_points:
             raise ValueError(
                 f"Segment before changepoint has insufficient valid data "
-                f"({len(data_before)} points) after preprocessing. Minimum "
+                f"({n_before} points) after preprocessing. Minimum "
                 f"required: {self.min_valid_data_points}."
             )
-        if len(data_after) < self.min_valid_data_points:
+        if n_after < self.min_valid_data_points:
             raise ValueError(
                 f"Segment after changepoint has insufficient valid data "
-                f"({len(data_after)} points) after preprocessing. Minimum "
+                f"({n_after} points) after preprocessing. Minimum "
                 f"required: {self.min_valid_data_points}."
             )
+
+        # Warn if segments are highly imbalanced
+        if min(n_before, n_after) > 0:  # Avoid division by zero
+            ratio = max(n_before, n_after) / min(n_before, n_after)
+            if ratio > 5:
+                self.logger.warning(
+                    f"Changepoint creates imbalanced segments (n_before={n_before}, "
+                    f"n_after={n_after}, ratio {ratio:.1f}:1). "
+                    "Results may be less reliable for the smaller segment."
+                )
 
         cp_time_str = get_changepoint_time(
             changepoint_idx, self.time, self.time_unit
