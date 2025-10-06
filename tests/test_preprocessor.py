@@ -48,25 +48,27 @@ def test_log_transform(sample_data):
     np.testing.assert_array_almost_equal(transformed_data, expected_data)
 
 
-def test_preprocess_data_handles_non_positive_for_log():
+def test_preprocess_data_raises_error_on_non_positive_for_log():
     """
-    Test that preprocess_data warns and converts non-positive values to NaN
-    before log-transforming.
+    Test that preprocess_data raises a ValueError if data is non-positive
+    before a log-transform, preventing silent data loss.
     """
     time = np.arange(5)
+    # Case 1: Data contains a zero from the start
     data_with_zero = pd.Series([1.0, 2.0, 0.0, 4.0, 5.0])
-    errors = pd.Series(np.full(5, 0.1))
 
-    with pytest.warns(UserWarning, match="Found 1 non-positive value"):
-        processed_data, processed_errors, _ = preprocess_data(
-            data_with_zero, time, error_series=errors, log_transform_data=True
+    with pytest.raises(ValueError, match="Log-transform requires all data to be positive"):
+        preprocess_data(data_with_zero, time, log_transform_data=True)
+
+    # Case 2: Data becomes zero due to a censoring strategy
+    data_with_censor = pd.Series(["1.0", "2.0", "<0", "4.0", "5.0"])
+    with pytest.raises(ValueError, match="Log-transform requires all data to be positive"):
+        preprocess_data(
+            data_with_censor,
+            time,
+            censor_strategy="use_detection_limit",
+            log_transform_data=True,
         )
-
-    # Check that the non-positive value and its error became NaN
-    assert np.isnan(processed_data[2])
-    assert np.isnan(processed_errors[2])
-    # Check that other values were transformed
-    assert not np.any(np.isnan(np.delete(processed_data, 2)))
 
 
 def test_handle_censored_data():

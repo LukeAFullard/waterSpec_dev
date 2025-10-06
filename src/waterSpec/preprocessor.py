@@ -486,21 +486,19 @@ def preprocess_data(
 
     # 2. Log-transform
     if log_transform_data:
-        # Sanitize data for log-transform: convert non-positive values to NaN.
-        # This is done here to catch values that may have been introduced by
-        # censoring strategies (e.g., 'use_detection_limit' with a limit of 0).
+        # Validate that all data is positive before log-transform. This check
+        # is crucial because censoring strategies (e.g., 'use_detection_limit')
+        # can introduce zeros, which are invalid for log-transformation.
         non_positive_mask = (~np.isnan(processed_data)) & (processed_data <= 0)
         if np.any(non_positive_mask):
             num_non_positive = np.sum(non_positive_mask)
-            warnings.warn(
-                f"Log-transform requires all data to be positive. Found {num_non_positive} "
-                "non-positive value(s) (potentially from censoring), which will be "
-                "converted to NaN before transformation.",
-                UserWarning,
+            raise ValueError(
+                f"Log-transform requires all data to be positive, but {num_non_positive} "
+                "non-positive value(s) were found. This can occur if the original "
+                "data contains zeros or if a censoring strategy (e.g., "
+                "'use_detection_limit' with a limit of 0) introduced them. "
+                "Please clean the data or adjust the censoring strategy."
             )
-            processed_data[non_positive_mask] = np.nan
-            if processed_errors is not None:
-                processed_errors[non_positive_mask] = np.nan
 
         processed_data, processed_errors = log_transform(
             processed_data, processed_errors
