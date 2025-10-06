@@ -65,16 +65,10 @@ class SiteComparison:
 
     def _setup_logger(self, level):
         """Configures a logger for the SiteComparison instance."""
-        self.logger = logging.getLogger(f"waterSpec.SiteComparison")
-        # Prevent duplicate handlers if logger is already configured
-        if not self.logger.handlers:
-            self.logger.setLevel(level)
-            handler = logging.StreamHandler()
-            formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-            )
-            handler.setFormatter(formatter)
-            self.logger.addHandler(handler)
+        # Library-style logging: Get a logger and set the level.
+        # The application is responsible for configuring handlers.
+        self.logger = logging.getLogger("waterSpec.SiteComparison")
+        self.logger.setLevel(level)
 
     def _load_and_process_site(self, config: Dict, site_name: str) -> Dict:
         """Loads and preprocesses data for a single site."""
