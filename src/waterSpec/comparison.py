@@ -30,7 +30,6 @@ class SiteComparison:
         site1_config: Dict,
         site2_config: Dict,
         min_valid_data_points: int = 10,
-        verbose: bool = False,
     ):
         """
         Initializes the SiteComparison object by loading and preprocessing data for two sites.
@@ -47,7 +46,7 @@ class SiteComparison:
         """
         self.site1_name = site1_config.get("name", "Site 1")
         self.site2_name = site2_config.get("name", "Site 2")
-        self._setup_logger(level=logging.INFO if verbose else logging.WARNING)
+        self.logger = logging.getLogger(__name__)
 
         if not isinstance(min_valid_data_points, int) or min_valid_data_points <= 0:
             raise ValueError("`min_valid_data_points` must be a positive integer.")
@@ -62,13 +61,6 @@ class SiteComparison:
         self.site2_data = self._load_and_process_site(site2_config, self.site2_name)
 
         self.results = None
-
-    def _setup_logger(self, level):
-        """Configures a logger for the SiteComparison instance."""
-        # Library-style logging: Get a logger and set the level.
-        # The application is responsible for configuring handlers.
-        self.logger = logging.getLogger("waterSpec.SiteComparison")
-        self.logger.setLevel(level)
 
     def _load_and_process_site(self, config: Dict, site_name: str) -> Dict:
         """Loads and preprocesses data for a single site."""
@@ -340,8 +332,8 @@ class SiteComparison:
             if "bic" in standard_results and np.isfinite(standard_results["bic"]):
                 standard_results["n_breakpoints"] = 0
                 all_models.append(standard_results)
-        except Exception:
-            self.logger.error("Standard model fit crashed.", exc_info=True)
+        except Exception as e:
+            self.logger.error("Standard model fit crashed: %s", e, exc_info=True)
 
         # Segmented models
         for n_bp in range(1, max_breakpoints + 1):
@@ -358,8 +350,10 @@ class SiteComparison:
                 )
                 if "bic" in seg_results and np.isfinite(seg_results["bic"]):
                     all_models.append(seg_results)
-            except Exception:
-                self.logger.error(f"Segmented model ({n_bp} bp) fit crashed.", exc_info=True)
+            except Exception as e:
+                self.logger.error(
+                    "Segmented model (%d bp) fit crashed: %s", n_bp, e, exc_info=True
+                )
 
         if not all_models:
             raise RuntimeError("Model fitting failed for all attempted models.")

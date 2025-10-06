@@ -3,9 +3,10 @@ Comprehensive validation script to compare the peak detection of waterSpec
 (using the residual method) with dplR's redfit function across a range of
 noise colors (beta) and signal amplitudes.
 """
-
+import logging
 import os
 import shutil
+import sys
 import tempfile
 
 import numpy as np
@@ -15,7 +16,19 @@ from rpy2.robjects import pandas2ri
 from rpy2.robjects.conversion import localconverter
 from rpy2.robjects.packages import importr
 
-from waterSpec import Analysis
+
+# Add project root to path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+from src.waterSpec import Analysis
+
+# Set up basic logging
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 
 # --- Test Parameters ---
 BETA_VALUES = [0.0, 0.5, 1.0, 1.5, 2.0]  # From white to red/brown noise
@@ -75,7 +88,14 @@ def run_single_validation(beta, signal_amp, temp_dir):
                 ):  # 15% tolerance
                     ws_peak_found = True
                     break
-    except Exception:
+    except Exception as e:
+        logger.error(
+            "waterSpec analysis failed for beta=%.1f, amp=%.2f: %s",
+            beta,
+            signal_amp,
+            e,
+            exc_info=True,
+        )
         ws_peak_found = "ERROR"
 
     # --- dplR redfit Analysis ---
@@ -91,7 +111,14 @@ def run_single_validation(beta, signal_amp, temp_dir):
         ci95 = np.array(redfit_results[names.index("ci95")])
         peak_idx = np.argmin(np.abs(freq - SIGNAL_FREQ_CPD))
         dplr_peak_found = power[peak_idx] > ci95[peak_idx]
-    except Exception:
+    except Exception as e:
+        logger.error(
+            "dplR analysis failed for beta=%.1f, amp=%.2f: %s",
+            beta,
+            signal_amp,
+            e,
+            exc_info=True,
+        )
         dplr_peak_found = "ERROR"
 
     return ws_peak_found, dplr_peak_found
@@ -102,24 +129,33 @@ def main():
     results_data = []
     temp_dir = tempfile.mkdtemp()
     print("Running Validation Sweep...")
-    print(f"{'Beta':<6} | {'Amplitude':<10} | {'waterSpec':<10} | {'dplR':<10}")
-    print("-" * 45)
+    print(f"{'Beta':<6} | {'Amplitude':<10} | {'waterSpec':<12} | {'dplR':<12}")
+    print("-" * 49)
 
     try:
         for beta in BETA_VALUES:
             for amp in AMPLITUDE_VALUES:
                 ws_found, dplr_found = run_single_validation(beta, amp, temp_dir)
+
+                if ws_found == "ERROR":
+                    ws_str = "🔥 ERROR"
+                else:
+                    ws_str = "✅ Found" if ws_found else "❌ Not Found"
+
+                if dplr_found == "ERROR":
+                    dplr_str = "🔥 ERROR"
+                else:
+                    dplr_str = "✅ Found" if dplr_found else "❌ Not Found"
+
                 results_data.append(
                     {
                         "beta": beta,
                         "amplitude": amp,
-                        "waterSpec": "✅ Found" if ws_found else "❌ Not Found",
-                        "dplR": "✅ Found" if dplr_found else "❌ Not Found",
+                        "waterSpec": ws_str,
+                        "dplR": dplr_str,
                     }
                 )
-                ws_str = results_data[-1]["waterSpec"]
-                dplr_str = results_data[-1]["dplR"]
-                print(f"{beta:<6.1f} | {amp:<10.2f} | {ws_str:<10} | {dplr_str:<10}")
+                print(f"{beta:<6.1f} | {amp:<10.2f} | {ws_str:<12} | {dplr_str:<12}")
     finally:
         shutil.rmtree(temp_dir)  # Clean up temp directory
 

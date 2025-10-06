@@ -1,3 +1,4 @@
+import logging
 import os
 import sys
 
@@ -7,13 +8,21 @@ sys.path.insert(0, project_root)
 
 from src.waterSpec.comparison import SiteComparison
 
+# Set up basic logging for the script
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stdout,
+)
+logger = logging.getLogger(__name__)
+
 
 def run_example_comparison():
     """
     An example function that demonstrates how to use the SiteComparison class
     to compare spectral analyses from two different datasets.
     """
-    print("Running Site Comparison Example...")
+    logger.info("Running Site Comparison Example...")
 
     # Define configurations for the two sites to be compared
     # This example uses two different sample datasets provided in the examples directory
@@ -38,14 +47,14 @@ def run_example_comparison():
     # Create the output directory if it doesn't exist
     output_dir = "example_output/site_comparison"
     os.makedirs(output_dir, exist_ok=True)
-    print(f"Output will be saved to: {output_dir}")
+    logger.info("Output will be saved to: %s", output_dir)
 
     try:
         # Initialize the SiteComparison class with the two site configurations
         comparison_analyzer = SiteComparison(
             site1_config=site1_config,
             site2_config=site2_config,
-            verbose=True  # Set to True for detailed logging
+            verbose=True,  # Set to True for detailed logging
         )
 
         # Run the full comparison analysis
@@ -55,20 +64,20 @@ def run_example_comparison():
             max_breakpoints=1,
             seed=42,  # for reproducibility
             n_bootstraps=10,  # Reduced for a quick example run
-            comparison_plot_style="overlaid"  # 'separate' or 'overlaid'
+            comparison_plot_style="overlaid",  # 'separate' or 'overlaid'
         )
 
-        print("\nSite comparison analysis complete.")
-        print(f"Summary file and plots are saved in '{output_dir}'.")
+        logger.info("Site comparison analysis complete.")
+        logger.info("Summary file and plots are saved in '%s'.", output_dir)
         # Print the generated summary to the console
         print("\n--- Comparison Summary ---")
         print(results["summary_text"])
 
     except Exception as e:
-        print(f"\nAn error occurred during the comparison analysis: {e}")
-        # In a real application, you might want to log the full traceback
-        import traceback
-        traceback.print_exc()
+        logger.error(
+            "An error occurred during the comparison analysis: %s", e, exc_info=True
+        )
+
 
 if __name__ == "__main__":
     run_example_comparison()

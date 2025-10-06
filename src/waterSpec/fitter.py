@@ -183,7 +183,7 @@ def fit_standard_model(
         failure_reason = (
             f"Initial standard model fit failed with method '{method}' due to a numerical or data issue: {e}"
         )
-        logger.warning(failure_reason)
+        logger.warning(failure_reason, exc_info=True)
         return {
             "beta": np.nan,
             "bic": np.inf,
@@ -197,17 +197,11 @@ def fit_standard_model(
             f"An unexpected error occurred during the initial standard model fit with method '{method}': {e!r}"
         )
         logger.error(
-            f"An unexpected error occurred during the initial standard model fit with method '{method}'.",
+            "An unexpected error occurred during the initial standard model fit with method '%s'.",
+            method,
             exc_info=True,
         )
-        return {
-            "beta": np.nan,
-            "bic": np.inf,
-            "aic": np.inf,
-            "beta_ci_lower": np.nan,
-            "beta_ci_upper": np.nan,
-            "failure_reason": failure_reason,
-        }
+        raise RuntimeError(failure_reason) from e
 
     # 3. Calculate BIC and AIC
     log_power_fit = slope * log_freq + intercept
@@ -316,12 +310,16 @@ def fit_standard_model(
                 if logger:
                     logger.debug(msg)
                 continue
-            except Exception:
-                error_type = "Exception"
+            except Exception as e:
+                error_type = type(e).__name__
                 error_counts[error_type] = error_counts.get(error_type, 0) + 1
                 # Log the specific error for a failed iteration
                 if logger:
-                    logger.debug("An unexpected error occurred in a bootstrap iteration.", exc_info=True)
+                    logger.debug(
+                        "Bootstrap iteration failed with an unexpected error: %s",
+                        e,
+                        exc_info=True,
+                    )
                 continue
 
         MIN_BOOTSTRAP_SAMPLES = 50  # Min samples for a reliable CI
@@ -633,12 +631,13 @@ def _bootstrap_segmented_fit(
             if logger:
                 logger.debug(msg)
             continue
-        except Exception:
-            error_type = "Exception"
+        except Exception as e:
+            error_type = type(e).__name__
             error_counts[error_type] = error_counts.get(error_type, 0) + 1
             if logger:
                 logger.debug(
-                    "An unexpected error occurred in a segmented bootstrap iteration.",
+                    "An unexpected error occurred in a segmented bootstrap iteration: %s",
+                    e,
                     exc_info=True,
                 )
             continue
@@ -1016,12 +1015,7 @@ def fit_segmented_spectrum(
         logger.error(
             "Segmented regression failed with an unexpected error.", exc_info=True
         )
-        return {
-            "failure_reason": failure_reason,
-            "n_breakpoints": n_breakpoints,
-            "bic": np.inf,
-            "aic": np.inf,
-        }
+        raise RuntimeError(failure_reason) from e
 
     # Check for convergence and statistical significance.
     # The Davies test p-value may not always be available.

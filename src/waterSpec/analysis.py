@@ -56,7 +56,6 @@ class Analysis:
         normalize_data: bool = False,
         detrend_options: Optional[Dict] = None,
         min_valid_data_points: int = 10,
-        verbose: bool = False,
         changepoint_mode: str = "none",
         changepoint_index: Optional[int] = None,
         changepoint_options: Optional[Dict] = None,
@@ -97,7 +96,7 @@ class Analysis:
             changepoint_options (dict, optional): Options for auto changepoint.
         """
         self.param_name = param_name if param_name is not None else data_col
-        self._setup_logger(level=logging.INFO if verbose else logging.WARNING)
+        self.logger = logging.getLogger(__name__)
 
         if not isinstance(min_valid_data_points, int) or min_valid_data_points <= 0:
             raise ValueError("`min_valid_data_points` must be a positive integer.")
@@ -216,15 +215,6 @@ class Analysis:
         self.power = None
         self.ls_obj = None
 
-    def _setup_logger(self, level):
-        """Configures a logger for the Analysis instance."""
-        # Library-style logging: Get a logger and set the level.
-        # The application is responsible for configuring handlers.
-        # The f"waterSpec.{self.param_name}" creates a child logger of the
-        # main "waterSpec" logger, allowing for hierarchical configuration.
-        self.logger = logging.getLogger(f"waterSpec.{self.param_name}")
-        self.logger.setLevel(level)
-
     def _detect_changepoint(self) -> Optional[int]:
         """Detects changepoint if in auto mode."""
         if self.changepoint_mode != "auto":
@@ -316,13 +306,15 @@ class Analysis:
                 failed_model_reasons.append(f"Standard model (0 breakpoints): {reason}")
                 self.logger.warning(f"Standard model fit failed: {reason}")
         except (ValueError, ImportError) as e:
-            reason = f"A critical error occurred during standard model setup: {e}"
+            reason = f"A critical error occurred during standard model setup: {e!r}"
             failed_model_reasons.append(f"Standard model (0 breakpoints): {reason}")
-            self.logger.error(f"Standard model fit crashed due to a critical error: {e}", exc_info=True)
+            self.logger.error(
+                "Standard model fit crashed due to a critical error: %s", e, exc_info=True
+            )
         except Exception as e:
-            reason = f"An unexpected error occurred: {e}"
+            reason = f"An unexpected error occurred: {e!r}"
             failed_model_reasons.append(f"Standard model (0 breakpoints): {reason}")
-            self.logger.error("Standard model fit crashed.", exc_info=True)
+            self.logger.error("Standard model fit crashed: %s", e, exc_info=True)
 
         # Fit segmented models (1 and possibly 2 breakpoints)
         for n_breakpoints in range(1, max_breakpoints + 1):
@@ -358,16 +350,26 @@ class Analysis:
                         f"Segmented model ({n_breakpoints} breakpoint(s)) fit failed: {reason}"
                     )
             except (ValueError, ImportError) as e:
-                reason = f"A critical error occurred during segmented model setup: {e}"
-                failed_model_reasons.append(f"Segmented model ({n_breakpoints} breakpoint(s)): {reason}")
+                reason = f"A critical error occurred during segmented model setup: {e!r}"
+                failed_model_reasons.append(
+                    f"Segmented model ({n_breakpoints} breakpoint(s)): {reason}"
+                )
                 self.logger.error(
-                    f"Segmented model ({n_breakpoints} breakpoint(s)) fit crashed due to a critical error: {e}", exc_info=True
+                    "Segmented model (%d breakpoint(s)) fit crashed due to a critical error: %s",
+                    n_breakpoints,
+                    e,
+                    exc_info=True,
                 )
             except Exception as e:
-                reason = f"An unexpected error occurred: {e}"
-                failed_model_reasons.append(f"Segmented model ({n_breakpoints} breakpoint(s)): {reason}")
+                reason = f"An unexpected error occurred: {e!r}"
+                failed_model_reasons.append(
+                    f"Segmented model ({n_breakpoints} breakpoint(s)): {reason}"
+                )
                 self.logger.error(
-                    f"Segmented model ({n_breakpoints} breakpoint(s)) fit crashed.", exc_info=True
+                    "Segmented model (%d breakpoint(s)) fit crashed: %s",
+                    n_breakpoints,
+                    e,
+                    exc_info=True,
                 )
 
         if not all_models:
