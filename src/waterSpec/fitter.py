@@ -1070,13 +1070,8 @@ def fit_segmented_spectrum(
                 "The 'piecewise-regression' library version may have changed."
             )
 
-    if not converged or (davies_p_value is not None and davies_p_value > p_threshold):
+    if not converged:
         failure_reason = "Model did not converge."
-        if davies_p_value is not None and davies_p_value > p_threshold:
-            failure_reason = (
-                f"No significant breakpoint found (Davies test p-value "
-                f"{davies_p_value:.3f} > {p_threshold})."
-            )
         logger.warning(failure_reason)
         return {
             "failure_reason": failure_reason,
@@ -1085,6 +1080,34 @@ def fit_segmented_spectrum(
             "bic": np.inf,
             "aic": np.inf,
         }
+
+    # For 1-breakpoint models, require a statistically significant breakpoint.
+    if n_breakpoints == 1:
+        if davies_p_value is None:
+            failure_reason = (
+                "Davies test p-value not available; cannot assess breakpoint significance."
+            )
+            logger.warning(failure_reason)
+            return {
+                "failure_reason": failure_reason,
+                "n_breakpoints": n_breakpoints,
+                "davies_p_value": None,
+                "bic": np.inf,
+                "aic": np.inf,
+            }
+        if davies_p_value > p_threshold:
+            failure_reason = (
+                f"No significant breakpoint found (Davies test p-value "
+                f"{davies_p_value:.4f} > {p_threshold})."
+            )
+            logger.warning(failure_reason)
+            return {
+                "failure_reason": failure_reason,
+                "n_breakpoints": n_breakpoints,
+                "davies_p_value": davies_p_value,
+                "bic": np.inf,
+                "aic": np.inf,
+            }
 
     # --- Extract results ---
     estimates = fit_summary.get("estimates")

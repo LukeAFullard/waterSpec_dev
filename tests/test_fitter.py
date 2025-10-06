@@ -755,3 +755,50 @@ def test_fit_segmented_spectrum_breakpoint_ci(multifractal_spectrum, ci_method):
     # Check that the interval is not excessively wide. The frequency range is
     # from 0.001 to 10, so a CI width of less than 1.0 is reasonable.
     assert (upper_ci - lower_ci) < 1.0
+
+
+def test_fit_segmented_spectrum_davies_p_value_is_none(multifractal_spectrum, mocker):
+    """
+    Test that the fit fails if the Davies p-value is None for a 1-breakpoint model,
+    which could happen due to library version issues.
+    """
+    frequency, power, _, _, _ = multifractal_spectrum
+
+    # Mock the result of the piecewise_regression fit
+    mock_fit_result = mocker.MagicMock()
+
+    # --- This is the key part of the test: the p-value is unavailable ---
+    # We use a property mock to simulate the `davies` attribute not existing
+    # or being None. Setting it directly to None on the mock works well.
+    mock_fit_result.davies = None
+    mock_fit_result.get_results.return_value = {
+        "converged": True,
+        "bic": 100,
+        "r_squared": 0.9,
+        "estimates": {
+            "breakpoint1": {"estimate": np.log10(0.1)},
+            "alpha1": {"estimate": -0.5},
+            "beta1": {"estimate": -1.3},
+            "const": {"estimate": 1.0},
+        },
+    }
+    mock_fit_result.summary.return_value = "Mock Summary"
+    # The predict method needs to return something with the correct shape
+    valid_indices = (frequency > 0) & (power > 0)
+    log_freq = np.log10(frequency[valid_indices])
+    mock_fit_result.predict.return_value = np.zeros_like(log_freq)
+
+    mocker.patch(
+        "waterSpec.fitter.piecewise_regression.Fit", return_value=mock_fit_result
+    )
+
+    # Run the fit. It should be rejected because the p-value is missing for a
+    # 1-breakpoint model, which now requires significance testing.
+    results = fit_segmented_spectrum(frequency, power, n_breakpoints=1)
+
+    assert "failure_reason" in results
+    assert (
+        "Davies test p-value not available; cannot assess breakpoint significance."
+        in results["failure_reason"]
+    )
+    assert "breakpoints" not in results  # The fit details should not be present
