@@ -44,7 +44,6 @@ def test_analysis_warns_for_ignored_fap_params(tmp_path, caplog):
         file_path=file_path,
         time_col="timestamp",
         data_col="concentration",
-        verbose=True,
     )
 
     analyzer.run_full_analysis(
@@ -65,7 +64,6 @@ def test_analysis_raises_error_for_unknown_peak_method(tmp_path):
         file_path=file_path,
         time_col="timestamp",
         data_col="concentration",
-        verbose=True,
     )
 
     with pytest.raises(

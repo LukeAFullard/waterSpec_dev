@@ -60,6 +60,13 @@ class SiteComparison:
         self.logger.info(f"Loading and preprocessing data for {self.site2_name}...")
         self.site2_data = self._load_and_process_site(site2_config, self.site2_name)
 
+        if self.site1_data["time_unit"] != self.site2_data["time_unit"]:
+            raise ValueError(
+                f"Time unit mismatch: Site 1 uses '{self.site1_data['time_unit']}' "
+                f"but Site 2 uses '{self.site2_data['time_unit']}'. "
+                "Both sites must use the same time unit for valid comparison."
+            )
+
         self.results = None
 
     def _load_and_process_site(self, config: Dict, site_name: str) -> Dict:

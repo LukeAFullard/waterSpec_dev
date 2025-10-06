@@ -693,6 +693,9 @@ def _bootstrap_segmented_fit(
         bootstrap_fits_arr = np.array([])
     else:
         bootstrap_fits_arr = np.array(bootstrap_fits)
+        # Ensure 2D shape if there was only one successful bootstrap fit.
+        if bootstrap_fits_arr.ndim == 1:
+            bootstrap_fits_arr = bootstrap_fits_arr.reshape(1, -1)
 
     # This check handles cases where bootstrap runs failed and produced no fits.
     if bootstrap_fits_arr.ndim == 2 and bootstrap_fits_arr.shape[1] > 0:

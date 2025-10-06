@@ -558,7 +558,6 @@ def test_analysis_warns_on_ignored_peak_fdr_level(tmp_path, mocker):
         file_path=file_path,
         time_col="timestamp",
         data_col="concentration",
-        verbose=True,
     )
 
     # Spy on the logger to check for the warning
@@ -587,7 +586,6 @@ def test_peak_detection_ignored_parameter_warning(tmp_path, mocker):
         file_path=file_path,
         time_col="timestamp",
         data_col="concentration",
-        verbose=True,
     )
     spy_logger = mocker.spy(analyzer.logger, "warning")
 
