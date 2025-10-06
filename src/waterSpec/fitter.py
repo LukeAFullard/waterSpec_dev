@@ -230,8 +230,8 @@ def fit_standard_model(
                     "residuals. This test does not detect higher-order "
                     "correlation structures. The 'residuals' bootstrap method "
                     "assumes independent residuals and may produce unreliable "
-                    "confidence intervals. Consider using 'pairs' or 'block' "
-                    "bootstrap if autocorrelation is suspected."
+                    "confidence intervals. Consider using 'block' or 'wild' "
+                    "bootstrap if autocorrelation or heteroscedasticity is suspected."
                 )
 
         rng = np.random.default_rng(seed)
@@ -1163,8 +1163,8 @@ def fit_segmented_spectrum(
                     "residuals. This test does not detect higher-order "
                     "correlation structures. The 'residuals' bootstrap method "
                     "assumes independent residuals and may produce unreliable "
-                    "confidence intervals. Consider using 'pairs' or 'block' "
-                    "bootstrap if autocorrelation is suspected."
+                    "confidence intervals. Consider using 'block' or 'wild' "
+                    "bootstrap if autocorrelation or heteroscedasticity is suspected."
                 )
 
         if n_bootstraps > 0:
