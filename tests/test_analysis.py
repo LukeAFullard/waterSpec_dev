@@ -603,3 +603,105 @@ def test_peak_detection_ignored_parameter_warning(tmp_path, mocker):
         "'peak_detection_method' is 'residual', so 'fap_method' and "
         "'fap_threshold' parameters are ignored."
     )
+
+
+# --- Tests for NumPy Array Input ---
+
+
+def test_analysis_initialization_with_numpy_arrays():
+    """Test that the Analysis class initializes correctly with NumPy arrays."""
+    time_array = np.arange(100, dtype=np.float64)
+    data_array = np.random.randn(100)
+    analyzer = Analysis(
+        time_col="time",
+        data_col="value",
+        time_array=time_array,
+        data_array=data_array,
+        input_time_unit="days",
+    )
+    assert analyzer is not None
+    assert len(analyzer.time) == 100
+    assert len(analyzer.data) == 100
+    assert np.array_equal(analyzer.data, data_array)
+
+
+def test_analysis_initialization_with_numpy_arrays_and_errors():
+    """Test initialization with NumPy arrays including an error array."""
+    time_array = np.arange(100, dtype=np.float64)
+    data_array = np.random.randn(100)
+    error_array = np.full(100, 0.1)
+    analyzer = Analysis(
+        time_col="time",
+        data_col="value",
+        error_col="error",
+        time_array=time_array,
+        data_array=data_array,
+        error_array=error_array,
+        input_time_unit="days",
+    )
+    assert analyzer.errors is not None
+    assert len(analyzer.errors) == 100
+    assert np.array_equal(analyzer.errors, error_array)
+
+
+def test_analysis_run_full_analysis_with_numpy_arrays(tmp_path):
+    """Test a full analysis run using NumPy arrays."""
+    time_array = np.arange(200, dtype=np.float64)
+    data_array = 5 * np.sin(2 * np.pi * time_array / 25) + np.random.randn(200)
+    output_dir = tmp_path / "results_numpy"
+
+    analyzer = Analysis(
+        time_col="time",
+        data_col="value",
+        time_array=time_array,
+        data_array=data_array,
+        input_time_unit="days",
+    )
+    results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=10)
+
+    expected_plot = output_dir / "value_spectrum_plot.png"
+    expected_summary = output_dir / "value_summary.txt"
+    assert expected_plot.exists()
+    assert expected_summary.exists()
+    assert "Analysis for: value" in results["summary_text"]
+
+
+def test_analysis_raises_error_on_mixed_inputs(tmp_path):
+    """Test that a ValueError is raised if mixed data sources are provided."""
+    file_path = create_test_data_file(tmp_path, np.arange(10), np.random.randn(10))
+    df = pd.DataFrame({"time": np.arange(10), "value": np.random.randn(10)})
+    time_array = np.arange(10)
+    data_array = np.random.randn(10)
+
+    with pytest.raises(ValueError, match="Please provide only one data source"):
+        Analysis(file_path=file_path, dataframe=df, time_col="t", data_col="d")
+
+    with pytest.raises(ValueError, match="Please provide only one data source"):
+        Analysis(
+            file_path=file_path,
+            time_array=time_array,
+            data_array=data_array,
+            time_col="t",
+            data_col="d",
+        )
+
+    with pytest.raises(ValueError, match="Please provide only one data source"):
+        Analysis(
+            dataframe=df,
+            time_array=time_array,
+            data_array=data_array,
+            time_col="t",
+            data_col="d",
+        )
+
+
+def test_analysis_raises_error_on_incomplete_array_input():
+    """Test that a ValueError is raised for incomplete NumPy array inputs."""
+    time_array = np.arange(10)
+    data_array = np.random.randn(10)
+
+    with pytest.raises(ValueError, match="A valid data source must be provided"):
+        Analysis(time_col="t", data_col="d", time_array=time_array)
+
+    with pytest.raises(ValueError, match="A valid data source must be provided"):
+        Analysis(time_col="t", data_col="d", data_array=data_array)

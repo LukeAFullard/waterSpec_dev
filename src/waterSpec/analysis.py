@@ -39,6 +39,9 @@ class Analysis:
         data_col: str,
         file_path: Optional[str] = None,
         dataframe: Optional[pd.DataFrame] = None,
+        time_array: Optional[np.ndarray] = None,
+        data_array: Optional[np.ndarray] = None,
+        error_array: Optional[np.ndarray] = None,
         error_col: Optional[str] = None,
         time_format: Optional[str] = None,
         input_time_unit: Optional[str] = None,
@@ -60,47 +63,37 @@ class Analysis:
         """
         Initializes the Analysis object by loading and preprocessing the data.
 
-        The constructor accepts either a file path or a pandas DataFrame.
+        The constructor accepts one of three data sources:
+        1. A file path (`file_path`).
+        2. A pandas DataFrame (`dataframe`).
+        3. NumPy arrays (`time_array`, `data_array`, and optionally `error_array`).
 
         Args:
-            time_col (str): The name of the column containing timestamps.
-            data_col (str): The name of the column containing data values.
-            file_path (str, optional): The full path to the data file (CSV,
-                JSON, or Excel). Required if `dataframe` is not provided.
-            dataframe (pd.DataFrame, optional): A pandas DataFrame containing
-                the time series data. Required if `file_path` is not provided.
-            error_col (str, optional): The name of the column for measurement
-                errors. If provided, these will be used for weighted periodogram
-                calculation. Defaults to None.
+            time_col (str): The name of the column for timestamps.
+            data_col (str): The name of the column for data values.
+            file_path (str, optional): Path to the data file (CSV, JSON, Excel).
+            dataframe (pd.DataFrame, optional): DataFrame with time series data.
+            time_array (np.ndarray, optional): NumPy array of time values.
+            data_array (np.ndarray, optional): NumPy array of data values.
+            error_array (np.ndarray, optional): NumPy array of error values.
+            error_col (str, optional): Name for the error column.
             time_format (str, optional): The `strptime` format of the time
-                column. If None, it is inferred. Not used if `input_time_unit`
-                is provided.
-            input_time_unit (str, optional): The unit of a numeric time column
-                (e.g., 'seconds', 'days').
-            sheet_name (int, optional): If loading an Excel file, specify the
-                sheet index. Defaults to 0.
-            time_unit (str, optional): The desired output unit for time and
-                frequency ('seconds', 'days', or 'hours'). Defaults to 'seconds'.
-            param_name (str, optional): A descriptive name for the data parameter
-                (e.g., "Nitrate Concentration"). Used for plot titles.
-                Defaults to `data_col`.
-            censor_strategy (str, optional): The strategy for handling censored
-                data. See `preprocess.py` for options.
+                column.
+            input_time_unit (str, optional): The unit of a numeric time column.
+            sheet_name (int, optional): Sheet index for Excel files.
+            time_unit (str, optional): The desired output unit for time.
+            param_name (str, optional): A descriptive name for the data parameter.
+            censor_strategy (str, optional): The strategy for handling censored data.
             censor_options (dict, optional): Options for the censoring strategy.
             log_transform_data (bool, optional): If True, log-transform the data.
-            detrend_method (str, optional): Method to detrend the time series
-                ('linear', 'loess', or None).
+            detrend_method (str, optional): Method to detrend the time series.
             normalize_data (bool, optional): If True, normalize the data.
             detrend_options (dict, optional): Options for the detrending method.
-            min_valid_data_points (int, optional): Minimum valid data points
-                required to proceed. Defaults to 10.
+            min_valid_data_points (int, optional): Minimum valid data points.
             verbose (bool, optional): If True, sets logging level to INFO.
-            changepoint_mode (str, optional): Defines the changepoint analysis
-                approach: "none", "auto", or "manual".
-            changepoint_index (int, optional): The index of the changepoint for
-                "manual" mode.
-            changepoint_options (dict, optional): Parameters for automatic
-                changepoint detection (e.g., `model`, `penalty`).
+            changepoint_mode (str, optional): "none", "auto", or "manual".
+            changepoint_index (int, optional): Index for manual changepoint.
+            changepoint_options (dict, optional): Options for auto changepoint.
         """
         self.param_name = param_name if param_name is not None else data_col
         self._setup_logger(level=logging.INFO if verbose else logging.WARNING)
@@ -110,9 +103,21 @@ class Analysis:
         self.min_valid_data_points = min_valid_data_points
         self.time_unit = time_unit
 
-        # Data loading and preprocessing
+        # --- Data Input Validation ---
+        input_methods = [
+            file_path is not None,
+            dataframe is not None,
+            (time_array is not None and data_array is not None),
+        ]
+        if sum(input_methods) > 1:
+            raise ValueError(
+                "Please provide only one data source: `file_path`, `dataframe`, or arrays."
+            )
+
+        # --- Data Loading and Preprocessing ---
         self.logger.info("Loading and preprocessing data...")
-        if file_path is not None and dataframe is None:
+
+        if file_path is not None:
             time_numeric, data_series, error_series = load_data(
                 file_path=file_path,
                 time_col=time_col,
@@ -123,7 +128,7 @@ class Analysis:
                 sheet_name=sheet_name,
                 output_time_unit=self.time_unit,
             )
-        elif dataframe is not None and file_path is None:
+        elif dataframe is not None:
             time_numeric, data_series, error_series = process_dataframe(
                 df=dataframe,
                 time_col=time_col,
@@ -133,10 +138,30 @@ class Analysis:
                 input_time_unit=input_time_unit,
                 output_time_unit=self.time_unit,
             )
-        elif file_path is not None and dataframe is not None:
-            raise ValueError("Please provide either `file_path` or `dataframe`, not both.")
+        elif time_array is not None and data_array is not None:
+            # Create a temporary DataFrame from the NumPy arrays
+            df_dict = {time_col: time_array, data_col: data_array}
+            if error_array is not None:
+                if error_col is None:
+                    error_col = "errors"  # Default name if not provided
+                df_dict[error_col] = error_array
+
+            temp_df = pd.DataFrame(df_dict)
+
+            time_numeric, data_series, error_series = process_dataframe(
+                df=temp_df,
+                time_col=time_col,
+                data_col=data_col,
+                error_col=error_col,
+                time_format=time_format,
+                input_time_unit=input_time_unit,
+                output_time_unit=self.time_unit,
+            )
         else:
-            raise ValueError("Either `file_path` or `dataframe` must be provided.")
+            raise ValueError(
+                "A valid data source must be provided: either `file_path`, `dataframe`, "
+                "or both `time_array` and `data_array`."
+            )
 
         processed_data, processed_errors, diagnostics = preprocess_data(
             data_series,
