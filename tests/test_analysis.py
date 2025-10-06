@@ -703,3 +703,63 @@ def test_analysis_raises_error_on_incomplete_array_input():
 
     with pytest.raises(ValueError, match="A valid data source must be provided"):
         Analysis(time_col="t", data_col="d", data_array=data_array)
+
+
+def test_analysis_raises_error_for_loess_with_errors_and_no_bootstrap():
+    """
+    Test that Analysis.__init__ raises a ValueError if LOESS detrending is
+    requested with error propagation but without specifying n_bootstrap.
+    """
+    time, series, errors = (
+        np.arange(100, dtype=float),
+        np.random.randn(100),
+        np.full(100, 0.1),
+    )
+
+    # This configuration is invalid and should fail at initialization
+    with pytest.raises(
+        ValueError,
+        match="When using 'loess' detrending with error data, `n_bootstrap` must be > 0",
+    ):
+        Analysis(
+            time_col="time",
+            data_col="value",
+            error_col="error",
+            time_array=time,
+            data_array=series,
+            error_array=errors,
+            detrend_method="loess",
+            input_time_unit="days",
+            # detrend_options is omitted, so n_bootstrap defaults to 0
+        )
+
+    # For completeness, test with n_bootstrap=0 explicitly
+    with pytest.raises(
+        ValueError,
+        match="When using 'loess' detrending with error data, `n_bootstrap` must be > 0",
+    ):
+        Analysis(
+            time_col="time",
+            data_col="value",
+            error_col="error",
+            time_array=time,
+            data_array=series,
+            error_array=errors,
+            detrend_method="loess",
+            detrend_options={"n_bootstrap": 0},
+            input_time_unit="days",
+        )
+
+    # This configuration should succeed without error
+    analyzer = Analysis(
+        time_col="time",
+        data_col="value",
+        error_col="error",
+        time_array=time,
+        data_array=series,
+        error_array=errors,
+        detrend_method="loess",
+        detrend_options={"n_bootstrap": 10},
+        input_time_unit="days",
+    )
+    assert analyzer is not None
