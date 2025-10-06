@@ -705,7 +705,7 @@ def test_fit_standard_model_low_success_raises_detailed_error(synthetic_spectrum
     # Check for the detailed error summary
     assert "Errors:" in error_msg
     assert "ValueError: 3" in error_msg
-    assert "Exception: 3" in error_msg
+    assert "RuntimeError: 3" in error_msg
 
 
 @pytest.mark.parametrize("ci_method", ["parametric", "bootstrap"])
@@ -747,4 +747,3 @@ def test_fit_segmented_spectrum_breakpoint_ci(multifractal_spectrum, ci_method):
     # Check that the interval is not excessively wide. The frequency range is
     # from 0.001 to 10, so a CI width of less than 1.0 is reasonable.
     assert (upper_ci - lower_ci) < 1.0
-    assert "RuntimeError: 3" in error_msg
