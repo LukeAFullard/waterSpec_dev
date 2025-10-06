@@ -345,9 +345,9 @@ Always report confidence intervals alongside point estimates. Wide CIs indicate 
 - Review censored data handling strategy
 
 **"Bootstrap iterations failed"**
-- Try `bootstrap_type='pairs'` instead of `'residuals'`
-- Reduce `n_bootstraps` or switch to `ci_method='parametric'`
-- Check for outliers or extreme values
+- This can happen with noisy or strongly autocorrelated data.
+- Ensure you are using an appropriate `bootstrap_type`. Start with `'block'` (the default). If residuals appear heteroscedastic (i.e., their variance changes with frequency), try `'wild'`.
+- If failures persist, you can switch to `ci_method='parametric'` for a faster, though potentially less robust, estimate, or investigate the data for extreme outliers.
 
 **"No significant breakpoint found"**
 - Your data may truly be better described by a single power law
