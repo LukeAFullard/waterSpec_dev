@@ -453,7 +453,7 @@ def test_calculate_bic_edge_cases():
     # Test with a perfect fit (RSS is zero), should return a large negative number
     y_true = np.array([1, 2, 3, 4])
     y_pred = np.array([1, 2, 3, 4])
-    assert _calculate_bic(y_true, y_pred, n_params=2) == -1e300
+    assert _calculate_bic(y_true, y_pred, n_params=2) == np.inf
 
 
 def test_fit_standard_model_invalid_arguments(synthetic_spectrum):
