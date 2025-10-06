@@ -64,9 +64,13 @@ def process_dataframe(
 
     # Check for column existence (case-insensitive)
     if time_col_lower not in col_map:
-        raise ValueError(f"Time column '{time_col}' not found in the DataFrame.")
+        raise ValueError(
+            f"Time column '{time_col}' not found. Available columns: {list(df.columns)}"
+        )
     if data_col_lower not in col_map:
-        raise ValueError(f"Data column '{data_col}' not found in the DataFrame.")
+        raise ValueError(
+            f"Data column '{data_col}' not found. Available columns: {list(df.columns)}"
+        )
 
     # Get original column names from the map
     time_col_orig = col_map[time_col_lower]
@@ -331,6 +335,12 @@ def load_data(
             - A NumPy array of numeric time values.
             - A Pandas Series of data values.
             - A Pandas Series of error values, or None.
+
+    Notes:
+        - For Excel files (`.xlsx`, `.xls`), `pd.read_excel` is used. This may
+          require installing additional dependencies such as `openpyxl` or
+          `xlrd` depending on the file format.
+        - For CSV files, `pd.read_csv` is used with its default settings.
     """
     # 1. Validate file existence
     if not os.path.exists(file_path):

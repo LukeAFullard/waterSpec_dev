@@ -1,4 +1,5 @@
 import logging
+import traceback
 import warnings
 from typing import Dict, Optional
 
@@ -181,7 +182,7 @@ def fit_standard_model(
             f"Initial standard model fit failed with method '{method}' due to a numerical or data issue: {e}"
         )
         logger.warning(failure_reason, exc_info=True)
-        return {
+        result = {
             "beta": np.nan,
             "bic": np.inf,
             "aic": np.inf,
@@ -189,16 +190,29 @@ def fit_standard_model(
             "beta_ci_upper": np.nan,
             "failure_reason": failure_reason,
         }
+        if logger.isEnabledFor(logging.DEBUG):
+            result["traceback"] = traceback.format_exc()
+        return result
     except Exception as e:
         failure_reason = (
             f"An unexpected error occurred during the initial standard model fit with method '{method}': {e!r}"
         )
         logger.error(
-            "An unexpected error occurred during the initial standard model fit with method '%s'.",
-            method,
+            "Standard model fit crashed: %s",
+            e,
             exc_info=True,
         )
-        raise RuntimeError(failure_reason) from e
+        result = {
+            "beta": np.nan,
+            "bic": np.inf,
+            "aic": np.inf,
+            "beta_ci_lower": np.nan,
+            "beta_ci_upper": np.nan,
+            "failure_reason": failure_reason,
+        }
+        if logger.isEnabledFor(logging.DEBUG):
+            result["traceback"] = traceback.format_exc()
+        return result
 
     # 3. Calculate BIC and AIC
     log_power_fit = slope * log_freq + intercept
@@ -335,9 +349,18 @@ def fit_standard_model(
         fit_results["bootstrap_error_summary"] = error_summary
 
         if n_bootstraps > 0 and success_rate < MIN_SUCCESS_RATE:
-            raise ValueError(
+            logger.error(
+                "Bootstrap success rate (%s) was below the required threshold (%s). "
+                "Only %d/%d iterations succeeded. Errors: %s. CIs will be unreliable.",
+                f"{success_rate:.0%}",
+                f"{MIN_SUCCESS_RATE:.0%}",
+                len(beta_estimates),
+                n_bootstraps,
+                error_summary,
+            )
+            fit_results["failure_reason"] = (
                 f"Bootstrap success rate ({success_rate:.0%}) was below the required threshold ({MIN_SUCCESS_RATE:.0%}). "
-                f"Only {len(beta_estimates)}/{n_bootstraps} iterations succeeded. Errors: {error_summary}"
+                f"Errors: {error_summary}"
             )
 
         if len(beta_estimates) < MIN_BOOTSTRAP_SAMPLES:
@@ -1008,18 +1031,27 @@ def fit_segmented_spectrum(
     except (ValueError, RuntimeError, np.linalg.LinAlgError) as e:
         failure_reason = f"Segmented regression failed with a numerical or data issue: {e}"
         logger.warning(failure_reason)
-        return {
+        result = {
             "failure_reason": failure_reason,
             "n_breakpoints": n_breakpoints,
             "bic": np.inf,
             "aic": np.inf,
         }
+        if logger.isEnabledFor(logging.DEBUG):
+            result["traceback"] = traceback.format_exc()
+        return result
     except Exception as e:
         failure_reason = f"Segmented regression failed with an unexpected error: {e!r}"
-        logger.error(
-            "Segmented regression failed with an unexpected error.", exc_info=True
-        )
-        raise RuntimeError(failure_reason) from e
+        logger.error("Segmented fit crashed: %s", e, exc_info=True)
+        result = {
+            "failure_reason": failure_reason,
+            "n_breakpoints": n_breakpoints,
+            "bic": np.inf,
+            "aic": np.inf,
+        }
+        if logger.isEnabledFor(logging.DEBUG):
+            result["traceback"] = traceback.format_exc()
+        return result
 
     # Check for convergence and statistical significance.
     # The Davies test p-value may not always be available.
