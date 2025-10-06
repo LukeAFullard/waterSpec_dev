@@ -712,3 +712,44 @@ def test_fit_standard_model_low_success_raises_detailed_error(synthetic_spectrum
     assert "Errors:" in error_msg
     assert "ValueError: 3" in error_msg
     assert "Exception: 3" in error_msg
+
+
+@pytest.mark.parametrize("ci_method", ["parametric", "bootstrap"])
+def test_fit_segmented_spectrum_breakpoint_ci(multifractal_spectrum, ci_method):
+    """
+    Test that fit_segmented_spectrum returns a valid confidence interval for the breakpoint
+    for both parametric and bootstrap methods.
+    """
+    frequency, power, known_breakpoint, _, _ = multifractal_spectrum
+
+    # Use a sufficient number of bootstraps for the test to be robust to a few failed iterations.
+    # The minimum required successful samples is 50.
+    n_bootstraps = 100 if ci_method == "bootstrap" else 0
+
+    results = fit_segmented_spectrum(
+        frequency,
+        power,
+        ci_method=ci_method,
+        n_bootstraps=n_bootstraps,
+        seed=42,
+    )
+
+    # Check that the results contain the breakpoints_ci key and it's valid
+    assert "breakpoints_ci" in results
+    assert isinstance(results["breakpoints_ci"], list)
+    assert len(results["breakpoints_ci"]) == 1
+
+    # Check the confidence interval itself
+    breakpoint_ci = results["breakpoints_ci"][0]
+    assert isinstance(breakpoint_ci, tuple)
+    assert len(breakpoint_ci) == 2
+    lower_ci, upper_ci = breakpoint_ci
+    assert np.isfinite(lower_ci) and np.isfinite(upper_ci)
+    assert lower_ci < upper_ci
+
+    # Check that the known breakpoint is within the confidence interval
+    assert lower_ci <= known_breakpoint <= upper_ci
+
+    # Check that the interval is not excessively wide. The frequency range is
+    # from 0.001 to 10, so a CI width of less than 1.0 is reasonable.
+    assert (upper_ci - lower_ci) < 1.0
