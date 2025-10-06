@@ -280,6 +280,16 @@ class Analysis:
         all_models = []
         failed_model_reasons = []
 
+        # If a seed is provided, create a SeedSequence to generate independent
+        # seeds for each model. This is crucial for reproducible and
+        # independent bootstrap resampling across different models.
+        if seed is not None:
+            ss = np.random.SeedSequence(seed)
+            # We are fitting up to `max_breakpoints` + 1 models (standard, 1bp, 2bp, etc.)
+            child_seeds = ss.spawn(max_breakpoints + 1)
+        else:
+            child_seeds = [None] * (max_breakpoints + 1)
+
         # Fit the standard model (0 breakpoints)
         self.logger.info("Fitting standard model (0 breakpoints)...")
         try:
@@ -290,7 +300,7 @@ class Analysis:
                 ci_method=ci_method,
                 bootstrap_type=bootstrap_type,
                 n_bootstraps=n_bootstraps,
-                seed=seed,
+                seed=child_seeds[0],
                 logger=self.logger,
             )
             if "bic" in standard_results and np.isfinite(standard_results["bic"]):
@@ -320,9 +330,8 @@ class Analysis:
         for n_breakpoints in range(1, max_breakpoints + 1):
             self.logger.info(f"Fitting segmented model with {n_breakpoints} breakpoint(s)...")
             try:
-                # If a seed is provided, increment it for each model to ensure
-                # that bootstrap samples are independent across models.
-                model_seed = (seed + n_breakpoints) if seed is not None else None
+                # Spawn a new seed for each model to ensure independent bootstrap samples.
+                model_seed = child_seeds[n_breakpoints]
                 seg_results = fit_segmented_spectrum(
                     self.frequency,
                     self.power,
@@ -569,13 +578,18 @@ class Analysis:
             f"Analyzing segment AFTER changepoint (n={len(time_after)})..."
         )
 
-        # To ensure the bootstrap samples for the second segment are
-        # independent, create a new set of analysis arguments with an
-        # incremented seed. A large increment prevents overlap with the seeds
-        # used in the first segment's model selection.
+        # To ensure the bootstrap samples for the "before" and "after"
+        # segments are independent, spawn a new seed from a SeedSequence
+        # for the second segment's analysis.
         analysis_kwargs_after = analysis_kwargs.copy()
-        if analysis_kwargs_after.get("seed") is not None:
-            analysis_kwargs_after["seed"] += 10000
+        if analysis_kwargs.get("seed") is not None:
+            # Create a sequence from the root seed and spawn two children.
+            # Use the first for the 'before' segment (implicitly done by passing
+            # the original kwargs) and the second for the 'after' segment.
+            ss = np.random.SeedSequence(analysis_kwargs["seed"])
+            child_seeds = ss.spawn(2)
+            analysis_kwargs["seed"] = child_seeds[0]
+            analysis_kwargs_after["seed"] = child_seeds[1]
 
         results_after = self._run_segment_analysis(
             time_after,
