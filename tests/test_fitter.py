@@ -438,15 +438,9 @@ def test_fit_standard_model_graceful_failure(synthetic_spectrum, mocker):
         side_effect=RuntimeError("Unexpected Scipy error"),
     )
 
-    # The function should catch the error and return a specific result
-    results = fit_standard_model(frequency, power, method="ols")
-
-    assert "failure_reason" in results
-    assert "An unexpected error occurred" in results["failure_reason"]
-    # The BIC should be infinite so this model is never chosen
-    assert results["bic"] == np.inf
-    # The beta value should be NaN
-    assert np.isnan(results["beta"])
+    # The function should catch the error and re-raise it as a RuntimeError
+    with pytest.raises(RuntimeError, match="An unexpected error occurred"):
+        fit_standard_model(frequency, power, method="ols")
 
 
 def test_calculate_bic_edge_cases():
@@ -711,4 +705,4 @@ def test_fit_standard_model_low_success_raises_detailed_error(synthetic_spectrum
     # Check for the detailed error summary
     assert "Errors:" in error_msg
     assert "ValueError: 3" in error_msg
-    assert "Exception: 3" in error_msg
+    assert "RuntimeError: 3" in error_msg

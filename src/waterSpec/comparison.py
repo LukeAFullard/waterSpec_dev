@@ -340,8 +340,8 @@ class SiteComparison:
             if "bic" in standard_results and np.isfinite(standard_results["bic"]):
                 standard_results["n_breakpoints"] = 0
                 all_models.append(standard_results)
-        except Exception:
-            self.logger.error("Standard model fit crashed.", exc_info=True)
+        except Exception as e:
+            self.logger.error("Standard model fit crashed: %s", e, exc_info=True)
 
         # Segmented models
         for n_bp in range(1, max_breakpoints + 1):
@@ -358,8 +358,10 @@ class SiteComparison:
                 )
                 if "bic" in seg_results and np.isfinite(seg_results["bic"]):
                     all_models.append(seg_results)
-            except Exception:
-                self.logger.error(f"Segmented model ({n_bp} bp) fit crashed.", exc_info=True)
+            except Exception as e:
+                self.logger.error(
+                    "Segmented model (%d bp) fit crashed: %s", n_bp, e, exc_info=True
+                )
 
         if not all_models:
             raise RuntimeError("Model fitting failed for all attempted models.")

@@ -9,6 +9,7 @@ values and will print a single row of a markdown table as its output.
 
 import argparse
 import contextlib
+import logging
 import os
 import shutil
 import sys
@@ -21,6 +22,14 @@ import pandas as pd
 # for testing, so we can import waterSpec
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../src")))
 from waterSpec.analysis import Analysis
+
+# Set up basic logging to catch errors from the analysis
+logging.basicConfig(
+    level=logging.WARNING,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 
 # --- Test Parameters ---
 N_POINTS = 512
@@ -90,7 +99,14 @@ def run_single_validation(beta, signal_amp, temp_dir):
                     ):
                         ws_resid_found = True
                         break
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Residual analysis failed for beta=%.1f, amp=%.2f: %s",
+                beta,
+                signal_amp,
+                e,
+                exc_info=True,
+            )
             ws_resid_found = "ERROR"
 
         # --- 2. waterSpec Analysis (Redfit Method) ---
@@ -115,7 +131,14 @@ def run_single_validation(beta, signal_amp, temp_dir):
                     ):
                         ws_redfit_found = True
                         break
-        except Exception:
+        except Exception as e:
+            logger.error(
+                "Redfit analysis failed for beta=%.1f, amp=%.2f: %s",
+                beta,
+                signal_amp,
+                e,
+                exc_info=True,
+            )
             ws_redfit_found = "ERROR"
 
     return ws_resid_found, ws_redfit_found
@@ -148,8 +171,15 @@ def main():
     try:
         ws_resid, ws_redfit = run_single_validation(beta, amp, temp_dir)
 
-        ws_resid_str = "✅ Found" if ws_resid else "❌ Not Found"
-        ws_redfit_str = "✅ Found" if ws_redfit else "❌ Not Found"
+        if ws_resid == "ERROR":
+            ws_resid_str = "🔥 ERROR"
+        else:
+            ws_resid_str = "✅ Found" if ws_resid else "❌ Not Found"
+
+        if ws_redfit == "ERROR":
+            ws_redfit_str = "🔥 ERROR"
+        else:
+            ws_redfit_str = "✅ Found" if ws_redfit else "❌ Not Found"
 
         # Print the markdown row
         print(
