@@ -272,7 +272,7 @@ def handle_censored_data(
         match = pattern.match(str(value))
         if match:
             symbol = match.group(1)
-            num_val = float(match.group(2))
+            num_val = float(match.group(2).replace(",", ""))
 
             if symbol.lower() == left_censor_symbol.lower():
                 if strategy == "drop":
