@@ -162,6 +162,21 @@ class Analysis:
                 "or both `time_array` and `data_array`."
             )
 
+        # --- Pre-computation validation ---
+        # Validate LOESS configuration early to provide a clear error message.
+        # This prevents a late failure inside the `preprocess_data` function.
+        detrend_options = detrend_options or {}
+        if (
+            detrend_method == "loess"
+            and error_series is not None
+            and detrend_options.get("n_bootstrap", 0) <= 0
+        ):
+            raise ValueError(
+                "When using 'loess' detrending with error data, `n_bootstrap` must be > 0 "
+                "for error propagation. Please set `n_bootstrap` in `detrend_options`. "
+                "For example: `detrend_options={'n_bootstrap': 100}`."
+            )
+
         processed_data, processed_errors, diagnostics = preprocess_data(
             data_series,
             time_numeric,
