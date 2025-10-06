@@ -565,6 +565,18 @@ class Analysis:
             changepoint_idx, self.time, self.time_unit
         )
 
+        # Create separate kwargs for each segment to handle seeding correctly.
+        analysis_kwargs_before = analysis_kwargs.copy()
+        analysis_kwargs_after = analysis_kwargs.copy()
+
+        # If a seed is provided, spawn two independent child seeds for the two
+        # segments to ensure that their bootstrap analyses are independent.
+        if analysis_kwargs.get("seed") is not None:
+            ss = np.random.SeedSequence(analysis_kwargs["seed"])
+            child_seeds = ss.spawn(2)
+            analysis_kwargs_before["seed"] = child_seeds[0]
+            analysis_kwargs_after["seed"] = child_seeds[1]
+
         # Analyze each segment
         self.logger.info(
             f"Analyzing segment BEFORE changepoint (n={len(time_before)})..."
@@ -574,26 +586,12 @@ class Analysis:
             data_before,
             errors_before,
             segment_name=f"Before {cp_time_str}",
-            **analysis_kwargs,
+            **analysis_kwargs_before,
         )
 
         self.logger.info(
             f"Analyzing segment AFTER changepoint (n={len(time_after)})..."
         )
-
-        # To ensure the bootstrap samples for the "before" and "after"
-        # segments are independent, spawn a new seed from a SeedSequence
-        # for the second segment's analysis.
-        analysis_kwargs_after = analysis_kwargs.copy()
-        if analysis_kwargs.get("seed") is not None:
-            # Create a sequence from the root seed and spawn two children.
-            # Use the first for the 'before' segment (implicitly done by passing
-            # the original kwargs) and the second for the 'after' segment.
-            ss = np.random.SeedSequence(analysis_kwargs["seed"])
-            child_seeds = ss.spawn(2)
-            analysis_kwargs["seed"] = child_seeds[0]
-            analysis_kwargs_after["seed"] = child_seeds[1]
-
         results_after = self._run_segment_analysis(
             time_after,
             data_after,
