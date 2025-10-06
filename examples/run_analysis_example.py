@@ -3,6 +3,7 @@ This script demonstrates how to use the waterSpec Analysis class to perform
 a changepoint analysis on a time series.
 """
 
+import logging
 import os
 import sys
 
@@ -12,6 +13,14 @@ sys.path.insert(0, project_root)
 
 from src.waterSpec import Analysis
 
+# Set up basic logging for the script
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stdout,
+)
+logger = logging.getLogger(__name__)
+
 
 def main():
     """
@@ -19,47 +28,47 @@ def main():
     """
     # Use the sample data included in the repository that is known to have
     # segmented characteristics.
-    file_path = 'examples/segmented_data.csv'
+    file_path = "examples/segmented_data.csv"
     param_name = "Synthetic Segmented Signal"
     output_dir = "example_output/changepoint_analysis"
     os.makedirs(output_dir, exist_ok=True)
 
-
-    print(f"--- Initializing Changepoint Analysis for: {param_name} ---")
+    logger.info("--- Initializing Changepoint Analysis for: %s ---", param_name)
     try:
         # Initialize the analyzer with changepoint_mode='auto' to trigger
         # an analysis that splits the data into two segments.
         analyzer = Analysis(
             file_path=file_path,
-            time_col='timestamp',
-            data_col='value',
+            time_col="timestamp",
+            data_col="value",
             param_name=param_name,
             verbose=True,
-            changepoint_mode='auto',
+            changepoint_mode="auto",
         )
     except (FileNotFoundError, ValueError) as e:
-        print(f"\nERROR: Failed to initialize analyzer. Details: {e}")
+        logger.error("Failed to initialize analyzer. Details: %s", e, exc_info=True)
         return
 
-    print("\n--- Running Changepoint Analysis ---")
+    logger.info("--- Running Changepoint Analysis ---")
     try:
         results = analyzer.run_full_analysis(
             output_dir=output_dir,
             seed=42,
             n_bootstraps=10,  # Reduced for a quick example run
-            changepoint_plot_style='separate'
+            changepoint_plot_style="separate",
         )
-        print("\n--- Changepoint Analysis Summary ---")
-        print(results['summary_text'])
+        logger.info("--- Changepoint Analysis Summary ---")
+        # The summary text is formatted for direct console output
+        print(results["summary_text"])
 
     except Exception as e:
-        import traceback
-        print(f"Changepoint analysis failed with an unexpected error: {e}")
-        traceback.print_exc()
+        logger.error(
+            "Changepoint analysis failed with an unexpected error: %s", e, exc_info=True
+        )
 
-
-    print(
-        f"\nAnalysis complete. Check the '{output_dir}' directory for plots and summaries."
+    logger.info(
+        "Analysis complete. Check the '%s' directory for plots and summaries.",
+        output_dir,
     )
 
 

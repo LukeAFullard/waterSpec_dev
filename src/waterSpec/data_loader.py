@@ -104,7 +104,9 @@ def process_dataframe(
                 df[time_col_orig], format=time_format, errors="coerce"
             )
         except Exception as e:
-            raise ValueError(f"Could not parse time column '{time_col}'. Reason: {e}")
+            raise ValueError(
+                f"Could not parse time column '{time_col}'. Reason: {e}"
+            ) from e
 
         coerced_time_na = time_series.isna().sum()
         if coerced_time_na > original_time_na:
@@ -346,7 +348,9 @@ def load_data(
         else:
             raise ValueError(f"Unsupported file format: {file_extension}")
     except Exception as e:
-        raise IOError(f"Failed to read the file at {file_path}. Reason: {e}")
+        raise IOError(
+            f"Failed to read the file at {file_path}. Reason: {e}"
+        ) from e
 
     # 3. Process the loaded DataFrame
     return process_dataframe(

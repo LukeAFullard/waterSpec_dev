@@ -7,8 +7,18 @@ using the waterSpec package. It includes:
   that are new in this version of the package.
 """
 
+import logging
 import os
-from waterSpec import Analysis
+import sys
+from src.waterSpec import Analysis
+
+# Set up basic logging for the script
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stdout,
+)
+logger = logging.getLogger(__name__)
 
 # --- 1. Define Configuration ---
 # Use a sample data file that is known to have some issues
@@ -26,12 +36,12 @@ def run_robust_analysis():
     """
     Runs the waterSpec analysis within a robust error-handling framework.
     """
-    print(f"--- Starting Robust Analysis for: {PARAM_NAME} ---")
+    logger.info("--- Starting Robust Analysis for: %s ---", PARAM_NAME)
 
     try:
         # --- 2. Initialize the Analysis Object ---
         # Using verbose=True will print detailed logs of each step.
-        print("\nStep 1: Initializing analysis and preprocessing data...")
+        logger.info("Step 1: Initializing analysis and preprocessing data...")
         analyzer = Analysis(
             file_path=FILE_PATH,
             time_col=TIME_COL,
@@ -39,19 +49,19 @@ def run_robust_analysis():
             param_name=PARAM_NAME,
             verbose=True,  # Enable detailed logging
         )
-        print("Initialization and preprocessing complete.")
+        logger.info("Initialization and preprocessing complete.")
 
         # --- 3. Run the Full Analysis ---
         # This includes periodogram calculation, model fitting, and peak detection.
-        print("\nStep 2: Running the full spectral analysis...")
+        logger.info("Step 2: Running the full spectral analysis...")
         results = analyzer.run_full_analysis(
             output_dir=OUTPUT_DIR,
             seed=42,  # Use a seed for reproducible results
         )
-        print("Full analysis complete.")
+        logger.info("Full analysis complete.")
 
         # --- 4. Review the Results ---
-        print("\nStep 3: Reviewing results and uncertainty warnings...")
+        logger.info("Step 3: Reviewing results and uncertainty warnings...")
         # The full, formatted summary is in the 'summary_text' key
         print("\n--- Full Analysis Summary ---")
         print(results["summary_text"])
@@ -59,23 +69,24 @@ def run_robust_analysis():
         # The new `uncertainty_warnings` key contains a list of any warnings
         # generated during the analysis. This is useful for programmatic checks.
         if results["uncertainty_warnings"]:
-            print("\n--- Uncertainty Warnings Detected ---")
+            logger.info("--- Uncertainty Warnings Detected ---")
             for warning in results["uncertainty_warnings"]:
-                print(f"- {warning}")
+                logger.warning("- %s", warning)
         else:
-            print("\n--- No Uncertainty Warnings Detected ---")
+            logger.info("--- No Uncertainty Warnings Detected ---")
 
-        print(f"\nAnalysis successful. Outputs saved to '{OUTPUT_DIR}'.")
+        logger.info("Analysis successful. Outputs saved to '%s'.", OUTPUT_DIR)
 
     except FileNotFoundError as e:
-        print(f"\nERROR: The data file was not found.")
-        print(f"  Details: {e}")
+        logger.error("The data file was not found. Details: %s", e, exc_info=True)
     except ValueError as e:
-        print(f"\nERROR: A data validation error occurred.")
-        print(f"  Details: {e}")
+        logger.error(
+            "A data validation error occurred. Details: %s", e, exc_info=True
+        )
     except Exception as e:
-        print(f"\nAn unexpected error occurred during the analysis.")
-        print(f"  Details: {type(e).__name__}: {e}")
+        logger.error(
+            "An unexpected error occurred during the analysis: %s", e, exc_info=True
+        )
 
 
 if __name__ == "__main__":
