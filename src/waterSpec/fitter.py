@@ -739,10 +739,18 @@ def _bootstrap_segmented_fit(
         # Filter out non-finite breakpoint estimates
         finite_bps = [bp for bp in bootstrap_breakpoints[i] if np.isfinite(bp)]
         if len(finite_bps) >= MIN_BOOTSTRAP_SAMPLES:
-            lower = np.percentile(finite_bps, lower_p)
-            upper = np.percentile(finite_bps, upper_p)
-            ci_results["breakpoints_ci"].append((lower, upper))
+            try:
+                lower = np.percentile(finite_bps, lower_p)
+                upper = np.percentile(finite_bps, upper_p)
+                ci_results["breakpoints_ci"].append((lower, upper))
+            except IndexError:
+                logger.warning(f"Could not calculate bootstrap CI for breakpoint {i+1} due to an index error.")
+                ci_results["breakpoints_ci"].append((np.nan, np.nan))
         else:
+            logger.warning(
+                f"Not enough successful bootstrap samples to calculate confidence interval for breakpoint {i+1} "
+                f"(requires {MIN_BOOTSTRAP_SAMPLES}, got {len(finite_bps)}). CI will be NaN."
+            )
             ci_results["breakpoints_ci"].append((np.nan, np.nan))
 
     ci_results["bootstrap_success_rate"] = success_rate
@@ -803,12 +811,23 @@ def _extract_parametric_segmented_cis(
 
     # CIs for the breakpoints
     for i in range(1, n_breakpoints + 1):
-        bp_info = estimates.get(f"breakpoint{i}", {})
-        bp_ci_log = bp_info.get("confidence_interval")
-        if bp_ci_log and all(c is not None for c in bp_ci_log):
-            # Convert from log space back to frequency space
-            breakpoints_ci.append((10 ** bp_ci_log[0], 10 ** bp_ci_log[1]))
-        else:
+        try:
+            bp_info = estimates.get(f"breakpoint{i}", {})
+            bp_ci_log = bp_info.get("confidence_interval")
+
+            if bp_ci_log and all(c is not None for c in bp_ci_log) and len(bp_ci_log) == 2:
+                # Convert from log space back to frequency space
+                breakpoints_ci.append((10 ** bp_ci_log[0], 10 ** bp_ci_log[1]))
+            else:
+                logger.warning(
+                    f"Could not extract valid parametric confidence interval for breakpoint {i}. "
+                    f"CI data was: {bp_ci_log}"
+                )
+                breakpoints_ci.append((np.nan, np.nan))
+        except (TypeError, IndexError) as e:
+            logger.warning(
+                f"An error occurred while extracting parametric confidence interval for breakpoint {i}: {e}"
+            )
             breakpoints_ci.append((np.nan, np.nan))
 
     return {"betas_ci": betas_ci, "breakpoints_ci": breakpoints_ci}
