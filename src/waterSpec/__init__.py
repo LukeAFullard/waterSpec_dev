@@ -1,4 +1,10 @@
 # src/waterSpec/__init__.py
+import logging
+
+# Configure a NullHandler for the library's root logger to avoid
+# "No handler found" warnings and let downstream applications configure logging.
+logging.getLogger("waterSpec").addHandler(logging.NullHandler())
+
 
 """
 WaterSpec: Spectral analysis toolkit for hydrological and environmental time series.

@@ -2,14 +2,10 @@ import logging
 import os
 import re
 import warnings
-import threading
 from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
-
-
-_logger_setup_lock = threading.Lock()
 
 
 from .changepoint_detector import (
@@ -222,18 +218,12 @@ class Analysis:
 
     def _setup_logger(self, level):
         """Configures a logger for the Analysis instance."""
-        # Make logger name unique per instance to prevent race conditions
-        self.logger = logging.getLogger(f"waterSpec.{self.param_name}.{id(self)}")
-        # Prevent duplicate handlers if logger is already configured
-        with _logger_setup_lock:
-            if not self.logger.handlers:
-                self.logger.setLevel(level)
-                handler = logging.StreamHandler()
-                formatter = logging.Formatter(
-                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-                )
-                handler.setFormatter(formatter)
-                self.logger.addHandler(handler)
+        # Library-style logging: Get a logger and set the level.
+        # The application is responsible for configuring handlers.
+        # The f"waterSpec.{self.param_name}" creates a child logger of the
+        # main "waterSpec" logger, allowing for hierarchical configuration.
+        self.logger = logging.getLogger(f"waterSpec.{self.param_name}")
+        self.logger.setLevel(level)
 
     def _detect_changepoint(self) -> Optional[int]:
         """Detects changepoint if in auto mode."""
