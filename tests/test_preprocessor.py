@@ -273,10 +273,12 @@ def test_normalize_zero_std_dev():
     """Test normalize function when standard deviation is zero."""
     data = np.array([5.0, 5.0, 5.0, 5.0])
     errors = np.array([0.1, 0.1, 0.1, 0.1])
-    normalized_data, normalized_errors = normalize(data.copy(), errors.copy())
-    assert np.all(normalized_data == 0)
-    # Errors should be NaN if variance is zero, as they cannot be scaled
-    assert np.all(np.isnan(normalized_errors))
+
+    # Should raise a ValueError
+    with pytest.raises(
+        ValueError, match="Series 'series' has zero variance and cannot be normalized."
+    ):
+        normalize(data.copy(), errors.copy())
 
 
 def test_detrend_loess_with_errors_raises_error(sample_data):

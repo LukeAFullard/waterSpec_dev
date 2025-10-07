@@ -23,6 +23,7 @@ from .spectral_analyzer import (
     find_peaks_via_residuals,
     find_significant_peaks,
 )
+from .utils import make_rng
 
 
 class Analysis:
@@ -205,6 +206,14 @@ class Analysis:
         self.errors = (
             processed_errors[valid_indices] if processed_errors is not None else None
         )
+
+        # Final validation after all preprocessing
+        if len(self.data) > 1 and np.std(self.data, ddof=1) < 1e-9:
+            raise ValueError(
+                f"The processed data for '{self.param_name}' has zero variance. "
+                "Spectral analysis requires variable data."
+            )
+
         self.logger.info("Data loading and preprocessing complete.")
 
         # Changepoint configuration
@@ -296,15 +305,10 @@ class Analysis:
         all_models = []
         failed_model_reasons = []
 
-        # If a seed is provided, create a SeedSequence to generate independent
-        # seeds for each model. This is crucial for reproducible and
-        # independent bootstrap resampling across different models.
-        if seed is not None:
-            ss = np.random.SeedSequence(seed)
-            # We are fitting up to `max_breakpoints` + 1 models (standard, 1bp, 2bp, etc.)
-            child_seeds = ss.spawn(max_breakpoints + 1)
-        else:
-            child_seeds = [None] * (max_breakpoints + 1)
+        # Create a master RNG from the seed, then spawn child seeds.
+        # This ensures that each model fit uses an independent, reproducible RNG stream.
+        master_rng = make_rng(seed)
+        child_seeds = master_rng.spawn(max_breakpoints + 1)
 
         # Fit the standard model (0 breakpoints)
         self.logger.info("Fitting standard model (0 breakpoints)...")
@@ -319,10 +323,11 @@ class Analysis:
                 seed=child_seeds[0],
                 logger=self.logger,
             )
-            if "bic" in standard_results and np.isfinite(standard_results["bic"]):
-                standard_results["model_type"] = "standard"
-                standard_results["n_breakpoints"] = 0
-                all_models.append(standard_results)
+            standard_results["model_type"] = "standard"
+            standard_results["n_breakpoints"] = 0
+            all_models.append(standard_results)
+
+            if np.isfinite(standard_results.get("bic", np.inf)):
                 self.logger.info(
                     "Standard model fit complete. "
                     f"BIC: {standard_results['bic']:.2f}"
@@ -359,9 +364,10 @@ class Analysis:
                     seed=model_seed,
                     logger=self.logger,
                 )
-                if "bic" in seg_results and np.isfinite(seg_results["bic"]):
-                    seg_results["model_type"] = f"segmented_{n_breakpoints}bp"
-                    all_models.append(seg_results)
+                seg_results["model_type"] = f"segmented_{n_breakpoints}bp"
+                all_models.append(seg_results)
+
+                if np.isfinite(seg_results.get("bic", np.inf)):
                     self.logger.info(
                         f"Segmented model ({n_breakpoints} breakpoint(s)) fit complete. "
                         f"BIC: {seg_results['bic']:.2f}"
@@ -397,15 +403,19 @@ class Analysis:
                     exc_info=True,
                 )
 
-        if not all_models:
-            failure_summary = (
-                "Model fitting failed for all attempted models. Reasons:\n"
-                + "\n".join(f"- {reason}" for reason in failed_model_reasons)
-            )
+        # Check if any model produced a valid (finite) BIC.
+        valid_models = [m for m in all_models if np.isfinite(m.get("bic", np.inf))]
+
+        if not valid_models:
+            failure_summary = "All models failed; no valid BIC values found."
+            if failed_model_reasons:
+                failure_summary += " Reasons:\n" + "\n".join(
+                    f"- {reason}" for reason in failed_model_reasons
+                )
             self.logger.error(failure_summary)
             raise RuntimeError(failure_summary)
 
-        best_model = min(all_models, key=lambda x: x["bic"])
+        best_model = min(valid_models, key=lambda x: x["bic"])
         self.logger.info(
             f"Best model selected: {best_model['model_type']} "
             f"(BIC: {best_model['bic']:.2f})"
@@ -589,10 +599,8 @@ class Analysis:
         # If a seed is provided, spawn two independent child seeds for the two
         # segments to ensure that their bootstrap analyses are independent.
         if analysis_kwargs.get("seed") is not None:
-            # If the seed is an integer, create a SeedSequence.
-            seed_val = analysis_kwargs["seed"]
-            ss = np.random.SeedSequence(seed_val) if isinstance(seed_val, int) else seed_val
-            child_seeds = ss.spawn(2)
+            master_rng = make_rng(analysis_kwargs["seed"])
+            child_seeds = master_rng.spawn(2)
             analysis_kwargs_before["seed"] = child_seeds[0]
             analysis_kwargs_after["seed"] = child_seeds[1]
 

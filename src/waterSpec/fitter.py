@@ -7,6 +7,7 @@ import numpy as np
 from scipy import stats
 
 from .preprocessor import _moving_block_bootstrap_indices
+from .utils import make_rng
 
 try:
     import piecewise_regression
@@ -246,25 +247,24 @@ def fit_standard_model(
                     "bootstrap if autocorrelation or heteroscedasticity is suspected."
                 )
 
-        # If the seed is an integer, create a SeedSequence from it for robust
-        # RNG creation. If it's already a SeedSequence, it will be used directly.
-        rng = np.random.default_rng(np.random.SeedSequence(seed) if isinstance(seed, int) else seed)
+        rng = make_rng(seed)
         beta_estimates = []
         n_points = len(log_freq)
         error_counts = {}
 
         if bootstrap_type == "block":
-            block_size = bootstrap_block_size
-            if block_size is None:
+            if bootstrap_block_size is None:
                 # Rule-of-thumb for block size, with a minimum of 3 for effectiveness.
                 block_size = max(3, int(np.ceil(n_points ** (1 / 3))))
                 logger.info(
                     f"No 'bootstrap_block_size' provided for block bootstrap. "
                     f"Using rule-of-thumb size: {block_size}"
                 )
+            else:
+                if not isinstance(bootstrap_block_size, int) or bootstrap_block_size <= 0:
+                    raise ValueError("bootstrap_block_size must be a positive integer.")
+                block_size = min(bootstrap_block_size, n_points)
 
-            # Ensure block size is valid and not larger than the dataset
-            block_size = min(block_size, n_points)
             if n_points < 3 * block_size:
                 logger.warning(
                     f"The number of data points ({n_points}) is less than 3 times "
@@ -480,9 +480,7 @@ def _bootstrap_segmented_fit(
     """
     logger = logger or logging.getLogger(__name__)
     n_breakpoints = pw_fit.n_breakpoints
-    # If the seed is an integer, create a SeedSequence from it for robust
-    # RNG creation. If it's already a SeedSequence, it will be used directly.
-    rng = np.random.default_rng(np.random.SeedSequence(seed) if isinstance(seed, int) else seed)
+    rng = make_rng(seed)
     n_points = len(log_freq)
 
     bootstrap_betas = [[] for _ in range(n_breakpoints + 1)]
@@ -496,16 +494,18 @@ def _bootstrap_segmented_fit(
         initial_fitted_power = pw_fit.predict(log_freq)
         initial_residuals = log_power - initial_fitted_power
     elif bootstrap_type == "block":
-        block_size = bootstrap_block_size
-        if block_size is None:
+        if bootstrap_block_size is None:
             # Rule-of-thumb for block size, with a minimum of 3 for effectiveness.
             block_size = max(3, int(np.ceil(n_points ** (1 / 3))))
             logger.info(
                 f"No 'bootstrap_block_size' provided for segmented block "
                 f"bootstrap. Using rule-of-thumb size: {block_size}"
             )
-        # Ensure block size is valid and not larger than the dataset
-        block_size = min(block_size, n_points)
+        else:
+            if not isinstance(bootstrap_block_size, int) or bootstrap_block_size <= 0:
+                raise ValueError("bootstrap_block_size must be a positive integer.")
+            block_size = min(bootstrap_block_size, n_points)
+
         if n_points < 3 * block_size:
             logger.warning(
                 f"The number of data points ({n_points}) is less than 3 times "
