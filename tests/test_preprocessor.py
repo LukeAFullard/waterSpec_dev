@@ -90,6 +90,46 @@ def test_handle_censored_data():
     assert result[3] == 4.4
 
 
+def test_handle_censored_data_decimal_separator():
+    """Test the handle_censored_data function with different decimal separators."""
+    # Test case 1: Standard US/UK format (dot decimal, comma thousands)
+    data_us = pd.Series(["1,234.56", "<1.0", ">9,999"])
+    result_us = handle_censored_data(
+        data_us, strategy="use_detection_limit", decimal_separator="."
+    )
+    np.testing.assert_array_almost_equal(result_us, [1234.56, 1.0, 9999.0])
+
+    # Test case 2: European format (comma decimal, dot thousands)
+    data_eu = pd.Series(["1.234,56", "<1,0", ">9.999"])
+    result_eu = handle_censored_data(
+        data_eu, strategy="use_detection_limit", decimal_separator=","
+    )
+    np.testing.assert_array_almost_equal(result_eu, [1234.56, 1.0, 9999.0])
+
+    # Test case 3: Default behavior should handle US format
+    result_default = handle_censored_data(data_us, strategy="use_detection_limit")
+    np.testing.assert_array_almost_equal(result_default, [1234.56, 1.0, 9999.0])
+
+    # Test case 4: Ensure it still works with simple numbers
+    data_simple = pd.Series(["10", "<5.5"])
+    result_simple_dot = handle_censored_data(
+        data_simple, strategy="use_detection_limit", decimal_separator="."
+    )
+    np.testing.assert_array_almost_equal(result_simple_dot, [10.0, 5.5])
+
+    data_simple_comma = pd.Series(["10", "<5,5"])
+    result_simple_comma = handle_censored_data(
+        data_simple_comma, strategy="use_detection_limit", decimal_separator=","
+    )
+    np.testing.assert_array_almost_equal(result_simple_comma, [10.0, 5.5])
+
+    # Test case 5: Test invalid separator
+    with pytest.raises(
+        ValueError, match="`decimal_separator` must be either '.' or ','"
+    ):
+        handle_censored_data(data_us, decimal_separator=";")
+
+
 def test_detrend_loess(sample_data):
     """Test the LOESS detrending function."""
     time = np.arange(len(sample_data))

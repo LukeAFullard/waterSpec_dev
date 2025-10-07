@@ -84,6 +84,8 @@ class Analysis:
             param_name (str, optional): A descriptive name for the data parameter.
             censor_strategy (str, optional): The strategy for handling censored data.
             censor_options (dict, optional): Options for the censoring strategy.
+                This can include `decimal_separator` ('.' or ',') to handle
+                different number formats.
             log_transform_data (bool, optional): If True, log-transform the data.
             detrend_method (str, optional): Method to detrend the time series.
             normalize_data (bool, optional): If True, normalize the data.

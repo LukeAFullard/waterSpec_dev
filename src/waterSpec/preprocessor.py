@@ -218,6 +218,7 @@ def handle_censored_data(
     left_censor_symbol="<",
     right_censor_symbol=">",
     non_detect_symbols=None,
+    decimal_separator=".",
 ):
     """
     Handles censored data in a pandas Series using a robust, regex-based
@@ -229,6 +230,24 @@ def handle_censored_data(
         are always converted to ``np.nan``, regardless of the chosen ``strategy``.
         This means strategies like "multiplier" or "use_detection_limit" do not
         apply to them.
+
+    Args:
+        data_series (pd.Series or array-like): The input data.
+        strategy (str): The strategy for handling censored data.
+            - 'drop': Replace censored values with NaN.
+            - 'use_detection_limit': Use the numeric value of the detection limit.
+            - 'multiplier': Multiply the detection limit by a factor.
+        lower_multiplier (float): Multiplier for left-censored values (e.g., <5).
+        upper_multiplier (float): Multiplier for right-censored values (e.g., >100).
+        left_censor_symbol (str): The symbol for left-censored data.
+        right_censor_symbol (str): The symbol for right-censored data.
+        non_detect_symbols (list of str, optional): A list of strings to be
+            treated as non-detects (e.g., "ND"). These are always converted
+            to NaN.
+        decimal_separator (str): The character used as the decimal separator,
+            either '.' (default) or ','. This is crucial for correctly
+            interpreting numbers in different locales. For example, '1,234.5'
+            (US/UK) vs '1.234,5' (EU).
     """
     if not isinstance(data_series, pd.Series):
         series = pd.Series(data_series).copy()
@@ -244,8 +263,17 @@ def handle_censored_data(
             "['drop', 'use_detection_limit', 'multiplier']"
         )
 
+    if decimal_separator not in [".", ","]:
+        raise ValueError("`decimal_separator` must be either '.' or ','.")
+
     if non_detect_symbols is None:
         non_detect_symbols = ["ND", "non-detect", "BDL"]
+
+    # Determine the thousands separator based on the decimal separator.
+    if decimal_separator == ".":
+        thousands_separator = ","
+    else:
+        thousands_separator = "."
 
     # --- Prepare for processing ---
     str_series = series.astype(str).str.strip()
@@ -272,7 +300,12 @@ def handle_censored_data(
         match = pattern.match(str(value))
         if match:
             symbol = match.group(1)
-            num_val = float(match.group(2).replace(",", ""))
+            num_str = match.group(2)
+
+            # Clean the numeric string based on the specified separators
+            cleaned_num_str = num_str.replace(thousands_separator, "")
+            standardized_num_str = cleaned_num_str.replace(decimal_separator, ".")
+            num_val = float(standardized_num_str)
 
             if symbol.lower() == left_censor_symbol.lower():
                 if strategy == "drop":
@@ -290,7 +323,18 @@ def handle_censored_data(
                     processed_series.at[idx] = num_val * upper_multiplier
 
     # --- Final conversion and warning for remaining non-numeric values ---
-    numeric_series = pd.to_numeric(processed_series, errors="coerce")
+    def _final_converter(value):
+        if isinstance(value, (int, float)):
+            return float(value)
+        try:
+            # It's a string that needs cleaning based on locale.
+            cleaned_num_str = str(value).replace(thousands_separator, "")
+            standardized_num_str = cleaned_num_str.replace(decimal_separator, ".")
+            return float(standardized_num_str)
+        except (ValueError, TypeError):
+            return np.nan
+
+    numeric_series = processed_series.apply(_final_converter)
 
     # Identify values that became NaN during processing but weren't NaN before
     newly_nan_mask = numeric_series.isnull() & original_series.notnull()
@@ -476,7 +520,9 @@ def preprocess_data(
 
     # 1. Handle censored data
     processed_data = handle_censored_data(
-        data_series, strategy=censor_strategy, **censor_options
+        data_series,
+        strategy=censor_strategy,
+        **censor_options,
     )
 
     # Align errors with data (set error to NaN where data is NaN)
