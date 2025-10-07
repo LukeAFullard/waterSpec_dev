@@ -587,7 +587,9 @@ class Analysis:
         # If a seed is provided, spawn two independent child seeds for the two
         # segments to ensure that their bootstrap analyses are independent.
         if analysis_kwargs.get("seed") is not None:
-            ss = np.random.SeedSequence(analysis_kwargs["seed"])
+            # If the seed is an integer, create a SeedSequence.
+            seed_val = analysis_kwargs["seed"]
+            ss = np.random.SeedSequence(seed_val) if isinstance(seed_val, int) else seed_val
             child_seeds = ss.spawn(2)
             analysis_kwargs_before["seed"] = child_seeds[0]
             analysis_kwargs_after["seed"] = child_seeds[1]
