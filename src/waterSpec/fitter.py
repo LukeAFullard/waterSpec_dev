@@ -267,16 +267,16 @@ def fit_standard_model(
                     raise ValueError("bootstrap_block_size must be a positive integer.")
                 block_size = min(bootstrap_block_size, n_points)
 
+            if block_size >= n_points:
+                raise ValueError(
+                    f"Block size ({block_size}) must be smaller than the number of "
+                    f"data points ({n_points})."
+                )
             if n_points < 3 * block_size:
                 raise ValueError(
                     f"The number of data points ({n_points}) is less than 3 times "
                     f"the block size ({block_size}). The block bootstrap is "
                     "ineffective for such short series."
-                )
-            if block_size >= n_points:
-                raise ValueError(
-                    f"Block size ({block_size}) must be smaller than the number of "
-                    f"data points ({n_points})."
                 )
 
         for _ in range(n_bootstraps):
@@ -507,16 +507,16 @@ def _bootstrap_segmented_fit(
                 raise ValueError("bootstrap_block_size must be a positive integer.")
             block_size = min(bootstrap_block_size, n_points)
 
+        if block_size >= n_points:
+            raise ValueError(
+                f"Block size ({block_size}) must be smaller than the number of "
+                f"data points ({n_points})."
+            )
         if n_points < 3 * block_size:
             raise ValueError(
                 f"The number of data points ({n_points}) is less than 3 times "
                 f"the block size ({block_size}). The block bootstrap is "
                 "ineffective for such short series."
-            )
-        if block_size >= n_points:
-            raise ValueError(
-                f"Block size ({block_size}) must be smaller than the number of "
-                f"data points ({n_points})."
             )
 
     # Extract the starting breakpoints from the initial fit's results.
