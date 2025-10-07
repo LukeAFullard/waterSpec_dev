@@ -37,7 +37,9 @@ class SiteComparison:
         Args:
             site1_config (Dict): A dictionary with data loading and preprocessing
                 parameters for the first site. It should include a unique 'name'
-                and keys like 'file_path', 'time_col', 'data_col'.
+                and keys like 'file_path', 'time_col', 'data_col', and an
+                optional 'censor_options' dictionary which can contain
+                'decimal_separator'.
             site2_config (Dict): A dictionary of parameters for the second site.
             min_valid_data_points (int, optional): The minimum number of valid
                 data points required to proceed with an analysis. Defaults to 10.
