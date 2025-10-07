@@ -305,10 +305,14 @@ class Analysis:
         all_models = []
         failed_model_reasons = []
 
-        # Create a master RNG from the seed, then spawn child seeds.
-        # This ensures that each model fit uses an independent, reproducible RNG stream.
-        master_rng = make_rng(seed)
-        child_seeds = master_rng.spawn(max_breakpoints + 1)
+        # Create a master SeedSequence from `seed`, then spawn child seeds.
+        # We use SeedSequence.spawn(...) so each child seed is independent.
+        if seed is not None:
+            # np.random.SeedSequence accepts None or an int; passing an int ensures reproducibility.
+            master_ss = np.random.SeedSequence(seed)
+            child_seeds = master_ss.spawn(max_breakpoints + 1)
+        else:
+            child_seeds = [None] * (max_breakpoints + 1)
 
         # Fit the standard model (0 breakpoints)
         self.logger.info("Fitting standard model (0 breakpoints)...")
@@ -599,8 +603,8 @@ class Analysis:
         # If a seed is provided, spawn two independent child seeds for the two
         # segments to ensure that their bootstrap analyses are independent.
         if analysis_kwargs.get("seed") is not None:
-            master_rng = make_rng(analysis_kwargs["seed"])
-            child_seeds = master_rng.spawn(2)
+            master_ss = np.random.SeedSequence(analysis_kwargs["seed"])
+            child_seeds = master_ss.spawn(2)
             analysis_kwargs_before["seed"] = child_seeds[0]
             analysis_kwargs_after["seed"] = child_seeds[1]
 
