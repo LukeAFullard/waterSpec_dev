@@ -268,15 +268,15 @@ def fit_standard_model(
                 block_size = min(bootstrap_block_size, n_points)
 
             if n_points < 3 * block_size:
-                logger.warning(
+                raise ValueError(
                     f"The number of data points ({n_points}) is less than 3 times "
-                    f"the block size ({block_size}). The block bootstrap may be "
-                    "ineffective."
+                    f"the block size ({block_size}). The block bootstrap is "
+                    "ineffective for such short series."
                 )
             if block_size >= n_points:
-                logger.warning(
-                    f"Block size ({block_size}) is >= number of points "
-                    f"({n_points}). This is equivalent to a 'pairs' bootstrap."
+                raise ValueError(
+                    f"Block size ({block_size}) must be smaller than the number of "
+                    f"data points ({n_points})."
                 )
 
         for _ in range(n_bootstraps):
@@ -508,15 +508,15 @@ def _bootstrap_segmented_fit(
             block_size = min(bootstrap_block_size, n_points)
 
         if n_points < 3 * block_size:
-            logger.warning(
+            raise ValueError(
                 f"The number of data points ({n_points}) is less than 3 times "
-                f"the block size ({block_size}). The block bootstrap may be "
-                "ineffective."
+                f"the block size ({block_size}). The block bootstrap is "
+                "ineffective for such short series."
             )
         if block_size >= n_points:
-            logger.warning(
-                f"Block size ({block_size}) is >= number of points "
-                f"({n_points}). This is equivalent to a 'pairs' bootstrap."
+            raise ValueError(
+                f"Block size ({block_size}) must be smaller than the number of "
+                f"data points ({n_points})."
             )
 
     # Extract the starting breakpoints from the initial fit's results.
