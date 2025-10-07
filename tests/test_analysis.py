@@ -220,16 +220,29 @@ def test_analysis_min_valid_data_points_invalid(tmp_path, invalid_value):
 def test_analysis_zero_variance_data(tmp_path):
     """Test the workflow with data that has zero variance."""
     time = pd.date_range(start="2000-01-01", periods=100, freq="D")
-    series = np.ones(100)
+    series = np.ones(100) * 5
     file_path = create_test_data_file(tmp_path, time, series)
     output_dir = tmp_path / "results"
 
-    analyzer = Analysis(
-        file_path=file_path, time_col="time", data_col="value", detrend_method=None
-    )
-    results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=0)
+    # With normalize=True, this should fail early.
+    with pytest.raises(ValueError, match="has zero variance and cannot be normalized"):
+        Analysis(
+            file_path=file_path,
+            time_col="time",
+            data_col="value",
+            normalize_data=True,
+        )
 
-    assert "Model fitting failed" in results["summary_text"]
+    # Without normalization, it should also fail during initialization.
+    with pytest.raises(
+        ValueError, match="processed data for 'value' has zero variance"
+    ):
+        Analysis(
+            file_path=file_path,
+            time_col="time",
+            data_col="value",
+            normalize_data=False,
+        )
 
 
 def test_analysis_fap_threshold_is_configurable(tmp_path):
@@ -399,7 +412,7 @@ def test_analysis_max_breakpoints_selects_best_model(
         ci_method="bootstrap",
         bootstrap_type="block",
         n_bootstraps=0,
-        seed=None,
+        seed=ANY,
         logger=ANY,
     )
     mock_fit_segmented.assert_any_call(
@@ -410,7 +423,7 @@ def test_analysis_max_breakpoints_selects_best_model(
         ci_method="bootstrap",
         bootstrap_type="block",
         n_bootstraps=0,
-        seed=None,
+        seed=ANY,
         logger=ANY,
     )
 
@@ -498,7 +511,7 @@ def test_analysis_handles_total_model_failure(
 
     # --- Assertions ---
     assert results["chosen_model_type"] == "failure"
-    assert "Analysis failed: Model fitting failed" in results["summary_text"]
+    assert "Analysis failed: All models failed" in results["summary_text"]
     assert "Standard model (0 breakpoints): Standard failed." in results["failure_reason"]
     assert "Segmented model (1 breakpoint(s)): Segmented failed." in results["failure_reason"]
 
@@ -506,7 +519,7 @@ def test_analysis_handles_total_model_failure(
     summary_path = output_dir / "value_summary.txt"
     assert summary_path.exists()
     summary_content = summary_path.read_text()
-    assert "Analysis failed: Model fitting failed" in summary_content
+    assert "Analysis failed: All models failed" in summary_content
 
 
 @patch("waterSpec.analysis.fit_segmented_spectrum")

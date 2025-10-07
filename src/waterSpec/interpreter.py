@@ -226,19 +226,35 @@ def interpret_results(
     # If this was an auto-analysis, generate a special header
     if fit_results.get("analysis_mode") == "auto":
         model_summaries = []
-        for model in fit_results["all_models"]:
-            n_breakpoints = model["n_breakpoints"]
-            bic_str = f"{model['bic']:.2f}"
+        for model in fit_results.get("all_models", []):
+            n_breakpoints = model.get("n_breakpoints")
+            bic_val = model.get("bic", np.inf)
+            bic_str = f"{bic_val:.2f}" if np.isfinite(bic_val) else "N/A"
+
+            name = "Unknown Model"
             if n_breakpoints == 0:
                 name = "Standard"
-                beta_str = f"β = {model['beta']:.2f}"
-            else:
+            elif n_breakpoints is not None:
                 name = f"Segmented ({n_breakpoints} BP)"
-                betas = ", ".join(
-                    [f"β{i+1}={b:.2f}" for i, b in enumerate(model["betas"])]
-                )
-                beta_str = f"{betas}"
-            model_summaries.append(f"  - {name:<15} BIC = {bic_str:<8} ({beta_str})")
+
+            beta_str = ""
+            if np.isfinite(bic_val):
+                if n_breakpoints == 0:
+                    beta_val = model.get("beta")
+                    if beta_val is not None:
+                        beta_str = f"β = {beta_val:.2f}"
+                else:
+                    betas_list = model.get("betas", [])
+                    if betas_list:
+                        beta_str = ", ".join(
+                            [f"β{i+1}={b:.2f}" for i, b in enumerate(betas_list)]
+                        )
+
+            summary_line = f"  - {name:<15} BIC = {bic_str:<8} ({beta_str})"
+            if not np.isfinite(bic_val):
+                 summary_line = f"  - {name:<15} BIC = {bic_str:<8} (Fit Failed)"
+
+            model_summaries.append(summary_line)
 
         # Add reasons for failed models, if any, for diagnostic purposes
         failed_reasons = fit_results.get("failed_model_reasons", [])
@@ -247,7 +263,7 @@ def interpret_results(
             for reason in failed_reasons:
                 model_summaries.append(f"    - {reason}")
 
-        chosen_model_name = fit_results["chosen_model"].replace("_", " ").capitalize()
+        chosen_model_name = fit_results.get("chosen_model", "Unknown").replace("_", " ").capitalize()
         auto_summary_header = (
             f"Automatic Analysis for: {param_name}\n"
             "-----------------------------------\n"

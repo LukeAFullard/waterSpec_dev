@@ -141,7 +141,7 @@ def detrend(
     return detrended_data, propagated_errors, diagnostics
 
 
-def normalize(data, errors=None):
+def normalize(data, errors=None, name: Optional[str] = "series"):
     """
     Normalizes a time series to have a mean of 0 and a standard deviation of 1.
     This function returns new arrays and does not modify inputs.
@@ -164,15 +164,11 @@ def normalize(data, errors=None):
             errors_valid = normalized_errors[valid_indices]
             normalized_errors[valid_indices] = errors_valid / std_dev
     else:
-        # If std_dev is negligible, data is constant. Center it at 0.
-        normalized_data[valid_indices] = 0
-        if normalized_errors is not None:
-            # Errors cannot be meaningfully scaled for constant data.
-            warnings.warn(
-                "Data has zero variance; cannot normalize errors. Setting to NaN.",
-                UserWarning,
-            )
-            normalized_errors[valid_indices] = np.nan
+        # If std_dev is negligible, data is constant. Raise an error.
+        series_name = name if name is not None else "series"
+        raise ValueError(
+            f"Series '{series_name}' has zero variance and cannot be normalized."
+        )
 
     return normalized_data, normalized_errors
 
@@ -189,7 +185,7 @@ def log_transform(data, errors=None):
 
     # Identify non-positive data points, which will result in NaNs after log transform.
     # This must be done before the transformation itself.
-    non_positive_mask = (data <= 0)
+    non_positive_mask = data <= 0
 
     if transformed_errors is not None:
         # Where data is non-positive, error propagation is undefined and should also be NaN.
@@ -204,7 +200,7 @@ def log_transform(data, errors=None):
 
     # Now, apply the log10 transform. This will correctly produce NaNs for non-positive values.
     # Using np.errstate to suppress warnings about invalid values (log of non-positive).
-    with np.errstate(invalid='ignore'):
+    with np.errstate(invalid="ignore"):
         transformed_data = np.log10(data)
 
     return transformed_data, transformed_errors
@@ -280,25 +276,28 @@ def handle_censored_data(
     # This series will be modified with the results of censoring
     processed_series = series.copy()
     original_series = series.copy()  # For comparison later
+    col_name = series.name if series.name is not None else "data_series"
+    num_affected = 0
 
     # --- Handle non-detect symbols first (e.g., 'ND', 'BDL') ---
     if non_detect_symbols:
         nd_pattern = "|".join(map(re.escape, non_detect_symbols))
         nd_mask = str_series.str.fullmatch(nd_pattern, case=False, na=False)
+        num_affected += nd_mask.sum()
         processed_series[nd_mask] = np.nan
 
     # --- Regex for censored values with numbers (e.g., '<5', '>10.2') ---
     l_sym = re.escape(left_censor_symbol)
     r_sym = re.escape(right_censor_symbol)
     pattern = re.compile(
-    f"^({l_sym}|{r_sym})\\s*([0-9.,]+(?:[eE][+-]?[0-9]+)?)\\s*.*$",
-    re.IGNORECASE
+        f"^({l_sym}|{r_sym})\\s*([0-9.,]+(?:[eE][+-]?[0-9]+)?)\\s*.*$", re.IGNORECASE
     )
 
     # Iterate over the series to find and replace censored values
     for idx, value in str_series.items():
         match = pattern.match(str(value))
         if match:
+            num_affected += 1
             symbol = match.group(1)
             num_str = match.group(2)
 
@@ -345,6 +344,12 @@ def handle_censored_data(
             "and have been converted to NaN. Examples: "
             f"{list(offenders[:5])}",
             UserWarning,
+        )
+
+    if num_affected > 0:
+        warnings.warn(
+            f"{num_affected} censored or non-finite values replaced in '{col_name}'.",
+            RuntimeWarning,
         )
 
     return numeric_series.to_numpy()
@@ -439,7 +444,9 @@ def detrend_loess(
             # --- Block bootstrap to estimate trend uncertainty ---
             # If the seed is an integer, create a SeedSequence from it for robust
             # RNG creation. If it's already a SeedSequence, it will be used directly.
-            rng = np.random.default_rng(np.random.SeedSequence(seed) if isinstance(seed, int) else seed)
+            rng = np.random.default_rng(
+                np.random.SeedSequence(seed) if isinstance(seed, int) else seed
+            )
             if bootstrap_block_size is None:
                 # Rule-of-thumb for block size, with a minimum of 3.
                 block_size = max(3, int(np.ceil(num_valid ** (1 / 3))))
@@ -449,9 +456,7 @@ def detrend_loess(
             bootstrap_trends = np.zeros((n_bootstrap, num_valid))
             for i in range(n_bootstrap):
                 # Resample residuals using moving blocks to preserve autocorrelation
-                indices = _moving_block_bootstrap_indices(
-                    num_valid, block_size, rng
-                )
+                indices = _moving_block_bootstrap_indices(num_valid, block_size, rng)
                 resampled_residuals = residuals[indices]
 
                 # Create a synthetic dataset
@@ -571,6 +576,9 @@ def preprocess_data(
 
     # 4. Normalize
     if normalize_data:
-        processed_data, processed_errors = normalize(processed_data, processed_errors)
+        col_name = data_series.name if data_series.name is not None else "data_series"
+        processed_data, processed_errors = normalize(
+            processed_data, processed_errors, name=col_name
+        )
 
     return processed_data, processed_errors, diagnostics
