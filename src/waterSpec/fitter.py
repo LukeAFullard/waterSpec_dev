@@ -9,6 +9,8 @@ from scipy import stats
 from .preprocessor import _moving_block_bootstrap_indices
 from .utils import make_rng
 
+MIN_BOOTSTRAP_SAMPLES = 50
+
 try:
     import piecewise_regression
 except ImportError:
@@ -63,7 +65,7 @@ def fit_standard_model(
     ci_method: str = "bootstrap",
     bootstrap_type: str = "block",
     bootstrap_block_size: Optional[int] = None,
-    n_bootstraps: int = 200,
+    n_bootstraps: int = 2000,
     ci: int = 95,
     seed: Optional[np.random.SeedSequence] = None,
     logger: Optional[logging.Logger] = None,
@@ -335,7 +337,6 @@ def fit_standard_model(
                     )
                 continue
 
-        MIN_BOOTSTRAP_SAMPLES = 50  # Min samples for a reliable CI
         success_rate = len(beta_estimates) / n_bootstraps if n_bootstraps > 0 else 0
         MIN_SUCCESS_RATE = 0.5
 
@@ -668,7 +669,6 @@ def _bootstrap_segmented_fit(
                 )
             continue
 
-    MIN_BOOTSTRAP_SAMPLES = 50  # Min samples for a reliable CI
     success_rate = successful_fits / n_bootstraps if n_bootstraps > 0 else 0
     # Raise an error if the success rate is below 80%, as high failure rates
     # can lead to unreliable CIs.
@@ -872,7 +872,7 @@ def fit_segmented_spectrum(
     ci_method: str = "bootstrap",
     bootstrap_type: str = "block",
     bootstrap_block_size: Optional[int] = None,
-    n_bootstraps: int = 200,
+    n_bootstraps: int = 2000,
     ci: int = 95,
     seed: Optional[np.random.SeedSequence] = None,
     logger: Optional[logging.Logger] = None,

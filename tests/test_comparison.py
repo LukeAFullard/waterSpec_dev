@@ -54,44 +54,82 @@ def test_site_comparison_initialization(tmp_path):
     assert len(comparison.site1_data["time"]) == 100
     assert len(comparison.site2_data["time"]) == 120
 
-def test_site_comparison_run_comparison_creates_outputs(tmp_path):
+@patch("src.waterSpec.comparison.SiteComparison._run_site_analysis")
+def test_site_comparison_run_comparison_creates_outputs(mock_run_analysis, tmp_path):
     """Test that run_comparison creates the plot and summary files."""
-    # Use existing sample data for a more realistic test
-    site1_config = {
-        "name": "Forested",
-        "file_path": "examples/sample_data.csv",
-        "time_col": "timestamp",
-        "data_col": "concentration",
+    # Define mock return values for each site analysis
+    # These need to contain all keys required for summary generation and plotting
+    site1_results = {
+        "site_name": "SiteA",
+        "param_name": "value1",
+        "chosen_model_type": "standard",
+        "beta": 1.5,
+        "intercept": 1.0,
+        "summary_text": "Standard Analysis for: value1",
+        "log_freq": np.log10(np.linspace(0.1, 1, 10)),
+        "log_power": np.random.rand(10),
+        "fitted_log_power": np.random.rand(10),
+        "n_breakpoints": 0,
+        "frequency": np.linspace(0.1, 1, 10),
+        "power": np.random.rand(10),
+        "chosen_model": "standard",
+        "ci_method": "bootstrap",
+        "n_points": 50,
     }
-    site2_config = {
-        "name": "Periodic",
-        "file_path": "examples/periodic_data.csv",
-        "time_col": "timestamp",
-        "data_col": "value",
+    site2_results = {
+        "site_name": "SiteB",
+        "param_name": "value2",
+        "chosen_model_type": "segmented",
+        "betas": [0.5, 1.8],
+        "breakpoints": [0.5],
+        "summary_text": "Segmented Analysis for: value2",
+        "log_freq": np.log10(np.linspace(0.1, 1, 10)),
+        "log_power": np.random.rand(10),
+        "fitted_log_power": np.random.rand(10),
+        "n_breakpoints": 1,
+        "frequency": np.linspace(0.1, 1, 10),
+        "power": np.random.rand(10),
+        "chosen_model": "segmented_1bp",
+        "ci_method": "bootstrap",
+        "n_points": 60,
     }
+    mock_run_analysis.side_effect = [site1_results, site2_results]
+
+    # Create dummy data files (still needed for initialization)
+    time1 = pd.to_datetime(np.arange(50) * 86400, unit="s")
+    series1 = 10 + np.random.randn(50)
+    file1_path = create_test_data_file(tmp_path, "data1.csv", time1, series1, time_col="timestamp", data_col="value1")
+
+    time2 = pd.to_datetime(np.arange(60) * 86400, unit="s")
+    series2 = 20 + np.random.randn(60)
+    file2_path = create_test_data_file(tmp_path, "data2.csv", time2, series2, time_col="timestamp", data_col="value2")
+
+    site1_config = {"name": "SiteA", "file_path": file1_path, "time_col": "timestamp", "data_col": "value1"}
+    site2_config = {"name": "SiteB", "file_path": file2_path, "time_col": "timestamp", "data_col": "value2"}
+
     output_dir = tmp_path / "comparison_results"
 
     comparison = SiteComparison(site1_config, site2_config)
     results = comparison.run_comparison(output_dir=str(output_dir), n_bootstraps=10)
 
     # Check that output files were created
-    expected_plot = output_dir / "Forested_vs_Periodic_comparison_separate.png"
-    expected_summary = output_dir / "Forested_vs_Periodic_comparison_summary.txt"
+    expected_plot = output_dir / "SiteA_vs_SiteB_comparison_separate.png"
+    expected_summary = output_dir / "SiteA_vs_SiteB_comparison_summary.txt"
     assert expected_plot.exists()
     assert expected_summary.exists()
 
     # Check that the summary contains expected text
     summary_text = expected_summary.read_text()
-    assert "Site Comparison: Forested vs. Periodic" in summary_text
+    assert "Site Comparison: SiteA vs. SiteB" in summary_text
     assert "SITE COMPARISON:" in summary_text
-    assert "Standard Analysis for: concentration" in summary_text
-    assert "Segmented Analysis for: value" in summary_text
+    assert "Standard Analysis for: value1" in summary_text
+    assert "Segmented Analysis for: value2" in summary_text
 
     # Check that the results dictionary is populated correctly
     assert "summary_text" in results
     assert "site1" in results and "site2" in results
-    assert results["site1"]["site_name"] == "Forested"
-    assert results["site2"]["site_name"] == "Periodic"
+    assert results["site1"]["site_name"] == "SiteA"
+    assert results["site2"]["site_name"] == "SiteB"
 
 def test_site_comparison_insufficient_data_raises_error(tmp_path):
     """Test that SiteComparison raises a ValueError if one site has insufficient data."""

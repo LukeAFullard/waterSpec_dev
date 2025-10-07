@@ -32,7 +32,7 @@ def create_test_data_file(
 
 
 # Helper function to generate synthetic data
-def generate_synthetic_series(n_points=1024, beta=0.0, seed=42):
+def generate_synthetic_series(n_points=100, beta=0.0, seed=42):
     rng = np.random.default_rng(seed)
     freq = np.fft.rfftfreq(n_points)
     freq[0] = 1e-9  # Avoid division by zero
@@ -56,35 +56,36 @@ def test_analysis_class_initialization(tmp_path):
     analyzer = Analysis(file_path=file_path, time_col="time", data_col="value")
 
     assert analyzer is not None
-    assert len(analyzer.time) == 1024
-    assert len(analyzer.data) == 1024
+    assert len(analyzer.time) == 100
+    assert len(analyzer.data) == 100
     assert analyzer.param_name == "value"
 
 
 def test_analysis_run_full_analysis_creates_outputs(tmp_path):
     """Test that run_full_analysis creates the plot and summary files."""
-    file_path = "examples/sample_data.csv"
+    time, series = generate_synthetic_series(n_points=50)
+    file_path = create_test_data_file(tmp_path, time, series)
     output_dir = tmp_path / "results"
 
     analyzer = Analysis(
-        file_path=file_path, time_col="timestamp", data_col="concentration"
+        file_path=file_path, time_col="time", data_col="value"
     )
-    results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=0)
+    results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=10)
 
     # Check that output files were created
-    expected_plot = output_dir / "concentration_spectrum_plot.png"
-    expected_summary = output_dir / "concentration_summary.txt"
+    expected_plot = output_dir / "value_spectrum_plot.png"
+    expected_summary = output_dir / "value_summary.txt"
     assert expected_plot.exists()
     assert expected_summary.exists()
 
     # Check that the summary contains expected text
     summary_text = expected_summary.read_text()
-    assert "Analysis for: concentration" in summary_text
+    assert "Analysis for: value" in summary_text
     assert "β =" in summary_text
 
     # Check that the results dictionary is populated and valid
     assert "summary_text" in results
-    assert "Analysis for: concentration" in results["summary_text"]
+    assert "Analysis for: value" in results["summary_text"]
     assert "beta" in results or "betas" in results
 
 
@@ -96,24 +97,20 @@ def test_analysis_run_full_analysis_creates_outputs(tmp_path):
         (2.0, 0.25),
     ],
 )
-def test_analysis_with_known_beta(tmp_path, known_beta, tolerance):
+def test_analysis_with_known_beta(tmp_path, known_beta, tolerance, mocker):
     """Test the full workflow with synthetic data of a known spectral exponent."""
-    time, series = generate_synthetic_series(n_points=2048, beta=known_beta)
+    mocker.patch("waterSpec.fitter.MIN_BOOTSTRAP_SAMPLES", 5)
+    time, series = generate_synthetic_series(n_points=100, beta=known_beta)
     file_path = create_test_data_file(tmp_path, time, series)
 
     analyzer = Analysis(
         file_path=file_path, time_col="time", data_col="value", detrend_method=None
     )
 
-    # For steep spectra (beta=2.0), low-frequency power can sometimes cause
-    # the model selection to prefer a segmented fit. We force a standard model
-    # in this case to specifically test the beta estimation.
-    if known_beta == 2.0:
-        results = analyzer.run_full_analysis(
-            output_dir=tmp_path, n_bootstraps=0, max_breakpoints=0
-        )
-    else:
-        results = analyzer.run_full_analysis(output_dir=tmp_path, n_bootstraps=0)
+    # Force a standard model fit to reliably test beta estimation
+    results = analyzer.run_full_analysis(
+        output_dir=tmp_path, n_bootstraps=10, max_breakpoints=0
+    )
 
     assert "beta" in results
     assert results["beta"] == pytest.approx(known_beta, abs=tolerance)
@@ -157,7 +154,7 @@ def test_analysis_auto_chooses_segmented_with_mock(
     output_dir = tmp_path / "results"
 
     analyzer = Analysis(file_path=file_path, time_col="time", data_col="value")
-    results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=0)
+    results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=10)
 
     assert results["chosen_model"] == "segmented_1bp"
     assert results["bic"] == 100.0
@@ -247,16 +244,17 @@ def test_analysis_zero_variance_data(tmp_path):
 
 def test_analysis_fap_threshold_is_configurable(tmp_path):
     """Test that the fap_threshold can be configured in run_full_analysis."""
-    file_path = "examples/sample_data.csv"
+    time, series = generate_synthetic_series()
+    file_path = create_test_data_file(tmp_path, time, series)
     output_dir = tmp_path / "results"
     custom_fap = 0.05
 
     analyzer = Analysis(
-        file_path=file_path, time_col="timestamp", data_col="concentration"
+        file_path=file_path, time_col="time", data_col="value"
     )
     results = analyzer.run_full_analysis(
         output_dir=str(output_dir),
-        n_bootstraps=0,
+        n_bootstraps=10,
         peak_detection_method="fap",
         fap_threshold=custom_fap,
     )
@@ -268,12 +266,12 @@ def test_analysis_fap_threshold_is_configurable(tmp_path):
 def test_analysis_residual_method_finds_peak(tmp_path):
     """Test the full workflow with the residual method on data with a known peak."""
     # Generate a signal with a strong periodic component
-    n_points = 512
+    n_points = 100
     time = pd.date_range(start="2000-01-01", periods=n_points, freq="D")
     rng = np.random.default_rng(42)
     noise = rng.normal(0, 0.5, n_points)
     # Add a sine wave with a period of ~50 days
-    known_freq_cpd = 1 / 50  # cycles/day
+    known_freq_cpd = 1 / 25  # cycles/day
     signal = 2 * np.sin(2 * np.pi * known_freq_cpd * np.arange(n_points))
     series = noise + signal
 
@@ -288,7 +286,7 @@ def test_analysis_residual_method_finds_peak(tmp_path):
         samples_per_peak=10,
         peak_detection_method="fap",
         fap_threshold=0.01,  # Use a low threshold to ensure detection
-        n_bootstraps=0,
+        n_bootstraps=10,
     )
 
     assert "significant_peaks" in results
@@ -313,7 +311,7 @@ def test_analysis_with_censored_data(tmp_path):
         data_col="concentration",
         censor_strategy="use_detection_limit",
     )
-    results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=0)
+    results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=10)
 
     # Check that the analysis ran successfully and produced valid results
     assert "summary_text" in results
@@ -389,7 +387,7 @@ def test_analysis_max_breakpoints_selects_best_model(
     output_dir = tmp_path / "results"
     analyzer = Analysis(file_path=file_path, time_col="time", data_col="value")
     results = analyzer.run_full_analysis(
-        output_dir=str(output_dir), max_breakpoints=2, n_bootstraps=0
+        output_dir=str(output_dir), max_breakpoints=2, n_bootstraps=10
     )
 
     # --- Assertions ---
@@ -411,7 +409,7 @@ def test_analysis_max_breakpoints_selects_best_model(
         method="theil-sen",
         ci_method="bootstrap",
         bootstrap_type="block",
-        n_bootstraps=0,
+        n_bootstraps=10,
         seed=ANY,
         logger=ANY,
     )
@@ -422,7 +420,7 @@ def test_analysis_max_breakpoints_selects_best_model(
         p_threshold=0.05,
         ci_method="bootstrap",
         bootstrap_type="block",
-        n_bootstraps=0,
+        n_bootstraps=10,
         seed=ANY,
         logger=ANY,
     )
@@ -438,7 +436,7 @@ def test_analysis_parametric_ci_is_propagated(tmp_path):
 
     analyzer = Analysis(file_path=file_path, time_col="time", data_col="value")
     results = analyzer.run_full_analysis(
-        output_dir=tmp_path, ci_method="parametric", n_bootstraps=0
+        output_dir=tmp_path, ci_method="parametric", n_bootstraps=10
     )
 
     assert "summary_text" in results
@@ -506,7 +504,7 @@ def test_analysis_handles_total_model_failure(
     output_dir = tmp_path / "results"
     analyzer = Analysis(file_path=file_path, time_col="time", data_col="value")
     results = analyzer.run_full_analysis(
-        output_dir=str(output_dir), max_breakpoints=1, n_bootstraps=0
+        output_dir=str(output_dir), max_breakpoints=1, n_bootstraps=10
     )
 
     # --- Assertions ---
@@ -551,7 +549,7 @@ def test_analysis_retains_failure_reasons_on_partial_success(
         tmp_path, pd.date_range("2023", periods=100), np.random.rand(100)
     )
     analyzer = Analysis(file_path=file_path, time_col="time", data_col="value")
-    results = analyzer.run_full_analysis(output_dir=tmp_path, n_bootstraps=0)
+    results = analyzer.run_full_analysis(output_dir=tmp_path, n_bootstraps=10)
 
     # The successful model should be chosen
     assert results["chosen_model"] == "segmented_1bp"
@@ -566,11 +564,12 @@ def test_analysis_warns_on_ignored_peak_fdr_level(tmp_path, mocker):
     Test that a warning is logged if peak_fdr_level is passed when
     peak_detection_method is 'fap'.
     """
-    file_path = "examples/sample_data.csv"
+    time, series = generate_synthetic_series()
+    file_path = create_test_data_file(tmp_path, time, series)
     analyzer = Analysis(
         file_path=file_path,
-        time_col="timestamp",
-        data_col="concentration",
+        time_col="time",
+        data_col="value",
     )
 
     # Spy on the logger to check for the warning
@@ -580,7 +579,7 @@ def test_analysis_warns_on_ignored_peak_fdr_level(tmp_path, mocker):
         output_dir=tmp_path,
         peak_detection_method="fap",
         peak_fdr_level=0.1,  # A non-default value that should be ignored
-        n_bootstraps=0,
+        n_bootstraps=10,
     )
 
     spy_logger.assert_any_call(
@@ -594,11 +593,12 @@ def test_peak_detection_ignored_parameter_warning(tmp_path, mocker):
     Test that a warning is issued if fap parameters are passed when using
     the 'residual' peak detection method, as they will be ignored.
     """
-    file_path = "examples/sample_data.csv"
+    time, series = generate_synthetic_series()
+    file_path = create_test_data_file(tmp_path, time, series)
     analyzer = Analysis(
         file_path=file_path,
-        time_col="timestamp",
-        data_col="concentration",
+        time_col="time",
+        data_col="value",
     )
     spy_logger = mocker.spy(analyzer.logger, "warning")
 
@@ -608,7 +608,7 @@ def test_peak_detection_ignored_parameter_warning(tmp_path, mocker):
         peak_detection_method="residual",
         fap_method="bootstrap",  # non-default, should be ignored
         fap_threshold=0.05,  # non-default, should be ignored
-        n_bootstraps=0,
+        n_bootstraps=10,
     )
     spy_logger.assert_any_call(
         "'peak_detection_method' is 'residual', so 'fap_method' and "

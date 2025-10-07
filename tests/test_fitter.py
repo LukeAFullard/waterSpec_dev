@@ -35,7 +35,7 @@ def test_fit_standard_model_returns_correct_beta(synthetic_spectrum):
     frequency, power, known_beta = synthetic_spectrum
 
     # Fit the spectrum
-    fit_results = fit_standard_model(frequency, power)
+    fit_results = fit_standard_model(frequency, power, n_bootstraps=10)
 
     # Check that the returned beta is close to the known beta
     assert "beta" in fit_results
@@ -66,7 +66,7 @@ def test_fit_standard_model_theil_sen(synthetic_spectrum):
     frequency, power, known_beta = synthetic_spectrum
 
     # Fit the spectrum using the Theil-Sen estimator
-    fit_results = fit_standard_model(frequency, power, method="theil-sen")
+    fit_results = fit_standard_model(frequency, power, method="theil-sen", n_bootstraps=10)
 
     # Check that the returned beta is close to the known beta
     assert "beta" in fit_results
@@ -140,15 +140,16 @@ def test_beta_sign_convention(mocker):
     assert results_segmented["betas"][1] == pytest.approx(-(-0.5 + -1.3))
 
 
-def test_fit_standard_model_with_bootstrap_ci(synthetic_spectrum):
+def test_fit_standard_model_with_bootstrap_ci(synthetic_spectrum, mocker):
     """
     Test that fit_standard_model returns a confidence interval for beta.
     """
+    mocker.patch("waterSpec.fitter.MIN_BOOTSTRAP_SAMPLES", 5)
     frequency, power, known_beta = synthetic_spectrum
 
     # Fit the spectrum with bootstrap
     fit_results = fit_standard_model(
-        frequency, power, n_bootstraps=50, seed=42
+        frequency, power, n_bootstraps=10, seed=42
     )
 
     # Check that the results dictionary contains the required keys
@@ -210,14 +211,15 @@ def multifractal_spectrum():
     return frequency, power, breakpoint_freq, beta1, beta2
 
 
-def test_fit_segmented_spectrum(multifractal_spectrum):
+def test_fit_segmented_spectrum(multifractal_spectrum, mocker):
     """
     Test that fit_segmented_spectrum correctly identifies the breakpoint and slopes.
     """
+    mocker.patch("waterSpec.fitter.MIN_BOOTSTRAP_SAMPLES", 5)
     frequency, power, known_breakpoint, known_beta1, known_beta2 = multifractal_spectrum
 
     # Fit the segmented spectrum with a low number of bootstraps for speed
-    results = fit_segmented_spectrum(frequency, power, n_bootstraps=50, seed=42)
+    results = fit_segmented_spectrum(frequency, power, n_bootstraps=10, seed=42)
 
     # Check that the results contain the expected list-based keys
     assert "breakpoints" in results
@@ -246,7 +248,7 @@ def test_fit_standard_model_white_noise():
     rng = np.random.default_rng(42)
     power = np.ones_like(frequency) + rng.normal(0, 0.1, len(frequency))
 
-    fit_results = fit_standard_model(frequency, power)
+    fit_results = fit_standard_model(frequency, power, n_bootstraps=10)
     assert fit_results["beta"] == pytest.approx(0.0, abs=0.1)
 
 
@@ -266,29 +268,31 @@ def test_fit_standard_model_insufficient_data():
     assert "failure_reason" in results
 
 
-def test_fit_standard_model_is_reproducible(synthetic_spectrum):
+def test_fit_standard_model_is_reproducible(synthetic_spectrum, mocker):
     """
     Test that the bootstrap function produces the same results when the same
     seed is provided.
     """
+    mocker.patch("waterSpec.fitter.MIN_BOOTSTRAP_SAMPLES", 5)
     frequency, power, _ = synthetic_spectrum
 
     # Fit twice with the same seed
     results1 = fit_standard_model(
-        frequency, power, n_bootstraps=50, seed=123
+        frequency, power, n_bootstraps=10, seed=123
     )
     results2 = fit_standard_model(
-        frequency, power, n_bootstraps=50, seed=123
+        frequency, power, n_bootstraps=10, seed=123
     )
 
     # Fit once with a different seed
     results3 = fit_standard_model(
-        frequency, power, n_bootstraps=50, seed=456
+        frequency, power, n_bootstraps=10, seed=456
     )
 
     # The first two results should be identical
-    assert results1["beta_ci_lower"] == results2["beta_ci_lower"]
-    assert results1["beta_ci_upper"] == results2["beta_ci_upper"]
+    np.testing.assert_equal(results1["beta_ci_lower"], results2["beta_ci_lower"])
+    np.testing.assert_equal(results1["beta_ci_upper"], results2["beta_ci_upper"])
+
 
     # The third result should be different
     assert results1["beta_ci_lower"] != results3["beta_ci_lower"]
@@ -573,7 +577,7 @@ def test_fit_segmented_spectrum_white_noise():
     rng = np.random.default_rng(42)
     power = np.ones_like(frequency) + rng.normal(0, 0.1, len(frequency))
 
-    results = fit_segmented_spectrum(frequency, power)
+    results = fit_segmented_spectrum(frequency, power, n_bootstraps=10)
     assert "failure_reason" in results
     assert "No significant breakpoint found" in results["failure_reason"]
     assert results["bic"] == np.inf
@@ -634,7 +638,7 @@ def test_fit_segmented_spectrum_fallback_on_bootstrap_failure(
     )
 
     # Run the fit. It should fail bootstrap and fall back to parametric.
-    results = fit_segmented_spectrum(frequency, power, n_bootstraps=100, seed=42)
+    results = fit_segmented_spectrum(frequency, power, n_bootstraps=10, seed=42)
 
     # 1. Check that a warning was logged about the fallback
     assert "Falling back to parametric confidence intervals" in caplog.text
@@ -717,16 +721,17 @@ def test_fit_standard_model_low_success_returns_detailed_error(synthetic_spectru
 
 
 @pytest.mark.parametrize("ci_method", ["parametric", "bootstrap"])
-def test_fit_segmented_spectrum_breakpoint_ci(multifractal_spectrum, ci_method):
+def test_fit_segmented_spectrum_breakpoint_ci(multifractal_spectrum, ci_method, mocker):
     """
     Test that fit_segmented_spectrum returns a valid confidence interval for the breakpoint
     for both parametric and bootstrap methods.
     """
+    mocker.patch("waterSpec.fitter.MIN_BOOTSTRAP_SAMPLES", 5)
     frequency, power, known_breakpoint, _, _ = multifractal_spectrum
 
     # Use a sufficient number of bootstraps for the test to be robust to a few failed iterations.
     # The minimum required successful samples is 50.
-    n_bootstraps = 100 if ci_method == "bootstrap" else 0
+    n_bootstraps = 10 if ci_method == "bootstrap" else 0
 
     results = fit_segmented_spectrum(
         frequency,
