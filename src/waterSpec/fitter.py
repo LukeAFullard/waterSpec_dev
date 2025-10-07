@@ -64,7 +64,7 @@ def fit_standard_model(
     bootstrap_block_size: Optional[int] = None,
     n_bootstraps: int = 200,
     ci: int = 95,
-    seed: Optional[int] = None,
+    seed: Optional[np.random.SeedSequence] = None,
     logger: Optional[logging.Logger] = None,
 ) -> Dict:
     """
@@ -246,7 +246,9 @@ def fit_standard_model(
                     "bootstrap if autocorrelation or heteroscedasticity is suspected."
                 )
 
-        rng = np.random.default_rng(seed)
+        # If the seed is an integer, create a SeedSequence from it for robust
+        # RNG creation. If it's already a SeedSequence, it will be used directly.
+        rng = np.random.default_rng(np.random.SeedSequence(seed) if isinstance(seed, int) else seed)
         beta_estimates = []
         n_points = len(log_freq)
         error_counts = {}
@@ -467,7 +469,7 @@ def _bootstrap_segmented_fit(
     log_power,
     n_bootstraps,
     ci,
-    seed,
+    seed: Optional[np.random.SeedSequence] = None,
     bootstrap_type="block",
     bootstrap_block_size: Optional[int] = None,
     logger=None,
@@ -478,7 +480,9 @@ def _bootstrap_segmented_fit(
     """
     logger = logger or logging.getLogger(__name__)
     n_breakpoints = pw_fit.n_breakpoints
-    rng = np.random.default_rng(seed)
+    # If the seed is an integer, create a SeedSequence from it for robust
+    # RNG creation. If it's already a SeedSequence, it will be used directly.
+    rng = np.random.default_rng(np.random.SeedSequence(seed) if isinstance(seed, int) else seed)
     n_points = len(log_freq)
 
     bootstrap_betas = [[] for _ in range(n_breakpoints + 1)]
@@ -870,7 +874,7 @@ def fit_segmented_spectrum(
     bootstrap_block_size: Optional[int] = None,
     n_bootstraps: int = 200,
     ci: int = 95,
-    seed: Optional[int] = None,
+    seed: Optional[np.random.SeedSequence] = None,
     logger: Optional[logging.Logger] = None,
 ) -> Dict:
     """

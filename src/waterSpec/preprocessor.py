@@ -313,7 +313,7 @@ def detrend_loess(
     frac: float = 0.5,
     n_bootstrap: int = 0,
     bootstrap_block_size: Optional[int] = None,
-    seed: Optional[int] = None,
+    seed: Optional[np.random.SeedSequence] = None,
     **kwargs,
 ) -> Tuple[np.ndarray, Optional[np.ndarray], Dict]:
     """
@@ -393,7 +393,9 @@ def detrend_loess(
         errors_valid = propagated_errors[valid_indices]
         if n_bootstrap > 0:
             # --- Block bootstrap to estimate trend uncertainty ---
-            rng = np.random.default_rng(seed)
+            # If the seed is an integer, create a SeedSequence from it for robust
+            # RNG creation. If it's already a SeedSequence, it will be used directly.
+            rng = np.random.default_rng(np.random.SeedSequence(seed) if isinstance(seed, int) else seed)
             if bootstrap_block_size is None:
                 # Rule-of-thumb for block size, with a minimum of 3.
                 block_size = max(3, int(np.ceil(num_valid ** (1 / 3))))

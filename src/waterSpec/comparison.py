@@ -159,15 +159,26 @@ class SiteComparison:
             "seed": seed,
         }
 
+        # If a seed is provided, spawn two independent child seeds for the two
+        # sites to ensure that their bootstrap analyses are independent.
+        if seed is not None:
+            ss = np.random.SeedSequence(seed)
+            child_seeds = ss.spawn(2)
+            site1_seed = child_seeds[0]
+            site2_seed = child_seeds[1]
+        else:
+            site1_seed = None
+            site2_seed = None
+
         # Analyze each site
         self.logger.info(f"Analyzing site: {self.site1_name}...")
         results_site1 = self._run_site_analysis(
-            self.site1_data, self.site1_name, analysis_kwargs
+            self.site1_data,
+            self.site1_name,
+            {**analysis_kwargs, "seed": site1_seed},
         )
 
         self.logger.info(f"Analyzing site: {self.site2_name}...")
-        # Use a different seed for the second site if a seed is provided
-        site2_seed = (seed + 1) if seed is not None else None
         results_site2 = self._run_site_analysis(
             self.site2_data,
             self.site2_name,
@@ -325,7 +336,17 @@ class SiteComparison:
         """Performs fits and selects the best model using BIC."""
         all_models = []
 
-        # Standard model
+        # If a seed is provided, create a SeedSequence to generate independent
+        # seeds for each model. This is crucial for reproducible and
+        # independent bootstrap resampling across different models.
+        if seed is not None:
+            ss = np.random.SeedSequence(seed)
+            # We are fitting up to `max_breakpoints` + 1 models (standard, 1bp, 2bp, etc.)
+            child_seeds = ss.spawn(max_breakpoints + 1)
+        else:
+            child_seeds = [None] * (max_breakpoints + 1)
+
+        # Re-fit the standard model with the correct child seed
         try:
             standard_results = fit_standard_model(
                 frequency, power,
@@ -333,7 +354,7 @@ class SiteComparison:
                 ci_method=ci_method,
                 bootstrap_type=bootstrap_type,
                 n_bootstraps=n_bootstraps,
-                seed=seed,
+                seed=child_seeds[0],  # Use the first child seed
                 logger=self.logger,
             )
             if "bic" in standard_results and np.isfinite(standard_results["bic"]):
@@ -345,7 +366,8 @@ class SiteComparison:
         # Segmented models
         for n_bp in range(1, max_breakpoints + 1):
             try:
-                model_seed = seed + n_bp if seed is not None else None
+                # Spawn a new seed for each model to ensure independent bootstrap samples.
+                model_seed = child_seeds[n_bp]
                 seg_results = fit_segmented_spectrum(
                     frequency, power, n_breakpoints=n_bp,
                     p_threshold=p_threshold,
