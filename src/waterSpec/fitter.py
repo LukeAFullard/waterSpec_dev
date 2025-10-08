@@ -117,6 +117,19 @@ def fit_standard_model(
         raise TypeError("Input 'frequency' and 'power' must be numpy arrays.")
     if frequency.shape != power.shape:
         raise ValueError("'frequency' and 'power' must have the same shape.")
+
+    # Pre-fit check for non-finite values in inputs
+    finite_mask = np.isfinite(frequency) & np.isfinite(power)
+    if not np.all(finite_mask):
+        n_total = len(frequency)
+        n_non_finite = n_total - np.sum(finite_mask)
+        logger.warning(
+            f"Input arrays contain {n_non_finite}/{n_total} non-finite "
+            f"values, which will be ignored."
+        )
+        frequency = frequency[finite_mask]
+        power = power[finite_mask]
+
     if not np.all(np.isfinite(frequency)) or not np.all(np.isfinite(power)):
         raise ValueError("Input arrays must contain finite values.")
     if n_bootstraps < 0:
@@ -227,6 +240,19 @@ def fit_standard_model(
 
     # 4. Calculate Confidence Intervals
     residuals = log_power - log_power_fit
+
+    # BUG #1 FIX: Validate residuals before bootstrap
+    if not np.all(np.isfinite(residuals)):
+        msg = "Residuals contain non-finite values; cannot perform bootstrap."
+        logger.error(msg)
+        # ensure consistent result dict keys (match successful return)
+        fit_results.setdefault("beta", np.nan)
+        fit_results["beta_ci_lower"] = np.nan
+        fit_results["beta_ci_upper"] = np.nan
+        fit_results["failure_reason"] = "non_finite_residuals"
+        fit_results["ci_computed"] = False
+        return fit_results
+
     beta_ci_lower, beta_ci_upper = np.nan, np.nan
     if ci_method == "bootstrap":
         # Check for autocorrelation in residuals if using residual bootstrap
@@ -971,6 +997,19 @@ def fit_segmented_spectrum(
         raise TypeError("Input 'frequency' and 'power' must be numpy arrays.")
     if frequency.shape != power.shape:
         raise ValueError("'frequency' and 'power' must have the same shape.")
+
+    # Pre-fit check for non-finite values in inputs
+    finite_mask = np.isfinite(frequency) & np.isfinite(power)
+    if not np.all(finite_mask):
+        n_total = len(frequency)
+        n_non_finite = n_total - np.sum(finite_mask)
+        logger.warning(
+            f"Input arrays contain {n_non_finite}/{n_total} non-finite "
+            f"values, which will be ignored."
+        )
+        frequency = frequency[finite_mask]
+        power = power[finite_mask]
+
     if not np.all(np.isfinite(frequency)) or not np.all(np.isfinite(power)):
         raise ValueError("Input arrays must contain finite values.")
     if bootstrap_type not in ["pairs", "residuals", "block", "wild"]:
@@ -1236,6 +1275,17 @@ def fit_segmented_spectrum(
             )
     results["spearman_corr_log_freq"] = spearman_corr_log_freq
     results["spearman_corr_freq"] = spearman_corr_freq
+
+    # BUG #1 FIX: Validate residuals before bootstrap
+    if not np.all(np.isfinite(residuals)):
+        logger.error("Residuals contain non-finite values; cannot perform bootstrap.")
+        results.setdefault("betas", [np.nan] * (n_breakpoints + 1))
+        results["betas_ci"] = [(np.nan, np.nan)] * (n_breakpoints + 1)
+        results["breakpoints_ci"] = [(np.nan, np.nan)] * max(0, n_breakpoints)
+        results["failure_reason"] = "non_finite_residuals"
+        results["ci_computed"] = False
+        # Returning is safest to avoid downstream assumptions
+        return results
 
     # --- Calculate Confidence Intervals based on the chosen method ---
     if ci_method == "bootstrap":

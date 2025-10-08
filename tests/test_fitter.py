@@ -807,3 +807,88 @@ def test_fit_segmented_spectrum_davies_p_value_is_none(multifractal_spectrum, mo
         in results["failure_reason"]
     )
     assert "breakpoints" not in results  # The fit details should not be present
+
+
+def test_fit_standard_model_handles_non_finite_residuals(synthetic_spectrum, mocker, caplog):
+    """
+    Test that fit_standard_model correctly handles non-finite residuals
+    by returning a consistent failure state without crashing.
+    """
+    frequency, power, _ = synthetic_spectrum
+
+    # Mock the underlying scipy fit to return a NaN slope, which will in turn
+    # create non-finite residuals and trigger the validation check.
+    from collections import namedtuple
+    LinregressResult = namedtuple(
+        "LinregressResult", ["slope", "intercept", "rvalue", "pvalue", "stderr"]
+    )
+    # A NaN slope is a realistic outcome from a numerical failure.
+    mock_result = LinregressResult(np.nan, 1.0, np.nan, np.nan, np.nan)
+    mocker.patch("waterSpec.fitter.stats.linregress", return_value=mock_result)
+
+    # Run the fit. This should now trigger the non-finite residual check.
+    results = fit_standard_model(frequency, power, method="ols")
+
+    # 1. Assert that the function returned a dictionary with the expected failure state.
+    assert isinstance(results, dict)
+    assert results.get("failure_reason") == "non_finite_residuals"
+    assert results.get("ci_computed") is False
+
+    # 2. Assert that CIs are NaN as expected.
+    assert np.isnan(results.get("beta_ci_lower"))
+    assert np.isnan(results.get("beta_ci_upper"))
+
+    # 3. Assert that an informative error was logged.
+    assert "Residuals contain non-finite values" in caplog.text
+
+
+def test_fit_segmented_spectrum_handles_non_finite_residuals(multifractal_spectrum, mocker, caplog):
+    """
+    Test that fit_segmented_spectrum correctly handles non-finite residuals
+    by returning a consistent failure state without crashing.
+    """
+    frequency, power, _, _, _ = multifractal_spectrum
+
+    # Mock the piecewise_regression.Fit object
+    mock_fit_result = mocker.MagicMock()
+    mock_fit_result.davies = 0.01  # Significant breakpoint
+    mock_fit_result.get_results.return_value = {
+        "converged": True,
+        "bic": 100,
+        "r_squared": 0.9,
+        "estimates": {
+            "breakpoint1": {"estimate": np.log10(0.1)},
+            "alpha1": {"estimate": -0.5},
+            "beta1": {"estimate": -1.3},
+            "const": {"estimate": 1.0},
+        },
+    }
+    mock_fit_result.summary.return_value = "Mock Summary"
+    mock_fit_result.n_breakpoints = 1
+
+    # This is the key part of the test: we mock the `predict` method to return
+    # an array containing a NaN. This will cause the residuals to be non-finite.
+    valid_indices = (frequency > 0) & (power > 0)
+    log_freq = np.log10(frequency[valid_indices])
+    predictions_with_nan = np.zeros_like(log_freq)
+    predictions_with_nan[len(predictions_with_nan) // 2] = np.nan  # Inject a NaN
+    mock_fit_result.predict.return_value = predictions_with_nan
+
+    mocker.patch(
+        "waterSpec.fitter.piecewise_regression.Fit", return_value=mock_fit_result
+    )
+
+    # Run the fit. This should now trigger the non-finite residual check.
+    results = fit_segmented_spectrum(frequency, power, n_breakpoints=1)
+
+    # 1. Assert that the function returned a dictionary with the expected failure state.
+    assert isinstance(results, dict)
+    assert results.get("failure_reason") == "non_finite_residuals"
+    assert results.get("ci_computed") is False
+
+    # 2. Assert that CIs are NaN tuples as expected.
+    assert results.get("betas_ci") == [(np.nan, np.nan)] * 2
+    assert results.get("breakpoints_ci") == [(np.nan, np.nan)]
+
+    # 3. Assert that an informative error was logged.
+    assert "Residuals contain non-finite values" in caplog.text
