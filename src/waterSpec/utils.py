@@ -36,3 +36,13 @@ def make_rng(seed=None):
             f"Invalid seed type: {type(seed)}. Must be an int, "
             "np.random.SeedSequence, or np.random.Generator."
         )
+
+
+def spawn_generators(master_seed, n_children):
+    import numpy as np
+    from numpy.random import SeedSequence
+    if isinstance(master_seed, SeedSequence):
+        ss = master_seed
+    else:
+        ss = SeedSequence(master_seed)
+    return [np.random.default_rng(s) for s in ss.spawn(n_children)]

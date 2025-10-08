@@ -4,10 +4,11 @@ import warnings
 from typing import Dict, Optional
 
 import numpy as np
+from numpy.random import SeedSequence
 from scipy import stats
 
 from .preprocessor import _moving_block_bootstrap_indices
-from .utils import make_rng
+from .utils import make_rng, spawn_generators
 
 MIN_BOOTSTRAP_SAMPLES = 50
 
@@ -900,6 +901,7 @@ def _extract_parametric_segmented_cis(
     return {"betas_ci": betas_ci, "breakpoints_ci": breakpoints_ci}
 
 
+
 def fit_segmented_spectrum(
     frequency: np.ndarray,
     power: np.ndarray,
@@ -976,7 +978,13 @@ def fit_segmented_spectrum(
         represent a statistically significant improvement. Users should interpret
         multi-breakpoint models with caution and consider the physical context.
     """
-    logger = logger or logging.getLogger(__name__)
+    if logger is None:
+        import logging
+        logger = logging.getLogger(__name__)
+
+    # --- RNG setup: create a master SeedSequence and spawn child RNGs ---
+    rng_seg_bootstrap, rng_std_fallback = spawn_generators(seed, 2)
+    # --------------------------------------------------------------------
 
     # Ensure frequency and power are sorted by frequency.
     # This prevents issues with downstream operations that assume sorted data.
@@ -998,7 +1006,7 @@ def fit_segmented_spectrum(
             ci_method=ci_method,
             n_bootstraps=n_bootstraps,
             ci=ci,
-            seed=seed,
+            seed=rng_std_fallback,
             logger=logger,
         )
 
@@ -1325,7 +1333,7 @@ def fit_segmented_spectrum(
                     log_power,
                     n_bootstraps,
                     ci,
-                    seed,
+                    rng_seg_bootstrap,
                     bootstrap_type=bootstrap_type,
                     bootstrap_block_size=bootstrap_block_size,
                     logger=logger,

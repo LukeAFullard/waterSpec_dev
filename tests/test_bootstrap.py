@@ -211,3 +211,10 @@ def test_ci_coverage(mocker):
     # We expect the coverage to be close to 95%.
     # Allow for a wider margin due to the small number of simulations.
     assert ci_level - 45 < coverage < ci_level + 5, f"CI coverage ({coverage}%) is outside the expected range."
+
+
+def test_spawned_rngs_are_independent():
+    from waterSpec.utils import spawn_generators
+    rng1, rng2 = spawn_generators(42, 2)
+    # same master seed, but should produce different first draws
+    assert rng1.integers(0, 100000) != rng2.integers(0, 100000)
