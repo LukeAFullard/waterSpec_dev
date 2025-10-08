@@ -56,6 +56,76 @@ def test_analysis_class_initialization(tmp_path):
     analyzer = Analysis(file_path=file_path, time_col="time", data_col="value")
 
     assert analyzer is not None
+
+
+@pytest.mark.parametrize(
+    "changepoint_mode, min_valid_data, cp_opts, expected_min_size, warn_msg_part",
+    [
+        # Scenario 1: min_size is too small, should be increased and warn
+        ("auto", 30, {"min_size": 20}, 30, "Increasing changepoint min_size from 20 to 30"),
+        # Scenario 2: min_size is not provided, should be set and not warn
+        ("auto", 30, {}, 30, None),
+        # Scenario 3: min_size is sufficient, should not be changed
+        ("auto", 30, {"min_size": 40}, 40, None),
+        # Scenario 4: Mode is not 'auto', so options should not be changed
+        ("manual", 30, {"min_size": 10}, 10, None),
+        # Scenario 5: min_size is None, should be set to the required minimum
+        ("auto", 25, {"min_size": None}, 25, None),
+        # Scenario 6: min_size is an invalid string, should be set and warn
+        ("auto", 35, {"min_size": "invalid"}, 35, "Invalid 'min_size' value 'invalid' provided"),
+        # Scenario 7: min_size is a float, gets truncated and then increased, with a warning
+        ("auto", 35, {"min_size": 12.5}, 35, "Increasing changepoint min_size from 12 to 35"),
+    ],
+)
+def test_analysis_adjusts_changepoint_min_size(
+    tmp_path,
+    mocker,
+    changepoint_mode,
+    min_valid_data,
+    cp_opts,
+    expected_min_size,
+    warn_msg_part,
+):
+    """
+    Test that the Analysis class correctly adjusts the changepoint min_size
+    to ensure it meets the minimum requirements for spectral analysis, but
+    only when in 'auto' mode.
+    """
+    time, series = generate_synthetic_series(n_points=100)
+    file_path = create_test_data_file(tmp_path, time, series)
+
+    # Patch the logger to capture any warnings issued during initialization
+    mock_logger = mocker.patch("waterSpec.analysis.logging.getLogger").return_value
+
+    # Initialize the Analysis class with the test parameters
+    init_kwargs = {
+        "file_path": file_path,
+        "time_col": "time",
+        "data_col": "value",
+        "min_valid_data_points": min_valid_data,
+        "changepoint_mode": changepoint_mode,
+        "changepoint_options": cp_opts.copy(),  # Pass a copy to avoid mutation issues
+    }
+    # Add changepoint_index if mode is 'manual' to satisfy constructor validation
+    if changepoint_mode == "manual":
+        init_kwargs["changepoint_index"] = 50  # A valid index for 100 data points
+
+    analyzer = Analysis(**init_kwargs)
+
+    # Verify the outcome
+    if changepoint_mode == "auto":
+        assert analyzer.changepoint_options.get("min_size") == expected_min_size
+    else:
+        # If not in 'auto' mode, the original options should remain untouched
+        assert analyzer.changepoint_options.get("min_size") == cp_opts.get("min_size")
+
+    # Check if a warning was logged, as expected
+    if warn_msg_part:
+        mock_logger.warning.assert_called_once()
+        call_args, _ = mock_logger.warning.call_args
+        assert warn_msg_part in call_args[0]
+    else:
+        mock_logger.warning.assert_not_called()
     assert len(analyzer.time) == 100
     assert len(analyzer.data) == 100
     assert analyzer.param_name == "value"
