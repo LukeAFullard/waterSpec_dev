@@ -221,6 +221,31 @@ class Analysis:
         self.changepoint_index = changepoint_index
         self.changepoint_options = changepoint_options or {}
 
+        # Ensure changepoint detector respects spectral analysis minimums
+        if self.changepoint_mode == "auto":
+            self.changepoint_options = dict(self.changepoint_options or {}) # Ensure it's a mutable dict
+            required_min = int(self.min_valid_data_points)
+            current_min_size_raw = self.changepoint_options.get("min_size")
+            current_min_size = None
+
+            if current_min_size_raw is not None:
+                try:
+                    current_min_size = int(current_min_size_raw)
+                except (ValueError, TypeError):
+                     self.logger.warning(
+                        f"Invalid 'min_size' value '{current_min_size_raw}' provided. "
+                        f"Ignoring and setting to {required_min}."
+                    )
+                     current_min_size = None
+
+            if current_min_size is None or current_min_size < required_min:
+                if current_min_size is not None:
+                    self.logger.warning(
+                        f"Increasing changepoint min_size from {current_min_size} to "
+                        f"{required_min} to ensure viable segments for spectral analysis."
+                    )
+                self.changepoint_options["min_size"] = required_min
+
         if changepoint_mode not in ["none", "auto", "manual"]:
             raise ValueError("`changepoint_mode` must be 'none', 'auto', or 'manual'.")
         if changepoint_mode == "manual":
