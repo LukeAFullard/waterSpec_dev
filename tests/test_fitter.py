@@ -211,6 +211,24 @@ def multifractal_spectrum():
     return frequency, power, breakpoint_freq, beta1, beta2
 
 
+@pytest.fixture
+def mock_pw_fit(mocker):
+    """Provides a mock piecewise_regression.Fit object with valid initial estimates."""
+    mock_fit = mocker.MagicMock()
+    mock_fit.n_breakpoints = 1
+    mock_fit.get_results.return_value = {
+        "estimates": {
+            "breakpoint1": {"estimate": 0.0},
+            "alpha1": {"estimate": -1.0},
+            "beta1": {"estimate": -1.0},
+            "const": {"estimate": 1.0},
+        }
+    }
+    # The initial predict call needs to return something valid for residual bootstrap
+    mock_fit.predict.return_value = np.ones(100)
+    return mock_fit
+
+
 def test_fit_segmented_spectrum(multifractal_spectrum, mocker):
     """
     Test that fit_segmented_spectrum correctly identifies the breakpoint and slopes.
@@ -840,6 +858,94 @@ def test_fit_standard_model_handles_non_finite_residuals(synthetic_spectrum, moc
 
     # 3. Assert that an informative error was logged.
     assert "Residuals contain non-finite values" in caplog.text
+
+
+def test_bootstrap_segmented_fit_handles_bad_predictions(mocker, mock_pw_fit, caplog):
+    """
+    Test that _bootstrap_segmented_fit handles various malformed outputs from
+    the predict method, such as None, wrong length, or wrong dimensions.
+    """
+    from waterSpec.fitter import _bootstrap_segmented_fit
+    import logging
+
+    caplog.set_level(logging.DEBUG)
+    n_points = 100
+    log_freq = np.linspace(1, 2, n_points)
+    log_power = np.linspace(1, 2, n_points)
+    n_bootstraps = 10
+
+    # This is the correctly shaped prediction for successful iterations
+    good_prediction = np.ones(n_points)
+    # This is the mocked bootstrap fit object that will be returned on each iteration
+    mock_bootstrap_fit_obj = mocker.MagicMock()
+    # The bootstrap loop also checks for convergence and estimates
+    mock_bootstrap_fit_obj.get_results.return_value = {
+        "converged": True,
+            "estimates": {
+                "alpha1": {"estimate": -1.0},
+                "beta1": {"estimate": -0.5},
+                "breakpoint1": {"estimate": 0.1},
+            },
+    }
+    mocker.patch(
+        "waterSpec.fitter.piecewise_regression.Fit",
+        return_value=mock_bootstrap_fit_obj,
+    )
+
+    # --- Scenario 1: All iterations produce wrong-length arrays ---
+    mock_bootstrap_fit_obj.predict.return_value = np.ones(n_points - 1)
+    mock_bootstrap_fit_obj.predict.side_effect = None  # Clear side effect from previous runs
+
+    results_all_fail = _bootstrap_segmented_fit(
+        mock_pw_fit, log_freq, log_power, n_bootstraps=n_bootstraps, ci=95, seed=42
+    )
+
+    assert results_all_fail["ci_computed"] is False
+    assert results_all_fail["bootstrap_successful_iterations"] == 0
+    assert results_all_fail["bootstrap_skipped_iterations"] == n_bootstraps
+    assert np.all(np.isnan(results_all_fail["betas_ci"]))
+    assert "All bootstrap iterations failed" in caplog.text
+
+    # --- Scenario 2: Some iterations fail, but enough succeed ---
+    caplog.clear()
+    # Let's simulate 3 bad predictions (None) and 7 good ones.
+    bad_predictions = [None] * 3
+    good_predictions = [good_prediction] * 7
+    predict_side_effect = bad_predictions + good_predictions
+    mock_bootstrap_fit_obj.predict.side_effect = predict_side_effect
+
+    # We need to mock MIN_BOOTSTRAP_SAMPLES to be low enough for the test
+    mocker.patch("waterSpec.fitter.MIN_BOOTSTRAP_SAMPLES", 5)
+
+    results_some_fail = _bootstrap_segmented_fit(
+        mock_pw_fit, log_freq, log_power, n_bootstraps=n_bootstraps, ci=95, seed=42
+    )
+
+    # 7 successes > min_success threshold of max(5, 10*0.5=5)
+    assert results_some_fail["ci_computed"] is True
+    assert results_some_fail["bootstrap_successful_iterations"] == 7
+    assert results_some_fail["bootstrap_skipped_iterations"] == 3
+    # Check that CIs are computed (i.e., not all NaN)
+    assert not np.all(np.isnan(results_some_fail["betas_ci"]))
+    assert "Bootstrap iteration produced None prediction" in caplog.text
+
+    # --- Scenario 3: Too few successes, CIs marked as unreliable ---
+    caplog.clear()
+    # Simulate 7 bad predictions (wrong shape) and 3 good ones.
+    bad_predictions = [np.ones((n_points, 2))] * 7
+    good_predictions = [good_prediction] * 3
+    predict_side_effect = bad_predictions + good_predictions
+    mock_bootstrap_fit_obj.predict.side_effect = predict_side_effect
+
+    results_unreliable = _bootstrap_segmented_fit(
+        mock_pw_fit, log_freq, log_power, n_bootstraps=n_bootstraps, ci=95, seed=42
+    )
+
+    # 3 successes < min_success threshold of 5
+    assert results_unreliable["ci_computed"] is False
+    assert results_unreliable["bootstrap_successful_iterations"] == 3
+    assert results_unreliable["bootstrap_skipped_iterations"] == 7
+    assert "CIs may be unreliable" in caplog.text
 
 
 def test_fit_segmented_spectrum_handles_non_finite_residuals(multifractal_spectrum, mocker, caplog):

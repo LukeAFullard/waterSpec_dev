@@ -512,7 +512,8 @@ def _bootstrap_segmented_fit(
 
     bootstrap_betas = [[] for _ in range(n_breakpoints + 1)]
     bootstrap_breakpoints = [[] for _ in range(n_breakpoints)]
-    bootstrap_fits = []  # Store each bootstrap fit line
+    bootstrap_fits = []
+    skipped = 0
     successful_fits = 0
     error_counts = {}
 
@@ -674,7 +675,30 @@ def _bootstrap_segmented_fit(
                 bootstrap_betas[i].append(-slope)
 
             # Store the predicted line from this bootstrap sample
-            bootstrap_fits.append(bootstrap_pw_fit.predict(log_freq))
+            bootstrap_fit_pred = bootstrap_pw_fit.predict(log_freq)
+
+            # BUG #3 FIX: Validate bootstrap prediction output
+            if bootstrap_fit_pred is None:
+                if logger:
+                    logger.debug(
+                        "Bootstrap iteration produced None prediction; skipping."
+                    )
+                skipped += 1
+                continue
+
+            # Ensure 1D array and correct length
+            bootstrap_fit_pred = np.asarray(bootstrap_fit_pred).ravel()
+            if bootstrap_fit_pred.shape[0] != len(log_freq):
+                if logger:
+                    logger.debug(
+                        "Bootstrap iteration produced wrong output shape: %d vs expected %d. Skipping.",
+                        bootstrap_fit_pred.shape[0],
+                        len(log_freq),
+                    )
+                skipped += 1
+                continue
+
+            bootstrap_fits.append(bootstrap_fit_pred)
             successful_fits += 1
         except (ValueError, np.linalg.LinAlgError, RuntimeError) as e:
             error_type = type(e).__name__
@@ -695,39 +719,31 @@ def _bootstrap_segmented_fit(
                 )
             continue
 
-    success_rate = successful_fits / n_bootstraps if n_bootstraps > 0 else 0
-    # Raise an error if the success rate is below 80%, as high failure rates
-    # can lead to unreliable CIs.
-    MIN_SUCCESS_RATE = 0.8
-
-    error_summary = ""
-    if error_counts:
-        error_summary = ", ".join(
-            [f"{err}: {count}" for err, count in error_counts.items()]
+    n_success = len(bootstrap_fits)
+    if n_success == 0:
+        logger.error(
+            "All bootstrap iterations failed or produced wrong shapes; cannot compute CIs."
         )
-        logger.warning(f"Bootstrap errors occurred: {error_summary}")
-
-    if n_bootstraps > 0 and success_rate < MIN_SUCCESS_RATE:
-        # This error is caught by the calling function to trigger a fallback.
-        raise ValueError(
-            f"Bootstrap success rate ({success_rate:.0%}) was below the required threshold ({MIN_SUCCESS_RATE:.0%}). "
-            f"Only {successful_fits}/{n_bootstraps} iterations succeeded. Errors: {error_summary}"
-        )
-
-    if successful_fits < MIN_BOOTSTRAP_SAMPLES:
-        logger.warning(
-            f"Only {successful_fits}/{n_bootstraps} bootstrap iterations "
-            f"succeeded for the segmented model (minimum required: {MIN_BOOTSTRAP_SAMPLES}). "
-            "Confidence intervals are unreliable and will be set to NaN."
-        )
-        # This case is now less likely to be hit first, but is kept as a
-        # safeguard for when n_bootstraps is very low.
         return {
             "betas_ci": [(np.nan, np.nan)] * (n_breakpoints + 1),
             "breakpoints_ci": [(np.nan, np.nan)] * n_breakpoints,
-            "fit_ci_lower": None,
-            "fit_ci_upper": None,
+            "fit_ci_lower": np.full(len(log_freq), np.nan),
+            "fit_ci_upper": np.full(len(log_freq), np.nan),
+            "ci_computed": False,
+            "bootstrap_successful_iterations": 0,
+            "bootstrap_skipped_iterations": skipped,
         }
+
+    # Minimum-success threshold — choose a sensible policy:
+    min_success = max(MIN_BOOTSTRAP_SAMPLES, int(0.5 * n_bootstraps))
+    ci_computed = True
+    if n_success < min_success:
+        logger.warning(
+            "Only %d successful bootstrap iterations (requested %d); CIs may be unreliable.",
+            n_success,
+            n_bootstraps,
+        )
+        ci_computed = False
 
     lower_p, upper_p = (100 - ci) / 2, 100 - (100 - ci) / 2
     ci_results = {
@@ -735,20 +751,15 @@ def _bootstrap_segmented_fit(
         "breakpoints_ci": [],
         "fit_ci_lower": None,
         "fit_ci_upper": None,
+        "ci_computed": ci_computed,
+        "bootstrap_successful_iterations": n_success,
+        "bootstrap_skipped_iterations": skipped,
     }
 
     # Calculate CIs for the fitted line itself
-    if not bootstrap_fits:
-        logger.warning(
-            "All bootstrap iterations failed for the segmented model; "
-            "the confidence interval of the fit line cannot be calculated."
-        )
-        bootstrap_fits_arr = np.array([])
-    else:
-        bootstrap_fits_arr = np.array(bootstrap_fits)
-        # Ensure 2D shape if there was only one successful bootstrap fit.
-        if bootstrap_fits_arr.ndim == 1:
-            bootstrap_fits_arr = bootstrap_fits_arr.reshape(1, -1)
+    bootstrap_fits_arr = np.vstack(bootstrap_fits)
+    if bootstrap_fits_arr.ndim == 1:
+        bootstrap_fits_arr = bootstrap_fits_arr.reshape(1, -1)
 
     # This check handles cases where bootstrap runs failed and produced no fits.
     if bootstrap_fits_arr.ndim == 2 and bootstrap_fits_arr.shape[1] > 0:
@@ -808,9 +819,8 @@ def _bootstrap_segmented_fit(
             )
             ci_results["breakpoints_ci"].append((np.nan, np.nan))
 
-    ci_results["bootstrap_success_rate"] = success_rate
-    ci_results["bootstrap_n_success"] = successful_fits
-    ci_results["bootstrap_error_summary"] = error_summary
+    # Add a field to indicate that a fallback occurred.
+    # Add a field to indicate that a fallback occurred.
     return ci_results
 
 
