@@ -292,13 +292,12 @@ def fit_standard_model(
             else:
                 if not isinstance(bootstrap_block_size, int) or bootstrap_block_size <= 0:
                     raise ValueError("bootstrap_block_size must be a positive integer.")
-                block_size = min(bootstrap_block_size, n_points)
-
-            if block_size >= n_points:
-                raise ValueError(
-                    f"Block size ({block_size}) must be smaller than the number of "
-                    f"data points ({n_points})."
-                )
+                if bootstrap_block_size >= n_points:
+                    raise ValueError(
+                        f"Block size ({bootstrap_block_size}) must be smaller than the "
+                        f"number of data points ({n_points})."
+                    )
+                block_size = bootstrap_block_size
             if n_points < 3 * block_size:
                 raise ValueError(
                     f"The number of data points ({n_points}) is less than 3 times "
@@ -328,7 +327,8 @@ def fit_standard_model(
                     # Wild bootstrap using Rademacher distribution, which does
                     # not assume constant variance of residuals.
                     u = rng.choice([-1, 1], size=n_points, replace=True)
-                    resampled_log_power = log_power_fit + residuals * u
+                    centered_residuals = residuals - np.mean(residuals)
+                    resampled_log_power = log_power_fit + centered_residuals * u
                     resampled_log_freq = log_freq  # Keep original frequencies
                 else:
                     # This case is handled by the initial validation, but included for safety
@@ -533,13 +533,12 @@ def _bootstrap_segmented_fit(
         else:
             if not isinstance(bootstrap_block_size, int) or bootstrap_block_size <= 0:
                 raise ValueError("bootstrap_block_size must be a positive integer.")
-            block_size = min(bootstrap_block_size, n_points)
-
-        if block_size >= n_points:
-            raise ValueError(
-                f"Block size ({block_size}) must be smaller than the number of "
-                f"data points ({n_points})."
-            )
+            if bootstrap_block_size >= n_points:
+                raise ValueError(
+                    f"Block size ({bootstrap_block_size}) must be smaller than the "
+                    f"number of data points ({n_points})."
+                )
+            block_size = bootstrap_block_size
         if n_points < 3 * block_size:
             raise ValueError(
                 f"The number of data points ({n_points}) is less than 3 times "
@@ -620,7 +619,10 @@ def _bootstrap_segmented_fit(
             elif bootstrap_type == "wild":
                 # Wild bootstrap using Rademacher distribution
                 u = rng.choice([-1, 1], size=n_points, replace=True)
-                resampled_log_power_sorted = initial_fitted_power + initial_residuals * u
+                centered_residuals = initial_residuals - np.mean(initial_residuals)
+                resampled_log_power_sorted = (
+                    initial_fitted_power + centered_residuals * u
+                )
                 resampled_log_freq_sorted = log_freq  # Keep original frequencies
             else:
                 continue
