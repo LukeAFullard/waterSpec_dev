@@ -1189,7 +1189,12 @@ def fit_segmented_spectrum(
     # Calculate AIC and Adjusted R-squared
     n_params = 2 * (n_breakpoints + 1)  # 2 params (slope, intercept) per segment
     r_squared = fit_summary.get("r_squared", np.nan)
-    adj_r_squared = 1 - (1 - r_squared) * (n_points - 1) / (n_points - n_params - 1)
+    denom = n_points - n_params - 1
+    if denom <= 0:
+        logger.warning("Insufficient points to compute adjusted R^2")
+        adj_r_squared = np.nan
+    else:
+        adj_r_squared = 1 - (1 - r_squared) * (n_points - 1) / denom
     aic = _calculate_aic(log_power, fitted_log_power, n_params)
 
     # Store base results
