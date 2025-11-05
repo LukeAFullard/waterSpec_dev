@@ -1,0 +1,43 @@
+# Air Quality Analysis Report
+
+## Summary
+
+```
+Automatic Analysis for: Daily Air Quality
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -8442.36 (β = 0.81)
+  - Segmented (1 BP) BIC = -9341.66 (β1=0.41, β2=1.25)
+  - Segmented (2 BP) BIC = N/A      (Fit Failed)
+
+  Models that failed to fit:
+    - Segmented model (2 breakpoint(s)): Model did not converge.
+
+==> Chosen Model: Segmented 1bp
+-----------------------------------
+
+Details for Chosen (Segmented 1bp) Model:
+Segmented Analysis for: Daily Air Quality
+Low-Frequency (Long-term) Fit:
+  β1 = 0.41 (95% CI: 0.36–0.46 (parametric))
+  Interpretation: 0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport.
+  Persistence: Low (Event-driven)
+--- Breakpoint 1 @ ~6.2 days (95% CI: 5.5 days–7.0 days (parametric)) ---
+High-Frequency (Short-term) Fit:
+  β2 = 1.25 (95% CI: 1.14–1.37 (parametric))
+  Interpretation: 1 < β < 3.0 (fBm-like): Strong persistence, suggesting transport is damped by storage.
+  Persistence: High (Storage-dominated)
+
+-----------------------------------
+Significant Periodicities Found (at 1.0% FAP Level):
+  - Period: 11.9 months
+  - Period: 6.1 months
+  - Period: 5.1 months
+  - Period: 10.0 years
+  - Period: 23.3 days
+  - Period: 14.4 months
+```
+
+## Spectrum Plot
+
+![Spectrum Plot](air_quality_report/Daily_Air_Quality_spectrum_plot.png)
