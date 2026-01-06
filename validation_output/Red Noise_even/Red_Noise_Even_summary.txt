@@ -1,0 +1,20 @@
+Automatic Analysis for: Red Noise (Even)
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -1455.63 (β = 1.85)
+
+==> Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: Red Noise (Even)
+Value: β = 1.85 (95% CI: 1.72–1.97 (bootstrap))
+Persistence Level: High (Storage-dominated)
+Scientific Meaning: β ≈ 2 (Brownian Noise): Random walk process.
+Contextual Comparison: Similar to Nitrate-N (Subsurface-dominated).
+
+-----------------------------------
+Significant Periodicities Found (at 1.0% FAP Level):
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
