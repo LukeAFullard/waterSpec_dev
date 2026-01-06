@@ -2,17 +2,13 @@ Automatic Analysis for: White Noise (Even)
 -----------------------------------
 Model Comparison (Lower BIC is better):
   - Standard        BIC = -1407.05 (β = -0.01)
-  - Segmented (1 BP) BIC = N/A      (Fit Failed)
-
-  Models that failed to fit:
-    - Segmented model (1 breakpoint(s)): Model did not converge.
 
 ==> Chosen Model: Standard
 -----------------------------------
 
 Details for Chosen (Standard) Model:
 Standard Analysis for: White Noise (Even)
-Value: β = -0.01 (95% CI: -0.12–0.10 (bootstrap))
+Value: β = -0.01 (95% CI: -0.15–0.16 (bootstrap))
 Persistence Level: Low (Event-driven)
 Scientific Meaning: β ≈ 0 (White Noise): Uncorrelated, random process.
 Contextual Comparison: Closest to E. coli (Surface runoff-dominated).

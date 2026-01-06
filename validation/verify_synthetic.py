@@ -3,6 +3,7 @@ import pandas as pd
 from waterSpec import Analysis
 import matplotlib.pyplot as plt
 import os
+import shutil
 
 def generate_colored_noise(beta, n_points, seed=None):
     """
@@ -52,8 +53,9 @@ def create_irregular_sampling(time, data, fraction=0.7, seed=None):
 
 def verify_synthetic_data():
     output_dir = "validation_output"
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
+    os.makedirs(output_dir)
 
     scenarios = [
         {"name": "White Noise", "beta": 0.0},
@@ -89,12 +91,14 @@ def verify_synthetic_data():
         )
 
         try:
+            # Force standard model with max_breakpoints=0
             res_even = analyzer_even.run_full_analysis(
                 output_dir=os.path.join(output_dir, f"{name}_even"),
                 fit_method="theil-sen",
                 ci_method="bootstrap",
                 n_bootstraps=n_bootstraps,
                 normalization="standard",
+                max_breakpoints=0
             )
             est_beta = res_even['beta']
             ci_lower = res_even['beta_ci_lower']
@@ -126,12 +130,14 @@ def verify_synthetic_data():
         )
 
         try:
+            # Force standard model with max_breakpoints=0
             res_uneven = analyzer_uneven.run_full_analysis(
                 output_dir=os.path.join(output_dir, f"{name}_uneven"),
                 fit_method="theil-sen",
                 ci_method="bootstrap",
                 n_bootstraps=n_bootstraps,
                 normalization="standard",
+                max_breakpoints=0
             )
             est_beta = res_uneven['beta']
             ci_lower = res_uneven['beta_ci_lower']

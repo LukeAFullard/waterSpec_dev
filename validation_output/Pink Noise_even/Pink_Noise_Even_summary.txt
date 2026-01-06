@@ -2,17 +2,13 @@ Automatic Analysis for: Pink Noise (Even)
 -----------------------------------
 Model Comparison (Lower BIC is better):
   - Standard        BIC = -1381.96 (β = 0.98)
-  - Segmented (1 BP) BIC = N/A      (Fit Failed)
-
-  Models that failed to fit:
-    - Segmented model (1 breakpoint(s)): Model did not converge.
 
 ==> Chosen Model: Standard
 -----------------------------------
 
 Details for Chosen (Standard) Model:
 Standard Analysis for: Pink Noise (Even)
-Value: β = 0.98 (95% CI: 0.85–1.13 (bootstrap))
+Value: β = 0.98 (95% CI: 0.85–1.14 (bootstrap))
 Persistence Level: Medium (Mixed)
 Scientific Meaning: β ≈ 1 (Pink Noise): Stronger persistence, common in natural systems.
 Contextual Comparison: Similar to Ortho-P (Surface/Shallow subsurface-dominated).

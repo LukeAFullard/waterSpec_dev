@@ -14,26 +14,29 @@ For each noise type, we tested two sampling scenarios:
 2. **Unevenly Spaced**: Randomly subsampled (keeping ~60% of points) to simulate irregular environmental monitoring.
 
 We used the `Theil-Sen` estimator for robust slope fitting and `Bootstrap` (block) for confidence intervals.
+**Note**: Segmented fitting was disabled (`max_breakpoints=0`) to focus purely on the estimation of the primary spectral slope.
 
 ## Results Summary
 
 | Scenario | Sampling | True $\beta$ | Est. $\beta$ | 95% CI | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **White Noise** | Even | 0.00 | -0.01 | [-0.12, 0.10] | **PASS** |
-| **White Noise** | Uneven | 0.00 | 0.00 | [-0.17, 0.18] | **PASS** |
-| **Pink Noise** | Even | 1.00 | 0.98 | [0.85, 1.13] | **PASS** |
-| **Pink Noise** | **Uneven** | **1.00** | **0.65** | **[0.52, 0.80]** | **FAIL** |
-| **Red Noise** | Even | 2.00 | 1.85 | [1.72, 1.95] | **CLOSE** |
-| **Red Noise** | Uneven | 2.00 | N/A | N/A | *Running* |
+| **White Noise** | Even | 0.00 | -0.01 | [-0.15, 0.16] | **PASS** |
+| **White Noise** | Uneven | 0.00 | 0.00 | [-0.16, 0.14] | **PASS** |
+| **Pink Noise** | Even | 1.00 | 0.98 | [0.85, 1.14] | **PASS** |
+| **Pink Noise** | **Uneven** | **1.00** | **0.65** | **[0.48, 0.83]** | **FAIL** |
+| **Red Noise** | Even | 2.00 | 1.85 | [1.72, 1.97] | **CLOSE** |
+| **Red Noise** | **Uneven** | **2.00** | **0.54** | **[0.26, 0.73]** | **FAIL** |
 
 ### Interpretation
 
 1.  **Reliable for Evenly Spaced Data**: The package accurately recovers the spectral exponent for white, pink, and red noise when sampling is regular. The estimates are within or very close to the expected values.
 2.  **Robust for Irregular White Noise**: Even with irregular sampling, the package correctly identifies white noise ($\beta \approx 0$).
 3.  **Bias in Irregular Colored Noise**:
-    - For **Pink Noise ($\beta=1$)**, irregular sampling leads to a significant underestimation of $\beta$ (0.65 vs 1.0). This flattens the spectrum, making it look more like white noise (spectral whitening).
+    - For **Pink Noise ($\beta=1$)**, irregular sampling leads to a significant underestimation of $\beta$ (0.65 vs 1.0).
+    - For **Red Noise ($\beta=2$)**, the effect is even more severe (0.54 vs 2.00).
+    - This flattens the spectrum, making it look more like white noise (spectral whitening).
     - This is a known phenomenon in Lomb-Scargle periodograms of red/pink noise, where aliasing from high frequencies folds back and lifts the low-frequency tail, or spectral leakage distorts the slope.
-    - **Conclusion**: Users should be cautious when interpreting spectral slopes from highly irregular data if the underlying process is expected to have strong persistence (Red/Pink noise). The results may be biased towards lower $\beta$ (less persistence).
+    - **Conclusion**: Users should be extremely cautious when interpreting spectral slopes from highly irregular data if the underlying process is expected to have strong persistence (Red/Pink noise). The results will likely be biased towards lower $\beta$ (appearing less persistent than reality).
 
 ## Conclusion of Audit
 
