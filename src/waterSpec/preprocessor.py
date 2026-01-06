@@ -545,12 +545,16 @@ def preprocess_data(
         non_positive_mask = (~np.isnan(processed_data)) & (processed_data <= 0)
         if np.any(non_positive_mask):
             num_non_positive = np.sum(non_positive_mask)
+            # Find an example of a problematic value
+            example_idx = np.where(non_positive_mask)[0][0]
+            example_val = processed_data[example_idx]
             raise ValueError(
                 f"Log-transform requires all data to be positive, but {num_non_positive} "
-                "non-positive value(s) were found. This can occur if the original "
-                "data contains zeros or if a censoring strategy (e.g., "
-                "'use_detection_limit' with a limit of 0) introduced them. "
-                "Please clean the data or adjust the censoring strategy."
+                f"non-positive value(s) were found (e.g., {example_val} at index {example_idx}). "
+                "This can occur if the original data contains zeros/negatives or if a "
+                "censoring strategy (e.g., 'use_detection_limit' with a limit of 0) "
+                "introduced them. Please clean the data, add an offset, or "
+                "adjust the censoring strategy."
             )
 
         processed_data, processed_errors = log_transform(
