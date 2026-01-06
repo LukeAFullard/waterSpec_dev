@@ -779,10 +779,12 @@ def _bootstrap_segmented_fit(
         # Calculate percentiles only for the valid columns.
         if np.any(finite_fit_cols):
             # Calculate CIs on the subset of data that is valid.
-            lower_bounds = np.percentile(
+            # Use np.nanpercentile to handle any NaNs robustly, though
+            # finite_fit_cols should ensure they are finite.
+            lower_bounds = np.nanpercentile(
                 bootstrap_fits_arr[:, finite_fit_cols], lower_p, axis=0
             )
-            upper_bounds = np.percentile(
+            upper_bounds = np.nanpercentile(
                 bootstrap_fits_arr[:, finite_fit_cols], upper_p, axis=0
             )
             # Place the calculated CIs back into the full-size arrays.

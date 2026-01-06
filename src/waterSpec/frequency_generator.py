@@ -55,12 +55,10 @@ def generate_frequency_grid(
     Returns:
         np.ndarray: The frequency grid, in units of `1 / time_unit`.
     """
-    warnings.warn(
-        "`generate_frequency_grid` is deprecated and will be removed in a future version. "
-        "Use `astropy.timeseries.LombScargle.autopower()` for robust frequency grid generation.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
+    # This function is retained for backward compatibility but is no longer
+    # recommended for rigorous analysis. Users should prefer `autopower` from
+    # astropy.timeseries.LombScargle.
+
     # --- Input Validation ---
     if not isinstance(num_points, int) or num_points <= 1:
         raise ValueError("num_points must be an integer greater than 1.")
