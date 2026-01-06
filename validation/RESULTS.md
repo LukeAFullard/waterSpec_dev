@@ -27,17 +27,31 @@ We used the `Theil-Sen` estimator for robust slope fitting and `Bootstrap` (bloc
 | **Red Noise** | Even | 2.00 | 1.85 | [1.72, 1.97] | **CLOSE** |
 | **Red Noise** | **Uneven** | **2.00** | **0.54** | **[0.26, 0.73]** | **FAIL** |
 
-### Interpretation
+## Discussion: Why does uneven sampling destroy the spectral slope?
 
-1.  **Reliable for Evenly Spaced Data**: The package accurately recovers the spectral exponent for white, pink, and red noise when sampling is regular. The estimates are within or very close to the expected values.
-2.  **Robust for Irregular White Noise**: Even with irregular sampling, the package correctly identifies white noise ($\beta \approx 0$).
-3.  **Bias in Irregular Colored Noise**:
-    - For **Pink Noise ($\beta=1$)**, irregular sampling leads to a significant underestimation of $\beta$ (0.65 vs 1.0).
-    - For **Red Noise ($\beta=2$)**, the effect is even more severe (0.54 vs 2.00).
-    - This flattens the spectrum, making it look more like white noise (spectral whitening).
-    - This is a known phenomenon in Lomb-Scargle periodograms of red/pink noise, where aliasing from high frequencies folds back and lifts the low-frequency tail, or spectral leakage distorts the slope.
-    - **Conclusion**: Users should be extremely cautious when interpreting spectral slopes from highly irregular data if the underlying process is expected to have strong persistence (Red/Pink noise). The results will likely be biased towards lower $\beta$ (appearing less persistent than reality).
+The results above reveal a critical limitation: while the package works perfectly for white noise or evenly spaced data, it severely underestimates the spectral slope for unevenly sampled Red/Pink noise (estimating $\beta \approx 0.5$ instead of $\beta=2.0$). This flattening of the spectrum ("spectral whitening") is a fundamental property of spectral analysis on irregular grids, not a bug in the code.
 
-## Conclusion of Audit
+### 1. The Spectral Window Function
+In spectral analysis, the observed spectrum is the convolution of the *true spectrum* and the *spectral window function* (the spectrum of the sampling times).
+- **Even Sampling**: The window function is a clean "comb" of sharp peaks. This allows for clear separation of frequencies up to the Nyquist limit.
+- **Uneven Sampling**: The window function is messy. It has a main peak at zero frequency, but also a "grass" of side lobes that extend across the entire frequency range.
 
-The package functions correctly and produces robust confidence intervals (thanks to the fixes in `fitter.py`). However, the underlying method (Lomb-Scargle) has physical limitations when dealing with unevenly sampled colored noise. This is not a bug in the code, but a limitation of the spectral analysis method itself on irregular grids. The provided confidence intervals correctly reflect the uncertainty of the *model fit*, but cannot account for the systematic bias introduced by the sampling irregularity.
+### 2. Spectral Leakage
+"Red Noise" is characterized by having vastly more power at low frequencies than at high frequencies (orders of magnitude difference).
+- When you convolve this spectrum with the messy window function of irregular sampling, the massive power from the low frequencies "leaks" into the high frequencies via the side lobes.
+- Because the true power at high frequencies is so weak, this leaked energy completely swamps the real signal.
+- **The Result**: The measured high-frequency power is dominated by leakage from the low frequencies. This creates a "noise floor" that is relatively flat (white).
+
+### 3. Slope Estimation Bias
+When you fit a line to this distorted spectrum in log-log space:
+- The low frequencies are still dominated by the true signal (steep slope).
+- The high frequencies are dominated by the leaked "white" noise (flat slope).
+- The overall fitted line becomes a compromise, resulting in a much shallower slope than reality (e.g., $\beta=0.54$ instead of $\beta=2.0$).
+
+### 4. Why Lomb-Scargle?
+The Lomb-Scargle Periodogram (LSP) is mathematically powerful because it can handle uneven data without interpolation and is optimal for detecting **periodic sinusoidal signals** (peaks) in white noise.
+- **For Peak Detection**: It works brilliantly. A strong sine wave concentrates power in one narrow band, standing out above the leakage noise.
+- **For Spectral Slopes**: It is vulnerable. The broad-band nature of colored noise means "leakage" happens everywhere at once, distorting the overall shape (the slope) of the spectrum.
+
+### Conclusion
+Users analyzing unevenly spaced environmental data should be aware that **spectral slopes may be systematically underestimated** (biased toward zero) if the underlying process is strongly persistent (Red/Pink noise). This is an inherent trade-off of using available irregular data versus ideal regular monitoring.
