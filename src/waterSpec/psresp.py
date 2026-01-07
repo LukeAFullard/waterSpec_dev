@@ -7,6 +7,12 @@ import concurrent.futures
 import numpy as np
 from astropy.timeseries import LombScargle
 
+# Lazy import or try-except for wavelet module
+try:
+    from .wavelet import compute_wwz
+except ImportError:
+    compute_wwz = None
+
 
 def simulate_tk95(
     psd_func: Callable,
@@ -69,6 +75,65 @@ def power_law(f: Union[float, np.ndarray], beta: float, amp: float) -> Union[flo
     """
     return amp * (f**(-beta))
 
+def _compute_spectra(
+    t: np.ndarray,
+    x: np.ndarray,
+    dy: Optional[np.ndarray],
+    freqs: np.ndarray,
+    method: str = "ls",
+    normalization: str = "psd",
+    **kwargs
+) -> np.ndarray:
+    """
+    Compute power spectrum using specified method.
+    """
+    if method == "ls":
+        ls = LombScargle(t, x, dy=dy)
+        return ls.power(freqs, normalization=normalization)
+
+    elif method == "wwz":
+        if compute_wwz is None:
+            raise ImportError("pyleoclim is required for WWZ in PSRESP.")
+
+        # WWZ typically determines its own frequency grid, but we can try to influence it
+        # or interpolate to the target grid.
+        # compute_wwz wrapper takes freq_min, freq_max, n_scales.
+
+        # Ideally we pass 'freqs' directly if supported, or interpolate.
+        # pyleoclim's wwz supports passing 'freq' directly if freq_method is None or ignored?
+        # My current wrapper compute_wwz assumes 'log' method if not specified.
+        # Let's try to pass freq_min/max based on freqs range and interpolate result.
+
+        # Optimization: PSRESP often requires specific frequencies.
+        # Using interpolation is robust.
+
+        # Determine n_scales from freqs length
+        n_scales = len(freqs)
+        f_min = freqs.min()
+        f_max = freqs.max()
+
+        # Call WWZ
+        # We might want to pass 'decay_constant' via kwargs
+        decay_constant = kwargs.get('decay_constant', 1.0 / (8 * np.pi**2))
+
+        res = compute_wwz(
+            t, x,
+            freq_method='log',
+            n_scales=n_scales,
+            freq_min=f_min,
+            freq_max=f_max,
+            decay_constant=decay_constant
+        )
+
+        # Interpolate global_power to requested freqs
+        # Note: res.frequencies might not exactly match requested freqs
+        power_interp = np.interp(freqs, res.frequencies, res.global_power)
+        return power_interp
+
+    else:
+        raise ValueError(f"Unknown spectral method: {method}")
+
+
 def _run_single_simulation(
     i: int,
     psd_func: Callable,
@@ -78,7 +143,9 @@ def _run_single_simulation(
     freqs: np.ndarray,
     N_sim: int,
     dt_sim: float,
-    normalization: str = "psd"
+    normalization: str = "psd",
+    method: str = "ls",
+    **kwargs
 ) -> np.ndarray:
     """
     Helper function to run a single simulation iteration.
@@ -98,8 +165,10 @@ def _run_single_simulation(
         x_resampled += noise
 
     # 4. Compute Periodogram
-    ls = LombScargle(t_obs_relative, x_resampled, dy=err_obs)
-    power = ls.power(freqs, normalization=normalization)
+    power = _compute_spectra(
+        t_obs_relative, x_resampled, err_obs, freqs,
+        method=method, normalization=normalization, **kwargs
+    )
 
     return power
 
@@ -140,15 +209,16 @@ def psresp_fit(
     normalization: str = "psd",
     n_jobs: int = -1,
     binning: bool = True,
-    n_bins: int = 20
+    n_bins: int = 20,
+    method: str = "ls",
+    **kwargs
 ) -> Dict[str, Any]:
     """
     Perform PSRESP (Power Spectral Response) analysis.
 
     Args:
-        ...
-        binning: If True, bin the power spectrum in log-space before comparison.
-        n_bins: Number of bins if binning is enabled.
+        method: Spectral estimation method ('ls' or 'wwz').
+        **kwargs: Arguments passed to the spectral estimator (e.g., decay_constant for WWZ).
     """
 
     # Handle time offset
@@ -179,8 +249,10 @@ def psresp_fit(
         bins = np.logspace(np.log10(f_min_bin), np.log10(f_max_bin), n_bins + 1)
 
     # Calculate observed periodogram
-    ls_obs = LombScargle(t_obs_relative, x_obs, dy=err_obs)
-    obs_power = ls_obs.power(freqs, normalization=normalization)
+    obs_power = _compute_spectra(
+        t_obs_relative, x_obs, err_obs, freqs,
+        method=method, normalization=normalization, **kwargs
+    )
 
     if binning:
         obs_bin_freqs, obs_bin_power = bin_power_spectrum(freqs, obs_power, bins)
@@ -204,7 +276,7 @@ def psresp_fit(
             futures = [
                 executor.submit(
                     _run_single_simulation,
-                    i, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization
+                    i, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization, method, **kwargs
                 )
                 for i in range(M)
             ]

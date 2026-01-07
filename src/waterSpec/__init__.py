@@ -9,8 +9,9 @@ logging.getLogger("waterSpec").addHandler(logging.NullHandler())
 """
 WaterSpec: Spectral analysis toolkit for hydrological and environmental time series.
 
-This package estimates spectral slopes (β) using Lomb–Scargle and segmented regressions,
-supports confidence intervals via bootstrap resampling, and provides interpretive diagnostics.
+This package estimates spectral slopes (β) using Lomb–Scargle, Weighted Wavelet Z-transform (WWZ),
+and segmented regressions. It supports confidence intervals via bootstrap resampling,
+and provides interpretive diagnostics including PSRESP.
 """
 
 from importlib import import_module
@@ -26,6 +27,11 @@ __all__ = [
     "interpret_results",
     "plot_spectrum",
     "Analysis",
+    "compute_wwz",
+    "fit_spectral_slope",
+    "fit_segmented_slope",
+    "multifractal_analysis_pipeline",
+    "psresp_fit",
 ]
 
 # ---- Metadata ----
@@ -87,6 +93,11 @@ plot_spectrum = _lazy_import(
     dep_message="matplotlib is required for plotting. Install with `pip install matplotlib`."
 )
 
+psresp_fit = _lazy_import(
+    "psresp_fit", "psresp",
+    dep_message="astropy is required for PSRESP. Install with `pip install astropy`."
+)
+
 def Analysis(*args, **kwargs):
     """Lazy load Analysis class."""
     try:
@@ -97,3 +108,23 @@ def Analysis(*args, **kwargs):
         ) from e
     cls = getattr(module, "Analysis")
     return cls(*args, **kwargs)
+
+# ---- Wavelet Wrappers ----
+compute_wwz = _lazy_import(
+    "compute_wwz", "wavelet",
+    dep_message="pyleoclim is required for WWZ. Install with `pip install pyleoclim`."
+)
+
+fit_spectral_slope = _lazy_import(
+    "fit_spectral_slope", "wavelet"
+)
+
+fit_segmented_slope = _lazy_import(
+    "fit_segmented_slope", "wavelet",
+    dep_message="piecewise_regression is required for segmented fitting. Install with `pip install piecewise-regression`."
+)
+
+multifractal_analysis_pipeline = _lazy_import(
+    "multifractal_analysis_pipeline", "wavelet",
+    dep_message="pymultifracs is required for multifractal analysis. Install with `pip install pymultifracs`."
+)
