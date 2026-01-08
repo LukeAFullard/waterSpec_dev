@@ -4,7 +4,6 @@ import logging
 from typing import Dict, Optional, Tuple, List
 
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 
 def calculate_haar_fluctuations(
@@ -146,7 +145,8 @@ def plot_haar_analysis(
     s1: np.ndarray,
     H: float,
     beta: float,
-    output_path: Optional[str] = None
+    output_path: Optional[str] = None,
+    time_unit: str = "seconds"
 ):
     """
     Plots the Haar Structure Function analysis results.
@@ -166,7 +166,7 @@ def plot_haar_analysis(
 
         plt.loglog(lags, fit_vals, 'r--', label=f'Fit: H={H:.2f}, $\\beta$={beta:.2f}')
 
-    plt.xlabel('Lag Time $\\Delta t$')
+    plt.xlabel(f'Lag Time $\\Delta t$ ({time_unit})')
     plt.ylabel('Structure Function $S_1(\\Delta t)$')
     plt.title('Haar Structure Function Analysis')
     plt.legend()
@@ -190,9 +190,9 @@ class HaarAnalysis:
         self.beta = None
         self.r2 = None
 
-    def run(self, min_lag=None, max_lag=None, num_lags=20):
+    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True):
         self.lags, self.s1, self.counts = calculate_haar_fluctuations(
-            self.time, self.data, min_lag=min_lag, max_lag=max_lag, num_lags=num_lags
+            self.time, self.data, min_lag=min_lag, max_lag=max_lag, num_lags=num_lags, log_spacing=log_spacing
         )
         self.H, self.beta, self.r2 = fit_haar_slope(self.lags, self.s1)
 
@@ -208,4 +208,4 @@ class HaarAnalysis:
     def plot(self, output_path=None):
         if self.lags is None:
             raise ValueError("Run analysis first.")
-        plot_haar_analysis(self.lags, self.s1, self.H, self.beta, output_path)
+        plot_haar_analysis(self.lags, self.s1, self.H, self.beta, output_path, time_unit=self.time_unit)
