@@ -1,0 +1,16 @@
+Automatic Analysis for: White Noise (Uneven)
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -832.37  (β = 0.00)
+
+==> Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: White Noise (Uneven)
+Value: β = 0.00 (95% CI: -0.19–0.16 (bootstrap))
+Persistence Level: Low (Event-driven)
+Scientific Meaning: β ≈ 0 (White Noise): Uncorrelated, random process.
+Contextual Comparison: Closest to E. coli (Surface runoff-dominated).
+
+No significant periodicities were found at the 1.0% FAP level.

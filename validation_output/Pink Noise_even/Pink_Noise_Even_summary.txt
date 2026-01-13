@@ -1,0 +1,20 @@
+Automatic Analysis for: Pink Noise (Even)
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -1381.96 (β = 0.98)
+
+==> Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: Pink Noise (Even)
+Value: β = 0.98 (95% CI: 0.85–1.10 (bootstrap))
+Persistence Level: Medium (Mixed)
+Scientific Meaning: β ≈ 1 (Pink Noise): Stronger persistence, common in natural systems.
+Contextual Comparison: Similar to Ortho-P (Surface/Shallow subsurface-dominated).
+
+-----------------------------------
+Significant Periodicities Found (at 1.0% FAP Level):
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days

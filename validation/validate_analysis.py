@@ -45,6 +45,7 @@ def main():
             time_col="timestamp",
             data_col="concentration",
             param_name=param_name,
+            detrend_method="linear",
         )
         analyzer.run_full_analysis(output_dir=output_dir)
         logger.info("Analysis complete.")
