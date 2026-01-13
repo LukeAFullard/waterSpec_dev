@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import Dict, Optional, Tuple, List
 
 import numpy as np
@@ -44,14 +45,23 @@ def calculate_haar_fluctuations(
     data = data[sort_idx]
 
     # Determine lag times if not provided
+    total_duration = time[-1] - time[0]
+
     if lag_times is None:
         if min_lag is None:
             # Estimate minimum lag as the median of non-zero time differences to avoid zeros
             dt = np.diff(time)
             valid_dt = dt[dt > 0]
-            min_lag = np.median(valid_dt) if len(valid_dt) > 0 else (time[-1] - time[0])/n
+            min_lag = np.median(valid_dt) if len(valid_dt) > 0 else total_duration/n
         if max_lag is None:
-            max_lag = (time[-1] - time[0]) / 2.0
+            max_lag = total_duration / 2.0
+
+        if max_lag > total_duration / 2:
+            warnings.warn(
+                f"max_lag ({max_lag}) is greater than half the total duration ({total_duration/2}). "
+                "It is recommended to use a max_lag between T/4 and T/2, and Nyquist frequency for min_lag.",
+                UserWarning
+            )
 
         if log_spacing:
             lag_times = np.logspace(np.log10(min_lag), np.log10(max_lag), num_lags)
