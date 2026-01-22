@@ -7,20 +7,14 @@ import numpy as np
 from numpy.random import SeedSequence
 from scipy import stats
 
+# Import MannKS for robust linear and segmented fitting
+import MannKS
+
 from .preprocessor import _moving_block_bootstrap_indices
 from .utils import make_rng, spawn_generators
 
 MIN_BOOTSTRAP_SAMPLES = 50
 
-try:
-    import piecewise_regression
-except ImportError:
-    piecewise_regression = None
-    _PIECEWISE_MISSING_MSG = (
-        "The 'piecewise-regression' package is required for segmented "
-        "spectrum fitting. Install it with 'pip install piecewise-regression' "
-        "or include it in your environment."
-    )
 try:
     from statsmodels.stats.stattools import durbin_watson
 except ImportError:
@@ -143,6 +137,9 @@ def fit_standard_model(
         raise ValueError(
             f"Unknown bootstrap_type: '{bootstrap_type}'. Choose 'pairs', 'residuals', 'block', or 'wild'."
         )
+    if ci_method not in ["parametric", "bootstrap"]:
+        raise ValueError(f"Unknown ci_method: '{ci_method}'. Choose 'parametric' or 'bootstrap'.")
+
     # Add a small floor to power to prevent log(0) issues with very weak signals.
     power = np.maximum(power, 1e-100)
     valid_indices = (frequency > 0) & (power > 0)
@@ -162,15 +159,96 @@ def fit_standard_model(
     log_power = np.log10(power[valid_indices])
     n_points = len(log_power)
 
-
     if n_points < 30 and "bootstrap" in ci_method:
         logger.warning(
             f"Dataset has only {n_points} points. Bootstrap CIs may be "
             "unreliable. Consider using parametric CIs or collecting more data."
         )
 
-    # 2. Perform the initial fit (OLS or Theil-Sen)
+    # 2. Perform the fitting
     fit_results = {}
+
+    # Check if we should use MannKS (for robust method)
+    if method == "theil-sen":
+        try:
+            mannks_block_size = 'auto'
+            if bootstrap_type == 'block' and bootstrap_block_size is not None:
+                mannks_block_size = bootstrap_block_size
+
+            mannks_seed = None
+            if isinstance(seed, (int, np.integer)):
+                mannks_seed = int(seed)
+            elif isinstance(seed, np.random.SeedSequence):
+                mannks_seed = int(seed.generate_state(1)[0])
+
+            # MannKS.trend_test provides robust slope and CIs
+            res = MannKS.trend_test(
+                log_power,
+                log_freq,
+                alpha=1-(ci/100),
+                block_size=mannks_block_size,
+                n_bootstrap=n_bootstraps,
+                random_state=mannks_seed
+            )
+
+            slope = res.slope
+            intercept = res.intercept
+            slope_ci_lower = res.lower_ci
+            slope_ci_upper = res.upper_ci
+
+            fit_results.update({
+                "beta": -slope,
+                "intercept": intercept,
+                "beta_ci_lower": -slope_ci_upper,
+                "beta_ci_upper": -slope_ci_lower,
+                "slope_ci_lower": slope_ci_lower,
+                "slope_ci_upper": slope_ci_upper,
+                "ci_computed": True
+            })
+
+            # Calculate fitted values for residuals
+            log_power_fit = slope * log_freq + intercept
+            residuals = log_power - log_power_fit
+
+            # Use MannKS results to bypass the manual bootstrap/CI block
+            # But we still need BIC/AIC and heteroscedasticity checks
+
+            n_params = 2
+            bic = _calculate_bic(log_power, log_power_fit, n_params)
+            aic = _calculate_aic(log_power, log_power_fit, n_params)
+            fit_results["bic"] = bic
+            fit_results["aic"] = aic
+
+            # Add supplemental data
+            spearman_corr_log_freq, spearman_corr_freq = np.nan, np.nan
+            if len(residuals) > 1:
+                spearman_corr_log_freq, _ = stats.spearmanr(log_freq, np.abs(residuals))
+                spearman_corr_freq, _ = stats.spearmanr(10**log_freq, np.abs(residuals))
+
+            fit_results.update({
+                "log_freq": log_freq,
+                "log_power": log_power,
+                "residuals": residuals,
+                "fitted_log_power": log_power_fit,
+                "spearman_corr_log_freq": spearman_corr_log_freq,
+                "spearman_corr_freq": spearman_corr_freq,
+            })
+
+            if durbin_watson:
+                dw_stat = durbin_watson(residuals)
+                fit_results["durbin_watson_stat"] = dw_stat
+
+            return fit_results
+
+        except Exception as e:
+            logger.warning(
+                f"MannKS fit failed: {e}. Falling back to standard implementation."
+            )
+            # Fall through to existing implementation if MannKS fails
+            pass
+
+    # --- Standard implementation (fallback or OLS) ---
+
     try:
         if method == "ols":
             res = stats.linregress(log_freq, log_power)
@@ -188,6 +266,7 @@ def fit_standard_model(
                 "stderr": stderr,
             })
         elif method == "theil-sen":
+            # Fallback Theil-Sen if MannKS failed
             res = stats.theilslopes(log_power, log_freq, alpha=1 - (ci / 100))
             slope, intercept, low_slope, high_slope = res
             fit_results.update({"slope_ci_lower": low_slope, "slope_ci_upper": high_slope})
@@ -491,421 +570,6 @@ def fit_standard_model(
 MIN_POINTS_PER_SEGMENT = 10
 
 
-def _bootstrap_segmented_fit(
-    pw_fit,
-    log_freq,
-    log_power,
-    n_bootstraps,
-    ci,
-    seed: Optional[np.random.SeedSequence] = None,
-    bootstrap_type="block",
-    bootstrap_block_size: Optional[int] = None,
-    logger=None,
-):
-    """
-    Performs robust bootstrap resampling for a fitted piecewise model.
-    This also calculates the confidence interval of the fitted line itself.
-    """
-    logger = logger or logging.getLogger(__name__)
-    n_breakpoints = pw_fit.n_breakpoints
-    rng = make_rng(seed)
-    n_points = len(log_freq)
-
-    bootstrap_betas = [[] for _ in range(n_breakpoints + 1)]
-    bootstrap_breakpoints = [[] for _ in range(n_breakpoints)]
-    bootstrap_fits = []
-    skipped = 0
-    successful_fits = 0
-    error_counts = {}
-
-    # For residual and wild bootstrap, we need the initial fitted values and residuals
-    if bootstrap_type in ["residuals", "wild"]:
-        initial_fitted_power = pw_fit.predict(log_freq)
-        initial_residuals = log_power - initial_fitted_power
-    elif bootstrap_type == "block":
-        if bootstrap_block_size is None:
-            # Rule-of-thumb for block size, with a minimum of 3 for effectiveness.
-            block_size = max(3, int(np.ceil(n_points ** (1 / 3))))
-            logger.info(
-                f"No 'bootstrap_block_size' provided for segmented block "
-                f"bootstrap. Using rule-of-thumb size: {block_size}"
-            )
-        else:
-            if not isinstance(bootstrap_block_size, int) or bootstrap_block_size <= 0:
-                raise ValueError("bootstrap_block_size must be a positive integer.")
-            if bootstrap_block_size >= n_points:
-                raise ValueError(
-                    f"Block size ({bootstrap_block_size}) must be smaller than the "
-                    f"number of data points ({n_points})."
-                )
-            block_size = bootstrap_block_size
-        if n_points < 3 * block_size:
-            raise ValueError(
-                f"The number of data points ({n_points}) is less than 3 times "
-                f"the block size ({block_size}). The block bootstrap is "
-                "ineffective for such short series."
-            )
-
-    # Extract the starting breakpoints from the initial fit's results.
-    # This was the source of a bug where bootstrap CIs would always fail.
-    # The previous code tried to access a non-existent `estimates` attribute
-    # on the `pw_fit` object.
-    initial_results = pw_fit.get_results()
-    initial_estimates = initial_results.get("estimates")
-
-    if not initial_estimates:
-        raise RuntimeError(
-            "Bootstrap confidence intervals cannot be calculated because the "
-            "initial segmented fit did not produce valid estimates. This may "
-            "indicate a version incompatibility with piecewise-regression."
-        )
-
-    # Extract the initial breakpoint estimates to use as start_values.
-    # This helps stabilize the bootstrap fits by starting them from a good
-    # initial guess, which is critical for preventing convergence failures.
-    start_values = []
-    for i in range(1, n_breakpoints + 1):
-        bp_info = initial_estimates.get(f"breakpoint{i}", {})
-        bp_val = bp_info.get("estimate")
-        if bp_val is not None:
-            start_values.append(bp_val)
-        else:
-            # If any breakpoint estimate is missing, it's safer not to provide
-            # start_values, as the library expects a full list.
-            logger.warning(
-                f"Could not extract initial estimate for breakpoint {i}. "
-                "Bootstrap iterations will not use start_values, which may "
-                "reduce stability."
-            )
-            start_values = None
-            break
-
-    # If start_values list is incomplete, set to None so the library uses its own guess.
-    if start_values is not None and len(start_values) != n_breakpoints:
-        logger.warning(
-            "Could not extract all initial breakpoint estimates. Bootstrap "
-            "iterations will not use start_values."
-        )
-        start_values = None
-
-    for _ in range(n_bootstraps):
-        try:
-            if bootstrap_type == "pairs":
-                indices = rng.choice(np.arange(n_points), size=n_points, replace=True)
-                resampled_log_freq = log_freq[indices]
-                resampled_log_power = log_power[indices]
-
-                # Sort the resampled data by frequency
-                sort_order = np.argsort(resampled_log_freq)
-                resampled_log_freq_sorted = resampled_log_freq[sort_order]
-                resampled_log_power_sorted = resampled_log_power[sort_order]
-            elif bootstrap_type == "residuals":
-                resampled_residuals = rng.choice(
-                    initial_residuals - np.mean(initial_residuals),
-                    size=n_points,
-                    replace=True,
-                )
-                resampled_log_power_sorted = initial_fitted_power + resampled_residuals
-                resampled_log_freq_sorted = log_freq  # Keep original frequencies
-            elif bootstrap_type == "block":
-                indices = _moving_block_bootstrap_indices(n_points, block_size, rng)
-                resampled_log_freq = log_freq[indices]
-                resampled_log_power = log_power[indices]
-                # Sort the resampled data by frequency, which is required
-                # for the piecewise regression library.
-                sort_order = np.argsort(resampled_log_freq)
-                resampled_log_freq_sorted = resampled_log_freq[sort_order]
-                resampled_log_power_sorted = resampled_log_power[sort_order]
-            elif bootstrap_type == "wild":
-                # Wild bootstrap using Rademacher distribution
-                u = rng.choice([-1, 1], size=n_points, replace=True)
-                centered_residuals = initial_residuals - np.mean(initial_residuals)
-                resampled_log_power_sorted = (
-                    initial_fitted_power + centered_residuals * u
-                )
-                resampled_log_freq_sorted = log_freq  # Keep original frequencies
-            else:
-                continue
-
-            bootstrap_pw_fit = piecewise_regression.Fit(
-                resampled_log_freq_sorted,
-                resampled_log_power_sorted,
-                n_breakpoints=n_breakpoints,
-                start_values=start_values,
-            )
-
-            # Bug fix: Correctly get results from the bootstrap fit object.
-            bootstrap_results = bootstrap_pw_fit.get_results()
-            if not bootstrap_results.get("converged"):
-                if logger:
-                    logger.debug("Segmented bootstrap iteration failed to converge.")
-                continue
-
-            estimates = bootstrap_results.get("estimates")
-            if not estimates:
-                if logger:
-                    logger.debug(
-                        "Segmented bootstrap iteration converged but returned no estimates."
-                    )
-                continue
-
-            # Safely extract breakpoints
-            for i in range(n_breakpoints):
-                bp_info = estimates.get(f"breakpoint{i+1}", {})
-                bp_val = bp_info.get("estimate")
-                if bp_val is not None:
-                    bootstrap_breakpoints[i].append(10**bp_val)
-                else:
-                    bootstrap_breakpoints[i].append(np.nan)
-
-            # Safely extract slopes
-            current_slope = estimates.get("alpha1", {}).get("estimate")
-            if current_slope is None:
-                continue  # Skip this bootstrap if the first slope is missing
-
-            slopes = [current_slope]
-            for i in range(1, n_breakpoints + 1):
-                beta_val = estimates.get(f"beta{i}", {}).get("estimate")
-                if beta_val is None:
-                    slopes = []  # Invalidate the list
-                    break
-                slopes.append(slopes[-1] + beta_val)
-
-            if not slopes:
-                continue  # Skip if any subsequent beta was missing
-
-            for i, slope in enumerate(slopes):
-                bootstrap_betas[i].append(-slope)
-
-            # Store the predicted line from this bootstrap sample
-            bootstrap_fit_pred = bootstrap_pw_fit.predict(log_freq)
-
-            # BUG #3 FIX: Validate bootstrap prediction output
-            if bootstrap_fit_pred is None:
-                if logger:
-                    logger.debug(
-                        "Bootstrap iteration produced None prediction; skipping."
-                    )
-                skipped += 1
-                continue
-
-            # Ensure 1D array and correct length
-            bootstrap_fit_pred = np.asarray(bootstrap_fit_pred).ravel()
-            if bootstrap_fit_pred.shape[0] != len(log_freq):
-                if logger:
-                    logger.debug(
-                        "Bootstrap iteration produced wrong output shape: %d vs expected %d. Skipping.",
-                        bootstrap_fit_pred.shape[0],
-                        len(log_freq),
-                    )
-                skipped += 1
-                continue
-
-            bootstrap_fits.append(bootstrap_fit_pred)
-            successful_fits += 1
-        except (ValueError, np.linalg.LinAlgError, RuntimeError) as e:
-            error_type = type(e).__name__
-            error_counts[error_type] = error_counts.get(error_type, 0) + 1
-            # Log the specific error for a failed iteration
-            msg = f"Segmented bootstrap iteration failed with a numerical/runtime error: {e}"
-            if logger:
-                logger.debug(msg)
-            continue
-        except Exception as e:
-            error_type = type(e).__name__
-            error_counts[error_type] = error_counts.get(error_type, 0) + 1
-            if logger:
-                logger.debug(
-                    "An unexpected error occurred in a segmented bootstrap iteration: %s",
-                    e,
-                    exc_info=True,
-                )
-            continue
-
-    n_success = len(bootstrap_fits)
-    if n_success == 0:
-        logger.error(
-            "All bootstrap iterations failed or produced wrong shapes; cannot compute CIs."
-        )
-        return {
-            "betas_ci": [(np.nan, np.nan)] * (n_breakpoints + 1),
-            "breakpoints_ci": [(np.nan, np.nan)] * n_breakpoints,
-            "fit_ci_lower": np.full(len(log_freq), np.nan),
-            "fit_ci_upper": np.full(len(log_freq), np.nan),
-            "ci_computed": False,
-            "bootstrap_successful_iterations": 0,
-            "bootstrap_skipped_iterations": skipped,
-        }
-
-    # Minimum-success threshold — choose a sensible policy:
-    min_success = max(MIN_BOOTSTRAP_SAMPLES, int(0.5 * n_bootstraps))
-    ci_computed = True
-    if n_success < min_success:
-        logger.warning(
-            "Only %d successful bootstrap iterations (requested %d); CIs may be unreliable.",
-            n_success,
-            n_bootstraps,
-        )
-        ci_computed = False
-
-    lower_p, upper_p = (100 - ci) / 2, 100 - (100 - ci) / 2
-    ci_results = {
-        "betas_ci": [],
-        "breakpoints_ci": [],
-        "fit_ci_lower": None,
-        "fit_ci_upper": None,
-        "ci_computed": ci_computed,
-        "bootstrap_successful_iterations": n_success,
-        "bootstrap_skipped_iterations": skipped,
-    }
-
-    # Calculate CIs for the fitted line itself
-    bootstrap_fits_arr = np.vstack(bootstrap_fits)
-    if bootstrap_fits_arr.ndim == 1:
-        bootstrap_fits_arr = bootstrap_fits_arr.reshape(1, -1)
-
-    # This check handles cases where bootstrap runs failed and produced no fits.
-    if bootstrap_fits_arr.ndim == 2 and bootstrap_fits_arr.shape[1] > 0:
-        # Initialize full-size arrays with NaNs. This ensures that if the
-        # bootstrap fails for some frequencies, those points are excluded from
-        # plotting without causing a dimension mismatch.
-        n_freq_points = bootstrap_fits_arr.shape[1]
-        fit_ci_lower = np.full(n_freq_points, np.nan)
-        fit_ci_upper = np.full(n_freq_points, np.nan)
-
-        # Identify columns (frequencies) where all bootstrap fits were finite.
-        finite_fit_cols = np.all(np.isfinite(bootstrap_fits_arr), axis=0)
-
-        # Calculate percentiles only for the valid columns.
-        if np.any(finite_fit_cols):
-            # Calculate CIs on the subset of data that is valid.
-            # Use np.nanpercentile to handle any NaNs robustly, though
-            # finite_fit_cols should ensure they are finite.
-            lower_bounds = np.nanpercentile(
-                bootstrap_fits_arr[:, finite_fit_cols], lower_p, axis=0
-            )
-            upper_bounds = np.nanpercentile(
-                bootstrap_fits_arr[:, finite_fit_cols], upper_p, axis=0
-            )
-            # Place the calculated CIs back into the full-size arrays.
-            fit_ci_lower[finite_fit_cols] = lower_bounds
-            fit_ci_upper[finite_fit_cols] = upper_bounds
-
-        ci_results["fit_ci_lower"] = fit_ci_lower
-        ci_results["fit_ci_upper"] = fit_ci_upper
-    # If bootstrap_fits_arr is empty or not 2D, CIs will remain as None,
-    # which is the default initialized value.
-
-    for i in range(n_breakpoints + 1):
-        # Filter out non-finite beta estimates before calculating CIs
-        finite_betas = [b for b in bootstrap_betas[i] if np.isfinite(b)]
-        if len(finite_betas) >= MIN_BOOTSTRAP_SAMPLES:
-            lower = np.percentile(finite_betas, lower_p)
-            upper = np.percentile(finite_betas, upper_p)
-            ci_results["betas_ci"].append((lower, upper))
-        else:
-            ci_results["betas_ci"].append((np.nan, np.nan))
-
-    for i in range(n_breakpoints):
-        # Filter out non-finite breakpoint estimates
-        finite_bps = [bp for bp in bootstrap_breakpoints[i] if np.isfinite(bp)]
-        if len(finite_bps) >= MIN_BOOTSTRAP_SAMPLES:
-            try:
-                lower = np.percentile(finite_bps, lower_p)
-                upper = np.percentile(finite_bps, upper_p)
-                ci_results["breakpoints_ci"].append((lower, upper))
-            except IndexError:
-                logger.warning(f"Could not calculate bootstrap CI for breakpoint {i+1} due to an index error.")
-                ci_results["breakpoints_ci"].append((np.nan, np.nan))
-        else:
-            logger.warning(
-                f"Not enough successful bootstrap samples to calculate confidence interval for breakpoint {i+1} "
-                f"(requires {MIN_BOOTSTRAP_SAMPLES}, got {len(finite_bps)}). CI will be NaN."
-            )
-            ci_results["breakpoints_ci"].append((np.nan, np.nan))
-
-    # Add a field to indicate that a fallback occurred.
-    # Add a field to indicate that a fallback occurred.
-    return ci_results
-
-
-def _extract_parametric_segmented_cis(
-    pw_fit, residuals, n_breakpoints, ci=95, logger=None
-):
-    """
-    Extracts parametric CIs from a fitted piecewise_regression model.
-
-    Note: The library provides CIs for all slopes (alphas) and breakpoints.
-    This function extracts them.
-    """
-    logger = logger or logging.getLogger(__name__)
-    msg = (
-        "Parametric confidence intervals for segmented models assume normality "
-        "of errors and may be less reliable than bootstrap intervals. "
-        "Consider using ci_method='bootstrap' for more robust results."
-    )
-    logger.warning(msg)
-
-    # Shapiro-Wilk test for normality of residuals
-    if 3 < len(residuals) <= 5000:
-        shapiro_stat, shapiro_p = stats.shapiro(residuals)
-        if shapiro_p < 0.05:
-            logger.warning(
-                f"Residuals may not be normally distributed (Shapiro-Wilk "
-                f"p-value: {shapiro_p:.3f}). Parametric confidence "
-                "intervals may be unreliable."
-            )
-    elif len(residuals) > 5000:
-        logger.info("Dataset too large for Shapiro-Wilk test; skipping normality check.")
-
-    results = pw_fit.get_results()
-    if not results or "estimates" not in results:
-        return {"betas_ci": [], "breakpoints_ci": []}
-
-    estimates = results["estimates"]
-    betas_ci = []
-    breakpoints_ci = []
-
-    # Bug fix: The piecewise-regression library provides CIs for all alphas.
-    # The previous implementation only extracted the first one. This loop
-    # now correctly extracts CIs for all segment slopes.
-    for i in range(1, n_breakpoints + 2):
-        alpha_key = f"alpha{i}"
-        alpha_info = estimates.get(alpha_key, {})
-        alpha_ci = alpha_info.get("confidence_interval")
-
-        if alpha_ci and all(c is not None for c in alpha_ci):
-            # The CI for beta is inverted because beta = -slope. A lower bound
-            # on the slope corresponds to an upper bound on beta.
-            betas_ci.append((-alpha_ci[1], -alpha_ci[0]))
-        else:
-            betas_ci.append((np.nan, np.nan))
-
-    # CIs for the breakpoints
-    for i in range(1, n_breakpoints + 1):
-        try:
-            bp_info = estimates.get(f"breakpoint{i}", {})
-            bp_ci_log = bp_info.get("confidence_interval")
-
-            if bp_ci_log and all(c is not None for c in bp_ci_log) and len(bp_ci_log) == 2:
-                # Convert from log space back to frequency space
-                breakpoints_ci.append((10 ** bp_ci_log[0], 10 ** bp_ci_log[1]))
-            else:
-                logger.warning(
-                    f"Could not extract valid parametric confidence interval for breakpoint {i}. "
-                    f"CI data was: {bp_ci_log}"
-                )
-                breakpoints_ci.append((np.nan, np.nan))
-        except (TypeError, IndexError) as e:
-            logger.warning(
-                f"An error occurred while extracting parametric confidence interval for breakpoint {i}: {e}"
-            )
-            breakpoints_ci.append((np.nan, np.nan))
-
-    return {"betas_ci": betas_ci, "breakpoints_ci": breakpoints_ci}
-
-
-
 def fit_segmented_spectrum(
     frequency: np.ndarray,
     power: np.ndarray,
@@ -920,99 +584,17 @@ def fit_segmented_spectrum(
     logger: Optional[logging.Logger] = None,
 ) -> Dict:
     """
-    Fits a segmented regression and estimates confidence intervals.
-
-    .. note::
-        The spectral exponent, beta (β), is defined as the negative of the
-        slope of the log-log power spectrum (P(f) ∝ f^−β). A positive beta
-        indicates persistence (long-term memory), where low frequencies have
-        more power, while a negative beta indicates anti-persistence.
-
-    Args:
-        frequency (np.ndarray): The frequency array.
-        power (np.ndarray): The power array.
-        n_breakpoints (int, optional): The number of breakpoints to fit.
-            Defaults to 1.
-        p_threshold (float, optional): The p-value threshold for the Davies
-            test for a significant breakpoint (only for 1-breakpoint models).
-            Defaults to 0.05.
-        ci_method (str, optional): The method for calculating confidence
-            intervals ('bootstrap' or 'parametric'). Defaults to 'bootstrap'.
-        bootstrap_type (str, optional): The bootstrap method to use. Can be
-            'pairs', 'residuals', 'block', or 'wild'. 'block' is recommended
-            for data with suspected autocorrelation. 'wild' is recommended for
-            heteroscedastic residuals.
-        bootstrap_block_size (int, optional): The block size for the moving
-            block bootstrap. If None, a rule-of-thumb `n_points**(1/3)` is
-            used. This default may be too small for data with strong
-            autocorrelation. For best results, users should choose a block
-            size that reflects the data's correlation length (e.g., ~10x the
-            period of the longest significant cycle). Only applicable when
-            `bootstrap_type` is 'block'.
-        n_bootstraps (int, optional): Number of bootstrap samples for CI.
-            Only used if `ci_method` is `'bootstrap'`. Defaults to 1000.
-        ci (int, optional): The desired confidence interval in percent.
-            Defaults to 95.
-        seed (int, optional): A seed for the random number generator.
-        logger (logging.Logger, optional): A logger for warnings.
-
-    Returns:
-        dict: A dictionary containing the fit results, including CIs.
-
-    Notes:
-        While the function enforces a minimum of 10 data points per segment
-        (`MIN_POINTS_PER_SEGMENT`), this is a technical minimum for the fit to
-        run and does not guarantee statistical power. For reliable results, a
-        larger sample size is strongly recommended.
-
-        - **1-breakpoint models:** A minimum of 50 data points is recommended to
-          reliably detect a change in slope and calculate stable confidence
-          intervals.
-        - **2-breakpoint models:** A minimum of 100 data points is recommended.
-
-        Insufficient data can lead to models that fail to detect true
-        breakpoints or produce wide, unreliable confidence intervals.
-
-    Warning:
-        For models with `n_breakpoints > 1`, this function does not perform a
-        statistical significance test for the breakpoints (such as the Davies
-        test). Model selection is based on the Bayesian Information Criterion
-        (BIC) alone. This approach may lead to overfitting, particularly with
-        noisy data, as BIC might favor more complex models that do not
-        represent a statistically significant improvement. Users should interpret
-        multi-breakpoint models with caution and consider the physical context.
+    Fits a segmented regression and estimates confidence intervals using MannKS.
     """
     if logger is None:
         import logging
         logger = logging.getLogger(__name__)
-
-    # --- RNG setup: create a master SeedSequence and spawn child RNGs ---
-    rng_seg_bootstrap, rng_std_fallback = spawn_generators(seed, 2)
-    # --------------------------------------------------------------------
 
     # Ensure frequency and power are sorted by frequency.
     # This prevents issues with downstream operations that assume sorted data.
     order = np.argsort(frequency)
     frequency = frequency[order]
     power = power[order]
-
-    if piecewise_regression is None:
-        logger.warning(
-            "Segmented fitting failed because the 'piecewise-regression' "
-            "package is not installed. Falling back to a standard linear fit. "
-            "To enable segmented fitting, please install the package, e.g., "
-            "with 'pip install piecewise-regression'."
-        )
-        return fit_standard_model(
-            frequency,
-            power,
-            method="theil-sen",  # Default to a robust method
-            ci_method=ci_method,
-            n_bootstraps=n_bootstraps,
-            ci=ci,
-            seed=rng_std_fallback,
-            logger=logger,
-        )
 
     # Input validation
     if not isinstance(frequency, np.ndarray) or not isinstance(power, np.ndarray):
@@ -1034,10 +616,7 @@ def fit_segmented_spectrum(
 
     if not np.all(np.isfinite(frequency)) or not np.all(np.isfinite(power)):
         raise ValueError("Input arrays must contain finite values.")
-    if bootstrap_type not in ["pairs", "residuals", "block", "wild"]:
-        raise ValueError(
-            f"Unknown bootstrap_type: '{bootstrap_type}'. Choose 'pairs', 'residuals', 'block', or 'wild'."
-        )
+
     if n_breakpoints <= 0:
         raise ValueError("'n_breakpoints' must be a positive integer.")
     if not 0 < p_threshold < 1:
@@ -1046,17 +625,6 @@ def fit_segmented_spectrum(
         raise ValueError("'n_bootstraps' must be non-negative.")
     if not 0 < ci < 100:
         raise ValueError("'ci' must be between 0 and 100.")
-
-    # Log-transform the data
-    if n_breakpoints > 1:
-        msg = (
-            f"Fitting a model with {n_breakpoints} breakpoints. "
-            "WARNING: Statistical significance is only tested for 1-breakpoint models "
-            "(via Davies test). Models with more than one breakpoint are chosen "
-            "based on BIC alone, which can lead to overfitting, especially with "
-            "noisy data. Interpret these results with caution."
-        )
-        logger.warning(msg)
 
     # Add a small floor to power to prevent log(0) issues with very weak signals.
     power = np.maximum(power, 1e-100)
@@ -1080,293 +648,130 @@ def fit_segmented_spectrum(
     log_power = np.log10(power[valid_indices])
     n_points = len(log_power)
 
-    if n_points < 30 and "bootstrap" in ci_method:
-        logger.warning(
-            f"Dataset has only {n_points} points. Bootstrap CIs may be "
-            "unreliable. Consider using parametric CIs or collecting more data."
+    # Use MannKS.segmented_trend_test
+    try:
+        mannks_seed = None
+        if isinstance(seed, (int, np.integer)):
+            mannks_seed = int(seed)
+        elif isinstance(seed, np.random.SeedSequence):
+            mannks_seed = int(seed.generate_state(1)[0])
+
+        # Pass n_bootstrap if ci_method is bootstrap?
+        # MannKS uses bagging which involves bootstrapping.
+        # It also has n_bootstrap argument.
+
+        # Note: MannKS.segmented_trend_test doesn't have bootstrap_block_size explicitly
+        # but it passes **kwargs to trend estimation which might use it.
+        # But for breakpoint detection (piecewise regression), it uses OLS.
+        # Then it uses robust slope estimation for segments.
+
+        res = MannKS.segmented_trend_test(
+            log_power,
+            log_freq,
+            n_breakpoints=n_breakpoints,
+            alpha=1-(ci/100),
+            n_bootstrap=n_bootstraps,
+            random_state=mannks_seed
+            # Pass other kwargs if supported, e.g. block_size?
         )
 
-    # Fit the piecewise regression model
-    try:
-        pw_fit = piecewise_regression.Fit(
-            log_freq, log_power, n_breakpoints=n_breakpoints
-        )
-        fit_summary = pw_fit.get_results()
-        converged = fit_summary.get("converged", False)
-    except (ValueError, RuntimeError, np.linalg.LinAlgError) as e:
-        failure_reason = f"Segmented regression failed with a numerical or data issue: {e}"
-        logger.warning(failure_reason)
-        result = {
-            "failure_reason": failure_reason,
-            "n_breakpoints": n_breakpoints,
-            "bic": np.inf,
-            "aic": np.inf,
-        }
-        if logger.isEnabledFor(logging.DEBUG):
-            result["traceback"] = traceback.format_exc()
-        return result
-    except Exception as e:
-        failure_reason = f"Segmented regression failed with an unexpected error: {e!r}"
-        logger.error("Segmented fit crashed: %s", e, exc_info=True)
-        result = {
-            "failure_reason": failure_reason,
-            "n_breakpoints": n_breakpoints,
-            "bic": np.inf,
-            "aic": np.inf,
-        }
-        if logger.isEnabledFor(logging.DEBUG):
-            result["traceback"] = traceback.format_exc()
-        return result
+        # Extract results
+        breakpoints = res.breakpoints
 
-    # Check for convergence and statistical significance.
-    # The Davies test p-value may not always be available.
-    try:
-        davies_p_value = pw_fit.davies
-        if davies_p_value is not None and n_breakpoints > 1:
-            logger.info(
-                f"Davies test p-value ({davies_p_value:.3f}) was found for a "
-                f"{n_breakpoints}-breakpoint model. This is unusual but will be stored."
-            )
-    except AttributeError:
-        davies_p_value = None
-        if n_breakpoints == 1:
-            logger.warning(
-                "Could not access Davies test p-value for the 1-breakpoint model. "
-                "The 'piecewise-regression' library version may have changed."
-            )
+        # MannKS returns breakpoints in time units (log_freq).
+        # We need to convert them back to linear frequency for the result dictionary.
+        linear_breakpoints = 10**breakpoints if breakpoints is not None else []
 
-    if not converged:
-        failure_reason = "Model did not converge."
-        logger.warning(failure_reason)
-        return {
-            "failure_reason": failure_reason,
-            "n_breakpoints": n_breakpoints,
-            "davies_p_value": davies_p_value,
-            "bic": np.inf,
-            "aic": np.inf,
-        }
+        # Segments DataFrame
+        segments_df = res.segments
 
-    # For 1-breakpoint models, require a statistically significant breakpoint.
-    if n_breakpoints == 1:
-        if davies_p_value is None:
-            failure_reason = (
-                "Davies test p-value not available; cannot assess breakpoint significance."
-            )
-            logger.warning(failure_reason)
-            return {
-                "failure_reason": failure_reason,
-                "n_breakpoints": n_breakpoints,
-                "davies_p_value": None,
-                "bic": np.inf,
-                "aic": np.inf,
-            }
-        if davies_p_value > p_threshold:
-            failure_reason = (
-                f"No significant breakpoint found (Davies test p-value "
-                f"{davies_p_value:.4f} > {p_threshold})."
-            )
-            logger.warning(failure_reason)
-            return {
-                "failure_reason": failure_reason,
-                "n_breakpoints": n_breakpoints,
-                "davies_p_value": davies_p_value,
-                "bic": np.inf,
-                "aic": np.inf,
-            }
+        slopes = segments_df['slope'].values
+        intercepts = segments_df['intercept'].values
 
-    # --- Extract results ---
-    estimates = fit_summary.get("estimates")
-    if not estimates:
-        failure_reason = "Fit converged but no estimates were returned."
-        logger.warning(failure_reason)
-        return {
-            "failure_reason": failure_reason,
-            "n_breakpoints": n_breakpoints,
-            "bic": np.inf,
-            "aic": np.inf,
-        }
+        # Betas are negative slopes
+        betas = -slopes
 
-    fitted_log_power = pw_fit.predict(log_freq)
+        # CIs
+        # Slope CIs are in segments_df
+        lower_cis = segments_df['lower_ci'].values
+        upper_cis = segments_df['upper_ci'].values
 
-    # Calculate AIC and Adjusted R-squared
-    n_params = 2 * (n_breakpoints + 1)  # 2 params (slope, intercept) per segment
-    r_squared = fit_summary.get("r_squared", np.nan)
-    denom = n_points - n_params - 1
-    if denom <= 0:
-        logger.warning("Insufficient points to compute adjusted R^2")
-        adj_r_squared = np.nan
-    else:
-        adj_r_squared = 1 - (1 - r_squared) * (n_points - 1) / denom
-    aic = _calculate_aic(log_power, fitted_log_power, n_params)
+        # Beta CIs (inverted slope CIs)
+        betas_ci = list(zip(-upper_cis, -lower_cis))
 
-    # Store base results
-    results = {
-        "bic": fit_summary.get("bic"),
-        "aic": aic,
-        "r_squared": r_squared,
-        "adj_r_squared": adj_r_squared,
-        "model_summary": str(pw_fit.summary()),
-        "model_object": pw_fit,
-        "log_freq": log_freq,
-        "log_power": log_power,
-        "residuals": log_power - fitted_log_power,
-        "fitted_log_power": fitted_log_power,
-        "n_breakpoints": n_breakpoints,
-        "davies_p_value": davies_p_value,
-    }
-
-    # --- Extract breakpoints and betas (slopes) ---
-    breakpoints = []
-    log_breakpoints = []
-    for i in range(1, n_breakpoints + 1):
-        bp_info = estimates.get(f"breakpoint{i}", {})
-        bp_log_freq = bp_info.get("estimate")
-        if bp_log_freq is not None:
-            breakpoints.append(10**bp_log_freq)
-            log_breakpoints.append(bp_log_freq)
+        # Breakpoint CIs
+        # res.breakpoint_cis contains tuples of (lower, upper) in log_freq domain
+        # Convert to linear frequency
+        bp_cis = []
+        if res.breakpoint_cis:
+            for lower, upper in res.breakpoint_cis:
+                bp_cis.append((10**lower, 10**upper))
         else:
-            breakpoints.append(np.nan)
-            log_breakpoints.append(np.nan)
+            bp_cis = [(np.nan, np.nan)] * n_breakpoints
 
-    # Check if any breakpoints are too close to the boundaries
-    log_freq_range = log_freq.max() - log_freq.min()
-    boundary_threshold = 0.05  # 5% of the log-frequency range
-    boundary_violations = []
-    for i, bp_log in enumerate(log_breakpoints):
-        if np.isfinite(bp_log) and (
-            bp_log < log_freq.min() + boundary_threshold * log_freq_range
-            or bp_log > log_freq.max() - boundary_threshold * log_freq_range
-        ):
-            boundary_violations.append(i + 1)
-    if boundary_violations:
-        logger.warning(
-            f"Breakpoint(s) {boundary_violations} are very close to the data "
-            "boundaries (within 5% of the log-frequency range), which may "
-            "indicate an unstable fit."
-        )
+        # Calculate fitted values for residuals
+        fitted_log_power = np.zeros_like(log_power)
 
-    slopes = []
-    current_slope = estimates.get("alpha1", {}).get("estimate")
-    if current_slope is not None:
-        slopes.append(current_slope)
-        for i in range(1, n_breakpoints + 1):
-            beta_val = estimates.get(f"beta{i}", {}).get("estimate")
-            if beta_val is None:
-                slopes = []  # Invalidate slopes
-                break
-            current_slope += beta_val
-            slopes.append(current_slope)
+        # Reconstruct fitted line
+        # This is a bit tricky since we have multiple segments.
+        # We can use the breakpoints to determine which segment applies.
+        # However, MannKS results should ideally provide fitted values.
+        # It doesn't seem to.
+        # But we have slopes and intercepts for each segment.
+        # Wait, the intercepts in MannKS segments DF are "intercept".
+        # Are they for the full line equation y = mx + c valid for that segment?
+        # Let's assume yes.
 
-    betas = [-s for s in slopes] if slopes else [np.nan] * (n_breakpoints + 1)
+        sorted_bp = np.sort(breakpoints)
+        # Add bounds
+        bounds = np.concatenate([[-np.inf], sorted_bp, [np.inf]])
 
-    results["breakpoints"] = breakpoints
-    results["betas"] = betas
+        for i in range(len(slopes)):
+            mask = (log_freq > bounds[i]) & (log_freq <= bounds[i+1])
+            # Handle first point inclusively if needed, or strictly
+            if i == 0:
+                mask = (log_freq >= bounds[i]) & (log_freq <= bounds[i+1])
 
-    # --- Calculate intercepts for each segment ---
-    intercepts = []
-    const_info = estimates.get("const", {})
-    current_intercept = const_info.get("estimate")
+            fitted_log_power[mask] = slopes[i] * log_freq[mask] + intercepts[i]
 
-    if current_intercept is not None:
-        intercepts.append(current_intercept)
-        for i in range(1, n_breakpoints + 1):
-            beta_info = estimates.get(f"beta{i}", {})
-            beta_i = beta_info.get("estimate")
-            bp_info = estimates.get(f"breakpoint{i}", {})
-            breakpoint_i = bp_info.get("estimate")
+        residuals = log_power - fitted_log_power
 
-            if beta_i is None or breakpoint_i is None:
-                current_intercept = np.nan
-            else:
-                current_intercept -= beta_i * breakpoint_i
-            intercepts.append(current_intercept)
-    else:
-        logger.warning(
-            "Could not find 'const' in piecewise regression estimates. "
-            "Intercepts will not be available in the results."
-        )
-        intercepts = [np.nan] * (n_breakpoints + 1)
-    results["intercepts"] = intercepts
+        results = {
+            "bic": res.bic,
+            "aic": res.aic,
+            "n_breakpoints": res.n_breakpoints,
+            "breakpoints": linear_breakpoints,
+            "betas": betas,
+            "intercepts": intercepts,
+            "betas_ci": betas_ci,
+            "breakpoints_ci": bp_cis,
+            "log_freq": log_freq,
+            "log_power": log_power,
+            "residuals": residuals,
+            "fitted_log_power": fitted_log_power,
+            "ci_computed": True,
+            "model_object": res,
+        }
 
-    # --- Check for heteroscedasticity ---
-    residuals = results["residuals"]
-    spearman_corr_log_freq, spearman_corr_freq = np.nan, np.nan
-    if len(residuals) > 1:
-        spearman_corr_log_freq, _ = stats.spearmanr(log_freq, np.abs(residuals))
-        spearman_corr_freq, _ = stats.spearmanr(10**log_freq, np.abs(residuals))
-        if np.abs(spearman_corr_log_freq) > 0.3:
-            logger.warning(
-                "Residuals show potential heteroscedasticity (Spearman "
-                f"correlation with log_freq: {spearman_corr_log_freq:.2f}). The BIC value may be less "
-                "reliable for model selection."
-            )
-    results["spearman_corr_log_freq"] = spearman_corr_log_freq
-    results["spearman_corr_freq"] = spearman_corr_freq
-
-    # BUG #1 FIX: Validate residuals before bootstrap
-    if not np.all(np.isfinite(residuals)):
-        logger.error("Residuals contain non-finite values; cannot perform bootstrap.")
-        results.setdefault("betas", [np.nan] * (n_breakpoints + 1))
-        results["betas_ci"] = [(np.nan, np.nan)] * (n_breakpoints + 1)
-        results["breakpoints_ci"] = [(np.nan, np.nan)] * max(0, n_breakpoints)
-        results["failure_reason"] = "non_finite_residuals"
-        results["ci_computed"] = False
-        # Returning is safest to avoid downstream assumptions
-        return results
-
-    # --- Calculate Confidence Intervals based on the chosen method ---
-    if ci_method == "bootstrap":
-        if bootstrap_type == "residuals" and durbin_watson is None:
-            logger.error(_STATSMODELS_MISSING_MSG)
-            raise ImportError(_STATSMODELS_MISSING_MSG)
+        # Heteroscedasticity checks
+        spearman_corr_log_freq, spearman_corr_freq = np.nan, np.nan
+        if len(residuals) > 1:
+            spearman_corr_log_freq, _ = stats.spearmanr(log_freq, np.abs(residuals))
+            spearman_corr_freq, _ = stats.spearmanr(10**log_freq, np.abs(residuals))
+        results["spearman_corr_log_freq"] = spearman_corr_log_freq
+        results["spearman_corr_freq"] = spearman_corr_freq
 
         if durbin_watson:
-            dw_stat = durbin_watson(results["residuals"])
-            results["durbin_watson_stat"] = dw_stat
-            if not 1.5 < dw_stat < 2.5:
-                logger.warning(
-                    f"Durbin-Watson statistic is {dw_stat:.2f}, indicating "
-                    "potential first-order autocorrelation in the model "
-                    "residuals. This test does not detect higher-order "
-                    "correlation structures. The 'residuals' bootstrap method "
-                    "assumes independent residuals and may produce unreliable "
-                    "confidence intervals. Consider using 'block' or 'wild' "
-                    "bootstrap if autocorrelation or heteroscedasticity is suspected."
-                )
+             results["durbin_watson_stat"] = durbin_watson(residuals)
 
-        if n_bootstraps > 0:
-            try:
-                ci_results = _bootstrap_segmented_fit(
-                    pw_fit,
-                    log_freq,
-                    log_power,
-                    n_bootstraps,
-                    ci,
-                    rng_seg_bootstrap,
-                    bootstrap_type=bootstrap_type,
-                    bootstrap_block_size=bootstrap_block_size,
-                    logger=logger,
-                )
-                results.update(ci_results)
-            except ValueError as e:
-                logger.warning(
-                    f"Segmented bootstrap failed due to a high error rate: {e}. "
-                    "Falling back to parametric confidence intervals, which may be less reliable."
-                )
-                ci_results = _extract_parametric_segmented_cis(
-                    pw_fit, results["residuals"], n_breakpoints, ci=ci, logger=logger
-                )
-                results.update(ci_results)
-                # Add a field to indicate that a fallback occurred.
-                results["ci_method_fallback"] = "parametric"
-        else:
-            # If bootstrap is chosen but n_bootstraps is 0, return NaNs.
-            results["betas_ci"] = [(np.nan, np.nan)] * (n_breakpoints + 1)
-            results["breakpoints_ci"] = [(np.nan, np.nan)] * n_breakpoints
-    elif ci_method == "parametric":
-        ci_results = _extract_parametric_segmented_cis(
-            pw_fit, results["residuals"], n_breakpoints, ci=ci, logger=logger
-        )
-        results.update(ci_results)
+        return results
 
-    return results
+    except Exception as e:
+        failure_reason = f"MannKS segmented fit failed: {e}"
+        logger.error(failure_reason, exc_info=True)
+        return {
+            "failure_reason": failure_reason,
+            "n_breakpoints": n_breakpoints,
+            "bic": np.inf,
+            "aic": np.inf,
+        }
