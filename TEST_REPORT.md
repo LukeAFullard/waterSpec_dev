@@ -72,6 +72,24 @@ Two PSD models were used:
     *   **Haar Analysis:** Demonstrated superior robustness. Even at 70% missing, the estimated slope was $\beta \approx 1.25$, much closer to the true value of 1.5.
     *   **Conclusion:** For highly irregularly sampled red noise data, Haar Fluctuation Analysis provides more accurate spectral slope estimates than the standard Lomb-Scargle periodogram.
 
+### 7. Haar Analysis with MannKS Segmented Fitting
+*   **Objective:** Verify if Haar Analysis outputs (structure functions) can be processed using MannKS segmented regression to detect multifractal behavior.
+*   **Scenario:** A multifractal signal with $\beta_1 = 2.0$ (low frequency) and $\beta_2 = 0.5$ (high frequency).
+*   **Methodology:** The Haar Structure Function $S_1(\Delta t)$ was computed, and `fit_segmented_spectrum` (which uses MannKS) was applied to the log-log plot of $S_1$ vs. lag.
+*   **Results:**
+    *   The segmented fit successfully identified the breakpoint.
+    *   The recovered slopes (converted from Hurst exponent $H$ to spectral $\beta$ via $\beta = 1+2H$) matched the input parameters:
+        *   High Frequency (Short Lags): $\beta \approx 0.5$
+        *   Low Frequency (Long Lags): $\beta \approx 2.0$
+    *   **Conclusion:** The `MannKS` segmentation logic already present in the package is compatible with Haar Analysis outputs, allowing for robust multifractal characterization in the time domain.
+
+### 8. Comparison: Lomb-Scargle vs. Haar on Uneven Multifractal Data
+*   **Objective:** Compare the two methods on a difficult "real-world" scenario: a multifractal signal ($\beta_1=2.0, \beta_2=0.5$) with 50% missing data.
+*   **Results:**
+    *   **Lomb-Scargle:** Correctly identified the low-frequency persistent regime ($\beta \approx 1.9$) but the high-frequency slope was severely biased towards white noise ($\beta \approx 0.2$) due to the combined effects of uneven sampling and the underlying spectral break.
+    *   **Haar Analysis:** recovered both slopes with much higher accuracy ($\beta_{low} \approx 2.0$, $\beta_{high} \approx 0.5$).
+    *   **Conclusion:** Haar Analysis is the preferred method for analyzing multifractal properties in unevenly sampled time series, as it is less susceptible to the spectral leakage artifacts that distort the high-frequency spectrum in Fourier-based methods like Lomb-Scargle.
+
 ## Bug Fixes
 
 During the development of these tests, two issues in the core library were identified and fixed:
