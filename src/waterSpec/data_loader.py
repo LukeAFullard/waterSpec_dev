@@ -204,7 +204,8 @@ def process_dataframe(
 
     if not input_time_unit:
         # Convert datetime to int64 nanoseconds since epoch.
-        time_numeric_ns = clean_df["time"].view(np.int64).to_numpy()
+        # Force datetime64[ns] to ensure we have nanoseconds before viewing as int64
+        time_numeric_ns = clean_df["time"].astype("datetime64[ns]").to_numpy().view(np.int64)
 
         # Check for strict monotonicity on the high-precision integer representation
         if len(time_numeric_ns) > 1:

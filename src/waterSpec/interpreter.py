@@ -245,7 +245,7 @@ def interpret_results(
                         beta_str = f"β = {beta_val:.2f}"
                 else:
                     betas_list = model.get("betas", [])
-                    if betas_list:
+                    if len(betas_list) > 0:
                         beta_str = ", ".join(
                             [f"β{i+1}={b:.2f}" for i, b in enumerate(betas_list)]
                         )
