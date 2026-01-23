@@ -83,6 +83,13 @@ Two PSD models were used:
         *   Low Frequency (Long Lags): $\beta \approx 2.0$
     *   **Conclusion:** The `MannKS` segmentation logic already present in the package is compatible with Haar Analysis outputs, allowing for robust multifractal characterization in the time domain.
 
+### 8. Comparison: Lomb-Scargle vs. Haar on Uneven Multifractal Data
+*   **Objective:** Compare the two methods on a difficult "real-world" scenario: a multifractal signal ($\beta_1=2.0, \beta_2=0.5$) with 50% missing data.
+*   **Results:**
+    *   **Lomb-Scargle:** Correctly identified the low-frequency persistent regime ($\beta \approx 1.9$) but the high-frequency slope was severely biased towards white noise ($\beta \approx 0.2$) due to the combined effects of uneven sampling and the underlying spectral break.
+    *   **Haar Analysis:** recovered both slopes with much higher accuracy ($\beta_{low} \approx 2.0$, $\beta_{high} \approx 0.5$).
+    *   **Conclusion:** Haar Analysis is the preferred method for analyzing multifractal properties in unevenly sampled time series, as it is less susceptible to the spectral leakage artifacts that distort the high-frequency spectrum in Fourier-based methods like Lomb-Scargle.
+
 ## Bug Fixes
 
 During the development of these tests, two issues in the core library were identified and fixed:

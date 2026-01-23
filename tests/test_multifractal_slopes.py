@@ -394,6 +394,109 @@ def test_haar_mannks_segmentation(tmp_path):
     assert 5 < bp_lag < 100
 
 
+def test_haar_ls_uneven_multifractal(tmp_path):
+    """
+    Compare Lomb-Scargle and Haar analysis on unevenly sampled MULTIFRACTAL data.
+    (Broken power law: beta1=2.0, beta2=0.5).
+    """
+    from waterSpec.fitter import fit_segmented_spectrum
+
+    n_points = 2000
+    dt = 1.0
+    beta1 = 2.0 # Low freq
+    beta2 = 0.5 # High freq
+    f_break = 0.05
+
+    # Generate data
+    time, series = generate_series(broken_power_law, (beta1, beta2, f_break), n_points=n_points, dt=dt, seed=999)
+
+    # Drop 50% data
+    missing_fraction = 0.5
+    n_keep = int(n_points * (1 - missing_fraction))
+    rng = np.random.default_rng(42)
+    keep_indices = np.sort(rng.choice(np.arange(n_points), size=n_keep, replace=False))
+
+    uneven_time = time[keep_indices]
+    uneven_series = series[keep_indices]
+
+    # --- 1. Lomb-Scargle Analysis ---
+    print("\n--- Lomb-Scargle Analysis ---")
+    file_path = create_data_file(tmp_path, uneven_time, uneven_series, filename="uneven_multi.csv")
+    analyzer = Analysis(file_path=file_path, time_col="time", data_col="value", detrend_method=None)
+
+    ls_results = analyzer.run_full_analysis(
+        output_dir=str(tmp_path / "ls_uneven_multi"),
+        max_breakpoints=1,
+        n_bootstraps=10,
+        ci_method="parametric"
+    )
+
+    ls_betas = ls_results.get("betas", [np.nan])
+    ls_model = ls_results.get("chosen_model_type", "unknown")
+    print(f"LS Chosen Model: {ls_results['chosen_model']}")
+    print(f"LS Betas: {ls_betas}")
+
+    # --- 2. Haar Analysis ---
+    print("\n--- Haar Analysis ---")
+    haar = HaarAnalysis(uneven_time, uneven_series)
+    haar_results = haar.run(min_lag=dt, max_lag=n_points*dt/2, num_lags=50)
+    lags = haar_results["lags"]
+    s1 = haar_results["s1"]
+
+    haar_fit = fit_segmented_spectrum(
+        lags,
+        s1,
+        n_breakpoints=1,
+        n_bootstraps=10,
+        ci_method="bootstrap"
+    )
+
+    haar_betas = 1 + 2 * (-haar_fit["betas"]) # Convert -H back to beta
+    print(f"Haar Betas: {haar_betas}")
+
+    # --- Comparison ---
+    # Expected: High Freq (Short Lag) Beta ~ 0.5
+    #           Low Freq (Long Lag) Beta ~ 2.0
+
+    # LS usually orders betas by frequency range (Low Freq, High Freq)??
+    # Actually fit_segmented_spectrum sorts frequency.
+    # LS frequency: Low f (Long T) -> High f (Short T).
+    # So LS betas[0] = Low Freq (beta1=2.0), betas[1] = High Freq (beta2=0.5).
+
+    # Haar frequency (lags): Short Lag (High f) -> Long Lag (Low f).
+    # So Haar betas[0] = Short Lag (High f -> beta2=0.5).
+    #    Haar betas[1] = Long Lag (Low f -> beta1=2.0).
+
+    # Note: LS might struggle with 50% missing data on multifractal.
+    # Let's check LS performance.
+
+    if "segmented" in ls_results["chosen_model"]:
+        ls_beta_low = ls_betas[0]
+        ls_beta_high = ls_betas[1]
+    else:
+        ls_beta_low = ls_results.get("beta", np.nan)
+        ls_beta_high = np.nan
+        print("LS failed to choose segmented model.")
+
+    haar_beta_high = haar_betas[0] # Short lag
+    haar_beta_low = haar_betas[1]  # Long lag
+
+    print(f"Truth: Low={beta1}, High={beta2}")
+    print(f"LS:    Low={ls_beta_low:.2f}, High={ls_beta_high:.2f}")
+    print(f"Haar:  Low={haar_beta_low:.2f}, High={haar_beta_high:.2f}")
+
+    # Assertions
+    # Haar should be reasonably close
+    assert haar_beta_low == pytest.approx(beta1, abs=0.6)
+    assert haar_beta_high == pytest.approx(beta2, abs=0.6)
+
+    # LS is likely to be worse or biased, especially at high frequencies (whitening)
+    # But it might still capture the low freq slope roughly.
+    if not np.isnan(ls_beta_low):
+        # LS low freq slope usually survives uneven sampling better than high freq
+        pass
+
+
 @pytest.mark.parametrize("missing_fraction", [0.2, 0.5, 0.7])
 def test_haar_ls_uneven_comparison(tmp_path, missing_fraction):
     """
