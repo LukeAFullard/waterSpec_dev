@@ -306,6 +306,94 @@ def test_haar_comparison(tmp_path):
     assert diff < 0.5
 
 
+def test_haar_mannks_segmentation(tmp_path):
+    """
+    Test using MannKS segmented fitting (via fit_segmented_spectrum) on Haar analysis output
+    to detect multifractal (segmented) behavior.
+    """
+    from waterSpec.fitter import fit_segmented_spectrum
+
+    n_points = 2000
+    dt = 1.0
+    beta1 = 2.0  # Low frequency (Long lag) -> H = (2-1)/2 = 0.5
+    beta2 = 0.5  # High frequency (Short lag) -> H = (0.5-1)/2 = -0.25
+
+    # Generate broken power law data
+    # Note: simulate_tk95 takes frequency breakpoint.
+    # High freq -> Short lag. Low freq -> Long lag.
+    # Breakpoint at f = 0.05.
+    # T = 2000. f_min = 0.0005. f_max = 0.5.
+    f_break = 0.05
+    time, series = generate_series(broken_power_law, (beta1, beta2, f_break), n_points=n_points, dt=dt, seed=321)
+
+    # Run Haar
+    haar = HaarAnalysis(time, series)
+    # Use many lags to capture the shape well
+    haar_results = haar.run(min_lag=dt, max_lag=n_points*dt/2, num_lags=50)
+    lags = haar_results["lags"]
+    s1 = haar_results["s1"]
+
+    # Use fit_segmented_spectrum
+    # We pass 'lags' as 'frequency' and 's1' as 'power'.
+    # Note: fit_segmented_spectrum fits log(P) = -beta * log(f) + c
+    # Here: log(S1) = H * log(dt) + c
+    # So 'beta' output from fitter will be -H.
+
+    # fit_segmented_spectrum requires inputs to be numpy arrays and valid
+    # It also logs them.
+
+    fit_res = fit_segmented_spectrum(
+        lags,
+        s1,
+        n_breakpoints=1,
+        n_bootstraps=10, # low for speed
+        ci_method="bootstrap"
+    )
+
+    # Check if fit succeeded
+    assert "failure_reason" not in fit_res
+    assert fit_res["n_breakpoints"] == 1
+
+    # Retrieve slopes (betas returned are -H)
+    neg_H_values = fit_res["betas"]
+    H_values = -neg_H_values
+
+    # Convert H to spectral beta: beta = 1 + 2H
+    estimated_betas = 1 + 2 * H_values
+
+    print(f"Estimated H: {H_values}")
+    print(f"Estimated Spectral Betas (from Haar): {estimated_betas}")
+
+    # Expected behavior:
+    # Short lags (High Freq, beta2=0.5) -> Small dt -> First segment in Haar plot?
+    # Long lags (Low Freq, beta1=2.0) -> Large dt -> Second segment?
+
+    # fit_segmented_spectrum sorts 'frequency' (lags).
+    # Lags are small to large.
+    # Segment 1: Small lags (High Freq behavior) -> Should match beta2 = 0.5
+    # Segment 2: Large lags (Low Freq behavior) -> Should match beta1 = 2.0
+
+    beta_short_lag = estimated_betas[0]
+    beta_long_lag = estimated_betas[1]
+
+    print(f"Short Lag (High Freq) Beta: {beta_short_lag:.2f} (Expected ~{beta2})")
+    print(f"Long Lag (Low Freq) Beta: {beta_long_lag:.2f} (Expected ~{beta1})")
+
+    # Allow loose tolerance as Haar scaling relations can be biased for short series/finite size
+    assert beta_short_lag == pytest.approx(beta2, abs=0.5)
+    assert beta_long_lag == pytest.approx(beta1, abs=0.5)
+
+    # Verify breakpoint
+    # f_break = 0.05 => T_break = 1/0.05 = 20
+    # Haar breakpoint should be around lag = 20
+    bp_lag = fit_res["breakpoints"][0]
+    print(f"Detected Breakpoint Lag: {bp_lag:.1f} (Expected ~20)")
+
+    # Breakpoint detection in Haar can be shifted compared to Fourier
+    # But should be order of magnitude correct
+    assert 5 < bp_lag < 100
+
+
 @pytest.mark.parametrize("missing_fraction", [0.2, 0.5, 0.7])
 def test_haar_ls_uneven_comparison(tmp_path, missing_fraction):
     """
