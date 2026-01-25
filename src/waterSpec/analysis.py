@@ -119,6 +119,13 @@ class Analysis:
         # --- Data Loading and Preprocessing ---
         self.logger.info("Loading and preprocessing data...")
 
+        # Determine if we should coerce data to numeric immediately.
+        # If the censor strategy requires parsing symbols (e.g. '<0.01'), we must
+        # delay coercion until `preprocess_data` calls `handle_censored_data`.
+        coerce_to_numeric = True
+        if censor_strategy in ["use_detection_limit", "multiplier"]:
+            coerce_to_numeric = False
+
         if file_path is not None:
             time_numeric, data_series, error_series = load_data(
                 file_path=file_path,
@@ -129,6 +136,7 @@ class Analysis:
                 input_time_unit=input_time_unit,
                 sheet_name=sheet_name,
                 output_time_unit=self.time_unit,
+                coerce_to_numeric=coerce_to_numeric,
             )
         elif dataframe is not None:
             time_numeric, data_series, error_series = process_dataframe(
@@ -139,6 +147,7 @@ class Analysis:
                 time_format=time_format,
                 input_time_unit=input_time_unit,
                 output_time_unit=self.time_unit,
+                coerce_to_numeric=coerce_to_numeric,
             )
         elif time_array is not None and data_array is not None:
             # Create a temporary DataFrame from the NumPy arrays
@@ -158,6 +167,7 @@ class Analysis:
                 time_format=time_format,
                 input_time_unit=input_time_unit,
                 output_time_unit=self.time_unit,
+                coerce_to_numeric=coerce_to_numeric,
             )
         else:
             raise ValueError(
