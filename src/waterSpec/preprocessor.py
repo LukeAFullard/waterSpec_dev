@@ -274,7 +274,9 @@ def handle_censored_data(
     # --- Prepare for processing ---
     str_series = series.astype(str).str.strip()
     # This series will be modified with the results of censoring
-    processed_series = series.copy()
+    # Cast to object to allow assigning float values (e.g. detection limits)
+    # into a series that might have been inferred as string or int.
+    processed_series = series.copy().astype(object)
     original_series = series.copy()  # For comparison later
     col_name = series.name if series.name is not None else "data_series"
     num_affected = 0

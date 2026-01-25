@@ -14,6 +14,7 @@ def process_dataframe(
     time_format: Optional[str] = None,
     input_time_unit: Optional[str] = None,
     output_time_unit: str = "seconds",
+    coerce_to_numeric: bool = True,
 ) -> Tuple[np.ndarray, pd.Series, Optional[pd.Series]]:
     """
     Processes a DataFrame containing time series data, performing robust
@@ -34,6 +35,9 @@ def process_dataframe(
             that needs parsing. Defaults to None.
         output_time_unit (str, optional): The desired unit for the output time
             array. Can be 'seconds', 'days', or 'hours'. Defaults to 'seconds'.
+        coerce_to_numeric (bool, optional): If True, forces the data column to
+            be numeric, converting non-numeric values to NaN. If False, retains
+            original values (useful for censored data handling). Defaults to True.
 
     Returns:
         Tuple[np.ndarray, pd.Series, Optional[pd.Series]]: A tuple containing:
@@ -128,16 +132,21 @@ def process_dataframe(
     # Data column
     if df[data_col_orig].isnull().all():
         raise ValueError(f"The data column '{data_col}' contains no valid data.")
-    original_data_na = df[data_col_orig].isna().sum()
-    data_series = pd.to_numeric(df[data_col_orig], errors="coerce")
-    coerced_data_na = data_series.isna().sum()
-    if coerced_data_na > original_data_na:
-        num_failed_data = coerced_data_na - original_data_na
-        warnings.warn(
-            f"{num_failed_data} value(s) in the data column '{data_col}' could not be "
-            "converted to a numeric type and were set to NaN.",
-            UserWarning,
-        )
+
+    if coerce_to_numeric:
+        original_data_na = df[data_col_orig].isna().sum()
+        data_series = pd.to_numeric(df[data_col_orig], errors="coerce")
+        coerced_data_na = data_series.isna().sum()
+        if coerced_data_na > original_data_na:
+            num_failed_data = coerced_data_na - original_data_na
+            warnings.warn(
+                f"{num_failed_data} value(s) in the data column '{data_col}' could not be "
+                "converted to a numeric type and were set to NaN.",
+                UserWarning,
+            )
+    else:
+        # Retain original data (e.g., for censored data handling)
+        data_series = df[data_col_orig].copy()
 
     # Error column
     error_series = None
@@ -204,6 +213,11 @@ def process_dataframe(
 
     if not input_time_unit:
         # Convert datetime to int64 nanoseconds since epoch.
+        # Handle timezone-aware data by converting to UTC and then making naive
+        if pd.api.types.is_datetime64_any_dtype(clean_df["time"]):
+            if clean_df["time"].dt.tz is not None:
+                clean_df["time"] = clean_df["time"].dt.tz_convert("UTC").dt.tz_localize(None)
+
         # Force datetime64[ns] to ensure we have nanoseconds before viewing as int64
         time_numeric_ns = clean_df["time"].astype("datetime64[ns]").to_numpy().view(np.int64)
 
@@ -308,6 +322,7 @@ def load_data(
     input_time_unit: Optional[str] = None,
     sheet_name: Union[int, str] = 0,
     output_time_unit: str = "seconds",
+    coerce_to_numeric: bool = True,
 ) -> Tuple[np.ndarray, pd.Series, Optional[pd.Series]]:
     """
     Loads time series data from a CSV, JSON, or Excel file and processes it.
@@ -330,6 +345,8 @@ def load_data(
             to read from for Excel files. Defaults to 0.
         output_time_unit (str, optional): The desired unit for the output time
             array. Passed to `process_dataframe`.
+        coerce_to_numeric (bool, optional): If True, forces the data column to
+            be numeric. Defaults to True.
 
     Returns:
         Tuple[np.ndarray, pd.Series, Optional[pd.Series]]: A tuple containing:
@@ -372,4 +389,5 @@ def load_data(
         time_format=time_format,
         input_time_unit=input_time_unit,
         output_time_unit=output_time_unit,
+        coerce_to_numeric=coerce_to_numeric,
     )
