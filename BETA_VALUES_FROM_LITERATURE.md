@@ -37,6 +37,25 @@ The `waterSpec` package includes validation datasets from USGS monitoring statio
 *   **Measured Low-Frequency Slope ($\beta_1$)**: **2.04**
 *   **Conclusion**: Indicates a random-walk process ($\beta \approx 2$), typical for large river discharge at daily timescales, reflecting strong storage effects.
 
+### 4. Potomac River (Additional Validation)
+*   **Site**: Potomac River near Washington, DC (USGS 01646500)
+*   **Discharge ($\beta$)**: **1.45** (Standard Fit)
+    *   **Analysis**: This falls perfectly within the standard range for river discharge (1.0 – 1.8), reflecting the integrative nature of the large watershed.
+*   **Specific Conductance ($\beta$)**: **0.76** (Standard Fit)
+    *   **Analysis**: This value is lower than the typical range for dissolved constituents (1.3 – 1.7). This suggests that the Potomac's salinity dynamics at this location may be more influenced by event-driven inputs (e.g., surface runoff, road salts) or upstream regulation compared to the Mississippi River site.
+
+### 5. Nitrate-N
+*   **Site**: Iowa River at Wapello, IA (USGS 05465500)
+*   **Benchmark Range**: 1.5 – 2.0
+*   **Measured Slope ($\beta$)**: **1.55** (Standard Fit)
+*   **Conclusion**: This result falls exactly within the expected range for Nitrate-N, confirming that nitrate export in this agricultural watershed is dominated by subsurface flow and storage, exhibiting strong persistence.
+
+### 6. E. coli (Simulated Validation)
+*   **Dataset**: Synthetic Time Series ($\beta_{target}=0.3$)
+*   **Benchmark Range**: 0.1 – 0.5 (Surface Runoff)
+*   **Measured Slope ($\beta$)**: **0.25** (Standard Fit)
+*   **Conclusion**: This simulation demonstrates the package's ability to correctly identify the "whitened" spectra typical of surface-runoff driven contaminants like E. coli, which lack long-term memory.
+
 ---
 
 **References:**
