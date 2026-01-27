@@ -34,7 +34,8 @@ def analyze_real_data(file_path, param_name="Discharge"):
             fit_method='ols',       # OLS is much faster and memory-efficient for large datasets
             ci_method='parametric', # Faster for this quick check
             max_breakpoints=1,
-            normalization='standard'
+            normalization='standard',
+            samples_per_peak=2      # Reduce grid density for speed
         )
 
         # Print summary to console
@@ -50,9 +51,15 @@ def analyze_real_data(file_path, param_name="Discharge"):
         return None
 
 if __name__ == "__main__":
-    csv_path = "examples/usgs_discharge_05451500.csv"
-    if not os.path.exists(csv_path):
-        print(f"Error: Data file {csv_path} not found.")
+    import argparse
+    parser = argparse.ArgumentParser(description="Analyze spectral properties of a time series.")
+    parser.add_argument("file_path", help="Path to the CSV file")
+    parser.add_argument("--param", default="Parameter", help="Name of the parameter being analyzed")
+
+    args = parser.parse_args()
+
+    if not os.path.exists(args.file_path):
+        print(f"Error: Data file {args.file_path} not found.")
         sys.exit(1)
 
-    results = analyze_real_data(csv_path, "Iowa River Discharge (Q)")
+    results = analyze_real_data(args.file_path, args.param)
