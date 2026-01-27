@@ -46,9 +46,12 @@ dev = [
 "Homepage" = "https://github.com/example/waterSpec"
 "Bug Tracker" = "https://github.com/example/waterSpec/issues"
 
+[tool.setuptools.package-data]
+waterSpec = ["*.json"]
+
 [tool.pytest.ini_options]
 pythonpath = [
-    "."
+    "src"
 ]
 
 [tool.black]
