@@ -50,6 +50,12 @@ The `waterSpec` package includes validation datasets from USGS monitoring statio
 *   **Measured Slope ($\beta$)**: **1.55** (Standard Fit)
 *   **Conclusion**: This result falls exactly within the expected range for Nitrate-N, confirming that nitrate export in this agricultural watershed is dominated by subsurface flow and storage, exhibiting strong persistence.
 
+### 6. E. coli (Simulated Validation)
+*   **Dataset**: Synthetic Time Series ($\beta_{target}=0.3$)
+*   **Benchmark Range**: 0.1 – 0.5 (Surface Runoff)
+*   **Measured Slope ($\beta$)**: **0.25** (Standard Fit)
+*   **Conclusion**: This simulation demonstrates the package's ability to correctly identify the "whitened" spectra typical of surface-runoff driven contaminants like E. coli, which lack long-term memory.
+
 ---
 
 **References:**
