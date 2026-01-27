@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.waterSpec.comparison import SiteComparison
+from waterSpec.comparison import SiteComparison
 
 # Helper function to create test data files (adapted from test_analysis.py)
 def create_test_data_file(
@@ -54,7 +54,7 @@ def test_site_comparison_initialization(tmp_path):
     assert len(comparison.site1_data["time"]) == 100
     assert len(comparison.site2_data["time"]) == 120
 
-@patch("src.waterSpec.comparison.SiteComparison._run_site_analysis")
+@patch("waterSpec.comparison.SiteComparison._run_site_analysis")
 def test_site_comparison_run_comparison_creates_outputs(mock_run_analysis, tmp_path):
     """Test that run_comparison creates the plot and summary files."""
     # Define mock return values for each site analysis
@@ -149,8 +149,8 @@ def test_site_comparison_insufficient_data_raises_error(tmp_path):
     with pytest.raises(ValueError, match="Not enough valid data points \\(5\\) for site 'BadSite'"):
         SiteComparison(site1_config, site2_config)
 
-@patch("src.waterSpec.comparison.fit_segmented_spectrum")
-@patch("src.waterSpec.comparison.fit_standard_model")
+@patch("waterSpec.comparison.fit_segmented_spectrum")
+@patch("waterSpec.comparison.fit_standard_model")
 def test_site_comparison_generates_correct_summary_and_plot_data(
     mock_fit_standard, mock_fit_segmented, tmp_path
 ):
