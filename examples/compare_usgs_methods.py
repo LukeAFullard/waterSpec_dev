@@ -45,7 +45,7 @@ def run_haar_analysis(df, name):
 
     haar = HaarAnalysis(time_sec, data)
     res = haar.run()
-    return res['beta']
+    return res
 
 def main():
     csv_path = "examples/usgs_discharge_05451500.csv"
@@ -60,7 +60,8 @@ def main():
     # 1. Full Data Analysis
     print("\n--- Full Data Analysis (n={}) ---".format(len(df)))
     beta_ls_full = run_ls_analysis(df, "full_ls")
-    beta_haar_full = run_haar_analysis(df, "full_haar")
+    res_haar_full = run_haar_analysis(df, "full_haar")
+    beta_haar_full = res_haar_full['beta']
 
     # 2. Subsampled Analysis (50%)
     print("\n--- Subsampled Data Analysis (50%) ---")
@@ -68,7 +69,8 @@ def main():
     print("Subsampled n={}".format(len(df_sub)))
 
     beta_ls_sub = run_ls_analysis(df_sub, "sub_ls")
-    beta_haar_sub = run_haar_analysis(df_sub, "sub_haar")
+    res_haar_sub = run_haar_analysis(df_sub, "sub_haar")
+    beta_haar_sub = res_haar_sub['beta']
 
     # 3. Report
     print("\n" + "="*50)
@@ -83,6 +85,30 @@ def main():
     # Compare methods on full data
     diff_methods = abs(beta_ls_full - beta_haar_full)
     print(f"\nDifference between LS and Haar (Full Data): {diff_methods:.4f}")
+
+    # 4. Generate Plot
+    print("\nGenerating comparison plot...")
+    plt.figure(figsize=(10, 6))
+
+    # Plot Full Haar
+    lags_full = res_haar_full['lags'] / 86400.0 # Convert to days
+    s1_full = res_haar_full['s1']
+    plt.loglog(lags_full, s1_full, 'o-', label=f'Full Data ($\\beta$={beta_haar_full:.2f})', alpha=0.7)
+
+    # Plot Subsampled Haar
+    lags_sub = res_haar_sub['lags'] / 86400.0 # Convert to days
+    s1_sub = res_haar_sub['s1']
+    plt.loglog(lags_sub, s1_sub, 's--', label=f'50% Subsampled ($\\beta$={beta_haar_sub:.2f})', alpha=0.7)
+
+    plt.xlabel('Lag Time (Days)')
+    plt.ylabel('Haar Structure Function $S_1$')
+    plt.title('Haar Analysis Robustness: USGS Discharge Data')
+    plt.legend()
+    plt.grid(True, which="both", ls="-", alpha=0.3)
+
+    plot_path = "examples/usgs_haar_comparison.png"
+    plt.savefig(plot_path)
+    print(f"Plot saved to {plot_path}")
 
 if __name__ == "__main__":
     main()
