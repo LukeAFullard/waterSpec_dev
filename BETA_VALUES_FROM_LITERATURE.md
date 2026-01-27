@@ -44,6 +44,12 @@ The `waterSpec` package includes validation datasets from USGS monitoring statio
 *   **Specific Conductance ($\beta$)**: **0.76** (Standard Fit)
     *   **Analysis**: This value is lower than the typical range for dissolved constituents (1.3 – 1.7). This suggests that the Potomac's salinity dynamics at this location may be more influenced by event-driven inputs (e.g., surface runoff, road salts) or upstream regulation compared to the Mississippi River site.
 
+### 5. Nitrate-N
+*   **Site**: Iowa River at Wapello, IA (USGS 05465500)
+*   **Benchmark Range**: 1.5 – 2.0
+*   **Measured Slope ($\beta$)**: **1.55** (Standard Fit)
+*   **Conclusion**: This result falls exactly within the expected range for Nitrate-N, confirming that nitrate export in this agricultural watershed is dominated by subsurface flow and storage, exhibiting strong persistence.
+
 ---
 
 **References:**
