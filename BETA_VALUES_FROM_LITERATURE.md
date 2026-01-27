@@ -16,7 +16,7 @@ According to **Liang et al. (2021)** (*Environmental Research Letters*, 16(9), 0
 
 ## Validated Beta Values from Real-World Data (USGS)
 
-The `waterSpec` package includes validation datasets from USGS monitoring stations, which align with these scientific benchmarks.
+The `waterSpec` package includes validation datasets from USGS monitoring stations, which align with these scientific benchmarks. The plots below show the comparison between Lomb-Scargle periodogram analysis (left) and Haar fluctuation analysis (right) for each dataset.
 
 ### 1. Specific Conductance (Proxy for Dissolved Solids/Chloride)
 *   **Site**: Mississippi River at Clinton, IA (USGS 05420500)
@@ -24,18 +24,23 @@ The `waterSpec` package includes validation datasets from USGS monitoring statio
 *   **Measured Low-Frequency Slope ($\beta_1$)**: **1.56**
 *   **Conclusion**: Falls squarely within the expected range for dissolved constituents dominated by subsurface flow.
 
+![Mississippi River Conductance](examples/real_data_output/Mississippi_River_Conductance_comparison.png)
+
 ### 2. Turbidity (Proxy for TSS)
 *   **Site**: Mississippi River at Clinton, IA (USGS 05420500)
 *   **Benchmark Range**: 0.4 – 0.8 (TSS)
 *   **Measured Single-Slope Fit ($\beta$)**: **0.77**
-*   **Measured High-Frequency Slope ($\beta_2$)**: **0.08** (White Noise)
 *   **Conclusion**: The overall slope (0.77) aligns with the TSS benchmark. The high-frequency component shows white noise behavior, consistent with the flashy nature of sediment transport.
+
+![Mississippi River Turbidity](examples/real_data_output/Mississippi_River_Turbidity_comparison.png)
 
 ### 3. Discharge
 *   **Site**: Iowa River at Wapello, IA (USGS 05451500)
 *   **Benchmark Range**: 1.0 – 1.8 (Approaching 2.0 for large rivers)
 *   **Measured Low-Frequency Slope ($\beta_1$)**: **2.04**
 *   **Conclusion**: Indicates a random-walk process ($\beta \approx 2$), typical for large river discharge at daily timescales, reflecting strong storage effects.
+
+![Iowa River Discharge](examples/real_data_output/Iowa_River_Discharge_comparison.png)
 
 ### 4. Potomac River (Additional Validation)
 *   **Site**: Potomac River near Washington, DC (USGS 01646500)
@@ -44,17 +49,24 @@ The `waterSpec` package includes validation datasets from USGS monitoring statio
 *   **Specific Conductance ($\beta$)**: **0.76** (Standard Fit)
     *   **Analysis**: This value is lower than the typical range for dissolved constituents (1.3 – 1.7). This suggests that the Potomac's salinity dynamics at this location may be more influenced by event-driven inputs (e.g., surface runoff, road salts) or upstream regulation compared to the Mississippi River site.
 
+![Potomac River Discharge](examples/real_data_output/Potomac_River_Discharge_comparison.png)
+![Potomac River Conductance](examples/real_data_output/Potomac_River_Conductance_comparison.png)
+
 ### 5. Nitrate-N
 *   **Site**: Iowa River at Wapello, IA (USGS 05465500)
 *   **Benchmark Range**: 1.5 – 2.0
 *   **Measured Slope ($\beta$)**: **1.55** (Standard Fit)
 *   **Conclusion**: This result falls exactly within the expected range for Nitrate-N, confirming that nitrate export in this agricultural watershed is dominated by subsurface flow and storage, exhibiting strong persistence.
 
+![Iowa River Nitrate](examples/real_data_output/Iowa_River_Nitrate_comparison.png)
+
 ### 6. E. coli (Simulated Validation)
 *   **Dataset**: Synthetic Time Series ($\beta_{target}=0.3$)
 *   **Benchmark Range**: 0.1 – 0.5 (Surface Runoff)
 *   **Measured Slope ($\beta$)**: **0.25** (Standard Fit)
 *   **Conclusion**: This simulation demonstrates the package's ability to correctly identify the "whitened" spectra typical of surface-runoff driven contaminants like E. coli, which lack long-term memory.
+
+![Simulated E. coli](examples/real_data_output/Simulated_E._coli_comparison.png)
 
 ---
 
