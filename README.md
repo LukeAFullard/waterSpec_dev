@@ -292,6 +292,8 @@ The package automatically flags potential issues:
 - `matplotlib` ≥ 3.4
 - `astropy` ≥ 5.0 (for Lomb-Scargle periodogram)
 - `statsmodels` ≥ 0.13
+- `mannks` ≥ 0.5.0
+- `ruptures` ≥ 1.1 (for changepoint detection)
 
 ### Optional but Recommended
 - `piecewise-regression` (for segmented models)

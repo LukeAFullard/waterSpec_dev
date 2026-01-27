@@ -203,7 +203,11 @@ def fit_standard_model(
                 "beta_ci_upper": -slope_ci_lower,
                 "slope_ci_lower": slope_ci_lower,
                 "slope_ci_upper": slope_ci_upper,
-                "ci_computed": True
+                "ci_computed": True,
+                # Add placeholders for consistency
+                "bootstrap_success_rate": np.nan,
+                "bootstrap_n_success": n_bootstraps,
+                "bootstrap_error_summary": "",
             })
 
             # Calculate fitted values for residuals
@@ -660,10 +664,9 @@ def fit_segmented_spectrum(
         # MannKS uses bagging which involves bootstrapping.
         # It also has n_bootstrap argument.
 
-        # Note: MannKS.segmented_trend_test doesn't have bootstrap_block_size explicitly
-        # but it passes **kwargs to trend estimation which might use it.
-        # But for breakpoint detection (piecewise regression), it uses OLS.
-        # Then it uses robust slope estimation for segments.
+        mannks_block_size = 'auto'
+        if bootstrap_type == 'block' and bootstrap_block_size is not None:
+            mannks_block_size = bootstrap_block_size
 
         res = MannKS.segmented_trend_test(
             log_power,
@@ -671,8 +674,8 @@ def fit_segmented_spectrum(
             n_breakpoints=n_breakpoints,
             alpha=1-(ci/100),
             n_bootstrap=n_bootstraps,
-            random_state=mannks_seed
-            # Pass other kwargs if supported, e.g. block_size?
+            random_state=mannks_seed,
+            block_size=mannks_block_size
         )
 
         # Extract results
