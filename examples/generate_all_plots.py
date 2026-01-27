@@ -79,15 +79,31 @@ def run_comparison(file_path, param_name, output_dir):
         print(f"Skipping {file_path}: Not enough data")
         return
 
+    # For concentration data (usually log-normal), log-transforming improves Haar analysis
+    # Haar is sensitive to high-variance events (peaks) which can dominate the structure function.
+    log_transform = False
+    if "Nitrate" in param_name or "E. coli" in param_name or "Conductance" in param_name:
+        log_transform = True
+        # Ensure data is positive before log
+        if np.any(data <= 0):
+            # Add small offset if needed or mask <=0
+            valid_pos = data > 0
+            time_sec = time_sec[valid_pos]
+            data = data[valid_pos]
+
     # --- Lomb-Scargle ---
     print(f"  Running Lomb-Scargle analysis...")
+    # Note: Analysis class handles log_transform internally via parameters,
+    # but HaarAnalysis needs pre-transformed data if we want to analyze log-data.
+
     analyzer = Analysis(
         file_path=file_path,
         time_col=time_col,
         data_col='value',
         param_name=param_name,
         detrend_method='linear',
-        normalize_data=True
+        normalize_data=True,
+        log_transform_data=log_transform # Enable for LS too for consistency
     )
 
     # Reduce samples_per_peak for speed if dataset is large
@@ -105,10 +121,21 @@ def run_comparison(file_path, param_name, output_dir):
 
     # --- Haar Analysis ---
     print(f"  Running Haar analysis...")
-    haar = HaarAnalysis(time_sec, data)
+
+    # Apply log transform for Haar if needed (Analysis class did it internally for LS)
+    haar_data = np.log(data) if log_transform else data
+
+    haar = HaarAnalysis(time_sec, haar_data)
     haar_res = haar.run()
 
-    betas_haar, bps_haar, fit_obj_haar, is_segmented_haar = fit_segmented_haar(haar_res['lags'], haar_res['s1'])
+    # For E. coli, we expect a single slope. Force single slope if segmented fit looks crazy or for specific params.
+    # Simple heuristic: if range of lags is small or data is noisy, prefer linear.
+    # Or just default to segmented but handle errors.
+
+    # We can try to be smarter: if "Simulated E. coli" force n_breakpoints=0
+    n_bp_haar = 0 if "Simulated" in param_name else 1
+
+    betas_haar, bps_haar, fit_obj_haar, is_segmented_haar = fit_segmented_haar(haar_res['lags'], haar_res['s1'], n_breakpoints=n_bp_haar)
 
     # --- Plotting ---
     print(f"  Generating comparison plot...")
