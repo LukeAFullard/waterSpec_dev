@@ -1,0 +1,16 @@
+Automatic Analysis for: full_ls
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -74183.57 (β = 0.84)
+
+==> Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: full_ls
+Value: β = 0.84 (95% CI: 0.83–0.85 (parametric))
+Persistence Level: Medium (Mixed)
+Scientific Meaning: β ≈ 1 (Pink Noise): Stronger persistence, common in natural systems.
+Contextual Comparison: Similar to Ortho-P (Surface/Shallow subsurface-dominated).
+
+No significant periodicities were found.

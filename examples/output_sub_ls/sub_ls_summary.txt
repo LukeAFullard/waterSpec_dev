@@ -1,0 +1,16 @@
+Automatic Analysis for: sub_ls
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -38419.51 (β = 0.40)
+
+==> Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: sub_ls
+Value: β = 0.40 (95% CI: 0.39–0.41 (parametric))
+Persistence Level: Low (Event-driven)
+Scientific Meaning: 0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport.
+Contextual Comparison: Similar to E. coli (Surface runoff-dominated).
+
+No significant periodicities were found.

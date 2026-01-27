@@ -1,0 +1,38 @@
+[
+    {
+        "Parameter": "E. coli",
+        "Typical β Range": [0.1, 0.5],
+        "Interpretation": "Weak persistence",
+        "Dominant Pathway": "Surface runoff"
+    },
+    {
+        "Parameter": "Total Suspended Solids (TSS)",
+        "Typical β Range": [0.4, 0.8],
+        "Interpretation": "Weak persistence",
+        "Dominant Pathway": "Surface runoff"
+    },
+    {
+        "Parameter": "Ortho-P",
+        "Typical β Range": [0.6, 1.2],
+        "Interpretation": "Mixed",
+        "Dominant Pathway": "Surface/Shallow subsurface"
+    },
+    {
+        "Parameter": "Chloride",
+        "Typical β Range": [1.3, 1.7],
+        "Interpretation": "Strong persistence",
+        "Dominant Pathway": "Subsurface"
+    },
+    {
+        "Parameter": "Nitrate-N",
+        "Typical β Range": [1.5, 2.0],
+        "Interpretation": "Strong persistence",
+        "Dominant Pathway": "Subsurface"
+    },
+    {
+        "Parameter": "Discharge (Q)",
+        "Typical β Range": [1.0, 1.8],
+        "Interpretation": "Persistent",
+        "Dominant Pathway": "Integrated signal"
+    }
+]

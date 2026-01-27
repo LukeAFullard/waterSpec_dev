@@ -1,4 +1,9 @@
+import json
 import warnings
+try:
+    from importlib import resources
+except ImportError:
+    import importlib_resources as resources
 
 import numpy as np
 import pandas as pd
@@ -18,46 +23,28 @@ def _get_uncertainty_warning(ci, threshold, name="value"):
 
 
 # Benchmark table based on Liang et al. (2021) and general hydrological knowledge.
-BENCHMARK_TABLE = pd.DataFrame(
-    [
-        {
-            "Parameter": "E. coli",
-            "Typical β Range": (0.1, 0.5),
-            "Interpretation": "Weak persistence",
-            "Dominant Pathway": "Surface runoff",
-        },
-        {
-            "Parameter": "Total Suspended Solids (TSS)",
-            "Typical β Range": (0.4, 0.8),
-            "Interpretation": "Weak persistence",
-            "Dominant Pathway": "Surface runoff",
-        },
-        {
-            "Parameter": "Ortho-P",
-            "Typical β Range": (0.6, 1.2),
-            "Interpretation": "Mixed",
-            "Dominant Pathway": "Surface/Shallow subsurface",
-        },
-        {
-            "Parameter": "Chloride",
-            "Typical β Range": (1.3, 1.7),
-            "Interpretation": "Strong persistence",
-            "Dominant Pathway": "Subsurface",
-        },
-        {
-            "Parameter": "Nitrate-N",
-            "Typical β Range": (1.5, 2.0),
-            "Interpretation": "Strong persistence",
-            "Dominant Pathway": "Subsurface",
-        },
-        {
-            "Parameter": "Discharge (Q)",
-            "Typical β Range": (1.0, 1.8),
-            "Interpretation": "Persistent",
-            "Dominant Pathway": "Integrated signal",
-        },
-    ]
-).set_index("Parameter")
+def _load_benchmarks():
+    try:
+        # For Python 3.9+ structure using files() or older open_text
+        if hasattr(resources, 'files'):
+            content = resources.files("waterSpec").joinpath("benchmarks.json").read_text()
+            data = json.loads(content)
+        else:
+            # Fallback for Python 3.8
+            with resources.open_text("waterSpec", "benchmarks.json") as f:
+                data = json.load(f)
+    except Exception:
+        # Fallback for when running from source without package installation
+        import os
+        current_dir = os.path.dirname(__file__)
+        json_path = os.path.join(current_dir, "benchmarks.json")
+        with open(json_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+    return pd.DataFrame(data).set_index("Parameter")
+
+
+BENCHMARK_TABLE = _load_benchmarks()
 
 
 # Define constants for scientific interpretation for clarity and maintainability.

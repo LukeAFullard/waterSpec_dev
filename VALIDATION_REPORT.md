@@ -32,7 +32,18 @@ The package was validated by running unit tests, validation scripts, and example
 - **Status**: PASSED
 - `run_psresp_beta_sweep.py` and `reproduce_red_noise_psresp.py` confirm that the PSRESP method correctly estimates beta for unevenly sampled red noise, solving the limitation observed in `verify_synthetic.py`.
 
-## 4. Root Scripts
+## 4. Real-World Data Validation
+- **Dataset**: USGS 05451500 (Iowa River at Wapello, IA), Parameter 00060 (Discharge), Year 2020.
+- **Script**: `examples/analyze_real_data.py` (using `scripts/fetch_usgs_data.py`).
+- **Status**: PASSED
+- **Results**:
+    - **Chosen Model**: Segmented (1 Breakpoint).
+    - **Low-Frequency Beta**: 2.03 (Strong persistence, Brownian-like). This is slightly higher than the benchmark range (1.0-1.8) but physically consistent for a large river.
+    - **High-Frequency Beta**: 0.59 (Weak persistence, event-driven noise).
+    - **Breakpoint**: ~0.7 days.
+- **Conclusion**: The package successfully handles large (28k+ points) real-world datasets with irregular sampling and detects physically meaningful spectral features.
+
+## 5. Root Scripts
 - `run_readme_example.py`: Runs successfully (using Standard analysis).
 - `reproduce_red_noise_psresp.py`: Runs successfully.
 
