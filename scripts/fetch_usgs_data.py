@@ -62,28 +62,31 @@ def fetch_usgs_data(site, parameter, start_date, end_date, output_file):
     # Typical columns: agency_cd, site_no, datetime, tz_cd, <value_col>, <code_col>
 
     value_col = None
+    # 1. Look for explicit match: ends with parameter code and NOT _cd
     for col in df.columns:
-        if col.endswith(f"_{parameter}") or (col.endswith("00060") and parameter=="00060"): # Handling common case
-             # Check if it's not the code column (which ends in _cd)
-             if not col.endswith("_cd"):
-                 value_col = col
-                 break
+        if col.endswith(f"_{parameter}") and not col.endswith("_cd"):
+             value_col = col
+             break
 
+    # 2. Look for any match containing parameter code
     if value_col is None:
-        # Fallback: look for any numeric column that isn't site_no
         for col in df.columns:
-            if "00060" in col and not col.endswith("_cd"):
+            if parameter in col and not col.endswith("_cd"):
                 value_col = col
                 break
 
+    # 3. Fallback: look for 5th column if available (standard RDB layout)
     if value_col is None:
-         # Extreme fallback: assume 5th column (index 4) if it exists
          if len(df.columns) > 4:
-             value_col = df.columns[4]
-         else:
-            print("Could not identify value column.")
-            print("Columns:", df.columns)
-            return False
+             # Check if it's numeric-ish or not a metadata column
+             candidate = df.columns[4]
+             if not candidate.endswith("_cd") and candidate not in ["agency_cd", "site_no", "datetime", "tz_cd"]:
+                value_col = candidate
+
+    if value_col is None:
+        print(f"Could not identify value column for parameter {parameter}.")
+        print("Columns:", df.columns)
+        return False
 
     print(f"Identified value column: {value_col}")
 
@@ -114,14 +117,14 @@ def fetch_usgs_data(site, parameter, start_date, end_date, output_file):
     return True
 
 if __name__ == "__main__":
-    # Default: Iowa River at Wapello, IA (05451500)
-    # Parameter: Discharge (00060)
-    # Period: 2020 (Whole year)
+    import argparse
+    parser = argparse.ArgumentParser(description="Fetch USGS NWIS IV data.")
+    parser.add_argument("--site", default="05451500", help="USGS Site ID (default: 05451500 - Iowa River at Wapello)")
+    parser.add_argument("--param", default="00060", help="Parameter Code (default: 00060 - Discharge)")
+    parser.add_argument("--start", default="2020-01-01", help="Start Date (YYYY-MM-DD)")
+    parser.add_argument("--end", default="2020-12-31", help="End Date (YYYY-MM-DD)")
+    parser.add_argument("--output", default="examples/usgs_discharge_05451500.csv", help="Output CSV path")
 
-    SITE = "05451500"
-    PARAM = "00060"
-    START = "2020-01-01"
-    END = "2020-12-31"
-    OUTPUT = "examples/usgs_discharge_05451500.csv"
+    args = parser.parse_args()
 
-    fetch_usgs_data(SITE, PARAM, START, END, OUTPUT)
+    fetch_usgs_data(args.site, args.param, args.start, args.end, args.output)
