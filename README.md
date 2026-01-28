@@ -7,7 +7,8 @@
 ## Key Features
 
 - **Estimate spectral slopes (β) from irregularly sampled time series**
-  - Based on the Lomb–Scargle periodogram (LS).
+  - **Lomb-Scargle (LS):** Best for evenly sampled data or detecting periodicities.
+  - **Haar Wavelets:** Recommended for robust spectral slope estimation on unevenly sampled data.
   - Fits linear or segmented regressions (with one or two automatically detected breakpoints) on the log–log spectrum.
   - Supports uncertainty estimation with bootstrap resampling.
 
@@ -128,6 +129,22 @@ Identify statistically significant cycles in your data:
 The package correctly identifies a synthetic 30-day cycle using False Alarm Probability (FAP) testing.
 
 ---
+
+## Method Selection: Lomb-Scargle vs. Haar Wavelets
+
+`waterSpec` provides two primary methods for spectral analysis, each with its strengths:
+
+1.  **Lomb-Scargle Periodogram:**
+    *   **Best for:** Detecting specific periodicities (peaks) in unevenly sampled data (e.g., diurnal or seasonal cycles).
+    *   **Standard for:** Evenly sampled data.
+    *   **Caution:** Can produce biased estimates of the spectral slope ($\beta$) if the data is highly irregular or gappy.
+
+2.  **Haar Wavelet Analysis:**
+    *   **Best for:** Estimating the spectral slope ($\beta$) on unevenly sampled data.
+    *   **How it works:** Calculates the first-order structure function (average fluctuations) across different timescales (lags).
+    *   **Relation to Spectrum:** The Haar fluctuation exponent $H$ is related to the spectral exponent by $\beta = 1 + 2H$.
+
+**Recommendation:** If your primary goal is to estimate the power-law slope ($\beta$) and your data has irregular sampling steps, use the Haar method. If you are looking for specific frequency peaks, use Lomb-Scargle.
 
 ## Understanding Spectral Exponents (β)
 

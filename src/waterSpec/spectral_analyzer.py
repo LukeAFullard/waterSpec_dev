@@ -31,9 +31,18 @@ def calculate_periodogram(
     default, which is essential for quantitative spectral slope analysis.
 
     .. warning::
-        If the data is unevenly sampled, it is recommended to use Haar wavelets
-        instead of Lomb-Scargle for spectral slope analysis. This function will
-        emit a warning if uneven sampling is detected.
+        **Spectral Slope Analysis on Unevenly Sampled Data**
+
+        While Lomb-Scargle is excellent for detecting periodicities (peaks) in
+        unevenly sampled data, it can introduce biases when estimating the
+        spectral slope (power-law exponent) due to the way it handles high
+        frequencies and gaps.
+
+        For spectral slope estimation ($\beta$) on unevenly sampled time series,
+        **Haar Wavelet Analysis** is generally recommended as it is more robust
+        to irregular sampling.
+
+        This function will emit a warning if uneven sampling is detected.
 
     Args:
         time (np.ndarray): The time array.
