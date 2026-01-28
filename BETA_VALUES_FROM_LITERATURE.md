@@ -70,5 +70,26 @@ The `waterSpec` package includes validation datasets from USGS monitoring statio
 
 ---
 
+## Technical Note: Frequency Limits in Analysis
+
+For both Haar fluctuation analysis and Lomb-Scargle periodograms, the valid range of scales (frequency or lag) is determined by the data's sampling characteristics.
+
+### Haar Fluctuation Analysis
+The valid range of lag times ($\Delta t$) is:
+*   **Minimum Lag ($\Delta t_{min}$):** Defaults to the median sampling interval of the data.
+*   **Maximum Lag ($\Delta t_{max}$):** Defaults to half the total duration of the time series ($T/2$). This ensures that at least two non-overlapping windows of size $\Delta t$ can be fit within the data record, providing basic statistical stability.
+
+### Lomb-Scargle Periodogram
+The valid frequency range ($f$) is typically:
+*   **Minimum Frequency ($f_{min}$):** Typically $1/T$ (Rayleigh frequency). This is the lowest frequency that can be resolved given the total duration $T$.
+*   **Maximum Frequency ($f_{max}$):** Typically the pseudo-Nyquist frequency, $1 / (2 \cdot \Delta t_{median})$, representing the highest frequency resolvable without aliasing.
+
+### Comparison
+*   The **Haar $t_{max} = T/2$** corresponds roughly to a frequency of **$f = 2/T$**.
+*   The **Lomb-Scargle $f_{min} = 1/T$** corresponds to a lag of **$T$**.
+*   **Implication:** Lomb-Scargle analysis often extends to slightly lower frequencies (longer timescales) than Haar analysis because it attempts to fit a sinusoid of period $T$ to the entire dataset, whereas Haar requires averaging multiple windows. Consequently, the Lomb-Scargle plots may show data points further to the left (lower frequency) than the equivalent Haar plots extend to the right (longer lag).
+
+---
+
 **References:**
 > Liang, X., Schilling, K. E., Jones, C. S., & Zhang, Y. K. (2021). Temporal scaling of long-term co-occurring agricultural contaminants and the implications for conservation planning. *Environmental Research Letters*, 16(9), 094015. https://doi.org/10.1088/1748-9326/ac19dd
