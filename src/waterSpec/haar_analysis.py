@@ -19,6 +19,11 @@ def calculate_haar_fluctuations(
     """
     Calculates the first-order Haar structure function S_1(Delta t).
 
+    Haar Wavelet Analysis is a robust method for estimating spectral slopes (Beta),
+    particularly for unevenly sampled time series where methods like Lomb-Scargle
+    might be biased. It measures the average magnitude of fluctuations at different
+    timescales (lag times).
+
     Args:
         time (np.ndarray): Array of time points (must be sorted).
         data (np.ndarray): Array of data values.

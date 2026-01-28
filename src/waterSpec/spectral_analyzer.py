@@ -30,6 +30,20 @@ def calculate_periodogram(
     errors (`dy`), but can be overridden. If errors are provided, 'psd' is the
     default, which is essential for quantitative spectral slope analysis.
 
+    .. warning::
+        **Spectral Slope Analysis on Unevenly Sampled Data**
+
+        While Lomb-Scargle is excellent for detecting periodicities (peaks) in
+        unevenly sampled data, it can introduce biases when estimating the
+        spectral slope (power-law exponent) due to the way it handles high
+        frequencies and gaps.
+
+        For spectral slope estimation ($\beta$) on unevenly sampled time series,
+        **Haar Wavelet Analysis** is generally recommended as it is more robust
+        to irregular sampling.
+
+        This function will emit a warning if uneven sampling is detected.
+
     Args:
         time (np.ndarray): The time array.
         data (np.ndarray): The data values.
@@ -64,6 +78,20 @@ def calculate_periodogram(
     # 'psd' is crucial for physical units when errors are known.
     if normalization is None:
         normalization = "psd" if dy is not None else "standard"
+
+    # Check for uneven sampling
+    if len(time) > 1:
+        dt = np.diff(time)
+        median_dt = np.median(dt)
+        # Check if all time differences are effectively equal
+        # We allow a 5% tolerance to account for minor jitter in sensor data
+        if not np.allclose(dt, median_dt, rtol=0.05):
+            warnings.warn(
+                "Data appears to be unevenly sampled. For spectral slope analysis "
+                "of unevenly sampled data, Haar wavelets are recommended over "
+                "Lomb-Scargle.",
+                UserWarning,
+            )
 
     # Enforce minimum frequency (1/T) if not specified
     if minimum_frequency is None:
