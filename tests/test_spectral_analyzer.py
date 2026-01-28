@@ -1,3 +1,4 @@
+import warnings
 import numpy as np
 import pytest
 
@@ -62,6 +63,40 @@ def test_calculate_periodogram_with_dy(synthetic_signal):
     assert power.ndim == 1
     assert frequency.shape == power.shape
     assert not np.isnan(power).any()
+
+
+def test_calculate_periodogram_uneven_sampling_warning():
+    """
+    Test that a warning is raised when unevenly sampled data is passed to
+    calculate_periodogram.
+    """
+    # Create unevenly sampled data
+    time = np.array([0, 1.1, 2.0, 3.5, 4.0])
+    y = np.random.randn(len(time))
+
+    with pytest.warns(UserWarning, match="Data appears to be unevenly sampled"):
+        calculate_periodogram(time, y)
+
+
+def test_calculate_periodogram_allows_jitter():
+    """
+    Test that minor jitter (within tolerance) does not trigger the warning.
+    """
+    # Create time series with small jitter (1% deviation)
+    time = np.arange(10, dtype=float)
+    time[5] += 0.01  # Add 1% jitter to one point
+    y = np.random.randn(len(time))
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")  # Cause all warnings to always be triggered.
+        calculate_periodogram(time, y)
+        # Filter for our specific warning
+        relevant_warnings = [
+            x
+            for x in w
+            if "Data appears to be unevenly sampled" in str(x.message)
+        ]
+        assert len(relevant_warnings) == 0
 
 
 def test_find_significant_peaks(synthetic_signal):
