@@ -65,10 +65,30 @@ def calculate_periodogram(
     if normalization is None:
         normalization = "psd" if dy is not None else "standard"
 
+    # Enforce minimum frequency (1/T) if not specified
+    if minimum_frequency is None:
+        duration = np.max(time) - np.min(time)
+        if duration > 0:
+            minimum_frequency = 1.0 / duration
+
+    # Enforce maximum frequency (pseudo-Nyquist) if not specified
+    # Astropy's autopower uses "average_nyquist" which is often 0.5/mean_diff.
+    # We want 0.5/median_diff to be robust to gaps.
+    if maximum_frequency is None:
+        dt = np.diff(time)
+        median_dt = np.median(dt)
+        if median_dt > 0:
+            # The pseudo-Nyquist frequency for irregularly sampled data
+            max_freq_limit = 1.0 / (2.0 * median_dt)
+            # Scale by the user's factor
+            maximum_frequency = max_freq_limit * nyquist_factor
+
     ls_instance = LombScargle(time, data, dy=dy)
 
+    # Note: We pass our calculated maximum_frequency to override autopower's default
+    # heuristic, ensuring consistency with the documentation (median-based Nyquist).
+    # minimum_frequency is passed to enforce 1/T.
     frequency, power = ls_instance.autopower(
-        nyquist_factor=nyquist_factor,
         samples_per_peak=samples_per_peak,
         minimum_frequency=minimum_frequency,
         maximum_frequency=maximum_frequency,
