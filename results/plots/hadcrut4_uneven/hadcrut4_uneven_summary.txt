@@ -1,0 +1,28 @@
+Automatic Analysis for: hadcrut4_uneven
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -5289.74 (β = 0.24)
+
+==> Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: hadcrut4_uneven
+Value: β = 0.24 (95% CI: 0.20–0.28 (bootstrap))
+Persistence Level: Low (Event-driven)
+Scientific Meaning: 0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport.
+Contextual Comparison: Similar to E. coli (Surface runoff-dominated).
+
+-----------------------------------
+Significant Periodicities Found (at 1.0% FAP Level):
+  - Period: 61.4 years
+  - Period: 86.0 years
+  - Period: 43.0 years
+
+-----------------------------------
+Haar Wavelet Analysis:
+  β = 0.86
+  H = -0.07
+  R² = 0.12
+  Persistence: Medium (Mixed)
+  Interpretation: β ≈ 1 (Pink Noise): Stronger persistence, common in natural systems.

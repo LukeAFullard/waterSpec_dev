@@ -1,0 +1,32 @@
+Automatic Analysis for: hadcrut4_original
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -5295.61 (β = 0.85)
+
+==> Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: hadcrut4_original
+Value: β = 0.85 (95% CI: 0.81–0.89 (bootstrap))
+Persistence Level: Medium (Mixed)
+Scientific Meaning: β ≈ 1 (Pink Noise): Stronger persistence, common in natural systems.
+Contextual Comparison: Similar to Ortho-P (Surface/Shallow subsurface-dominated).
+
+-----------------------------------
+Significant Periodicities Found (at 1.0% FAP Level):
+  - Period: 61.4 years
+  - Period: 86.0 years
+  - Period: 43.0 years
+  - Period: 34.4 years
+  - Period: 28.7 years
+  - Period: 23.9 years
+  - Period: 19.5 years
+
+-----------------------------------
+Haar Wavelet Analysis:
+  β = 0.76
+  H = -0.12
+  R² = 0.11
+  Persistence: Medium (Mixed)
+  Interpretation: 0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport.

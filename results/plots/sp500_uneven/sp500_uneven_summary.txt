@@ -1,0 +1,37 @@
+Automatic Analysis for: sp500_uneven
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -4420.80 (β = 0.18)
+
+==> Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: sp500_uneven
+Value: β = 0.18 (95% CI: 0.14–0.22 (bootstrap))
+Persistence Level: Low (Event-driven)
+Scientific Meaning: β ≈ 0 (White Noise): Uncorrelated, random process.
+Contextual Comparison: Similar to E. coli (Surface runoff-dominated).
+
+-----------------------------------
+Significant Periodicities Found (at 1.0% FAP Level):
+  - Period: 3.6 years
+  - Period: 5.5 years
+  - Period: 7.0 days
+  - Period: 7.0 days
+  - Period: 2.0 years
+  - Period: 7.0 days
+  - Period: 7.0 days
+  - Period: 2.5 years
+  - Period: 7.0 days
+  - Period: 15.0 months
+  - Period: 17.1 months
+  - Period: 7.0 days
+
+-----------------------------------
+Haar Wavelet Analysis:
+  β = 1.96
+  H = 0.48
+  R² = 0.98
+  Persistence: High (Storage-dominated)
+  Interpretation: β ≈ 2 (Brownian Noise): Random walk process.
