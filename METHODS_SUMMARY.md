@@ -30,11 +30,23 @@ This document summarizes the methods available in the `waterSpec` package, outli
     *   **Peak Detection:** Not suitable for detecting specific narrowband periodicities (peaks).
     *   **Integration:** Currently requires manual execution separate from the main `Analysis` workflow.
 
+### 3. PSRESP (Power Spectral Response)
+**Implementation:** `waterSpec.psresp.psresp_fit`
+**Usage:** Available as a standalone function.
+
+*   **Description:** A forward-modeling approach (based on Uttley et al. 2002) that fits a spectral model (e.g., power law) by simulating many time series with known PSDs, degrading them with the observed sampling pattern (window function) and noise, and comparing the simulated periodograms to the observed one.
+*   **Strengths:**
+    *   **Rigorous Bias Handling:** Explicitly accounts for spectral leakage and redistribution caused by the sampling pattern (window function) and aliasing. This is often the "gold standard" for testing spectral models on complex window functions.
+    *   **Goodness of Fit:** Provides a "success fraction" (similar to a p-value) to assess whether the model is consistent with the data.
+*   **Weaknesses:**
+    *   **Computational Cost:** Extremely expensive compared to other methods, as it requires generating and analyzing thousands of simulated time series.
+    *   **Model Dependence:** Requires assuming a spectral model form (e.g., power law) to fit, rather than just estimating a spectrum non-parametrically.
+
 ---
 
 ## Analysis Workflows
 
-### 3. Automated Spectral Analysis
+### 4. Automated Spectral Analysis
 **Implementation:** `waterSpec.Analysis` class
 **Usage:** `Analysis(...).run_full_analysis()`
 
@@ -48,7 +60,7 @@ This document summarizes the methods available in the `waterSpec` package, outli
     *   **Complexity:** Has many configuration parameters that may overwhelm new users.
     *   **Bias Risk:** Relies on Lomb-Scargle, so the spectral slope warning for highly irregular data applies.
 
-### 4. Changepoint Analysis
+### 5. Changepoint Analysis
 **Implementation:** `waterSpec.changepoint_detector` and `waterSpec.Analysis`
 **Usage:** `Analysis(..., changepoint_mode='auto'|'manual')`
 
@@ -60,7 +72,7 @@ This document summarizes the methods available in the `waterSpec` package, outli
     *   **Data Requirements:** Requires enough data in each segment to perform a valid spectral analysis.
     *   **Dependencies:** Relies on the external `ruptures` library.
 
-### 5. Site Comparison
+### 6. Site Comparison
 **Implementation:** `waterSpec.comparison.SiteComparison`
 **Usage:** `SiteComparison(...).run_comparison()`
 
@@ -75,7 +87,7 @@ This document summarizes the methods available in the `waterSpec` package, outli
 
 ## Supporting Methods
 
-### 6. Segmented Regression
+### 7. Segmented Regression
 **Implementation:** `waterSpec.fitter.fit_segmented_spectrum`
 **Usage:** Used internally by `Analysis` and `SiteComparison`.
 
@@ -85,7 +97,7 @@ This document summarizes the methods available in the `waterSpec` package, outli
 *   **Weaknesses:**
     *   **Overfitting:** Can overfit if the data is noisy; mitigated by BIC selection.
 
-### 7. Peak Detection
+### 8. Peak Detection
 **Implementation:** `waterSpec.spectral_analyzer`
 **Usage:** Used internally by `Analysis`.
 
