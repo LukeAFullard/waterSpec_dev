@@ -1,0 +1,40 @@
+Automatic Analysis for: sp500_original
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -6401.01 (β = 0.32)
+
+==> Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: sp500_original
+Value: β = 0.32 (95% CI: 0.28–0.35 (bootstrap))
+Persistence Level: Low (Event-driven)
+Scientific Meaning: 0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport.
+Contextual Comparison: Similar to E. coli (Surface runoff-dominated).
+
+-----------------------------------
+Significant Periodicities Found (at 1.0% FAP Level):
+  - Period: 3.3 years
+  - Period: 5.6 years
+  - Period: 7.0 days
+  - Period: 7.0 days
+  - Period: 3.5 days
+  - Period: 3.5 days
+  - Period: 2.0 years
+  - Period: 7.0 days
+  - Period: 7.0 days
+  - Period: 7.0 days
+  - Period: 15.0 months
+  - Period: 7.0 days
+  - Period: 2.5 years
+  - Period: 17.1 months
+  - Period: 12.0 months
+
+-----------------------------------
+Haar Wavelet Analysis:
+  β = 2.02
+  H = 0.51
+  R² = 0.97
+  Persistence: High (Storage-dominated)
+  Interpretation: β ≈ 2 (Brownian Noise): Random walk process.

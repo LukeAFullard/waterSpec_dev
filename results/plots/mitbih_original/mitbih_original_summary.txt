@@ -1,0 +1,234 @@
+Automatic Analysis for: mitbih_original
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -104874.50 (β = -0.18)
+
+==> Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: mitbih_original
+Value: β = -0.18 (95% CI: -0.23–-0.13 (bootstrap))
+Persistence Level: Low (Event-driven)
+Scientific Meaning: β ≈ 0 (White Noise): Uncorrelated, random process.
+Contextual Comparison: Closest to E. coli (Surface runoff-dominated).
+
+-----------------------------------
+Significant Periodicities Found (at 1.0% FAP Level):
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+
+-----------------------------------
+Haar Wavelet Analysis:
+  β = 0.26
+  H = -0.37
+  R² = 0.90
+  Persistence: Low (Event-driven)
+  Interpretation: 0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport.

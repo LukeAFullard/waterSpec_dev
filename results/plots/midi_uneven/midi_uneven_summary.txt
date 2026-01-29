@@ -1,0 +1,31 @@
+Automatic Analysis for: midi_uneven
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -14739.19 (β = 0.28)
+
+==> Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: midi_uneven
+Value: β = 0.28 (95% CI: 0.26–0.30 (bootstrap))
+Persistence Level: Low (Event-driven)
+Scientific Meaning: 0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport.
+Contextual Comparison: Similar to E. coli (Surface runoff-dominated).
+
+-----------------------------------
+Significant Periodicities Found (at 1.0% FAP Level):
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+  - Period: 0.0 days
+
+-----------------------------------
+Haar Wavelet Analysis:
+  β = 0.53
+  H = -0.23
+  R² = 0.48
+  Persistence: Medium (Mixed)
+  Interpretation: 0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport.
