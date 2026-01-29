@@ -15,7 +15,7 @@ from .changepoint_detector import (
 from .data_loader import load_data, process_dataframe
 from .fitter import fit_segmented_spectrum, fit_standard_model
 from .frequency_generator import generate_frequency_grid
-from .interpreter import interpret_results
+from .interpreter import interpret_results, get_scientific_interpretation, get_persistence_traffic_light
 from .plotting import plot_changepoint_analysis, plot_spectrum
 from .preprocessor import preprocess_data
 from .spectral_analyzer import (
@@ -23,6 +23,7 @@ from .spectral_analyzer import (
     find_peaks_via_residuals,
     find_significant_peaks,
 )
+from .haar_analysis import HaarAnalysis
 from .utils import make_rng
 
 
@@ -474,6 +475,17 @@ class Analysis:
 
         return fit_results
 
+    def _perform_haar_analysis(self):
+        """Performs Haar Wavelet Analysis."""
+        self.logger.info("Performing Haar Wavelet Analysis...")
+        haar = HaarAnalysis(self.time, self.data, time_unit=self.time_unit)
+        haar_results = haar.run()
+        self.logger.info(
+            f"Haar Analysis complete. Beta: {haar_results.get('beta', np.nan):.2f}, "
+            f"H: {haar_results.get('H', np.nan):.2f}"
+        )
+        return haar, haar_results
+
     def _detect_significant_peaks(
         self,
         fit_results,
@@ -540,10 +552,29 @@ class Analysis:
             param_name=self.param_name,
         )
 
+        # Handle Haar Analysis outputs
+        haar_summary = ""
+        if "haar_results" in results:
+            haar_plot_path = os.path.join(output_dir, f"{sanitized_name}_haar_plot.png")
+            haar_obj = results["haar_obj"] # Retrieve object to plot
+            haar_obj.plot(output_path=haar_plot_path)
+            self.logger.info(f"Haar plot saved to {haar_plot_path}")
+
+            hr = results["haar_results"]
+            beta = hr.get("beta", np.nan)
+
+            haar_summary = "\n\n-----------------------------------\n"
+            haar_summary += "Haar Wavelet Analysis:\n"
+            haar_summary += f"  β = {beta:.2f}\n"
+            haar_summary += f"  H = {hr.get('H', np.nan):.2f}\n"
+            haar_summary += f"  R² = {hr.get('r2', np.nan):.2f}\n"
+            haar_summary += f"  Persistence: {get_persistence_traffic_light(beta)}\n"
+            haar_summary += f"  Interpretation: {get_scientific_interpretation(beta)}\n"
+
         # Summary Text
         summary_path = os.path.join(output_dir, f"{sanitized_name}_summary.txt")
         with open(summary_path, "w") as f:
-            f.write(results["summary_text"])
+            f.write(results["summary_text"] + haar_summary)
         self.logger.info(f"Plot saved to {plot_path}")
         self.logger.info(f"Summary saved to {summary_path}")
 
@@ -569,6 +600,10 @@ class Analysis:
         plot_path = os.path.join(
             output_dir, plot_filename
         )
+
+        # Handle Haar Analysis for segments if available
+        # Note: We don't automatically plot Haar for changepoint analysis segments here to avoid complexity
+        # but the summary text will be included.
 
         # Save the combined summary text
         summary_path = os.path.join(
@@ -725,6 +760,14 @@ class Analysis:
             seed=analysis_kwargs.get("seed"),
         )
 
+        # Run Haar Analysis if requested
+        if analysis_kwargs.get("run_haar", False):
+            haar_obj, haar_res = self._perform_haar_analysis()
+            fit_results["haar_results"] = haar_res
+            # We don't store haar_obj here for segments to avoid clutter/serialization issues if any,
+            # unless we want to plot per segment. For now let's just keep results.
+            # fit_results["haar_obj"] = haar_obj
+
         # Detect peaks
         fit_results = self._detect_significant_peaks(
             fit_results,
@@ -750,6 +793,14 @@ class Analysis:
             "frequency": self.frequency,
             "power": self.power,
         }
+
+        # Append Haar summary to segment summary if available
+        if "haar_results" in fit_results:
+             hr = fit_results["haar_results"]
+             beta = hr.get("beta", np.nan)
+             haar_summary = "\n\n  [Haar Analysis]\n"
+             haar_summary += f"  β = {beta:.2f}, H = {hr.get('H', np.nan):.2f}\n"
+             segment_results["summary_text"] += haar_summary
 
         # Restore original data
         self.time, self.data, self.errors = orig_time, orig_data, orig_errors
@@ -891,6 +942,7 @@ class Analysis:
         max_breakpoints=1,
         seed=None,
         changepoint_plot_style="separate",
+        run_haar=False,
     ):
         """
         Runs the complete analysis workflow and saves all outputs to a directory.
@@ -955,6 +1007,9 @@ class Analysis:
                 to consider in segmented regression (0, 1, or 2). Defaults to 1.
             seed (int, optional): A seed for the random number generator to
                 ensure reproducibility of bootstrap analysis. Defaults to None.
+            run_haar (bool, optional): If True, also perform Haar Wavelet Analysis
+                to estimate the spectral slope. Recommended for unevenly sampled
+                data. Defaults to False.
 
         Returns:
             dict: A dictionary containing all analysis results.
@@ -993,6 +1048,7 @@ class Analysis:
             "max_breakpoints": max_breakpoints,
             "seed": seed,
             "changepoint_plot_style": changepoint_plot_style,
+            "run_haar": run_haar,
         }
 
         # Determine changepoint
@@ -1040,6 +1096,12 @@ class Analysis:
             }
             self._generate_outputs(self.results, output_dir)
             return self.results
+
+        # Run Haar Analysis if requested
+        if run_haar:
+            haar_obj, haar_res = self._perform_haar_analysis()
+            fit_results["haar_results"] = haar_res
+            fit_results["haar_obj"] = haar_obj
 
         # 4. Detect Significant Peaks
         fit_results = self._detect_significant_peaks(

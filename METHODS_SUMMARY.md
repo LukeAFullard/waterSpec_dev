@@ -20,7 +20,7 @@ This document summarizes the methods available in the `waterSpec` package, outli
 
 ### 2. Haar Wavelet Analysis
 **Implementation:** `waterSpec.haar_analysis.HaarAnalysis`
-**Usage:** Available as a standalone class `HaarAnalysis`. Not currently integrated into the main `Analysis` automation pipeline.
+**Usage:** Integrated into `Analysis` (via `run_full_analysis(..., run_haar=True)`) or available as a standalone class `HaarAnalysis`.
 
 *   **Description:** Calculates the first-order structure function ($S_1$) of the time series using Haar wavelets. The spectral slope $\beta$ is estimated from the scaling exponent $H$ of the structure function ($\beta = 1 + 2H$).
 *   **Strengths:**
@@ -28,7 +28,6 @@ This document summarizes the methods available in the `waterSpec` package, outli
     *   **Simplicity:** Conceptually simple and direct calculation of fluctuations at different timescales.
 *   **Weaknesses:**
     *   **Peak Detection:** Not suitable for detecting specific narrowband periodicities (peaks).
-    *   **Integration:** Currently requires manual execution separate from the main `Analysis` workflow.
 
 ### 3. PSRESP (Power Spectral Response)
 **Implementation:** `waterSpec.psresp.psresp_fit`
