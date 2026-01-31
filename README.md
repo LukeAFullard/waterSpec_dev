@@ -25,7 +25,7 @@
 
 - **Advanced Haar Analysis:**
   - **Overlapping Windows:** Maximize data usage for long-term records.
-  - **Segmented Fits:** Detect regime shifts in system memory.
+  - **Segmented Fits:** Detect regime shifts in system memory using robust regression (`MannKS`).
   - **Bivariate Analysis:** Analyze Cross-Haar correlation between Concentration and Discharge.
   - **Surrogate Testing:** Assess significance using phase-randomized or block-shuffled surrogates.
   - **Real-Time Anomaly Detection:** Compute "Sliding Haar" fluctuations to detect sudden volatility changes.
@@ -58,10 +58,19 @@ cd waterSpec
 pip install -e .
 ```
 
+**Dependencies:**
+`waterSpec` relies on `mannks` and `ruptures` for advanced segmented regression and changepoint detection. These are installed automatically.
+
 **For development (includes testing dependencies):**
 ```bash
 pip install -e '.[test]'
 ```
+
+---
+
+## Documentation
+
+For a comprehensive step-by-step guide on using the advanced features (Haar, Bivariate, Hysteresis, Anomaly Detection), please see the **[Walkthrough Tutorial](docs/WALKTHROUGH.md)**.
 
 ---
 
