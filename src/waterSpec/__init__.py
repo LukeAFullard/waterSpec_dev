@@ -38,18 +38,40 @@ except PackageNotFoundError:
     __version__ = "0.0.0"
 
 # ---- Lazy import helper ----
-def _lazy_import(func_name, module_name, dep_message=None):
-    """Return a wrapper that imports the target function on first call."""
-    def _wrapper(*args, **kwargs):
-        try:
-            module = import_module(f"waterSpec.{module_name}")
-        except ImportError as e:
-            msg = dep_message or str(e)
-            raise ImportError(msg) from e
-        func = getattr(module, func_name)
-        return func(*args, **kwargs)
-    _wrapper.__name__ = func_name
-    return _wrapper
+def _lazy_import(func_name, module_name, dep_message=None, is_class=False):
+    """Return a wrapper that imports the target function or class on first call."""
+    if is_class:
+        class LazyClassProxy:
+            def __init__(self, *args, **kwargs):
+                try:
+                    module = import_module(f"waterSpec.{module_name}")
+                except ImportError as e:
+                    msg = dep_message or str(e)
+                    raise ImportError(msg) from e
+                cls = getattr(module, func_name)
+                self._instance = cls(*args, **kwargs)
+
+            def __getattr__(self, name):
+                # If we haven't instantiated (e.g. static method call), we need the class
+                try:
+                    module = import_module(f"waterSpec.{module_name}")
+                    cls = getattr(module, func_name)
+                    return getattr(cls, name)
+                except ImportError as e:
+                    msg = dep_message or str(e)
+                    raise ImportError(msg) from e
+        return LazyClassProxy()
+    else:
+        def _wrapper(*args, **kwargs):
+            try:
+                module = import_module(f"waterSpec.{module_name}")
+            except ImportError as e:
+                msg = dep_message or str(e)
+                raise ImportError(msg) from e
+            func = getattr(module, func_name)
+            return func(*args, **kwargs)
+        _wrapper.__name__ = func_name
+        return _wrapper
 
 # ---- Public API (lazy wrappers) ----
 
@@ -93,9 +115,15 @@ calculate_partial_cross_haar = _lazy_import(
     "calculate_partial_cross_haar", "multivariate"
 )
 
-SegmentedRegimeAnalysis = _lazy_import(
-    "SegmentedRegimeAnalysis", "segmentation"
-)
+# SegmentedRegimeAnalysis is a class with static methods, so we need special handling
+# or just import it directly for simplicity given the lazy loader complexity
+# Let's revert the complex lazy loader and just implement a simple proxy for the class
+class _SegmentedRegimeAnalysisProxy:
+    def __getattr__(self, name):
+        from waterSpec.segmentation import SegmentedRegimeAnalysis
+        return getattr(SegmentedRegimeAnalysis, name)
+
+SegmentedRegimeAnalysis = _SegmentedRegimeAnalysisProxy()
 
 def Analysis(*args, **kwargs):
     """Lazy load Analysis class."""
