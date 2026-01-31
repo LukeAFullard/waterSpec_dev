@@ -307,3 +307,105 @@ print(f"Estimated Lag: {peak_lag} days")
     *   **Short Lag (~0 days):** Surface runoff dominance. Pollutants are washed off immediately.
     *   **Long Lag (Days to Weeks):** Subsurface flow. Rain infiltrates, pushes old water out (piston flow), and solutes arrive much later.
     *   **Application:** If you install a Best Management Practice (BMP) like a buffer strip, you might expect the lag time to increase as the flow path becomes longer/slower.
+
+---
+
+## 7. Partial Cross-Haar Analysis
+
+**Scientific Context:**
+In complex environmental systems, two variables might appear correlated simply because they are both driven by a third factor. For example, Concentration ($C$) and Discharge ($Q$) might both rise during storms (driven by Precipitation, $P$), leading to a high Cross-Haar correlation. **Partial Cross-Haar Analysis** helps determine if $C$ is *directly* related to $Q$ (transport mechanism) or if the relationship is explained entirely by $P$ (spurious correlation).
+
+The metric computed is $\rho_{CQ \cdot P}(\tau)$, which represents the correlation between $C$ and $Q$ at scale $\tau$ *after removing the linear effect of $P$*.
+
+**Example Code:**
+
+```python
+import numpy as np
+from waterSpec import calculate_partial_cross_haar
+
+# 1. Generate Synthetic Data
+# Case: Spurious Correlation.
+# C and Q are independent, but both driven by Rain (P).
+time = np.arange(1000)
+Rain = np.random.exponential(scale=2, size=1000) # Intermittent spikes
+
+# Q responds to Rain
+Q = Rain + 0.1 * np.random.normal(0, 1, 1000)
+
+# C responds to Rain (e.g., atmospheric deposition washout), but NOT Q
+C = Rain + 0.1 * np.random.normal(0, 1, 1000)
+
+# 2. Run Partial Analysis
+# We check the C-Q relationship, controlling for Rain.
+lags = np.array([2, 5, 10, 20])
+results = calculate_partial_cross_haar(
+    time, C, Q, Rain,
+    lags=lags,
+    overlap=True
+)
+
+print("Scale | Rho(C,Q) | Partial Rho(C,Q|Rain)")
+for i, lag in enumerate(results['lags']):
+    rho = results['rho_xy'][i]
+    part = results['partial_corr'][i]
+    print(f"{lag:5.1f} | {rho:8.2f} | {part:18.2f}")
+
+# Expected Output:
+# Rho(C,Q) should be high (~0.9) because both track Rain.
+# Partial Rho(C,Q|Rain) should be low (~0.0) because there is no direct link.
+```
+
+**Interpretation of Results:**
+*   **High Partial Correlation:** Suggests a direct mechanistic link or transport process between $C$ and $Q$ that is independent of the control variable.
+*   **Low Partial Correlation (vs High Raw Correlation):** Suggests the relationship is spurious or mediated entirely by the control variable.
+
+---
+
+## 8. Event-Based Segmentation
+
+**Scientific Context:**
+River systems often behave differently during high-flow "events" (storms) compared to "baseflow" conditions. Analyzing the whole record can mix these signals. Using Sliding Haar volatility, we can automatically segment the time series into these regimes and analyze them separately.
+
+![Event Segmentation](../examples/output/demo8_segmentation.png)
+
+**Example Code:**
+
+```python
+import numpy as np
+from waterSpec import SegmentedRegimeAnalysis
+
+# 1. Generate Synthetic "Bursty" Data
+time = np.arange(0, 1000, 1.0) # Hourly
+# Baseflow: low noise
+data = np.random.normal(0, 0.1, 1000)
+# Add 3 storm events (high volatility bursts)
+data[100:150] += np.random.normal(0, 2.0, 50)
+data[400:430] += np.random.normal(0, 3.0, 30)
+data[800:850] += np.random.normal(0, 1.5, 50)
+
+# 2. Perform Segmentation
+# We look for volatility at a 6-hour scale
+# Events are defined as > 3x the median background volatility
+results = SegmentedRegimeAnalysis.segment_by_fluctuation(
+    time, data, scale=6.0, threshold_factor=3.0
+)
+
+events = results['events']
+background = results['background']
+
+print(f"Detected {len(events)} events.")
+for i, (start, end) in enumerate(events):
+    print(f"Event {i+1}: t={start:.0f} to t={end:.0f} (Duration: {end-start:.0f}h)")
+
+# 3. Extract Data for Separate Analysis
+event_data = SegmentedRegimeAnalysis.extract_segments(time, data, events)
+baseflow_data = SegmentedRegimeAnalysis.extract_segments(time, data, background)
+
+# Now you can run HaarAnalysis on the concatenated `event_data`
+# vs `baseflow_data` to compare spectral slopes!
+```
+
+**Interpretation of Results:**
+*   **Events:** Correspond to periods of high hydrologic activity (storms, snowmelt).
+*   **Background:** Corresponds to stable baseflow conditions.
+*   **Separate Analysis:** Often reveals that baseflow has "brown noise" characteristics (groundwater memory, $\beta \approx 2$), while events have "white noise" or "pink noise" characteristics (rapid flush, $\beta \approx 0-1$).

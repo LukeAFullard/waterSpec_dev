@@ -27,7 +27,9 @@
   - **Overlapping Windows:** Maximize data usage for long-term records.
   - **Segmented Fits:** Detect regime shifts in system memory using robust regression (`MannKS`).
   - **Bivariate Analysis:** Analyze Cross-Haar correlation between Concentration and Discharge.
+  - **Partial Cross-Haar Analysis:** Distinguish direct vs. spurious correlations by controlling for a third variable (e.g., Precipitation).
   - **Surrogate Testing:** Assess significance using phase-randomized or block-shuffled surrogates.
+  - **Event-Based Segmentation:** Automatically segment time series into "Storm" vs "Baseflow" regimes using Sliding Haar volatility.
   - **Real-Time Anomaly Detection:** Compute "Sliding Haar" fluctuations to detect sudden volatility changes.
   - **Hysteresis Classification:** Quantify loop area and direction in the C-Q phase space across scales.
 
@@ -158,6 +160,24 @@ results = biv.run_cross_haar_analysis(
 # Calculate Hysteresis Metrics (Loop Area)
 hyst_stats = biv.calculate_hysteresis_metrics(tau=86400) # 1 day scale
 print(f"Loop Area: {hyst_stats['area']}, Direction: {hyst_stats['direction']}")
+```
+
+### Partial Cross-Haar Analysis
+
+Determine if a correlation between two variables is spurious (driven by a common cause) or direct.
+
+```python
+from waterSpec import calculate_partial_cross_haar
+
+# Is C correlated with Q just because both are driven by Rain?
+# Calculate rho(C, Q | Rain)
+results = calculate_partial_cross_haar(
+    time, C, Q, Rain,
+    lags=np.logspace(3, 5, 10),
+    overlap=True
+)
+
+print(results['partial_corr'])
 ```
 
 ### Segmented Haar Fits
