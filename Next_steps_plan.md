@@ -181,13 +181,7 @@ where ( \alpha(\tau) ) represents scale-specific sensitivity to flow and ( \vare
 This decomposition is diagnostic, not causal.
 
 ---
-Absolutely — here’s **PART 2**, completing the report and tightening the methodology where it really matters.
 
----
-
-# REPORT ID: WQ-HAAR-2026-02
-
-## Multi-Scalar Analysis of Non-Stationary Water Quality Time Series Using Haar Fluctuation Metrics
 
 **PART 2: Significance, Attribution, and Final Recommendations**
 
