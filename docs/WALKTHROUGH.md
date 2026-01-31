@@ -1,6 +1,6 @@
 # waterSpec: Step-by-Step Walkthrough
 
-This document provides a comprehensive guide to using the advanced features of `waterSpec`, including Haar fluctuation analysis with overlapping windows, segmented regression for regime shift detection, and bivariate analysis for concentration-discharge relationships.
+This document provides a comprehensive guide to using the advanced features of `waterSpec`, including Haar fluctuation analysis with overlapping windows, segmented regression for regime shift detection, bivariate analysis for concentration-discharge relationships, and **Multivariate Analysis** for disentangling complex relationships.
 
 Each section includes a self-contained Python code example that generates synthetic data, performs the analysis, and explains the results.
 
@@ -307,3 +307,123 @@ print(f"Estimated Lag: {peak_lag} days")
     *   **Short Lag (~0 days):** Surface runoff dominance. Pollutants are washed off immediately.
     *   **Long Lag (Days to Weeks):** Subsurface flow. Rain infiltrates, pushes old water out (piston flow), and solutes arrive much later.
     *   **Application:** If you install a Best Management Practice (BMP) like a buffer strip, you might expect the lag time to increase as the flow path becomes longer/slower.
+
+---
+
+## 7. Multivariate Analysis (Partial Cross-Haar)
+
+**Scientific Context:**
+Correlation does not imply causation. A correlation between Concentration ($C$) and Discharge ($Q$) might be spurious if both are driven by Precipitation ($P$). **Partial Cross-Haar Correlation** ($\rho_{CQ \cdot P}$) quantifies the relationship between $C$ and $Q$ while mathematically removing the linear effect of $P$. This is critical for legal attribution of pollution sources.
+
+**Example Code:**
+
+```python
+import numpy as np
+from waterSpec.multivariate import MultivariateAnalysis
+
+# 1. Generate Chain Data: P -> Q -> C
+# P drives Q, Q drives C.
+# C is correlated with P, but only indirectly through Q.
+n = 2000
+time = np.arange(n)
+P = np.random.randn(n)                   # Precipitation (Random)
+Q = 0.7 * P + 0.3 * np.random.randn(n)   # Discharge (Driven by P)
+C = 0.8 * Q + 0.2 * np.random.randn(n)   # Concentration (Driven by Q)
+
+inputs = [
+    {'time': time, 'data': C, 'name': 'Conc'},
+    {'time': time, 'data': Q, 'name': 'Discharge'},
+    {'time': time, 'data': P, 'name': 'Precip'}
+]
+
+# 2. Initialize Multivariate Analysis
+multi = MultivariateAnalysis(inputs)
+multi.align_data(tolerance=0.1)
+
+lags = np.array([10, 20, 50])
+
+# 3. Test Direct Relationship: C vs Q (controlling for P)
+# Should remain high because Q directly drives C.
+res_direct = multi.run_partial_cross_haar_analysis(
+    target_var1='Conc',
+    target_var2='Discharge',
+    conditioning_vars=['Precip'],
+    lags=lags
+)
+
+# 4. Test Indirect Relationship: C vs P (controlling for Q)
+# Should drop to near zero because P only affects C via Q.
+res_indirect = multi.run_partial_cross_haar_analysis(
+    target_var1='Conc',
+    target_var2='Precip',
+    conditioning_vars=['Discharge'],
+    lags=lags
+)
+
+print("Scale | Partial Corr (C-Q | P) | Partial Corr (C-P | Q)")
+for i, lag in enumerate(lags):
+    pc_cq = res_direct['partial_correlation'][i]
+    pc_cp = res_indirect['partial_correlation'][i]
+    print(f"{lag:5.0f} | {pc_cq:18.2f} | {pc_cp:18.2f}")
+
+# Expected Output:
+# C-Q | P should be significant (> 0.5).
+# C-P | Q should be negligible (~ 0.0), proving P is not the direct driver.
+```
+
+**Interpretation of Results:**
+*   **High Partial Correlation:** Indicates a direct functional link. In the example, $C$ responds to flow mechanics ($Q$) regardless of where the water came from.
+*   **Low Partial Correlation:** Indicates the relationship was spurious or fully mediated by the conditioning variable. If controlling for $Q$ makes the $C$-$P$ correlation vanish, it proves that rain only affects concentration by generating flow, not by some other mechanism (e.g., atmospheric deposition).
+
+---
+
+## 8. Event-Based Segmentation (Regime Analysis)
+
+**Scientific Context:**
+A single spectral slope often fails to capture the complexity of a system that switches between "storm events" (high energy) and "baseflow" (low energy). **Event-Based Segmentation** uses the sliding Haar fluctuation metric to automatically detect these regimes and analyze them separately.
+
+**Example Code:**
+
+```python
+import numpy as np
+from waterSpec import Analysis
+from waterSpec.segmentation import RegimeAnalysis
+
+# 1. Generate Data with Bursts
+# Baseflow: White noise (beta ~ 0)
+n = 2000
+time = np.arange(n)
+data = np.random.normal(0, 0.5, n)
+# Events: Bursts of Brown noise (beta ~ 2) added at intervals
+for i in range(0, n, 400):
+    data[i:i+100] += np.cumsum(np.random.normal(0, 0.5, 100))
+
+# 2. Initialize Analysis
+ana = Analysis(time_array=time, data_array=data, time_col="t", data_col="y")
+
+# 3. Segment by Fluctuation
+# Detect events based on volatility exceeding 2x the Median Absolute Deviation (MAD)
+regime = RegimeAnalysis(ana)
+slices = regime.segment_by_fluctuation(scale=10, threshold_factor=2.0)
+
+print(f"Detected {len(slices['event'])} event segments.")
+
+# 4. Compare Spectral Slopes
+# Analyze the concatenated 'event' data vs 'baseflow' data
+results = regime.run_regime_comparison(min_lag=1, max_lag=50)
+
+beta_event = results['event']['beta']
+beta_base = results['baseflow']['beta']
+
+print(f"Baseflow Beta: {beta_base:.2f}")
+print(f"Event Beta:    {beta_event:.2f}")
+
+# Expected Output:
+# Baseflow Beta ~ 0.0 (uncorrelated noise)
+# Event Beta ~ 2.0 (strong memory/trend)
+```
+
+**Interpretation of Results:**
+*   **Regime Separation:** This method objectively separates the dataset without manual selection.
+*   **Distinct Slopes:** Finding a high $\beta$ during events implies that during storms, the system is transport-limited or integrates previous conditions (hysteresis). A low $\beta$ during baseflow implies the system is essentially random or chemostatic during quiet periods.
+*   **Application:** This allows you to report "The river behaves as a chemostat during baseflow but exhibits strong source-limitation during storms," which is a much more nuanced and legally defensible statement than a single average slope.
