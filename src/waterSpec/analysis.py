@@ -475,11 +475,15 @@ class Analysis:
 
         return fit_results
 
-    def _perform_haar_analysis(self):
+    def _perform_haar_analysis(self, overlap: bool = True, overlap_step_fraction: float = 0.1, max_breakpoints: int = 0):
         """Performs Haar Wavelet Analysis."""
         self.logger.info("Performing Haar Wavelet Analysis...")
         haar = HaarAnalysis(self.time, self.data, time_unit=self.time_unit)
-        haar_results = haar.run()
+        haar_results = haar.run(
+            overlap=overlap,
+            overlap_step_fraction=overlap_step_fraction,
+            max_breakpoints=max_breakpoints
+        )
         self.logger.info(
             f"Haar Analysis complete. Beta: {haar_results.get('beta', np.nan):.2f}, "
             f"H: {haar_results.get('H', np.nan):.2f}"
@@ -570,6 +574,13 @@ class Analysis:
             haar_summary += f"  R² = {hr.get('r2', np.nan):.2f}\n"
             haar_summary += f"  Persistence: {get_persistence_traffic_light(beta)}\n"
             haar_summary += f"  Interpretation: {get_scientific_interpretation(beta)}\n"
+
+            # Add segmented info if available
+            if "segmented_results" in hr and hr["segmented_results"] is not None:
+                sr = hr["segmented_results"]
+                haar_summary += "\n  Segmented Fit:\n"
+                haar_summary += f"  Breakpoints (Time Units): {sr['breakpoints']}\n"
+                haar_summary += f"  Betas: {sr['betas']}\n"
 
         # Summary Text
         summary_path = os.path.join(output_dir, f"{sanitized_name}_summary.txt")
@@ -762,7 +773,11 @@ class Analysis:
 
         # Run Haar Analysis if requested
         if analysis_kwargs.get("run_haar", False):
-            haar_obj, haar_res = self._perform_haar_analysis()
+            haar_obj, haar_res = self._perform_haar_analysis(
+                overlap=analysis_kwargs.get("haar_overlap", True),
+                overlap_step_fraction=analysis_kwargs.get("haar_overlap_step_fraction", 0.1),
+                max_breakpoints=analysis_kwargs.get("haar_max_breakpoints", 0)
+            )
             fit_results["haar_results"] = haar_res
             # We don't store haar_obj here for segments to avoid clutter/serialization issues if any,
             # unless we want to plot per segment. For now let's just keep results.
@@ -800,6 +815,9 @@ class Analysis:
              beta = hr.get("beta", np.nan)
              haar_summary = "\n\n  [Haar Analysis]\n"
              haar_summary += f"  β = {beta:.2f}, H = {hr.get('H', np.nan):.2f}\n"
+             if "segmented_results" in hr and hr["segmented_results"]:
+                 sr = hr["segmented_results"]
+                 haar_summary += f"  (Segmented Fit Detected: Breakpoints {sr['breakpoints']})\n"
              segment_results["summary_text"] += haar_summary
 
         # Restore original data
@@ -943,6 +961,9 @@ class Analysis:
         seed=None,
         changepoint_plot_style="separate",
         run_haar=False,
+        haar_overlap=True,
+        haar_overlap_step_fraction=0.1,
+        haar_max_breakpoints=0,
     ):
         """
         Runs the complete analysis workflow and saves all outputs to a directory.
@@ -1010,6 +1031,9 @@ class Analysis:
             run_haar (bool, optional): If True, also perform Haar Wavelet Analysis
                 to estimate the spectral slope. Recommended for unevenly sampled
                 data. Defaults to False.
+            haar_overlap (bool, optional): If True, use overlapping windows for Haar.
+            haar_overlap_step_fraction (float, optional): Step size fraction for overlap.
+            haar_max_breakpoints (int, optional): Max breakpoints for segmented Haar fit.
 
         Returns:
             dict: A dictionary containing all analysis results.
@@ -1049,6 +1073,9 @@ class Analysis:
             "seed": seed,
             "changepoint_plot_style": changepoint_plot_style,
             "run_haar": run_haar,
+            "haar_overlap": haar_overlap,
+            "haar_overlap_step_fraction": haar_overlap_step_fraction,
+            "haar_max_breakpoints": haar_max_breakpoints,
         }
 
         # Determine changepoint
@@ -1099,7 +1126,11 @@ class Analysis:
 
         # Run Haar Analysis if requested
         if run_haar:
-            haar_obj, haar_res = self._perform_haar_analysis()
+            haar_obj, haar_res = self._perform_haar_analysis(
+                overlap=haar_overlap,
+                overlap_step_fraction=haar_overlap_step_fraction,
+                max_breakpoints=haar_max_breakpoints
+            )
             fit_results["haar_results"] = haar_res
             fit_results["haar_obj"] = haar_obj
 
