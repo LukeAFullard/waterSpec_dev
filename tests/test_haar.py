@@ -27,9 +27,9 @@ def test_haar_white_noise():
     data = generate_noise(n, 'white')
 
     lags, s1, counts = calculate_haar_fluctuations(time, data, num_lags=20)
-    H, beta, r2 = fit_haar_slope(lags, s1)
+    H, beta, r2, intercept = fit_haar_slope(lags, s1)
 
-    print(f"White Noise: H={H}, beta={beta}, R2={r2}")
+    print(f"White Noise: H={H}, beta={beta}, R2={r2}, Intercept={intercept}")
 
     # Allow some margin of error
     assert -0.6 < H < -0.4
@@ -42,9 +42,9 @@ def test_haar_brownian_noise():
     data = generate_noise(n, 'brownian')
 
     lags, s1, counts = calculate_haar_fluctuations(time, data, num_lags=20)
-    H, beta, r2 = fit_haar_slope(lags, s1)
+    H, beta, r2, intercept = fit_haar_slope(lags, s1)
 
-    print(f"Brownian Noise: H={H}, beta={beta}, R2={r2}")
+    print(f"Brownian Noise: H={H}, beta={beta}, R2={r2}, Intercept={intercept}")
 
     assert 0.4 < H < 0.6
     assert 1.8 < beta < 2.2
@@ -79,8 +79,8 @@ def test_irregular_sampling():
     data = np.random.randn(n) # White noise
 
     lags, s1, counts = calculate_haar_fluctuations(time, data, num_lags=20)
-    H, beta, r2 = fit_haar_slope(lags, s1)
+    H, beta, r2, intercept = fit_haar_slope(lags, s1)
 
-    print(f"Irregular White Noise: H={H}, beta={beta}")
+    print(f"Irregular White Noise: H={H}, beta={beta}, Intercept={intercept}")
     # Should still be roughly white noise
     assert -0.7 < H < -0.3 # Wider tolerance for irregular

@@ -54,7 +54,7 @@ The function `calculate_haar_fluctuations` robustly handles irregular sampling u
 
 ### 3.2 Fitting
 
-The function `fit_haar_slope` performs a linear regression on $\log(S_1)$ vs $\log(\tau)$ using Ordinary Least Squares (`numpy.polyfit`). It returns $H$, $\beta$, and the $R^2$ of the fit.
+The function `fit_haar_slope` performs a robust linear regression on $\log_{10}(S_1)$ vs $\log_{10}(\tau)$ using the Mann-Kendall/Theil-Sen estimator (via the `MannKS` library). This provides a more reliable estimate of the scaling exponent $H$ that is less sensitive to outliers. It returns $H$, $\beta$, $R^2$ (calculated via OLS for reference), and the intercept.
 
 ## 4. Comparison with MSDA Framework
 
@@ -67,7 +67,7 @@ The technical report `Haar_SF_New_Analysis_Methods.md` describes a "Multi-Scale 
 | **Window Validity** | $\ge 1$ point in each half | $\ge 5$ points AND $\ge 70\%$ time coverage |
 | **Robustness** | Median NOT used for scaling | $\widetilde{S}_2$ (Median of squared fluctuations) |
 | **Intermittency** | Not implemented | $I(\tau) = \log_{10}(S_2 / \widetilde{S}_2)$ |
-| **Regression** | OLS (`polyfit`) | Robust (Theil-Sen) |
+| **Regression** | Robust (Theil-Sen) | Robust (Theil-Sen) |
 | **Uncertainty** | Not implemented in `HaarAnalysis.run` | Block Bootstrap |
 
 ## 5. Usage in waterSpec
@@ -105,5 +105,6 @@ haar = HaarAnalysis(time, data)
 res = haar.run()
 
 # Fit a segmented model to the structure function
+# fit_segmented_spectrum also uses robust regression internally
 segmented_fit = fit_segmented_spectrum(res['lags'], res['s1'], n_breakpoints=1)
 ```
