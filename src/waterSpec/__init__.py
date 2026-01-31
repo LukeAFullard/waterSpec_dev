@@ -27,6 +27,7 @@ __all__ = [
     "plot_spectrum",
     "Analysis",
     "calculate_partial_cross_haar",
+    "SegmentedRegimeAnalysis",
 ]
 
 # ---- Metadata ----
@@ -90,6 +91,10 @@ plot_spectrum = _lazy_import(
 
 calculate_partial_cross_haar = _lazy_import(
     "calculate_partial_cross_haar", "multivariate"
+)
+
+SegmentedRegimeAnalysis = _lazy_import(
+    "SegmentedRegimeAnalysis", "segmentation"
 )
 
 def Analysis(*args, **kwargs):
