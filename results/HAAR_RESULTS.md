@@ -258,19 +258,3 @@ Analysis performed on data files in `assets/data/`.
 ![Plot](plots/Site_3_ecoli_haar.png)
 
 ---
-## AgrHys Nitrate
-- **File:** `es403723r_si_002.xls`
-- **Data Points:** 2966
-- **Breakpoints Found:** 1
-- **Breakpoint Location:** 209.36 days
-
-**Spectral Slopes:**
-
-| Regime | Haar Exponent (H) | Spectral Slope (β) |
-| :--- | :--- | :--- |
-| High Freq (Short-term) | 0.041 | 1.081 |
-| Low Freq (Long-term) | -0.745 | -0.490 |
-
-![Plot](plots/AgrHys_Nitrate_haar.png)
-
----

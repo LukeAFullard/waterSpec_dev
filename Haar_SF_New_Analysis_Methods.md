@@ -6,6 +6,8 @@
 
 **Revised and Statistically Clarified Specification**
 
+> **Note:** This document describes the *target specification* for the MSDA framework. For details on the methods currently implemented in the package, see [Haar Implementation Details](docs/HAAR_IMPLEMENTATION_DETAILS.md).
+
 ## 1. Executive Summary
 
 The Multi-Scale Diagnostic Attribution (MSDA) framework characterizes variability and intermittency in river water-quality time series across temporal scales using Haar-based structure functions. The framework is designed for irregular, gappy, and non-Gaussian environmental data where Fourier, ARIMA, or covariance-based approaches are inappropriate.
