@@ -6,6 +6,7 @@ from typing import Dict, Optional, Tuple, List
 
 import numpy as np
 import matplotlib.pyplot as plt
+import MannKS
 
 def calculate_haar_fluctuations(
     time: np.ndarray,
@@ -126,12 +127,25 @@ def calculate_haar_fluctuations(
 
     return np.array(valid_lags), np.array(s1_values), np.array(counts)
 
-def fit_haar_slope(lags: np.ndarray, s1: np.ndarray) -> Tuple[float, float, float]:
+def fit_haar_slope(
+    lags: np.ndarray,
+    s1: np.ndarray,
+    ci: float = 95,
+    n_bootstraps: int = 100
+) -> Tuple[float, float, float, float]:
     """
-    Fits a power law to the structure function: S_1(dt) ~ dt^H.
-    Returns H, beta, and R^2.
+    Fits a power law to the structure function: S_1(dt) ~ dt^H using
+    robust regression (Mann-Kendall/Theil-Sen).
+
+    Returns H, beta, r2, and intercept.
 
     beta = 1 + 2H
+
+    Args:
+        lags (np.ndarray): Lag times.
+        s1 (np.ndarray): Structure function values.
+        ci (float, optional): Confidence interval percentage. Defaults to 95.
+        n_bootstraps (int, optional): Number of bootstraps for CI. Defaults to 100.
     """
     # Log-log fit
     # Filter out zeros or negatives if any (shouldn't be for S1 unless empty)
@@ -139,27 +153,37 @@ def fit_haar_slope(lags: np.ndarray, s1: np.ndarray) -> Tuple[float, float, floa
     if np.sum(valid) < 3:
         return np.nan, np.nan, np.nan
 
-    log_lags = np.log(lags[valid])
-    log_s1 = np.log(s1[valid])
+    log_lags = np.log10(lags[valid])
+    log_s1 = np.log10(s1[valid])
 
-    slope, intercept = np.polyfit(log_lags, log_s1, 1)
+    # Robust fit using MannKS
+    res = MannKS.trend_test(
+        log_s1,
+        log_lags,
+        alpha=1 - (ci / 100),
+        n_bootstrap=n_bootstraps
+    )
 
-    H = slope
+    H = res.slope
+    intercept = res.intercept
     beta = 1 + 2 * H
 
-    # Calculate R2
-    predicted = slope * log_lags + intercept
+    # Calculate R2 (using OLS for a traditional goodness-of-fit measure)
+    # Even though we use Theil-Sen for the slope, R2 is still useful.
+    slope_ols, intercept_ols = np.polyfit(log_lags, log_s1, 1)
+    predicted = slope_ols * log_lags + intercept_ols
     ss_res = np.sum((log_s1 - predicted) ** 2)
     ss_tot = np.sum((log_s1 - np.mean(log_s1)) ** 2)
     r2 = 1 - (ss_res / ss_tot)
 
-    return H, beta, r2
+    return H, beta, r2, intercept
 
 def plot_haar_analysis(
     lags: np.ndarray,
     s1: np.ndarray,
     H: float,
     beta: float,
+    intercept: Optional[float] = None,
     output_path: Optional[str] = None,
     time_unit: str = "seconds"
 ):
@@ -171,13 +195,15 @@ def plot_haar_analysis(
 
     # Plot fit line
     if not np.isnan(H):
-        # Create fit line
-        fit_vals = s1[0] * (lags / lags[0])**H
-        # Adjust intercept visually to pass through mean
-        log_lags = np.log(lags)
-        log_s1 = np.log(s1)
-        slope, intercept = np.polyfit(log_lags, log_s1, 1)
-        fit_vals = np.exp(intercept) * lags**slope
+        if intercept is None:
+            # Re-calculate intercept if not provided, ensuring it passes through the median
+            log_lags = np.log10(lags)
+            log_s1 = np.log10(s1)
+            intercept = np.median(log_s1 - H * log_lags)
+            fit_vals = 10**intercept * lags**H
+        else:
+            # Use provided intercept (assumed to be for log10)
+            fit_vals = 10**intercept * lags**H
 
         plt.loglog(lags, fit_vals, 'r--', label=f'Fit: H={H:.2f}, $\\beta$={beta:.2f}')
 
@@ -204,17 +230,21 @@ class HaarAnalysis:
         self.H = None
         self.beta = None
         self.r2 = None
+        self.intercept = None
 
-    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True):
+    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100):
         self.lags, self.s1, self.counts = calculate_haar_fluctuations(
             self.time, self.data, min_lag=min_lag, max_lag=max_lag, num_lags=num_lags, log_spacing=log_spacing
         )
-        self.H, self.beta, self.r2 = fit_haar_slope(self.lags, self.s1)
+        self.H, self.beta, self.r2, self.intercept = fit_haar_slope(
+            self.lags, self.s1, n_bootstraps=n_bootstraps
+        )
 
         return {
             "H": self.H,
             "beta": self.beta,
             "r2": self.r2,
+            "intercept": self.intercept,
             "lags": self.lags,
             "s1": self.s1,
             "counts": self.counts
@@ -223,4 +253,7 @@ class HaarAnalysis:
     def plot(self, output_path=None):
         if self.lags is None:
             raise ValueError("Run analysis first.")
-        plot_haar_analysis(self.lags, self.s1, self.H, self.beta, output_path, time_unit=self.time_unit)
+        plot_haar_analysis(
+            self.lags, self.s1, self.H, self.beta, self.intercept,
+            output_path, time_unit=self.time_unit
+        )
