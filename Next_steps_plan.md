@@ -32,20 +32,15 @@ This framework allows regulators and scientists to distinguish anthropogenic cha
 
 ### 2.1 Generalized Haar Fluctuation
 
-Let ( X(t) ) denote a scalar water-quality time series (e.g., nitrate concentration). For a central time ( t ) and full timescale ( \tau ), the **Haar fluctuation** is defined as:
+Let $X(t)$ denote a scalar water-quality time series (e.g., nitrate concentration). For a central time $t$ and full timescale $\tau$, the **Haar fluctuation** is defined as:
 
-[
-\Delta X(t,\tau)
-================
+$$
+\Delta X(t,\tau) = \overline{X}_{[t, t+\tau/2]} - \overline{X}_{[t-\tau/2, t]}
+$$
 
-## \overline{X}_{[t,,t+\tau/2]}
+where $\overline{X}_{[a,b]}$ denotes the arithmetic mean of all observations within the continuous-time window $[a,b]$.
 
-\overline{X}_{[t-\tau/2,,t]}
-]
-
-where ( \overline{X}_{[a,b]} ) denotes the arithmetic mean of all observations within the continuous-time window ([a,b]).
-
-This symmetric two-half-window definition produces a localized, scale-dependent increment that does not assume global stationarity or periodicity. Each Haar fluctuation represents the mean step change of the system at scale ( \tau ).
+This symmetric two-half-window definition produces a localized, scale-dependent increment that does not assume global stationarity or periodicity. Each Haar fluctuation represents the mean step change of the system at scale $\tau$.
 
 ---
 
@@ -59,7 +54,7 @@ Key considerations:
 * **Uncertainty:** Windows with few observations have larger standard errors; effective sample counts should be tracked.
 * **Intra-window dependence:** Strong autocorrelation within windows may inflate effective variance at small scales.
 * **Interpretation:** Small-scale Haar statistics should be interpreted as indicators of catchment-scale variability rather than measurement precision.
-* **Regulatory guidance:** For compliance or reporting, exclude windows with ( n < 2 ) or explicitly quantify sensitivity to this choice.
+* **Regulatory guidance:** For compliance or reporting, exclude windows with $n < 2$ or explicitly quantify sensitivity to this choice.
 
 ---
 
@@ -67,13 +62,13 @@ Key considerations:
 
 To quantify variability robustly, we use the **first-order structure function**:
 
-[
+$$
 S_1(\tau) = \left\langle |\Delta X(t,\tau)| \right\rangle
-]
+$$
 
-where the average is taken over all valid times ( t ).
+where the average is taken over all valid times $t$.
 
-Because ( S_1 ) relies on first-order (absolute) increments, it is robust to heavy-tailed distributions and does not require finite second moments. This property is critical for river water-quality time series dominated by episodic transport events.
+Because $S_1$ relies on first-order (absolute) increments, it is robust to heavy-tailed distributions and does not require finite second moments. This property is critical for river water-quality time series dominated by episodic transport events.
 
 ---
 
@@ -83,11 +78,11 @@ Because ( S_1 ) relies on first-order (absolute) increments, it is robust to hea
 
 If variability exhibits self-similar behavior across a range of scales, the structure function follows a power law:
 
-[
+$$
 S_1(\tau) \propto \tau^{m}
-]
+$$
 
-where ( m ) is the **Haar scaling exponent**. The value of ( m ) quantifies how variability grows with increasing time scale and provides a direct measure of system memory.
+where $m$ is the **Haar scaling exponent**. The value of $m$ quantifies how variability grows with increasing time scale and provides a direct measure of system memory.
 
 ---
 
@@ -95,24 +90,24 @@ where ( m ) is the **Haar scaling exponent**. The value of ( m ) quantifies how 
 
 Under conditions of asymptotic scaling and approximately stationary increments over the analyzed scale range, the first-order structure function corresponds to a power spectral density of the form:
 
-[
+$$
 P(f) \propto f^{-\beta}
-]
+$$
 
 with the diagnostic relationship:
 
-[
+$$
 \beta = 2m + 1
-]
+$$
 
 **Interpretive note:**
-This conversion is conditional and should be treated as diagnostic rather than inferential. It is valid when scaling holds over at least one decade in ( \tau ) and increments are weakly stationary over that range.
+This conversion is conditional and should be treated as diagnostic rather than inferential. It is valid when scaling holds over at least one decade in $\tau$ and increments are weakly stationary over that range.
 
 ---
 
 ### 3.3 Diagnostic Interpretation
 
-| Haar slope (m) | Spectral exponent (β) | Diagnosis          | Physical interpretation                          |
+| Haar slope $m$ | Spectral exponent $\beta$ | Diagnosis          | Physical interpretation                          |
 | -------------- | --------------------: | ------------------ | ------------------------------------------------ |
 | −0.50          |                   0.0 | White noise        | Flashy system; minimal storage; rapid flushing   |
 | −0.25          |                   0.5 | Weak persistence   | Limited buffering; shallow groundwater influence |
@@ -129,7 +124,7 @@ Positive slopes indicate increasing long-range dependence and prolonged system m
 
 **Objective:** Detect regime shifts, volatility clustering, and potential measurement artifacts.
 
-For a fixed, policy-relevant scale ( \tau ), raw Haar fluctuations ( \Delta X(t,\tau) ) are plotted against time.
+For a fixed, policy-relevant scale $\tau$, raw Haar fluctuations $\Delta X(t,\tau)$ are plotted against time.
 
 **Interpretation:**
 
@@ -143,9 +138,9 @@ For a fixed, policy-relevant scale ( \tau ), raw Haar fluctuations ( \Delta X(t,
 
 **Objective:** Quantify intrinsic system memory and dominant noise behavior.
 
-The structure function ( S_1(\tau) ) is computed across a range of scales and plotted in log–log space. Linear scaling regions are identified and used to estimate the scaling exponent ( m ).
+The structure function $S_1(\tau)$ is computed across a range of scales and plotted in log–log space. Linear scaling regions are identified and used to estimate the scaling exponent $m$.
 
-Bootstrap resampling (using block lengths consistent with observed autocorrelation) is recommended to estimate confidence intervals for ( m ).
+Bootstrap resampling (using block lengths consistent with observed autocorrelation) is recommended to estimate confidence intervals for $m$.
 
 **Assumptions for scaling inference:**
 
@@ -159,11 +154,11 @@ Bootstrap resampling (using block lengths consistent with observed autocorrelati
 
 **Objective:** Separate flow-driven (climatic) variability from flow-independent processes.
 
-At each scale ( \tau ), Pearson correlation is computed between Haar fluctuations of concentration ( C ) and discharge ( Q ):
+At each scale $\tau$, Pearson correlation is computed between Haar fluctuations of concentration $C$ and discharge $Q$:
 
-[
-\rho_{CQ}(\tau) = \text{corr}\big(\Delta C(t,\tau),, \Delta Q(t,\tau)\big)
-]
+$$
+\rho_{CQ}(\tau) = \text{corr}\big(\Delta C(t,\tau), \Delta Q(t,\tau)\big)
+$$
 
 **Choice of correlation metric:**
 
@@ -172,11 +167,11 @@ At each scale ( \tau ), Pearson correlation is computed between Haar fluctuation
 
 **Phenomenological decomposition:**
 
-[
-\Delta C = \alpha(\tau),\Delta Q + \varepsilon(\tau)
-]
+$$
+\Delta C = \alpha(\tau)\Delta Q + \varepsilon(\tau)
+$$
 
-where ( \alpha(\tau) ) represents scale-specific sensitivity to flow and ( \varepsilon(\tau) ) represents variance unexplained by discharge.
+where $\alpha(\tau)$ represents scale-specific sensitivity to flow and $\varepsilon(\tau)$ represents variance unexplained by discharge.
 
 This decomposition is diagnostic, not causal.
 
@@ -215,30 +210,24 @@ Surrogates are generated to preserve selected properties of the original time se
 | Lag detection           | Block-shuffled surrogates   | Short-term autocorrelation            | Long-term dependence   |
 | Nonlinearity check      | IAAFT surrogates            | Spectrum + distribution               | Higher-order structure |
 
-For discharge-driven attribution, **phase-randomized surrogates of ( Q )** are preferred, leaving ( C ) unchanged.
+For discharge-driven attribution, **phase-randomized surrogates of $Q$** are preferred, leaving $C$ unchanged.
 
 ---
 
 ### 5.3 Surrogate-Based Significance of Cross-Haar Correlation
 
-At each scale ( \tau ):
+At each scale $\tau$:
 
 1. Compute observed cross-Haar correlation:
-   [
-   \rho_{\text{obs}}(\tau)
-   ]
+   $$ \rho_{\text{obs}}(\tau) $$
 
-2. Generate ( N ) surrogate discharge series ( Q^{(s)} ).
+2. Generate $N$ surrogate discharge series $Q^{(s)}$.
 
 3. Compute:
-   [
-   \rho^{(s)}(\tau) = \text{corr}\big(\Delta C(t,\tau),, \Delta Q^{(s)}(t,\tau)\big)
-   ]
+   $$ \rho^{(s)}(\tau) = \text{corr}\big(\Delta C(t,\tau), \Delta Q^{(s)}(t,\tau)\big) $$
 
 4. Estimate empirical significance:
-   [
-   p(\tau) = \frac{1}{N} \sum_s \mathbb{I}\big(|\rho^{(s)}| \ge |\rho_{\text{obs}}|\big)
-   ]
+   $$ p(\tau) = \frac{1}{N} \sum_s \mathbb{I}\big(|\rho^{(s)}| \ge |\rho_{\text{obs}}|\big) $$
 
 **Interpretation:**
 
@@ -274,16 +263,13 @@ This is critical for:
 
 ### 6.2 Definition
 
-For lag ( \ell ):
+For lag $\ell$:
 
-[
-\rho_{CQ}(\tau,\ell)
-====================
+$$
+\rho_{CQ}(\tau,\ell) = \text{corr}\big(\Delta C(t,\tau), \Delta Q(t-\ell,\tau)\big)
+$$
 
-\text{corr}\big(\Delta C(t,\tau),, \Delta Q(t-\ell,\tau)\big)
-]
-
-Computed over a grid of ( (\tau,\ell) ).
+Computed over a grid of $(\tau,\ell)$.
 
 ---
 
@@ -291,12 +277,12 @@ Computed over a grid of ( (\tau,\ell) ).
 
 | Pattern                 | Interpretation                                   |
 | ----------------------- | ------------------------------------------------ |
-| Peak at ( \ell = 0 )    | Immediate flushing / transport                   |
-| Peak at ( \ell > 0 )    | Delayed mobilization (groundwater, soil storage) |
+| Peak at $\ell = 0$      | Immediate flushing / transport                   |
+| Peak at $\ell > 0$      | Delayed mobilization (groundwater, soil storage) |
 | Sign change with lag    | Event-scale hysteresis                           |
-| Broad ridge in ( \ell ) | Distributed residence times                      |
+| Broad ridge in $\ell$   | Distributed residence times                      |
 
-Surrogate testing applies identically, but surrogates must preserve the autocorrelation structure of ( Q ).
+Surrogate testing applies identically, but surrogates must preserve the autocorrelation structure of $Q$.
 
 ---
 
@@ -308,7 +294,7 @@ Yes.
 
 * Flow influence is isolated via scale-specific cross-Haar correlation.
 * Long-scale structure function behavior reflects intrinsic catchment memory.
-* Residual Haar increments (( \varepsilon(\tau) )) quantify non-climatic variability.
+* Residual Haar increments $\varepsilon(\tau)$ quantify non-climatic variability.
 
 This avoids explicit detrending, which risks removing physically meaningful low-frequency dynamics.
 
@@ -320,9 +306,9 @@ Yes, directly and physically.
 
 Compare:
 
-* structure function slopes ( m(\tau) ),
+* structure function slopes $m(\tau)$,
 * breakpoints in scaling,
-* scale-specific flow sensitivity ( \alpha(\tau) ).
+* scale-specific flow sensitivity $\alpha(\tau)$.
 
 Differences indicate:
 
@@ -371,6 +357,42 @@ These correspond to:
 
 ---
 
+### 7.5 Can We Map Catchment Memory & Legacies?
+
+Yes. Use the scaling exponent $m$ from Method 2 to characterize sites across a network.
+
+* **Application:** Identify "legacy-dominated" catchments where $m$ is high ($>0$). These are sites where current water quality is strongly influenced by historical inputs.
+* **Benefit:** Sets realistic expectations for recovery horizons (e.g., "This site has 10-year memory; policy impact may be delayed until the next decade").
+
+---
+
+### 7.6 Can We Attribute Variability to Large-Scale Climate Cycles?
+
+Yes. Expand Method 3 (Cross-Haar Correlation) to use climate indices.
+
+* **Application:** Correlate Haar fluctuations of water quality with indices like the North Atlantic Oscillation (NAO) or ENSO at multi-year scales ($\tau = 2\text{--}7$ years).
+* **Benefit:** Explicitly separates regional climatic forcing from local anthropogenic impacts.
+
+---
+
+### 7.7 Can We Analyze Network-Scale Sensitivity?
+
+Yes. Compare scale-specific flow sensitivity $\alpha(\tau)$ across sites.
+
+* **Application:** Plot $\alpha(\tau)$ as a function of catchment area or land use across dozens of sites.
+* **Benefit:** Detects whether signals are averaged out in larger catchments or if specific land uses amplify climate sensitivity at certain scales.
+
+---
+
+### 7.8 Can We Detect Regulatory Thresholds in the Time Domain?
+
+Yes. Use Method 1 (Raw Haar Fluctuations) at policy-relevant scales.
+
+* **Application:** Plot the 5-year or 10-year step change in concentration over time as a moving window.
+* **Benefit:** Provides a physically intuitive "recovery trajectory" that stakeholders can easily interpret compared to abstract trend statistics.
+
+---
+
 ## 8. Pearson vs Spearman: Final Guidance
 
 **Primary recommendation:**
@@ -401,15 +423,15 @@ Use **block bootstrap** on Haar increments:
 
 * Block length selected via integral time scale or first zero-crossing of autocorrelation.
 * Resample blocks with replacement.
-* Recompute ( S_1(\tau) ) and scaling slope for each bootstrap replicate.
+* Recompute $S_1(\tau)$ and scaling slope for each bootstrap replicate.
 
 ---
 
 ### 9.2 Outputs
 
-* Pointwise confidence intervals for ( S_1(\tau) ).
-* Confidence intervals for scaling exponent ( m ).
-* Confidence intervals for derived ( \beta ).
+* Pointwise confidence intervals for $S_1(\tau)$.
+* Confidence intervals for scaling exponent $m$.
+* Confidence intervals for derived $\beta$.
 
 ---
 
@@ -417,12 +439,9 @@ Use **block bootstrap** on Haar increments:
 
 ### 10.1 Window Overlap Dependence
 
-Overlapping Haar windows induce dependence. This affects:
+Overlapping Haar windows induce dependence. This affects variance estimation and naive degrees of freedom.
 
-* variance estimation,
-* naive degrees of freedom.
-
-Surrogate and bootstrap methods implicitly account for this and should always be preferred.
+* **Guidance:** To maximize the utility of long-term records (e.g., 20–30 years of monthly data), the use of **overlapping windows** is strongly recommended to increase the count of valid increments. Surrogate and bootstrap methods must be used to correctly account for the resulting dependence.
 
 ---
 
@@ -430,7 +449,7 @@ Surrogate and bootstrap methods implicitly account for this and should always be
 
 Practical guidance:
 
-* Maximum reliable scale ( \tau_{\max} \approx T/5 ).
+* Maximum reliable scale $\tau_{\max} \approx T/5$.
 * Scaling inference requires ≥ 50 effective Haar increments per scale.
 
 ---
@@ -446,7 +465,31 @@ Mean-based Haar is preferred for transport and mass-balance interpretation.
 
 ---
 
-### 10.4 Units and Communication
+### 10.4 Scale Coarseness and Process Resolution
+
+Monthly datasets (common for long-term records) cannot resolve fast hydrological processes like storm-event response times or diurnal cycles.
+
+* **Guidance:** Use Method 4 (Lagged Response) primarily for seasonal to annual response times when working with monthly data. High-frequency sensor data is required for event-scale dynamics.
+
+---
+
+### 10.5 Computational Cost of Surrogates
+
+Surrogate analysis (Method 5) is computationally intensive when applied to large site networks.
+
+* **Guidance:** For networks with $>100$ sites, consider parallelizing surrogate generation or using regional discharge surrogate libraries to reduce redundant calculations.
+
+---
+
+### 10.6 Boundary Effects at Large Scales
+
+At the largest scales ($\tau \approx T/2$), the number of valid Haar fluctuations decreases significantly.
+
+* **Guidance:** Treat Method 1 (Temporal Instability) results near the beginning and end of the record with caution at multi-year scales.
+
+---
+
+### 10.7 Units and Communication
 
 Haar fluctuations retain original units. This is a major advantage for stakeholder communication:
 
