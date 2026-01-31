@@ -9,7 +9,7 @@ def generate_phase_randomized_surrogates(
 ) -> np.ndarray:
     """
     Generates surrogates by randomizing the Fourier phases while preserving the
-    amplitude spectrum (and thus autocorrelation).
+    amplitude spectrum (and thus autocorrelation). This is Method 5.2 from the Audit Plan.
 
     Args:
         data (np.ndarray): Input time series (must be evenly spaced or interpolated).

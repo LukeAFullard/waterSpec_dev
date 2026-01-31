@@ -6,6 +6,7 @@ import logging
 from scipy import stats
 
 from .haar_analysis import calculate_haar_fluctuations
+from .surrogates import generate_phase_randomized_surrogates, calculate_significance_p_value
 
 class BivariateAnalysis:
     """
@@ -87,22 +88,16 @@ class BivariateAnalysis:
 
         return self.aligned_data
 
-    def run_cross_haar_analysis(
-        self,
+    @staticmethod
+    def _calculate_cross_haar(
+        time: np.ndarray,
+        val1: np.ndarray,
+        val2: np.ndarray,
         lags: np.ndarray,
         overlap: bool = True,
         overlap_step_fraction: float = 0.1
     ) -> Dict:
-        """
-        Calculates Cross-Haar Correlation at specified lags.
-        """
-        if self.aligned_data is None:
-            raise ValueError("Data must be aligned first using `align_data`.")
-
-        time = self.aligned_data['time'].values
-        val1 = self.aligned_data[self.name1].values
-        val2 = self.aligned_data[self.name2].values
-
+        """Helper to calculate Cross-Haar Correlation."""
         results = {
             'lags': [],
             'correlation': [],
@@ -110,14 +105,17 @@ class BivariateAnalysis:
             'slope_alpha': [] # sensitivity
         }
 
+        # Pre-calculate time range
+        t_min, t_max = time[0], time[-1]
+
         for tau in lags:
             fluc1 = []
             fluc2 = []
 
             step_size = tau * overlap_step_fraction if overlap else tau
-            t_start = time[0]
+            t_start = t_min
 
-            while t_start + tau <= time[-1]:
+            while t_start + tau <= t_max:
                 t_mid = t_start + tau / 2
                 t_end = t_start + tau
 
@@ -145,7 +143,7 @@ class BivariateAnalysis:
                     t_start += step_size
                 else:
                     t_start = t_end
-                    if t_start >= time[-1]: break
+                    if t_start >= t_max: break
 
             # Need at least 2 points for correlation
             if len(fluc1) >= 2:
@@ -166,6 +164,86 @@ class BivariateAnalysis:
                 results['slope_alpha'].append(np.nan)
 
         return results
+
+    def run_cross_haar_analysis(
+        self,
+        lags: np.ndarray,
+        overlap: bool = True,
+        overlap_step_fraction: float = 0.1
+    ) -> Dict:
+        """
+        Calculates Cross-Haar Correlation at specified lags.
+        """
+        if self.aligned_data is None:
+            raise ValueError("Data must be aligned first using `align_data`.")
+
+        time = self.aligned_data['time'].values
+        val1 = self.aligned_data[self.name1].values
+        val2 = self.aligned_data[self.name2].values
+
+        return self._calculate_cross_haar(
+            time, val1, val2, lags, overlap, overlap_step_fraction
+        )
+
+    def calculate_significance(
+        self,
+        lags: np.ndarray,
+        n_surrogates: int = 100,
+        overlap: bool = True,
+        overlap_step_fraction: float = 0.1,
+        seed: Optional[int] = None
+    ) -> Dict:
+        """
+        Calculates significance of Cross-Haar Correlation using phase-randomized surrogates.
+        """
+        if self.aligned_data is None:
+            raise ValueError("Data must be aligned first using `align_data`.")
+
+        # Run observed analysis
+        obs_results = self.run_cross_haar_analysis(lags, overlap, overlap_step_fraction)
+        obs_corrs = np.array(obs_results['correlation'])
+
+        # Generate surrogates for the second variable (e.g. Discharge)
+        # We need evenly spaced data for FFT phase randomization.
+        # Assuming aligned data is regularly sampled for surrogate generation.
+
+        data2_vals = self.aligned_data[self.name2].values
+
+        if len(data2_vals) < 10:
+             return {'error': 'Insufficient data for surrogates'}
+
+        surrs = generate_phase_randomized_surrogates(
+            data2_vals, n_surrogates=n_surrogates, seed=seed
+        )
+
+        surr_corrs = np.zeros((n_surrogates, len(lags)))
+
+        time = self.aligned_data['time'].values
+        val1 = self.aligned_data[self.name1].values # Keep var1 fixed
+
+        for i in range(n_surrogates):
+            res = self._calculate_cross_haar(
+                time, val1, surrs[i], lags, overlap, overlap_step_fraction
+            )
+            surr_corrs[i, :] = res['correlation']
+
+        # Calculate p-values per lag
+        p_values = []
+        for j in range(len(lags)):
+            obs = obs_corrs[j]
+            dist = surr_corrs[:, j]
+            if np.isnan(obs) or np.all(np.isnan(dist)):
+                p_values.append(np.nan)
+            else:
+                p_val = calculate_significance_p_value(obs, dist, two_sided=True)
+                p_values.append(p_val)
+
+        return {
+            'lags': lags,
+            'observed_correlation': obs_corrs,
+            'p_values': np.array(p_values),
+            'surrogate_correlations': surr_corrs
+        }
 
     def run_lagged_cross_haar(
         self,

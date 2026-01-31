@@ -21,7 +21,13 @@ def calculate_haar_fluctuations(
     min_samples_per_window: int = 5
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Calculates the first-order Haar structure function S_1(Delta t).
+    Calculates the first-order Haar structure function S_1(Delta t) and effective sample size.
+
+    Returns:
+        valid_lags (np.ndarray): The lag times used.
+        s1_values (np.ndarray): The Haar fluctuation values S_1(lag).
+        counts (np.ndarray): Number of fluctuation pairs per lag.
+        n_effective_values (np.ndarray): Effective number of independent samples (adjusts for overlap).
     """
     n = len(time)
     if n < 2:
