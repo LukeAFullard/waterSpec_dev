@@ -1,0 +1,15 @@
+
+### 1. Validation of Overlapping Windows Benefit ###
+Method          | Beta Est   | CI Width   | Effective N (Max Scale)
+----------------------------------------------------------------------
+Non-Overlap     | 2.30       | 0.93       | 2
+Overlap         | 1.93       | 0.73       | 1.1
+
+PASS: Overlapping windows provided comparable or better precision.
+
+### 2. Validation of Segmented Haar Fit (Regime Shift) ###
+detected Breakpoint: 68.8 (Expected ~35.3)
+Segment 1 Beta (Short): 0.10 (Expected ~0.0 White Noise)
+Segment 2 Beta (Long):  1.56 (Expected ~2.0 Random Walk)
+
+PASS: Successfully detected regime shift and scaling exponents.

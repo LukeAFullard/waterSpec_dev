@@ -4,12 +4,20 @@ This document provides a comprehensive guide to using the advanced features of `
 
 Each section includes a self-contained Python code example that generates synthetic data, performs the analysis, and explains the results.
 
+To run all examples at once and generate the plots shown below, use the provided script:
+```bash
+python3 examples/full_walkthrough.py
+```
+Outputs will be saved to `examples/output/`.
+
 ---
 
 ## 1. Haar Analysis with Overlapping Windows
 
 **Scientific Context:**
 Haar analysis quantifies how the variability of a time series changes with time scale ($\tau$). For short or irregular records, using non-overlapping windows can discard valuable data. Overlapping windows maximize the statistical power of the analysis.
+
+![Overlapping Haar Analysis](../examples/output/demo1_overlapping_haar.png)
 
 **Example Code:**
 
@@ -54,9 +62,8 @@ print(f"Effective Sample Size at largest scale: {n_eff:.1f}")
 # H should be close to 0.5.
 ```
 
-**What to look for:**
-*   A `beta` value near 2.0 confirms the process is a random walk.
-*   Overlapping windows provide a smooth $S_1(\tau)$ curve even at large scales where data is scarce.
+**Visualization:**
+The overlapping method produces a smoother curve with tighter confidence intervals than the non-overlapping approach.
 
 ---
 
@@ -64,6 +71,8 @@ print(f"Effective Sample Size at largest scale: {n_eff:.1f}")
 
 **Scientific Context:**
 Hydrological systems often exhibit different memory behaviors at different scales. For example, a system might be dominated by rapid surface runoff (low memory, white noise) at short scales (< 1 week) but by groundwater storage (high memory, brown noise) at long scales (> 1 month).
+
+![Regime Shift Detection](../examples/output/demo2_regime_shift.png)
 
 **Example Code:**
 
@@ -103,12 +112,17 @@ print(f"Slope (H) after breakpoint: {seg['Hs'][1]:.2f}")
 # H2 should be close to +0.5 (Random Walk, beta=2).
 ```
 
+**Visualization:**
+The plot shows the data points and two distinct regression lines meeting at the breakpoint.
+
 ---
 
 ## 3. Bivariate Analysis (Concentration-Discharge)
 
 **Scientific Context:**
 Analyzing how water quality ($C$) relates to flow ($Q$) is fundamental. The relationship is rarely static; it varies by event and scale. This tool aligns mis-matched timestamps and computes the correlation of *fluctuations* ($\Delta C$ vs $\Delta Q$).
+
+![Cross-Haar Correlation](../examples/output/demo3_cross_haar.png)
 
 **Example Code:**
 
@@ -150,6 +164,9 @@ for lag, rho in zip(cross_results['lags'], cross_results['correlation']):
 # High positive correlation at scales > 14 days (reflecting the constructed flushing relationship).
 ```
 
+**Visualization:**
+The plot displays Correlation vs Scale, indicating how the strength of the C-Q relationship changes with the observation window.
+
 ---
 
 ## 4. Hysteresis Analysis (Loop Area)
@@ -158,6 +175,8 @@ for lag, rho in zip(cross_results['lags'], cross_results['correlation']):
 Hysteresis occurs when the path of concentration vs. discharge differs on the rising vs. falling limb of a hydrograph. The "Loop Area" metric quantifies this directionality at a specific time scale $\tau$.
 *   **Positive Area:** Counter-Clockwise (Groundwater dominance / slow response).
 *   **Negative Area:** Clockwise (Source exhaustion / rapid flushing).
+
+![Hysteresis Loop](../examples/output/demo4_hysteresis.png)
 
 **Example Code:**
 
@@ -184,12 +203,17 @@ print(f"Loop Area: {hyst_stats['area']:.4f}")
 # Area: Positive
 ```
 
+**Visualization:**
+The phase-space plot shows $\Delta C$ vs $\Delta Q$, revealing the loop structure and direction.
+
 ---
 
 ## 5. Real-Time Anomaly Detection (Sliding Haar)
 
 **Scientific Context:**
 Traditional anomaly detection uses thresholds on raw values. However, baselines shift. "Sliding Haar" looks at the *volatility* (magnitude of change) over a fixed window. A sudden spike in the Haar fluctuation indicates a regime change or event, even if the absolute value is within bounds.
+
+![Anomaly Detection](../examples/output/demo5_anomaly.png)
 
 **Example Code:**
 
@@ -222,3 +246,50 @@ if len(anomalies) > 0:
 # Expected Output:
 # Should detect the volatility burst around t=100.
 ```
+
+**Visualization:**
+The top panel shows the raw time series (where the anomaly might be hidden in noise), and the bottom panel shows the Haar Fluctuation spiking clearly at the anomaly time.
+
+---
+
+## 6. Lagged Response Analysis
+
+**Scientific Context:**
+Often, a system's response to a driver is not instantaneous. Lagged Cross-Haar correlation ($\rho_{CQ}(\tau, \ell)$) helps identify the characteristic delay time ($\ell$) between discharge ($Q$) and concentration response ($C$) at a specific time scale $\tau$.
+
+![Lagged Response](../examples/output/demo6_lagged_response.png)
+
+**Example Code:**
+
+```python
+import numpy as np
+from waterSpec.bivariate import BivariateAnalysis
+
+# 1. Generate Data with Known Lag
+time = np.arange(0, 365, 1.0)
+Q = np.exp(np.sin(time/10))
+lag_true = 5.0 # Response lags driver by 5 days
+C = np.exp(np.sin((time - lag_true)/10)) + np.random.normal(0, 0.1, len(time))
+
+biv = BivariateAnalysis(time, C, "Response", time, Q, "Driver")
+biv.align_data(tolerance=0.1)
+
+# 2. Run Lagged Analysis at a fixed scale
+tau = 20.0
+offsets = np.arange(0, 15, 1.0) # Check lags 0 to 15 days
+
+res = biv.run_lagged_cross_haar(tau, offsets, overlap=True)
+
+# 3. Identify Peak Lag
+peak_idx = np.argmax(res['correlation'])
+peak_lag = res['lag_offsets'][peak_idx]
+
+print(f"True Lag: {lag_true} days")
+print(f"Estimated Lag: {peak_lag} days")
+
+# Expected Output:
+# Estimated Lag should be 5.0 days.
+```
+
+**Visualization:**
+The plot shows Cross-Haar Correlation vs Lag Offset. The peak of the curve identifies the dominant response time.
