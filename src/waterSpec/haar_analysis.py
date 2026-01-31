@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import warnings
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, Optional, Tuple, List, Union
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -22,36 +22,6 @@ def calculate_haar_fluctuations(
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculates the first-order Haar structure function S_1(Delta t).
-
-    Haar Wavelet Analysis is a robust method for estimating spectral slopes (Beta),
-    particularly for unevenly sampled time series where methods like Lomb-Scargle
-    might be biased. It measures the average magnitude of fluctuations at different
-    timescales (lag times).
-
-    Args:
-        time (np.ndarray): Array of time points (must be sorted).
-        data (np.ndarray): Array of data values.
-        lag_times (np.ndarray, optional): Specific lag times (Delta t) to evaluate.
-            If None, a range is generated based on min_lag, max_lag, and num_lags.
-        min_lag (float, optional): Minimum lag time. Defaults to minimum time difference in data.
-        max_lag (float, optional): Maximum lag time. Defaults to half the total duration.
-        num_lags (int, optional): Number of lag times to generate if lag_times is None.
-        log_spacing (bool, optional): If True, generate logarithmically spaced lags.
-        overlap (bool, optional): If True, use overlapping windows (sliding).
-            This increases sample size but introduces dependence. Defaults to True.
-        overlap_step_fraction (float, optional): Fraction of lag_time to step forward
-            when overlap is True. e.g. 0.1 means step size is 0.1 * delta_t.
-            Defaults to 0.1.
-        min_samples_per_window (int, optional): Minimum number of data points required
-            in EACH half of the Haar window to compute a valid fluctuation.
-            Defaults to 5 (based on statistical stability guidelines).
-
-    Returns:
-        tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-            - lags: The actual lag times used.
-            - s1: The first-order structure function values S_1(Delta t).
-            - counts: The number of raw pairs found for each lag.
-            - n_effective: The effective sample size accounting for overlap.
     """
     n = len(time)
     if n < 2:
@@ -96,12 +66,7 @@ def calculate_haar_fluctuations(
 
         # Determine step size
         if overlap:
-            # If overlap is enabled, slide by a fraction of delta_t
             step_size = delta_t * overlap_step_fraction
-            # Ensure step size is at least the smallest data interval to make progress
-            # But we are in continuous time, so we just increment current_time.
-            # However, we need to iterate based on available data points to be efficient?
-            # No, for irregular data, we slide a continuous window.
         else:
             step_size = delta_t
 
@@ -112,11 +77,6 @@ def calculate_haar_fluctuations(
             t_mid = t_start + delta_t / 2
             t_end = t_start + delta_t
 
-            # Identify indices for the two halves
-            # Interval 1: [t_start, t_mid)
-            # Interval 2: [t_mid, t_end)
-
-            # Using searchsorted to find indices efficiently
             idx_start = np.searchsorted(time, t_start, side='left')
             idx_mid = np.searchsorted(time, t_mid, side='left')
             idx_end = np.searchsorted(time, t_end, side='left')
@@ -128,30 +88,16 @@ def calculate_haar_fluctuations(
             if len(vals1) >= min_samples_per_window and len(vals2) >= min_samples_per_window:
                 mean1 = np.mean(vals1)
                 mean2 = np.mean(vals2)
-
-                # delta_f = mean2 - mean1 (See discussion on H vs m)
                 delta_f = (mean2 - mean1)
                 fluctuations.append(np.abs(delta_f))
 
             # Move window
             if overlap:
-                # Slide by fixed time step
                 t_start += step_size
             else:
-                # Move to the end of current window
                 t_start = t_end
-
-                # If the next window would start after the last data point, break early
                 if t_start >= time[-1]:
                     break
-
-                # Optimization for non-overlapping with sparse data:
-                # If the next window is empty (starts in a large gap), we might want to skip ahead.
-                # But strict Haar definition requires contiguous windows?
-                # For irregular sampling, we usually just take the next available window defined by time.
-                # Let's stick to the time grid to be consistent.
-                # However, if t_start is in a huge gap, we waste iterations.
-                # Given 'step_size' is usually related to 'delta_t', it's fine.
 
         count = len(fluctuations)
         if count > 0:
@@ -162,15 +108,7 @@ def calculate_haar_fluctuations(
 
             # Calculate Effective Sample Size
             if overlap:
-                # n_eff = N * (1 - overlap_fraction)
-                # overlap_fraction = (delta_t - step_size) / delta_t = 1 - step_fraction
-                # So n_eff approx N * step_fraction
-                # But it depends on how many we actually found vs theoretical max
-
-                # Another approximation: n_eff = count * (step_size / delta_t)
-                # Because if step_size = delta_t (no overlap), n_eff = count * 1.
-                # If step_size is small, each point is redundant.
-
+                # Approximate n_eff based on redundancy
                 n_eff = count * (step_size / delta_t)
                 n_effective_values.append(n_eff)
             else:
@@ -186,23 +124,11 @@ def calculate_sliding_haar(
     min_samples_per_window: int = 5
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Calculates a continuous time series of Haar fluctuations for a fixed window size (scale).
-    Useful for Real-Time Anomaly Detection.
-
-    Args:
-        time (np.ndarray): Time array.
-        data (np.ndarray): Data array.
-        window_size (float): The full duration of the Haar window (tau).
-        step_size (float, optional): How much to slide the window. Defaults to window_size / 10.
-        min_samples_per_window (int): Min samples per half-window.
-
-    Returns:
-        tuple[np.ndarray, np.ndarray]: (time_centers, fluctuation_values)
+    Calculates a continuous time series of Haar fluctuations.
     """
     if step_size is None:
         step_size = window_size / 10.0
 
-    # Sort data
     sort_idx = np.argsort(time)
     time = time[sort_idx]
     data = data[sort_idx]
@@ -213,20 +139,16 @@ def calculate_sliding_haar(
     t_start = time[0]
     while t_start + window_size <= time[-1]:
         t_mid = t_start + window_size / 2
-        t_end = t_start + window_size
-
         idx_start = np.searchsorted(time, t_start, side='left')
         idx_mid = np.searchsorted(time, t_mid, side='left')
-        idx_end = np.searchsorted(time, t_end, side='left')
+        idx_end = np.searchsorted(time, t_start + window_size, side='left')
 
         vals1 = data[idx_start:idx_mid]
         vals2 = data[idx_mid:idx_end]
 
         if len(vals1) >= min_samples_per_window and len(vals2) >= min_samples_per_window:
             d = np.mean(vals2) - np.mean(vals1)
-            fluctuations.append(d) # Keep sign for anomaly direction? Or abs?
-            # Usually for anomaly detection we care about magnitude, but sign tells direction of shift.
-            # Let's return signed fluctuation.
+            fluctuations.append(d)
             t_centers.append(t_mid)
 
         t_start += step_size
@@ -238,26 +160,15 @@ def fit_haar_slope(
     s1: np.ndarray,
     ci: float = 95,
     n_bootstraps: int = 100
-) -> Tuple[float, float, float, float]:
+) -> Dict:
     """
-    Fits a power law to the structure function: S_1(dt) ~ dt^H using
-    robust regression (Mann-Kendall/Theil-Sen).
+    Fits a power law to the structure function: S_1(dt) ~ dt^H.
 
-    Returns H, beta, r2, and intercept.
-
-    beta = 1 + 2H
-
-    Args:
-        lags (np.ndarray): Lag times.
-        s1 (np.ndarray): Structure function values.
-        ci (float, optional): Confidence interval percentage. Defaults to 95.
-        n_bootstraps (int, optional): Number of bootstraps for CI. Defaults to 100.
+    Returns a dictionary with results.
     """
-    # Log-log fit
-    # Filter out zeros or negatives if any (shouldn't be for S1 unless empty)
     valid = (lags > 0) & (s1 > 0)
     if np.sum(valid) < 3:
-        return np.nan, np.nan, np.nan, np.nan
+        return {"beta": np.nan, "H": np.nan, "r2": np.nan, "intercept": np.nan}
 
     log_lags = np.log10(lags[valid])
     log_s1 = np.log10(s1[valid])
@@ -274,15 +185,23 @@ def fit_haar_slope(
     intercept = res.intercept
     beta = 1 + 2 * H
 
-    # Calculate R2 (using OLS for a traditional goodness-of-fit measure)
-    # Even though we use Theil-Sen for the slope, R2 is still useful.
+    # Calculate R2
     slope_ols, intercept_ols = np.polyfit(log_lags, log_s1, 1)
     predicted = slope_ols * log_lags + intercept_ols
     ss_res = np.sum((log_s1 - predicted) ** 2)
     ss_tot = np.sum((log_s1 - np.mean(log_s1)) ** 2)
     r2 = 1 - (ss_res / ss_tot)
 
-    return H, beta, r2, intercept
+    return {
+        "H": H,
+        "beta": beta,
+        "r2": r2,
+        "intercept": intercept,
+        "slope_ci_lower": res.lower_ci, # This is H_lower
+        "slope_ci_upper": res.upper_ci, # This is H_upper
+        "beta_ci_lower": 1 + 2 * res.lower_ci,
+        "beta_ci_upper": 1 + 2 * res.upper_ci
+    }
 
 def fit_segmented_haar(
     lags: np.ndarray,
@@ -294,19 +213,6 @@ def fit_segmented_haar(
 ) -> Dict:
     """
     Fits a segmented power law to the structure function: S_1(dt) ~ dt^H.
-
-    Uses MannKS for segmented robust regression.
-
-    Args:
-        lags (np.ndarray): Lag times.
-        s1 (np.ndarray): Structure function values.
-        n_breakpoints (int): Number of breakpoints to fit.
-        ci (float): Confidence interval percentage.
-        n_bootstraps (int): Number of bootstraps.
-        min_segment_length (int): Minimum points per segment.
-
-    Returns:
-        Dict: Results dictionary containing slopes (H), betas, breakpoints, etc.
     """
     valid = (lags > 0) & (s1 > 0)
     if np.sum(valid) < (n_breakpoints + 1) * min_segment_length:
@@ -319,38 +225,28 @@ def fit_segmented_haar(
     log_lags = np.log10(lags[valid])
     log_s1 = np.log10(s1[valid])
 
-    # Use MannKS.segmented_trend_test
     try:
         res = MannKS.segmented_trend_test(
-            log_s1, # Y is log_s1 (power/variance equivalent)
-            log_lags, # X is log_lags
+            log_s1,
+            log_lags,
             n_breakpoints=n_breakpoints,
             alpha=1-(ci/100),
             n_bootstrap=n_bootstraps
         )
 
-        # Parse results similar to fit_segmented_spectrum but adapted for Haar
-        # Slope is H
         segments_df = res.segments
 
         Hs = segments_df['slope'].values
         intercepts = segments_df['intercept'].values
-
-        # Calculate Betas: beta = 1 + 2H
         betas = 1 + 2 * Hs
 
-        # CIs
         h_lower = segments_df['lower_ci'].values
         h_upper = segments_df['upper_ci'].values
-
-        # Beta CIs: beta_lower = 1 + 2 * h_lower
         betas_ci = list(zip(1 + 2 * h_lower, 1 + 2 * h_upper))
 
-        # Breakpoints (convert back to linear scale)
         breakpoints = res.breakpoints
         linear_breakpoints = 10**breakpoints if breakpoints is not None else []
 
-        # Breakpoint CIs
         bp_cis = []
         if res.breakpoint_cis:
             for lower, upper in res.breakpoint_cis:
@@ -373,7 +269,6 @@ def fit_segmented_haar(
             "log_s1": log_s1,
             "ci_computed": True
         }
-
         return results
 
     except Exception as e:
@@ -417,8 +312,6 @@ def plot_haar_analysis(
         intercepts = segmented_results["intercepts"]
         breakpoints = segmented_results["breakpoints"]
 
-        # Plot each segment
-        # We need to determine the range for each segment
         sorted_bp = np.sort(breakpoints)
         bounds = np.concatenate([[lags.min()], sorted_bp, [lags.max()]])
 
@@ -427,15 +320,12 @@ def plot_haar_analysis(
         for i in range(len(Hs)):
             start_lag = bounds[i]
             end_lag = bounds[i+1]
-
-            # Generate points for line
             seg_lags = np.linspace(start_lag, end_lag, 100)
             seg_vals = 10**intercepts[i] * seg_lags**Hs[i]
 
             label = f'Seg {i+1}: H={Hs[i]:.2f}, $\\beta$={1+2*Hs[i]:.2f}'
             plt.loglog(seg_lags, seg_vals, '--', color=colors[i % len(colors)], label=label, linewidth=2)
 
-        # Mark breakpoints
         for bp in breakpoints:
             plt.axvline(bp, color='k', linestyle=':', alpha=0.5, label=f'Breakpoint: {bp:.1f}')
 
@@ -465,6 +355,7 @@ class HaarAnalysis:
         self.r2 = None
         self.intercept = None
         self.segmented_results = None
+        self.full_results = {} # Store full dictionary
 
     def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=5):
         self.lags, self.s1, self.counts, self.n_effective = calculate_haar_fluctuations(
@@ -473,27 +364,34 @@ class HaarAnalysis:
         )
 
         # Always run standard fit
-        self.H, self.beta, self.r2, self.intercept = fit_haar_slope(
+        fit_results = fit_haar_slope(
             self.lags, self.s1, n_bootstraps=n_bootstraps
         )
 
+        self.H = fit_results.get("H", np.nan)
+        self.beta = fit_results.get("beta", np.nan)
+        self.r2 = fit_results.get("r2", np.nan)
+        self.intercept = fit_results.get("intercept", np.nan)
+
         # Run segmented fit if requested
         if max_breakpoints > 0:
-            # Try fitting 1 to max_breakpoints
-            # For simplicity, let's just implement finding the best up to max_breakpoints using BIC
             best_bic = np.inf
             best_results = None
 
-            # Also consider 0 breakpoints (standard fit) for BIC comparison
-            # Calculate BIC for standard fit
-            log_lags = np.log10(self.lags[self.lags > 0])
-            log_s1 = np.log10(self.s1[self.lags > 0])
-            predicted = self.H * log_lags + self.intercept
-            rss = np.sum((log_s1 - predicted) ** 2)
-            n = len(log_s1)
-            bic_0 = n * np.log(rss / n) + 2 * np.log(n)
-
-            best_bic = bic_0
+            # Calculate BIC for standard fit (0 breakpoints)
+            # Use data from fit_results? fit_results doesn't return BIC yet?
+            # Let's calculate approx BIC for 0 bp here or trust fit_segmented_haar(n=0) if it supported it.
+            # fit_segmented_haar relies on MannKS.segmented which expects n >= 1?
+            # Let's manually calc BIC for standard fit
+            valid = (self.lags > 0) & (self.s1 > 0)
+            if np.sum(valid) > 2:
+                log_lags = np.log10(self.lags[valid])
+                log_s1 = np.log10(self.s1[valid])
+                predicted = self.H * log_lags + self.intercept
+                rss = np.sum((log_s1 - predicted) ** 2)
+                n = len(log_s1)
+                bic_0 = n * np.log(rss / n) + 2 * np.log(n)
+                best_bic = bic_0
 
             for nb in range(1, max_breakpoints + 1):
                 res = fit_segmented_haar(self.lags, self.s1, n_breakpoints=nb, n_bootstraps=n_bootstraps)
@@ -503,17 +401,17 @@ class HaarAnalysis:
 
             self.segmented_results = best_results
 
-        return {
-            "H": self.H,
-            "beta": self.beta,
-            "r2": self.r2,
-            "intercept": self.intercept,
+        # Construct full result dictionary merging everything
+        self.full_results = {
+            **fit_results, # Merge H, beta, r2, intercept, CIs
             "lags": self.lags,
             "s1": self.s1,
             "counts": self.counts,
             "n_effective": self.n_effective,
             "segmented_results": self.segmented_results
         }
+
+        return self.full_results
 
     def plot(self, output_path=None):
         if self.lags is None:
