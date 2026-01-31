@@ -17,6 +17,8 @@ Outputs will be saved to `examples/output/`.
 **Scientific Context:**
 Haar analysis quantifies how the variability of a time series changes with time scale ($\tau$). For short or irregular records, using non-overlapping windows can discard valuable data. Overlapping windows maximize the statistical power of the analysis.
 
+![Overlapping Haar Analysis](../examples/output/demo1_overlapping_haar.png)
+
 **Example Code:**
 
 ```python
@@ -61,7 +63,7 @@ print(f"Effective Sample Size at largest scale: {n_eff:.1f}")
 ```
 
 **Visualization:**
-The script generates `examples/output/demo1_overlapping_haar.png` showing the $S_1(\tau)$ scaling function. The overlapping method produces a smoother curve with tighter confidence intervals than the non-overlapping approach.
+The overlapping method produces a smoother curve with tighter confidence intervals than the non-overlapping approach.
 
 ---
 
@@ -69,6 +71,8 @@ The script generates `examples/output/demo1_overlapping_haar.png` showing the $S
 
 **Scientific Context:**
 Hydrological systems often exhibit different memory behaviors at different scales. For example, a system might be dominated by rapid surface runoff (low memory, white noise) at short scales (< 1 week) but by groundwater storage (high memory, brown noise) at long scales (> 1 month).
+
+![Regime Shift Detection](../examples/output/demo2_regime_shift.png)
 
 **Example Code:**
 
@@ -109,7 +113,7 @@ print(f"Slope (H) after breakpoint: {seg['Hs'][1]:.2f}")
 ```
 
 **Visualization:**
-See `examples/output/demo2_regime_shift.png`. The plot shows the data points and two distinct regression lines meeting at the breakpoint.
+The plot shows the data points and two distinct regression lines meeting at the breakpoint.
 
 ---
 
@@ -117,6 +121,8 @@ See `examples/output/demo2_regime_shift.png`. The plot shows the data points and
 
 **Scientific Context:**
 Analyzing how water quality ($C$) relates to flow ($Q$) is fundamental. The relationship is rarely static; it varies by event and scale. This tool aligns mis-matched timestamps and computes the correlation of *fluctuations* ($\Delta C$ vs $\Delta Q$).
+
+![Cross-Haar Correlation](../examples/output/demo3_cross_haar.png)
 
 **Example Code:**
 
@@ -159,7 +165,7 @@ for lag, rho in zip(cross_results['lags'], cross_results['correlation']):
 ```
 
 **Visualization:**
-See `examples/output/demo3_cross_haar.png` plotting Correlation vs Scale.
+The plot displays Correlation vs Scale, indicating how the strength of the C-Q relationship changes with the observation window.
 
 ---
 
@@ -169,6 +175,8 @@ See `examples/output/demo3_cross_haar.png` plotting Correlation vs Scale.
 Hysteresis occurs when the path of concentration vs. discharge differs on the rising vs. falling limb of a hydrograph. The "Loop Area" metric quantifies this directionality at a specific time scale $\tau$.
 *   **Positive Area:** Counter-Clockwise (Groundwater dominance / slow response).
 *   **Negative Area:** Clockwise (Source exhaustion / rapid flushing).
+
+![Hysteresis Loop](../examples/output/demo4_hysteresis.png)
 
 **Example Code:**
 
@@ -196,7 +204,7 @@ print(f"Loop Area: {hyst_stats['area']:.4f}")
 ```
 
 **Visualization:**
-See `examples/output/demo4_hysteresis.png`. This phase-space plot shows $\Delta C$ vs $\Delta Q$, revealing the loop structure.
+The phase-space plot shows $\Delta C$ vs $\Delta Q$, revealing the loop structure and direction.
 
 ---
 
@@ -204,6 +212,8 @@ See `examples/output/demo4_hysteresis.png`. This phase-space plot shows $\Delta 
 
 **Scientific Context:**
 Traditional anomaly detection uses thresholds on raw values. However, baselines shift. "Sliding Haar" looks at the *volatility* (magnitude of change) over a fixed window. A sudden spike in the Haar fluctuation indicates a regime change or event, even if the absolute value is within bounds.
+
+![Anomaly Detection](../examples/output/demo5_anomaly.png)
 
 **Example Code:**
 
@@ -238,4 +248,4 @@ if len(anomalies) > 0:
 ```
 
 **Visualization:**
-See `examples/output/demo5_anomaly.png`. The top panel shows the raw time series (where the anomaly might be hidden in noise), and the bottom panel shows the Haar Fluctuation spiking clearly at the anomaly time.
+The top panel shows the raw time series (where the anomaly might be hidden in noise), and the bottom panel shows the Haar Fluctuation spiking clearly at the anomaly time.
