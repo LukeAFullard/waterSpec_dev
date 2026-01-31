@@ -64,10 +64,11 @@ def test_psresp_fit_recovery():
         params_list,
         freqs=freqs,
         M=50, # Small number of sims
-        oversample=2,
+        oversample=5,
         length_factor=2.0,
         n_jobs=1,
-        binning=False # Check without binning first
+        binning=False, # Check without binning first
+        seed=42
     )
 
     best_beta = result["best_params"][0]

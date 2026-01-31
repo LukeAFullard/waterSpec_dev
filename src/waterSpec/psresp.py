@@ -78,13 +78,17 @@ def _run_single_simulation(
     freqs: np.ndarray,
     N_sim: int,
     dt_sim: float,
-    normalization: str = "psd"
+    normalization: str = "psd",
+    seed: Optional[int] = None
 ) -> np.ndarray:
     """
     Helper function to run a single simulation iteration.
     To be used with multiprocessing.
     """
-    np.random.seed() # Reseed with entropy
+    if seed is not None:
+        np.random.seed(seed)
+    else:
+        np.random.seed() # Reseed with entropy
 
     t_sim, x_sim = simulate_tk95(psd_func, params, N_sim, dt_sim)
 
@@ -140,7 +144,8 @@ def psresp_fit(
     normalization: str = "psd",
     n_jobs: int = -1,
     binning: bool = True,
-    n_bins: int = 20
+    n_bins: int = 20,
+    seed: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Perform PSRESP (Power Spectral Response) analysis.
@@ -197,6 +202,14 @@ def psresp_fit(
     results = []
     target_log_power = np.log10(target_power)
 
+    # Generate seeds for simulations
+    # We generate M seeds once and reuse them for each parameter set.
+    # This uses Common Random Numbers (CRN) which reduces variance when comparing models.
+    sim_seeds = [None] * M
+    if seed is not None:
+        ss = np.random.SeedSequence(seed)
+        sim_seeds = ss.generate_state(M)
+
     for params in params_list:
         sim_binned_powers = []
 
@@ -204,7 +217,8 @@ def psresp_fit(
             futures = [
                 executor.submit(
                     _run_single_simulation,
-                    i, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization
+                    i, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization,
+                    seed=sim_seeds[i]
                 )
                 for i in range(M)
             ]

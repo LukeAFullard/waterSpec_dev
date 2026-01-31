@@ -26,6 +26,7 @@ __all__ = [
     "interpret_results",
     "plot_spectrum",
     "Analysis",
+    "calculate_partial_cross_haar",
 ]
 
 # ---- Metadata ----
@@ -85,6 +86,10 @@ interpret_results = _lazy_import(
 plot_spectrum = _lazy_import(
     "plot_spectrum", "plotting",
     dep_message="matplotlib is required for plotting. Install with `pip install matplotlib`."
+)
+
+calculate_partial_cross_haar = _lazy_import(
+    "calculate_partial_cross_haar", "multivariate"
 )
 
 def Analysis(*args, **kwargs):
