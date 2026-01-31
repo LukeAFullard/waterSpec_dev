@@ -51,6 +51,7 @@ Irregular sampling and missing observations are handled by averaging all availab
 Key considerations:
 
 * **Bias control:** Windowed averaging avoids bias introduced by unequal sample spacing.
+* **Window Overlap (CRITICAL):** To maximize the utility of long-term records, **overlapping windows** must be used. Non-overlapping windows drastically reduce the effective sample size at large scales. The implementation must slide the window by a small increment (e.g., one data point or a fixed time step) rather than jumping by $\tau$.
 * **Uncertainty:** Windows with few observations have larger standard errors; effective sample counts should be tracked.
 * **Intra-window dependence:** Strong autocorrelation within windows may inflate effective variance at small scales.
 * **Interpretation:** Small-scale Haar statistics should be interpreted as indicators of catchment-scale variability rather than measurement precision.
@@ -83,6 +84,9 @@ S_1(\tau) \propto \tau^{m}
 $$
 
 where $m$ is the **Haar scaling exponent**. The value of $m$ quantifies how variability grows with increasing time scale and provides a direct measure of system memory.
+
+**Segmented Scaling:**
+Real-world systems often exhibit regime shifts (e.g., transition from surface runoff to groundwater dominance). The framework must support **Segmented Haar Fits** (multi-slope models) to identify these characteristic memory scales (breakpoints in the log-log plot).
 
 ---
 
@@ -153,6 +157,8 @@ Bootstrap resampling (using block lengths consistent with observed autocorrelati
 ### Method 3: Cross-Haar Correlation and Scale-Specific Attribution
 
 **Objective:** Separate flow-driven (climatic) variability from flow-independent processes.
+
+**Implementation Requirement:** This method requires a **Bivariate Analysis** framework capable of aligning and processing two distinct time series (Concentration and Discharge) simultaneously.
 
 At each scale $\tau$, Pearson correlation is computed between Haar fluctuations of concentration $C$ and discharge $Q$:
 
@@ -393,7 +399,49 @@ Yes. Use Method 1 (Raw Haar Fluctuations) at policy-relevant scales.
 
 ---
 
-## 8. Pearson vs Spearman: Final Guidance
+## 8. Extended Applications in Water Science
+
+### 8.1 Real-Time Anomaly Detection (Early Warning)
+
+**Concept:** Leverage Method 1 (Temporal Instability) in a sliding window context.
+
+**Utility:**
+Standard threshold violations often flag natural diurnal cycles or seasonal peaks as anomalies. By monitoring the *Haar fluctuation* at specific short scales (e.g., $\tau=6$ hours or $\tau=1$ day), operators can distinguish abrupt mechanistic failures or spill events from gradual baseline shifts.
+
+**Implementation:**
+*   Implement a "Sliding Haar" class that updates $\Delta X(t, \tau)$ incrementally as new data arrives.
+*   Define dynamic thresholds based on historical volatility (e.g., $3\sigma$ of the past month's Haar fluctuations).
+*   Flag events where the *change* in concentration exceeds the expected volatility for that specific time scale.
+
+### 8.2 Spatial Scaling (River Network Analysis)
+
+**Concept:** Apply Haar analysis to spatial series $C(x)$ where $x$ is distance downstream or catchment area, instead of time $t$.
+
+**Utility:**
+*   Identifies "Hot Spots" and critical source areas for pollution.
+*   Quantifies how heterogeneity scales with catchment size via the spatial scaling exponent $m_{space}$.
+*   Different $m_{space}$ values indicate different dominant spatial processes (e.g., point-source dominance vs. diffuse non-point source loading).
+
+**Implementation:**
+*   Replace time $t$ with spatial coordinate $L$ (river kilometer) or $A$ (cumulative drainage area).
+*   Compute Haar fluctuations over spatial windows.
+*   Requires synoptic sampling data (longitudinal surveys).
+
+### 8.3 Hysteresis Classification
+
+**Concept:** Analyze the Phase Space of Haar Fluctuations ($\Delta C$ vs $\Delta Q$) at specific scales.
+
+**Utility:**
+Disentangles complex transport mechanisms. Classical hysteresis loops often conflate event-scale flushing (clockwise) with seasonal groundwater depletion (counter-clockwise). By analyzing $\Delta C(\tau)$ vs $\Delta Q(\tau)$, one can separate these loops by frequency.
+
+**Implementation:**
+*   Extend Method 4.
+*   For a given scale $\tau$, plot $\Delta C(t, \tau)$ vs $\Delta Q(t, \tau)$ as a scatter plot or connected path.
+*   Calculate the rotational direction (loop area integral) to classify the dominant hysteresis regime at that specific time scale.
+
+---
+
+## 9. Pearson vs Spearman: Final Guidance
 
 **Primary recommendation:**
 Use **Pearson correlation** on Haar fluctuations.
@@ -415,7 +463,7 @@ Discrepancies between Pearson and Spearman are **diagnostic**, not problematic.
 
 ---
 
-## 9. Confidence Intervals for Structure Functions and Slopes
+## 10. Confidence Intervals for Structure Functions and Slopes
 
 ### 9.1 Bootstrap Strategy
 
@@ -435,9 +483,9 @@ Use **block bootstrap** on Haar increments:
 
 ---
 
-## 10. Additional Considerations Identified in Final Review
+## 11. Additional Considerations Identified in Final Review
 
-### 10.1 Window Overlap Dependence
+### 11.1 Window Overlap Dependence
 
 Overlapping Haar windows induce dependence. This affects variance estimation and naive degrees of freedom.
 
@@ -445,7 +493,7 @@ Overlapping Haar windows induce dependence. This affects variance estimation and
 
 ---
 
-### 10.2 Minimum Record Length
+### 11.2 Minimum Record Length
 
 Practical guidance:
 
@@ -454,7 +502,7 @@ Practical guidance:
 
 ---
 
-### 10.3 Mean vs Median Haar
+### 11.3 Mean vs Median Haar
 
 Median-based Haar fluctuations are possible and recommended when:
 
@@ -465,7 +513,7 @@ Mean-based Haar is preferred for transport and mass-balance interpretation.
 
 ---
 
-### 10.4 Scale Coarseness and Process Resolution
+### 11.4 Scale Coarseness and Process Resolution
 
 Monthly datasets (common for long-term records) cannot resolve fast hydrological processes like storm-event response times or diurnal cycles.
 
@@ -473,7 +521,7 @@ Monthly datasets (common for long-term records) cannot resolve fast hydrological
 
 ---
 
-### 10.5 Computational Cost of Surrogates
+### 11.5 Computational Cost of Surrogates
 
 Surrogate analysis (Method 5) is computationally intensive when applied to large site networks.
 
@@ -481,7 +529,7 @@ Surrogate analysis (Method 5) is computationally intensive when applied to large
 
 ---
 
-### 10.6 Boundary Effects at Large Scales
+### 11.6 Boundary Effects at Large Scales
 
 At the largest scales ($\tau \approx T/2$), the number of valid Haar fluctuations decreases significantly.
 
@@ -489,7 +537,7 @@ At the largest scales ($\tau \approx T/2$), the number of valid Haar fluctuation
 
 ---
 
-### 10.7 Units and Communication
+### 11.7 Units and Communication
 
 Haar fluctuations retain original units. This is a major advantage for stakeholder communication:
 
@@ -497,7 +545,7 @@ Haar fluctuations retain original units. This is a major advantage for stakehold
 
 ---
 
-## 11. Final Recommendations
+## 12. Final Recommendations
 
 This framework should be adopted when:
 
@@ -519,5 +567,3 @@ This framework should be adopted when:
 Used together, Haar fluctuation metrics and surrogate-based inference provide one of the most defensible pathways currently available for multi-scale water-quality attribution.
 
 ---
-
-
