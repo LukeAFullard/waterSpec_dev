@@ -26,6 +26,8 @@ __all__ = [
     "interpret_results",
     "plot_spectrum",
     "Analysis",
+    "MultivariateAnalysis",
+    "RegimeAnalysis",
 ]
 
 # ---- Metadata ----
@@ -96,4 +98,26 @@ def Analysis(*args, **kwargs):
             "Failed to import Analysis class. Check that all required dependencies are installed."
         ) from e
     cls = getattr(module, "Analysis")
+    return cls(*args, **kwargs)
+
+def MultivariateAnalysis(*args, **kwargs):
+    """Lazy load MultivariateAnalysis class."""
+    try:
+        module = import_module("waterSpec.multivariate")
+    except ImportError as e:
+        raise ImportError(
+             "Failed to import MultivariateAnalysis class."
+        ) from e
+    cls = getattr(module, "MultivariateAnalysis")
+    return cls(*args, **kwargs)
+
+def RegimeAnalysis(*args, **kwargs):
+    """Lazy load RegimeAnalysis class."""
+    try:
+        module = import_module("waterSpec.segmentation")
+    except ImportError as e:
+        raise ImportError(
+            "Failed to import RegimeAnalysis class."
+        ) from e
+    cls = getattr(module, "RegimeAnalysis")
     return cls(*args, **kwargs)
