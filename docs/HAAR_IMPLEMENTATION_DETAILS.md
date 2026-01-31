@@ -56,23 +56,9 @@ The function `calculate_haar_fluctuations` robustly handles irregular sampling u
 
 The function `fit_haar_slope` performs a robust linear regression on $\log_{10}(S_1)$ vs $\log_{10}(\tau)$ using the Mann-Kendall/Theil-Sen estimator (via the `MannKS` library). This provides a more reliable estimate of the scaling exponent $H$ that is less sensitive to outliers. It returns $H$, $\beta$, $R^2$ (calculated via OLS for reference), and the intercept.
 
-## 4. Comparison with MSDA Framework
+## 4. Usage in waterSpec
 
-The technical report `Haar_SF_New_Analysis_Methods.md` describes a "Multi-Scale Diagnostic Attribution" (MSDA) framework. It is important to note the differences between the *current implementation* and the *proposed MSDA specification*:
-
-| Feature | Current Implementation | MSDA Specification |
-| :--- | :--- | :--- |
-| **Structure Function Order** | $S_1$ only | $S_q$ (specifically $S_2$) |
-| **Mean Calculation** | Standard Arithmetic Mean | Time-Weighted Mean |
-| **Window Validity** | $\ge 1$ point in each half | $\ge 5$ points AND $\ge 70\%$ time coverage |
-| **Robustness** | Median NOT used for scaling | $\widetilde{S}_2$ (Median of squared fluctuations) |
-| **Intermittency** | Not implemented | $I(\tau) = \log_{10}(S_2 / \widetilde{S}_2)$ |
-| **Regression** | Robust (Theil-Sen) | Robust (Theil-Sen) |
-| **Uncertainty** | Not implemented in `HaarAnalysis.run` | Block Bootstrap |
-
-## 5. Usage in waterSpec
-
-### 5.1 Standalone Usage
+### 4.1 Standalone Usage
 
 ```python
 from waterSpec.haar_analysis import HaarAnalysis
@@ -83,7 +69,7 @@ print(f"Beta: {results['beta']}")
 haar.plot(output_path="haar_plot.png")
 ```
 
-### 5.2 Integrated Usage
+### 4.2 Integrated Usage
 
 In the `Analysis` class, Haar analysis can be enabled by setting `run_haar=True`:
 
@@ -93,7 +79,7 @@ results = analyzer.run_full_analysis(output_dir="output", run_haar=True)
 # Haar results are stored in results['haar_results']
 ```
 
-### 5.3 Segmented Haar Analysis
+### 4.3 Segmented Haar Analysis
 
 While the `HaarAnalysis` class currently only performs linear fitting, you can manually perform segmented fitting on the Haar structure function using the package's fitter:
 
