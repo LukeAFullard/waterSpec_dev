@@ -17,7 +17,8 @@ def calculate_haar_fluctuations(
     num_lags: int = 20,
     log_spacing: bool = True,
     overlap: bool = True,
-    overlap_step_fraction: float = 0.1
+    overlap_step_fraction: float = 0.1,
+    min_samples_per_window: int = 5
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculates the first-order Haar structure function S_1(Delta t).
@@ -41,6 +42,9 @@ def calculate_haar_fluctuations(
         overlap_step_fraction (float, optional): Fraction of lag_time to step forward
             when overlap is True. e.g. 0.1 means step size is 0.1 * delta_t.
             Defaults to 0.1.
+        min_samples_per_window (int, optional): Minimum number of data points required
+            in EACH half of the Haar window to compute a valid fluctuation.
+            Defaults to 5 (based on statistical stability guidelines).
 
     Returns:
         tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -120,10 +124,8 @@ def calculate_haar_fluctuations(
             vals1 = data[idx_start:idx_mid]
             vals2 = data[idx_mid:idx_end]
 
-            # Only calculate if we have data in both halves
-            # Strict requirement: need at least 1 point in each half
-            # Ideally for large windows we'd want more, but that's a filtering step later
-            if len(vals1) > 0 and len(vals2) > 0:
+            # Only calculate if we have sufficient data in both halves
+            if len(vals1) >= min_samples_per_window and len(vals2) >= min_samples_per_window:
                 mean1 = np.mean(vals1)
                 mean2 = np.mean(vals2)
 
@@ -409,10 +411,10 @@ class HaarAnalysis:
         self.intercept = None
         self.segmented_results = None
 
-    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0):
+    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=5):
         self.lags, self.s1, self.counts, self.n_effective = calculate_haar_fluctuations(
             self.time, self.data, min_lag=min_lag, max_lag=max_lag, num_lags=num_lags, log_spacing=log_spacing,
-            overlap=overlap, overlap_step_fraction=overlap_step_fraction
+            overlap=overlap, overlap_step_fraction=overlap_step_fraction, min_samples_per_window=min_samples_per_window
         )
 
         # Always run standard fit

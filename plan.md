@@ -42,3 +42,31 @@ This feature extends the spectral analysis capabilities to automatically fit and
 
 *   **Generalized Implementation**:
     *   The core fitting, interpretation, and plotting functions have been refactored to be more general, paving the way for potentially supporting more than two breakpoints in the future.
+
+## 3. Multi-Scalar Haar Analysis & Bivariate Tools
+
+This feature set implements the advanced framework for analyzing non-stationary water quality time series, focusing on physical interpretability and robustness to irregular sampling.
+
+### Completed Implementations:
+
+*   **Robust Haar Analysis with Overlapping Windows**:
+    *   Refactored `haar_analysis.py` to support **overlapping windows** (sliding time steps). This maximizes the effective sample size for long-term records, which is critical for statistically significant results at large scales (e.g., decadal).
+    *   Implemented effective sample size ($n_{eff}$) calculation to account for the dependence induced by overlap.
+
+*   **Segmented Haar Scaling**:
+    *   Added `fit_segmented_haar` using robust regression (MannKS) to detect **regime shifts** in system memory.
+    *   The system can now automatically identify characteristic scales (breakpoints in the $S_1(\tau)$ vs $\tau$ plot) where the dominant transport mechanism changes (e.g., from surface runoff to groundwater baseflow).
+
+*   **Bivariate Analysis Framework (Cross-Haar)**:
+    *   Created `waterSpec.bivariate` module with a `BivariateAnalysis` class.
+    *   **Time Alignment:** Supports aligning two distinct time series (e.g., Concentration vs. Discharge) with configurable tolerance and methods (`nearest`, `interpolate`).
+    *   **Cross-Haar Correlation:** Computes the correlation between fluctuations of two variables at specific time scales ($\rho_{CQ}(\tau)$).
+    *   **Lagged Response:** Computes cross-correlation at various time lags to identify response delays (e.g., how long after a discharge peak does the concentration respond?).
+
+*   **Surrogate Significance Testing**:
+    *   Created `waterSpec.surrogates` module.
+    *   Implemented **Phase Randomization** (preserves spectrum/autocorrelation, destroys nonlinearity/phase) and **Block Shuffling** (preserves short-term distribution, destroys long-term memory).
+    *   These tools allow for rigorous significance testing of Cross-Haar correlations, avoiding the pitfalls of standard p-values in autocorrelated environmental data.
+
+*   **Integrated Workflow**:
+    *   The main `Analysis.run_full_analysis` method now accepts parameters to control Haar overlap (`haar_overlap`) and segmentation (`haar_max_breakpoints`), making these advanced features accessible via the standard API.

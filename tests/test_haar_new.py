@@ -13,14 +13,20 @@ class TestHaarAnalysisFeatures(unittest.TestCase):
         time = np.arange(9.0) # 0..8
         data = np.array([0, 0, 0, 0, 10, 10, 10, 10, 10]) # 9 points
 
+        # Tau = 4. Windows have 4 points total (2 per half).
+        # We need to set min_samples_per_window <= 2 for this test to work.
+
         lags, s1, counts, n_eff = calculate_haar_fluctuations(
-            time, data, lag_times=np.array([4.0]), overlap=False
+            time, data, lag_times=np.array([4.0]), overlap=False,
+            min_samples_per_window=2
         )
+        self.assertEqual(len(counts), 1)
         self.assertEqual(counts[0], 2) # 2 windows
         self.assertAlmostEqual(s1[0], 0.0) # Both windows have 0 fluctuation
 
         lags_ov, s1_ov, counts_ov, n_eff_ov = calculate_haar_fluctuations(
-            time, data, lag_times=np.array([4.0]), overlap=True, overlap_step_fraction=0.25
+            time, data, lag_times=np.array([4.0]), overlap=True, overlap_step_fraction=0.25,
+            min_samples_per_window=2
         )
         self.assertEqual(counts_ov[0], 5)
         self.assertAlmostEqual(s1_ov[0], 4.0)
@@ -36,6 +42,8 @@ class TestHaarAnalysisFeatures(unittest.TestCase):
         val_at_10 = 10**(-0.5)
         s1[bp_idx:] = val_at_10 * (lags[bp_idx:] / 10)**0.5
 
+        # Assuming min_segment_length=4 default in fit_segmented_haar
+        # We have 20 points.
         res = fit_segmented_haar(lags, s1, n_breakpoints=1, n_bootstraps=50)
 
         self.assertTrue(res['ci_computed'])
