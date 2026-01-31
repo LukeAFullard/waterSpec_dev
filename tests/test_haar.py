@@ -26,8 +26,12 @@ def test_haar_white_noise():
     time = np.arange(n)
     data = generate_noise(n, 'white')
 
-    lags, s1, counts = calculate_haar_fluctuations(time, data, num_lags=20)
-    H, beta, r2, intercept = fit_haar_slope(lags, s1)
+    lags, s1, counts, n_eff = calculate_haar_fluctuations(time, data, num_lags=20)
+    res = fit_haar_slope(lags, s1)
+    H = res['H']
+    beta = res['beta']
+    r2 = res['r2']
+    intercept = res['intercept']
 
     print(f"White Noise: H={H}, beta={beta}, R2={r2}, Intercept={intercept}")
 
@@ -41,8 +45,12 @@ def test_haar_brownian_noise():
     time = np.arange(n)
     data = generate_noise(n, 'brownian')
 
-    lags, s1, counts = calculate_haar_fluctuations(time, data, num_lags=20)
-    H, beta, r2, intercept = fit_haar_slope(lags, s1)
+    lags, s1, counts, n_eff = calculate_haar_fluctuations(time, data, num_lags=20)
+    res = fit_haar_slope(lags, s1)
+    H = res['H']
+    beta = res['beta']
+    r2 = res['r2']
+    intercept = res['intercept']
 
     print(f"Brownian Noise: H={H}, beta={beta}, R2={r2}, Intercept={intercept}")
 
@@ -67,7 +75,7 @@ def test_short_time_series():
     time = np.arange(n)
     data = np.random.randn(n)
 
-    lags, s1, counts = calculate_haar_fluctuations(time, data, num_lags=10)
+    lags, s1, counts, n_eff = calculate_haar_fluctuations(time, data, num_lags=10)
     # Ensure it doesn't crash and returns something
     assert len(lags) > 0
     assert len(s1) == len(lags)
@@ -78,8 +86,11 @@ def test_irregular_sampling():
     time = np.sort(np.random.rand(n) * 1000)
     data = np.random.randn(n) # White noise
 
-    lags, s1, counts = calculate_haar_fluctuations(time, data, num_lags=20)
-    H, beta, r2, intercept = fit_haar_slope(lags, s1)
+    lags, s1, counts, n_eff = calculate_haar_fluctuations(time, data, num_lags=20)
+    res = fit_haar_slope(lags, s1)
+    H = res['H']
+    beta = res['beta']
+    intercept = res['intercept']
 
     print(f"Irregular White Noise: H={H}, beta={beta}, Intercept={intercept}")
     # Should still be roughly white noise

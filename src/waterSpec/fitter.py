@@ -165,6 +165,34 @@ def fit_standard_model(
             "unreliable. Consider using parametric CIs or collecting more data."
         )
 
+    # Validate bootstrap block size if applicable
+    if ci_method == "bootstrap" and bootstrap_type == "block":
+        if bootstrap_block_size is None:
+            # Rule-of-thumb for block size, with a minimum of 3 for effectiveness.
+            block_size_val = max(3, int(np.ceil(n_points ** (1 / 3))))
+            logger.info(
+                f"No 'bootstrap_block_size' provided for block bootstrap. "
+                f"Using rule-of-thumb size: {block_size_val}"
+            )
+            # Update the argument so downstream functions use the computed value
+            bootstrap_block_size = block_size_val
+        else:
+            if not isinstance(bootstrap_block_size, int) or bootstrap_block_size <= 0:
+                raise ValueError("bootstrap_block_size must be a positive integer.")
+            if bootstrap_block_size >= n_points:
+                raise ValueError(
+                    f"Block size ({bootstrap_block_size}) must be smaller than the "
+                    f"number of data points ({n_points})."
+                )
+            block_size_val = bootstrap_block_size
+
+        if n_points < 3 * block_size_val:
+            raise ValueError(
+                f"The number of data points ({n_points}) is less than 3 times "
+                f"the block size ({block_size_val}). The block bootstrap is "
+                "ineffective for such short series."
+            )
+
     # 2. Perform the fitting
     fit_results = {}
 
@@ -172,7 +200,8 @@ def fit_standard_model(
     if method == "theil-sen":
         try:
             mannks_block_size = 'auto'
-            if bootstrap_type == 'block' and bootstrap_block_size is not None:
+            if bootstrap_type == 'block':
+                # Use the validated/defaulted block size
                 mannks_block_size = bootstrap_block_size
 
             mannks_seed = None
@@ -365,28 +394,8 @@ def fit_standard_model(
         error_counts = {}
 
         if bootstrap_type == "block":
-            if bootstrap_block_size is None:
-                # Rule-of-thumb for block size, with a minimum of 3 for effectiveness.
-                block_size = max(3, int(np.ceil(n_points ** (1 / 3))))
-                logger.info(
-                    f"No 'bootstrap_block_size' provided for block bootstrap. "
-                    f"Using rule-of-thumb size: {block_size}"
-                )
-            else:
-                if not isinstance(bootstrap_block_size, int) or bootstrap_block_size <= 0:
-                    raise ValueError("bootstrap_block_size must be a positive integer.")
-                if bootstrap_block_size >= n_points:
-                    raise ValueError(
-                        f"Block size ({bootstrap_block_size}) must be smaller than the "
-                        f"number of data points ({n_points})."
-                    )
-                block_size = bootstrap_block_size
-            if n_points < 3 * block_size:
-                raise ValueError(
-                    f"The number of data points ({n_points}) is less than 3 times "
-                    f"the block size ({block_size}). The block bootstrap is "
-                    "ineffective for such short series."
-                )
+            # bootstrap_block_size is already validated and set above if applicable
+            block_size = bootstrap_block_size
 
         for _ in range(n_bootstraps):
             try:
