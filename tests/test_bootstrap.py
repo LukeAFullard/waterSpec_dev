@@ -158,6 +158,7 @@ def test_failed_bootstrap_returns_nan(mocker):
     results = fit_standard_model(
         freq,
         power,
+        method="ols", # Force OLS to bypass MannKS and test internal bootstrap logic
         ci_method="bootstrap",
         bootstrap_type="pairs",  # Force pairs bootstrap for this test
         n_bootstraps=10,
