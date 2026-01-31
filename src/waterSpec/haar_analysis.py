@@ -17,7 +17,8 @@ def calculate_haar_fluctuations(
     num_lags: int = 20,
     log_spacing: bool = True,
     overlap: bool = True,
-    overlap_step_fraction: float = 0.1
+    overlap_step_fraction: float = 0.1,
+    min_samples_per_window: int = 5
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculates the first-order Haar structure function S_1(Delta t).
@@ -41,6 +42,9 @@ def calculate_haar_fluctuations(
         overlap_step_fraction (float, optional): Fraction of lag_time to step forward
             when overlap is True. e.g. 0.1 means step size is 0.1 * delta_t.
             Defaults to 0.1.
+        min_samples_per_window (int, optional): Minimum number of data points required
+            in EACH half of the Haar window to compute a valid fluctuation.
+            Defaults to 5 (based on statistical stability guidelines).
 
     Returns:
         tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -120,10 +124,8 @@ def calculate_haar_fluctuations(
             vals1 = data[idx_start:idx_mid]
             vals2 = data[idx_mid:idx_end]
 
-            # Only calculate if we have data in both halves
-            # Strict requirement: need at least 1 point in each half
-            # Ideally for large windows we'd want more, but that's a filtering step later
-            if len(vals1) > 0 and len(vals2) > 0:
+            # Only calculate if we have sufficient data in both halves
+            if len(vals1) >= min_samples_per_window and len(vals2) >= min_samples_per_window:
                 mean1 = np.mean(vals1)
                 mean2 = np.mean(vals2)
 
@@ -175,6 +177,61 @@ def calculate_haar_fluctuations(
                 n_effective_values.append(count)
 
     return np.array(valid_lags), np.array(s1_values), np.array(counts), np.array(n_effective_values)
+
+def calculate_sliding_haar(
+    time: np.ndarray,
+    data: np.ndarray,
+    window_size: float,
+    step_size: Optional[float] = None,
+    min_samples_per_window: int = 5
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Calculates a continuous time series of Haar fluctuations for a fixed window size (scale).
+    Useful for Real-Time Anomaly Detection.
+
+    Args:
+        time (np.ndarray): Time array.
+        data (np.ndarray): Data array.
+        window_size (float): The full duration of the Haar window (tau).
+        step_size (float, optional): How much to slide the window. Defaults to window_size / 10.
+        min_samples_per_window (int): Min samples per half-window.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: (time_centers, fluctuation_values)
+    """
+    if step_size is None:
+        step_size = window_size / 10.0
+
+    # Sort data
+    sort_idx = np.argsort(time)
+    time = time[sort_idx]
+    data = data[sort_idx]
+
+    fluctuations = []
+    t_centers = []
+
+    t_start = time[0]
+    while t_start + window_size <= time[-1]:
+        t_mid = t_start + window_size / 2
+        t_end = t_start + window_size
+
+        idx_start = np.searchsorted(time, t_start, side='left')
+        idx_mid = np.searchsorted(time, t_mid, side='left')
+        idx_end = np.searchsorted(time, t_end, side='left')
+
+        vals1 = data[idx_start:idx_mid]
+        vals2 = data[idx_mid:idx_end]
+
+        if len(vals1) >= min_samples_per_window and len(vals2) >= min_samples_per_window:
+            d = np.mean(vals2) - np.mean(vals1)
+            fluctuations.append(d) # Keep sign for anomaly direction? Or abs?
+            # Usually for anomaly detection we care about magnitude, but sign tells direction of shift.
+            # Let's return signed fluctuation.
+            t_centers.append(t_mid)
+
+        t_start += step_size
+
+    return np.array(t_centers), np.array(fluctuations)
 
 def fit_haar_slope(
     lags: np.ndarray,
@@ -409,10 +466,10 @@ class HaarAnalysis:
         self.intercept = None
         self.segmented_results = None
 
-    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0):
+    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=5):
         self.lags, self.s1, self.counts, self.n_effective = calculate_haar_fluctuations(
             self.time, self.data, min_lag=min_lag, max_lag=max_lag, num_lags=num_lags, log_spacing=log_spacing,
-            overlap=overlap, overlap_step_fraction=overlap_step_fraction
+            overlap=overlap, overlap_step_fraction=overlap_step_fraction, min_samples_per_window=min_samples_per_window
         )
 
         # Always run standard fit

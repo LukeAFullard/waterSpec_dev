@@ -1,0 +1,224 @@
+# waterSpec: Step-by-Step Walkthrough
+
+This document provides a comprehensive guide to using the advanced features of `waterSpec`, including Haar fluctuation analysis with overlapping windows, segmented regression for regime shift detection, and bivariate analysis for concentration-discharge relationships.
+
+Each section includes a self-contained Python code example that generates synthetic data, performs the analysis, and explains the results.
+
+---
+
+## 1. Haar Analysis with Overlapping Windows
+
+**Scientific Context:**
+Haar analysis quantifies how the variability of a time series changes with time scale ($\tau$). For short or irregular records, using non-overlapping windows can discard valuable data. Overlapping windows maximize the statistical power of the analysis.
+
+**Example Code:**
+
+```python
+import numpy as np
+from waterSpec.haar_analysis import HaarAnalysis
+
+# 1. Generate synthetic Fractional Brownian Motion (fBm)
+# This represents a non-stationary "random walk" process (e.g., cumulative load).
+np.random.seed(42)
+n_points = 500
+time = np.arange(n_points)
+# Random walk: cumulative sum of white noise
+data = np.cumsum(np.random.randn(n_points))
+
+# 2. Initialize Haar Analysis
+haar = HaarAnalysis(time, data, time_unit="days")
+
+# 3. Run analysis with Overlapping Windows
+# overlap=True enables sliding windows.
+# overlap_step_fraction=0.1 means the window slides by 10% of its duration at each step.
+results = haar.run(
+    min_lag=2,
+    max_lag=100,
+    num_lags=20,
+    overlap=True,
+    overlap_step_fraction=0.1,
+    n_bootstraps=200
+)
+
+# 4. Interpret Results
+beta = results['beta']
+H = results['H']
+n_eff = results['n_effective'][-1]  # Effective N at largest scale
+
+print(f"Estimated Spectral Slope (beta): {beta:.2f}")
+print(f"Hurst Exponent (H): {H:.2f}")
+print(f"Effective Sample Size at largest scale: {n_eff:.1f}")
+
+# Expected Output:
+# Beta should be close to 2.0 (Brown noise/Random Walk).
+# H should be close to 0.5.
+```
+
+**What to look for:**
+*   A `beta` value near 2.0 confirms the process is a random walk.
+*   Overlapping windows provide a smooth $S_1(\tau)$ curve even at large scales where data is scarce.
+
+---
+
+## 2. Detecting Regime Shifts (Segmented Haar Fits)
+
+**Scientific Context:**
+Hydrological systems often exhibit different memory behaviors at different scales. For example, a system might be dominated by rapid surface runoff (low memory, white noise) at short scales (< 1 week) but by groundwater storage (high memory, brown noise) at long scales (> 1 month).
+
+**Example Code:**
+
+```python
+import numpy as np
+from waterSpec.haar_analysis import HaarAnalysis
+
+# 1. Generate a "Regime Shift" signal
+time = np.arange(1000)
+# Short scales (high frequency): White Noise
+noise = np.random.randn(1000)
+# Long scales (low frequency): Strong Trend / Walk
+trend = 0.05 * np.cumsum(np.random.randn(1000))
+data = noise + trend
+
+haar = HaarAnalysis(time, data, time_unit="hours")
+
+# 2. Run Segmented Analysis
+# max_breakpoints=1 tells the system to look for one regime shift.
+results = haar.run(
+    min_lag=2,
+    max_lag=200,
+    overlap=True,
+    max_breakpoints=1
+)
+
+seg = results['segmented_results']
+
+print(f"Number of Breakpoints Found: {seg['n_breakpoints']}")
+print(f"Breakpoint Scale: {seg['breakpoints'][0]:.1f} hours")
+print(f"Slope (H) before breakpoint: {seg['Hs'][0]:.2f}")
+print(f"Slope (H) after breakpoint: {seg['Hs'][1]:.2f}")
+
+# Expected Output:
+# Breakpoint should be detected around the scale where the trend variance overtakes the noise variance.
+# H1 should be close to -0.5 (White Noise, beta=0).
+# H2 should be close to +0.5 (Random Walk, beta=2).
+```
+
+---
+
+## 3. Bivariate Analysis (Concentration-Discharge)
+
+**Scientific Context:**
+Analyzing how water quality ($C$) relates to flow ($Q$) is fundamental. The relationship is rarely static; it varies by event and scale. This tool aligns mis-matched timestamps and computes the correlation of *fluctuations* ($\Delta C$ vs $\Delta Q$).
+
+**Example Code:**
+
+```python
+import numpy as np
+import pandas as pd
+from waterSpec.bivariate import BivariateAnalysis
+
+# 1. Generate Synthetic C-Q Data
+# Q: Daily discharge
+time_q = np.arange(0, 365, 1.0) # Daily
+Q = np.exp(np.sin(time_q/10) + np.random.normal(0, 0.2, len(time_q))) # Log-normalish
+
+# C: Bi-weekly concentration sampling (sparse)
+# Let's say C is positively correlated with Q (flushing)
+time_c = np.arange(0, 365, 14.0) # Every 14 days
+C = 0.5 * np.interp(time_c, time_q, Q) + np.random.normal(0, 0.1, len(time_c))
+
+# 2. Initialize Bivariate Analysis
+# We treat Q as the driver (Var 2) and C as the response (Var 1)
+biv = BivariateAnalysis(time_c, C, "Nitrate", time_q, Q, "Discharge", time_unit="days")
+
+# 3. Align Data
+# Since C is sparse, we match Q to C's timestamps.
+biv.align_data(tolerance=1.0, method='nearest')
+
+# 4. Cross-Haar Correlation
+# Calculate correlation at a monthly scale (30 days)
+cross_results = biv.run_cross_haar_analysis(
+    lags=np.array([7, 14, 30, 60]),
+    overlap=True
+)
+
+print("Scale (days) | Correlation (rho)")
+for lag, rho in zip(cross_results['lags'], cross_results['correlation']):
+    print(f"{lag:12.1f} | {rho:.2f}")
+
+# Expected Output:
+# High positive correlation at scales > 14 days (reflecting the constructed flushing relationship).
+```
+
+---
+
+## 4. Hysteresis Analysis (Loop Area)
+
+**Scientific Context:**
+Hysteresis occurs when the path of concentration vs. discharge differs on the rising vs. falling limb of a hydrograph. The "Loop Area" metric quantifies this directionality at a specific time scale $\tau$.
+*   **Positive Area:** Counter-Clockwise (Groundwater dominance / slow response).
+*   **Negative Area:** Clockwise (Source exhaustion / rapid flushing).
+
+**Example Code:**
+
+```python
+# Continuing from previous Bivariate setup...
+
+# Let's simulate a hysteresis effect (phase shift)
+# Q = cos(t), C = sin(t) -> Counter-Clockwise circle
+time = np.linspace(0, 100, 200)
+Q_hyst = np.cos(time/5)
+C_hyst = np.sin(time/5)
+
+biv_hyst = BivariateAnalysis(time, C_hyst, "C", time, Q_hyst, "Q")
+biv_hyst.align_data(tolerance=0.1)
+
+# Analyze at the scale of the "event" (approx period 10 * pi ~ 30)
+hyst_stats = biv_hyst.calculate_hysteresis_metrics(tau=10.0)
+
+print(f"Hysteresis Direction: {hyst_stats['direction']}")
+print(f"Loop Area: {hyst_stats['area']:.4f}")
+
+# Expected Output:
+# Direction: Counter-Clockwise
+# Area: Positive
+```
+
+---
+
+## 5. Real-Time Anomaly Detection (Sliding Haar)
+
+**Scientific Context:**
+Traditional anomaly detection uses thresholds on raw values. However, baselines shift. "Sliding Haar" looks at the *volatility* (magnitude of change) over a fixed window. A sudden spike in the Haar fluctuation indicates a regime change or event, even if the absolute value is within bounds.
+
+**Example Code:**
+
+```python
+from waterSpec.haar_analysis import calculate_sliding_haar
+import matplotlib.pyplot as plt
+
+# 1. Generate data with a "Hidden" Anomaly
+# Base: Quiet noise
+data = np.random.normal(0, 0.5, 200)
+# Event: At t=100, variability increases 5x, but mean stays same
+data[100:120] = np.random.normal(0, 2.5, 20)
+time = np.arange(200)
+
+# 2. Compute Sliding Haar
+# Window size = 10 units
+t_centers, fluctuations = calculate_sliding_haar(
+    time, data, window_size=10.0, step_size=1.0
+)
+
+# 3. Detect Peaks (Simple Threshold)
+# Ideally, compare to historical 3-sigma
+threshold = 3 * np.std(fluctuations[:50]) # calibrate on early data
+anomalies = t_centers[np.abs(fluctuations) > threshold]
+
+print(f"Anomalous Time Windows Detected: {len(anomalies)}")
+if len(anomalies) > 0:
+    print(f"First Anomaly at t ~ {anomalies[0]:.1f}")
+
+# Expected Output:
+# Should detect the volatility burst around t=100.
+```

@@ -25,9 +25,11 @@
 
 - **Advanced Haar Analysis:**
   - **Overlapping Windows:** Maximize data usage for long-term records.
-  - **Segmented Fits:** Detect regime shifts in system memory.
+  - **Segmented Fits:** Detect regime shifts in system memory using robust regression (`MannKS`).
   - **Bivariate Analysis:** Analyze Cross-Haar correlation between Concentration and Discharge.
   - **Surrogate Testing:** Assess significance using phase-randomized or block-shuffled surrogates.
+  - **Real-Time Anomaly Detection:** Compute "Sliding Haar" fluctuations to detect sudden volatility changes.
+  - **Hysteresis Classification:** Quantify loop area and direction in the C-Q phase space across scales.
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
@@ -56,10 +58,19 @@ cd waterSpec
 pip install -e .
 ```
 
+**Dependencies:**
+`waterSpec` relies on `mannks` and `ruptures` for advanced segmented regression and changepoint detection. These are installed automatically.
+
 **For development (includes testing dependencies):**
 ```bash
 pip install -e '.[test]'
 ```
+
+---
+
+## Documentation
+
+For a comprehensive step-by-step guide on using the advanced features (Haar, Bivariate, Hysteresis, Anomaly Detection), please see the **[Walkthrough Tutorial](docs/WALKTHROUGH.md)**.
 
 ---
 
@@ -143,6 +154,10 @@ results = biv.run_cross_haar_analysis(
     lags=np.logspace(3, 6, 20),
     overlap=True
 )
+
+# Calculate Hysteresis Metrics (Loop Area)
+hyst_stats = biv.calculate_hysteresis_metrics(tau=86400) # 1 day scale
+print(f"Loop Area: {hyst_stats['area']}, Direction: {hyst_stats['direction']}")
 ```
 
 ### Segmented Haar Fits
@@ -155,6 +170,19 @@ results = analyzer.run_full_analysis(
     ...,
     run_haar=True,
     haar_max_breakpoints=1  # Allow one breakpoint
+)
+```
+
+### Real-Time Anomaly Detection (Sliding Haar)
+
+Monitor volatility changes in real-time.
+
+```python
+from waterSpec.haar_analysis import calculate_sliding_haar
+
+# Compute 6-hour fluctuation series
+t_centers, fluctuations = calculate_sliding_haar(
+    time_array, data_array, window_size=6*3600
 )
 ```
 
