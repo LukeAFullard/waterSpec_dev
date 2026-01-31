@@ -23,6 +23,9 @@ The toolkit comprises four stages:
 3. **Scale-Specific Attribution** – separation of flow-driven (climatic) variability from flow-independent processes using cross-Haar correlation and surrogates
 4. **Lagged Response Analysis** – estimation of dominant hydrological and biogeochemical response times
 
+**Implementation Platform:** Python (specifically extending the `waterSpec` package).
+**Complexity Note:** While naive implementation of sliding windows is $O(n^2)$, this framework recommends using **cumulative sum (integral image)** techniques to achieve $O(n)$ performance, essential for large network analysis.
+
 **Management outcome:**
 This framework allows regulators and scientists to distinguish anthropogenic change from natural climatic variability, identify characteristic recovery horizons imposed by catchment memory, compare sites and interventions on a physically meaningful basis, and detect changes invisible to monotonic trend tests.
 
@@ -51,11 +54,16 @@ Irregular sampling and missing observations are handled by averaging all availab
 Key considerations:
 
 * **Bias control:** Windowed averaging avoids bias introduced by unequal sample spacing.
-* **Window Overlap (CRITICAL):** To maximize the utility of long-term records, **overlapping windows** must be used. Non-overlapping windows drastically reduce the effective sample size at large scales. The implementation must slide the window by a small increment (e.g., one data point or a fixed time step) rather than jumping by $\tau$.
-* **Uncertainty:** Windows with few observations have larger standard errors; effective sample counts should be tracked.
+* **Window Overlap (CRITICAL):**
+    *   **Specification:** To maximize statistical power, windows should overlap significantly. We recommend a "sliding step" of $\Delta t_{step} = \text{min}(\text{median}(dt), \tau/10)$. This typically results in >90% overlap at large scales.
+    *   **Effective Sample Size:** Overlap induces correlation. The effective sample size for variance estimation is approximately $n_{eff} \approx N \times (1 - \text{overlap\_fraction})$ or $N_{windows} \times (\Delta t_{step} / \tau)$.
+    *   **Requirement:** Bootstrap or surrogate methods (Section 5) are **mandatory** when using overlapping windows to correct for this dependence.
+* **Uncertainty:** Windows with few observations have larger standard errors.
+* **Minimum Sample Size:**
+    *   **Exploratory:** Exclude windows with $n < 5$.
+    *   **Reporting/Compliance:** Exclude windows with $n < 10$ to ensure statistical stability of the mean.
+    *   **Jurisdiction Check:** Always cross-reference with specific regulatory requirements (e.g., USEPA, EU WFD) which may mandate specific minimums.
 * **Intra-window dependence:** Strong autocorrelation within windows may inflate effective variance at small scales.
-* **Interpretation:** Small-scale Haar statistics should be interpreted as indicators of catchment-scale variability rather than measurement precision.
-* **Regulatory guidance:** For compliance or reporting, exclude windows with $n < 2$ or explicitly quantify sensitivity to this choice.
 
 ---
 
@@ -86,7 +94,10 @@ $$
 where $m$ is the **Haar scaling exponent**. The value of $m$ quantifies how variability grows with increasing time scale and provides a direct measure of system memory.
 
 **Segmented Scaling:**
-Real-world systems often exhibit regime shifts (e.g., transition from surface runoff to groundwater dominance). The framework must support **Segmented Haar Fits** (multi-slope models) to identify these characteristic memory scales (breakpoints in the log-log plot).
+Real-world systems often exhibit regime shifts. The framework supports **Segmented Haar Fits**:
+*   **Algorithm:** Use PELT (Pruned Exact Linear Time) or Binary Segmentation on the log-log residuals.
+*   **Selection:** Use BIC (Bayesian Information Criterion) to select the optimal number of breakpoints (typically 0, 1, or 2).
+*   **Constraint:** Enforce a minimum segment length of 0.5 decades in scale ($\log_{10} \tau$).
 
 ---
 
@@ -158,7 +169,10 @@ Bootstrap resampling (using block lengths consistent with observed autocorrelati
 
 **Objective:** Separate flow-driven (climatic) variability from flow-independent processes.
 
-**Implementation Requirement:** This method requires a **Bivariate Analysis** framework capable of aligning and processing two distinct time series (Concentration and Discharge) simultaneously.
+**Implementation Requirement: Bivariate Alignment**
+*   **Matching Tolerance:** Match $C(t)$ and $Q(t)$ within a tolerance of $\pm \text{min}(\tau/20, \text{2 hours})$.
+*   **Interpolation:** Strictly **no interpolation** of water quality data. Discharge ($Q$) may be linearly interpolated to match $C$ timestamps if $Q$ resolution is significantly higher (e.g., 15-min $Q$ vs. monthly $C$).
+*   **Transformation:** Discharge $Q$ should generally be log-transformed ($\ln Q$) prior to analysis to linearize the C-Q relationship, unless specific conditions dictate otherwise.
 
 At each scale $\tau$, Pearson correlation is computed between Haar fluctuations of concentration $C$ and discharge $Q$:
 
@@ -436,8 +450,9 @@ Disentangles complex transport mechanisms. Classical hysteresis loops often conf
 
 **Implementation:**
 *   Extend Method 4.
-*   For a given scale $\tau$, plot $\Delta C(t, \tau)$ vs $\Delta Q(t, \tau)$ as a scatter plot or connected path.
-*   Calculate the rotational direction (loop area integral) to classify the dominant hysteresis regime at that specific time scale.
+*   For a given scale $\tau$, plot $\Delta C(t, \tau)$ vs $\Delta Q(t, \tau)$ as a connected path.
+*   **Loop Area Metric:** Calculate the signed area $A = \frac{1}{2} \sum (\Delta C_i \Delta Q_{i+1} - \Delta C_{i+1} \Delta Q_i)$.
+*   **Sign Convention:** Positive Area ($A>0$) $\rightarrow$ Counter-Clockwise (Groundwater/delayed). Negative Area ($A<0$) $\rightarrow$ Clockwise (Flushing/rapid).
 
 ---
 
@@ -465,17 +480,16 @@ Discrepancies between Pearson and Spearman are **diagnostic**, not problematic.
 
 ## 10. Confidence Intervals for Structure Functions and Slopes
 
-### 9.1 Bootstrap Strategy
+### 10.1 Bootstrap Strategy
 
 Use **block bootstrap** on Haar increments:
 
-* Block length selected via integral time scale or first zero-crossing of autocorrelation.
-* Resample blocks with replacement.
-* Recompute $S_1(\tau)$ and scaling slope for each bootstrap replicate.
+* **Block Length Selection:** Use the **integral time scale** $\tau_{int} = \sum_{k=0}^{\infty} \rho(k)$.
+    *   **Fallback:** If $\rho(k)$ does not decay to zero, use the first zero-crossing or a conservative lower bound of $3\tau_{max}$.
+*   Resample blocks with replacement.
+*   Recompute $S_1(\tau)$ and scaling slope for each bootstrap replicate.
 
----
-
-### 9.2 Outputs
+### 10.2 Outputs
 
 * Pointwise confidence intervals for $S_1(\tau)$.
 * Confidence intervals for scaling exponent $m$.
@@ -498,7 +512,7 @@ Overlapping Haar windows induce dependence. This affects variance estimation and
 Practical guidance:
 
 * Maximum reliable scale $\tau_{\max} \approx T/5$.
-* Scaling inference requires ≥ 50 effective Haar increments per scale.
+* Scaling inference requires ≥ 50 effective Haar increments per scale (where $n_{eff}$ accounts for overlap as defined in Section 2.2).
 
 ---
 
@@ -565,5 +579,15 @@ This framework should be adopted when:
 * Haar methods diagnose dynamics; they do not replace mechanistic models.
 
 Used together, Haar fluctuation metrics and surrogate-based inference provide one of the most defensible pathways currently available for multi-scale water-quality attribution.
+
+---
+
+## 13. Validation Framework
+
+To ensure the reliability of the implemented toolkit, a rigorous validation suite must be established:
+
+1.  **Synthetic Data Tests (fBm):** Generate fractional Brownian motion (fBm) series with known Hurst exponents ($H$). Verify that the Haar scaling exponent $m$ recovers the theoretical relationship $m = H - 1$ (for noise) or appropriate equivalent within 95% confidence intervals.
+2.  **Known-Solution Benchmarks:** Use "sawtooth" and sine-wave synthetic signals to verify that the Haar filter correctly identifies the characteristic scale (period) as a break in the structure function.
+3.  **Cross-Validation:** Split long-term real-world datasets (e.g., USGS high-frequency nitrate) into training/testing halves to verify the stability of estimated exponents.
 
 ---
