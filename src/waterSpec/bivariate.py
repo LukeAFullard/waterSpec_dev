@@ -117,11 +117,6 @@ class BivariateAnalysis:
             step_size = tau * overlap_step_fraction if overlap else tau
             t_start = time[0]
 
-            # Correct loop condition:
-            # We need window [t_start, t_start + tau] to be valid.
-            # AND we need enough data.
-            # If overlap=False, step_size=tau.
-
             while t_start + tau <= time[-1]:
                 t_mid = t_start + tau / 2
                 t_end = t_start + tau
@@ -275,3 +270,92 @@ class BivariateAnalysis:
             'lag_offsets': lag_offsets,
             'correlation': correlations
         }
+
+    def calculate_hysteresis_metrics(
+        self,
+        tau: float,
+        overlap: bool = True,
+        overlap_step_fraction: float = 0.1
+    ) -> Dict:
+        """
+        Calculates the Hysteresis Loop Area between fluctuations of the two variables at scale tau.
+        Uses the shoelace formula (signed polygon area).
+
+        Args:
+            tau (float): Time scale.
+
+        Returns:
+            Dict: {'area': float, 'direction': str}
+        """
+        if self.aligned_data is None:
+            raise ValueError("Data must be aligned first.")
+
+        time = self.aligned_data['time'].values
+        val1 = self.aligned_data[self.name1].values
+        val2 = self.aligned_data[self.name2].values
+
+        fluc1 = [] # x coordinate (usually C)
+        fluc2 = [] # y coordinate (usually Q)
+
+        # Wait, usually hysteresis is C vs Q. But here we are looking at delta C vs delta Q?
+        # The plan says "Analyze the Phase Space of Haar Fluctuations (Delta C vs Delta Q)".
+        # So yes, we plot delta C vs delta Q.
+
+        step_size = tau * overlap_step_fraction if overlap else tau
+        t_start = time[0]
+
+        while t_start + tau <= time[-1]:
+            t_mid = t_start + tau / 2
+            t_end = t_start + tau
+
+            idx_start = np.searchsorted(time, t_start, side='left')
+            idx_mid = np.searchsorted(time, t_mid, side='left')
+            idx_end = np.searchsorted(time, t_end, side='left')
+
+            v1_left = val1[idx_start:idx_mid]
+            v1_right = val1[idx_mid:idx_end]
+            v2_left = val2[idx_start:idx_mid]
+            v2_right = val2[idx_mid:idx_end]
+
+            if len(v1_left) > 0 and len(v1_right) > 0 and len(v2_left) > 0 and len(v2_right) > 0:
+                d1 = np.mean(v1_right) - np.mean(v1_left)
+                d2 = np.mean(v2_right) - np.mean(v2_left)
+                fluc1.append(d1)
+                fluc2.append(d2)
+
+            if overlap:
+                t_start += step_size
+            else:
+                t_start = t_end
+                if t_start >= time[-1]: break
+
+        if len(fluc1) < 3:
+            return {'area': np.nan, 'direction': 'insufficient_data'}
+
+        # Shoelace formula for signed area
+        # A = 0.5 * sum(x_i * y_{i+1} - x_{i+1} * y_i)
+        # Here x = fluc1 (C), y = fluc2 (Q)? Or vice versa?
+        # Standard hysteresis is usually Q on X, C on Y.
+        # But the prompt formula was generic.
+        # Let's assume name1 is C (Y) and name2 is Q (X).
+        # x = fluc2, y = fluc1.
+
+        x = np.array(fluc2)
+        y = np.array(fluc1)
+
+        # Close the loop? Hysteresis loops in time usually don't close perfectly unless periodic.
+        # But we can compute the "swept area" over the trajectory.
+        # The Shoelace formula applies to a polygon.
+        # If we treat the time series trajectory as a polygon, we implicitly close start to end?
+        # Or we sum the incremental cross products.
+
+        area = 0.5 * np.sum(x[:-1] * y[1:] - x[1:] * y[:-1])
+        # Add closure from last to first point to make it a loop?
+        # For a trajectory, maybe not. But usually hysteresis refers to cyclic behavior.
+        # If we just sum cross products of displacement vectors?
+        # Let's stick to the simple shoelace sum of the open trajectory.
+
+        direction = "Counter-Clockwise" if area > 0 else "Clockwise"
+        if np.isclose(area, 0): direction = "None"
+
+        return {'area': area, 'direction': direction}

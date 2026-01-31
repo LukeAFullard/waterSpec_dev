@@ -178,6 +178,61 @@ def calculate_haar_fluctuations(
 
     return np.array(valid_lags), np.array(s1_values), np.array(counts), np.array(n_effective_values)
 
+def calculate_sliding_haar(
+    time: np.ndarray,
+    data: np.ndarray,
+    window_size: float,
+    step_size: Optional[float] = None,
+    min_samples_per_window: int = 5
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Calculates a continuous time series of Haar fluctuations for a fixed window size (scale).
+    Useful for Real-Time Anomaly Detection.
+
+    Args:
+        time (np.ndarray): Time array.
+        data (np.ndarray): Data array.
+        window_size (float): The full duration of the Haar window (tau).
+        step_size (float, optional): How much to slide the window. Defaults to window_size / 10.
+        min_samples_per_window (int): Min samples per half-window.
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: (time_centers, fluctuation_values)
+    """
+    if step_size is None:
+        step_size = window_size / 10.0
+
+    # Sort data
+    sort_idx = np.argsort(time)
+    time = time[sort_idx]
+    data = data[sort_idx]
+
+    fluctuations = []
+    t_centers = []
+
+    t_start = time[0]
+    while t_start + window_size <= time[-1]:
+        t_mid = t_start + window_size / 2
+        t_end = t_start + window_size
+
+        idx_start = np.searchsorted(time, t_start, side='left')
+        idx_mid = np.searchsorted(time, t_mid, side='left')
+        idx_end = np.searchsorted(time, t_end, side='left')
+
+        vals1 = data[idx_start:idx_mid]
+        vals2 = data[idx_mid:idx_end]
+
+        if len(vals1) >= min_samples_per_window and len(vals2) >= min_samples_per_window:
+            d = np.mean(vals2) - np.mean(vals1)
+            fluctuations.append(d) # Keep sign for anomaly direction? Or abs?
+            # Usually for anomaly detection we care about magnitude, but sign tells direction of shift.
+            # Let's return signed fluctuation.
+            t_centers.append(t_mid)
+
+        t_start += step_size
+
+    return np.array(t_centers), np.array(fluctuations)
+
 def fit_haar_slope(
     lags: np.ndarray,
     s1: np.ndarray,

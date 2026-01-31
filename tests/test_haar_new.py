@@ -2,7 +2,7 @@
 import unittest
 import numpy as np
 import pandas as pd
-from waterSpec.haar_analysis import calculate_haar_fluctuations, fit_segmented_haar
+from waterSpec.haar_analysis import calculate_haar_fluctuations, fit_segmented_haar, calculate_sliding_haar
 from waterSpec.bivariate import BivariateAnalysis
 from waterSpec.surrogates import generate_phase_randomized_surrogates
 from scipy import stats
@@ -52,6 +52,24 @@ class TestHaarAnalysisFeatures(unittest.TestCase):
         self.assertAlmostEqual(res['Hs'][0], -0.5, delta=0.2)
         self.assertAlmostEqual(res['Hs'][1], 0.5, delta=0.2)
 
+    def test_sliding_haar(self):
+        # Step function: 0 for t<5, 10 for t>=5
+        time = np.arange(10.0)
+        data = np.zeros(10)
+        data[5:] = 10
+
+        # Window size 4.
+        # Window centered at 5?
+        # t_start at 3: [3, 7]. mid=5. Left=[3,5)={3,4}=0. Right=[5,7)={5,6}=10.
+        # Delta = 10.
+
+        t_centers, flucs = calculate_sliding_haar(time, data, window_size=4.0, step_size=1.0, min_samples_per_window=2)
+
+        # We expect a peak at t=5
+        peak_idx = np.argmax(np.abs(flucs))
+        self.assertAlmostEqual(t_centers[peak_idx], 5.0)
+        self.assertAlmostEqual(flucs[peak_idx], 10.0)
+
 class TestBivariateAnalysis(unittest.TestCase):
 
     def test_alignment_and_correlation(self):
@@ -81,6 +99,41 @@ class TestBivariateAnalysis(unittest.TestCase):
         res_ov = biv.run_cross_haar_analysis(np.array([20.0]), overlap=True, overlap_step_fraction=0.1)
         if not np.isnan(res_ov['correlation'][0]):
             self.assertAlmostEqual(res_ov['correlation'][0], 1.0, delta=0.1)
+
+    def test_hysteresis_area(self):
+        # Create a perfect circle (counter-clockwise)
+        # x = cos(t), y = sin(t).
+        # Area of unit circle is pi.
+        # We are using fluctuations, so let's simulate the time series directly.
+        # If Q=cos(t), C=sin(t).
+        # We need fluctuations to form a loop.
+        # Actually, let's just feed synthetic fluctuations into the formula logic if possible,
+        # but the method calculates fluctuations from time series.
+
+        # Let's create two signals that are phase shifted by 90 degrees.
+        t = np.linspace(0, 2*np.pi, 100)
+        q = np.cos(t)
+        c = np.sin(t)
+
+        biv = BivariateAnalysis(t, c, "C", t, q, "Q", time_unit="numeric")
+        biv.align_data(tolerance=0.1)
+
+        # If we take small window, Haar fluctuation approx derivative.
+        # dQ ~ -sin(t), dC ~ cos(t).
+        # Plotting dC vs dQ -> cos(t) vs -sin(t).
+        # x = -sin(t), y = cos(t).
+        # x^2 + y^2 = 1. Circle.
+        # Direction?
+        # t=0: x=0, y=1.
+        # t=pi/2: x=-1, y=0.
+        # (0,1) -> (-1,0). Moving Counter-Clockwise? No, left.
+        # Angle of (0,1) is 90 deg. Angle of (-1,0) is 180 deg. Increasing angle.
+        # So Counter-Clockwise.
+
+        res = biv.calculate_hysteresis_metrics(tau=0.1, overlap=True)
+
+        self.assertEqual(res['direction'], "Counter-Clockwise")
+        self.assertTrue(res['area'] > 0)
 
 class TestSurrogates(unittest.TestCase):
     def test_phase_randomization(self):
