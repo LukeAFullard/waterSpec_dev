@@ -249,3 +249,47 @@ if len(anomalies) > 0:
 
 **Visualization:**
 The top panel shows the raw time series (where the anomaly might be hidden in noise), and the bottom panel shows the Haar Fluctuation spiking clearly at the anomaly time.
+
+---
+
+## 6. Lagged Response Analysis
+
+**Scientific Context:**
+Often, a system's response to a driver is not instantaneous. Lagged Cross-Haar correlation ($\rho_{CQ}(\tau, \ell)$) helps identify the characteristic delay time ($\ell$) between discharge ($Q$) and concentration response ($C$) at a specific time scale $\tau$.
+
+![Lagged Response](../examples/output/demo6_lagged_response.png)
+
+**Example Code:**
+
+```python
+import numpy as np
+from waterSpec.bivariate import BivariateAnalysis
+
+# 1. Generate Data with Known Lag
+time = np.arange(0, 365, 1.0)
+Q = np.exp(np.sin(time/10))
+lag_true = 5.0 # Response lags driver by 5 days
+C = np.exp(np.sin((time - lag_true)/10)) + np.random.normal(0, 0.1, len(time))
+
+biv = BivariateAnalysis(time, C, "Response", time, Q, "Driver")
+biv.align_data(tolerance=0.1)
+
+# 2. Run Lagged Analysis at a fixed scale
+tau = 20.0
+offsets = np.arange(0, 15, 1.0) # Check lags 0 to 15 days
+
+res = biv.run_lagged_cross_haar(tau, offsets, overlap=True)
+
+# 3. Identify Peak Lag
+peak_idx = np.argmax(res['correlation'])
+peak_lag = res['lag_offsets'][peak_idx]
+
+print(f"True Lag: {lag_true} days")
+print(f"Estimated Lag: {peak_lag} days")
+
+# Expected Output:
+# Estimated Lag should be 5.0 days.
+```
+
+**Visualization:**
+The plot shows Cross-Haar Correlation vs Lag Offset. The peak of the curve identifies the dominant response time.

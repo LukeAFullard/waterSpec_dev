@@ -161,6 +161,36 @@ def demo_anomaly_detection():
     plt.close()
     print(f"  -> Plot saved to {OUTPUT_DIR}/demo5_anomaly.png")
 
+def demo_lagged_cross_haar():
+    print("Running Demo 6: Lagged Cross-Haar (Response Time Analysis)...")
+    time = np.arange(0, 365, 1.0)
+    # Q: Driver (e.g., Rainfall/Discharge)
+    Q = np.exp(np.sin(time/10))
+    # C: Response (e.g., Groundwater Level) lags Q by 5 days
+    lag_true = 5.0
+    C = np.exp(np.sin((time - lag_true)/10)) + np.random.normal(0, 0.1, len(time))
+
+    biv = BivariateAnalysis(time, C, "Response", time, Q, "Driver")
+    biv.align_data(tolerance=0.1)
+
+    # Analyze at a specific scale (e.g., 20 days)
+    tau = 20.0
+    offsets = np.arange(0, 15, 1.0) # Check lags 0 to 15
+
+    res = biv.run_lagged_cross_haar(tau, offsets, overlap=True)
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(res['lag_offsets'], res['correlation'], 'o-')
+    plt.axvline(lag_true, color='r', linestyle='--', label=f'True Lag ({lag_true} days)')
+    plt.xlabel("Lag Offset (days)")
+    plt.ylabel(f"Cross-Haar Correlation (Scale={tau})")
+    plt.title("Identifying Response Lag via Cross-Haar Analysis")
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(f"{OUTPUT_DIR}/demo6_lagged_response.png")
+    plt.close()
+    print(f"  -> Plot saved to {OUTPUT_DIR}/demo6_lagged_response.png")
+
 if __name__ == "__main__":
     print(f"Generating walkthrough examples in {OUTPUT_DIR}...")
     demo_overlapping_haar()
@@ -168,4 +198,5 @@ if __name__ == "__main__":
     demo_bivariate_cross_haar()
     demo_hysteresis()
     demo_anomaly_detection()
+    demo_lagged_cross_haar()
     print("Done! Check the output directory for images.")
