@@ -4,6 +4,12 @@ This document provides a comprehensive guide to using the advanced features of `
 
 Each section includes a self-contained Python code example that generates synthetic data, performs the analysis, and explains the results.
 
+To run all examples at once and generate the plots shown below, use the provided script:
+```bash
+python3 examples/full_walkthrough.py
+```
+Outputs will be saved to `examples/output/`.
+
 ---
 
 ## 1. Haar Analysis with Overlapping Windows
@@ -54,9 +60,8 @@ print(f"Effective Sample Size at largest scale: {n_eff:.1f}")
 # H should be close to 0.5.
 ```
 
-**What to look for:**
-*   A `beta` value near 2.0 confirms the process is a random walk.
-*   Overlapping windows provide a smooth $S_1(\tau)$ curve even at large scales where data is scarce.
+**Visualization:**
+The script generates `examples/output/demo1_overlapping_haar.png` showing the $S_1(\tau)$ scaling function. The overlapping method produces a smoother curve with tighter confidence intervals than the non-overlapping approach.
 
 ---
 
@@ -102,6 +107,9 @@ print(f"Slope (H) after breakpoint: {seg['Hs'][1]:.2f}")
 # H1 should be close to -0.5 (White Noise, beta=0).
 # H2 should be close to +0.5 (Random Walk, beta=2).
 ```
+
+**Visualization:**
+See `examples/output/demo2_regime_shift.png`. The plot shows the data points and two distinct regression lines meeting at the breakpoint.
 
 ---
 
@@ -150,6 +158,9 @@ for lag, rho in zip(cross_results['lags'], cross_results['correlation']):
 # High positive correlation at scales > 14 days (reflecting the constructed flushing relationship).
 ```
 
+**Visualization:**
+See `examples/output/demo3_cross_haar.png` plotting Correlation vs Scale.
+
 ---
 
 ## 4. Hysteresis Analysis (Loop Area)
@@ -183,6 +194,9 @@ print(f"Loop Area: {hyst_stats['area']:.4f}")
 # Direction: Counter-Clockwise
 # Area: Positive
 ```
+
+**Visualization:**
+See `examples/output/demo4_hysteresis.png`. This phase-space plot shows $\Delta C$ vs $\Delta Q$, revealing the loop structure.
 
 ---
 
@@ -222,3 +236,6 @@ if len(anomalies) > 0:
 # Expected Output:
 # Should detect the volatility burst around t=100.
 ```
+
+**Visualization:**
+See `examples/output/demo5_anomaly.png`. The top panel shows the raw time series (where the anomaly might be hidden in noise), and the bottom panel shows the Haar Fluctuation spiking clearly at the anomaly time.
