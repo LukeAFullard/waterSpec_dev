@@ -62,8 +62,10 @@ print(f"Effective Sample Size at largest scale: {n_eff:.1f}")
 # H should be close to 0.5.
 ```
 
-**Visualization:**
-The overlapping method produces a smoother curve with tighter confidence intervals than the non-overlapping approach.
+**Interpretation of Results:**
+*   **Beta $\approx$ 2.0 (Brown Noise):** This indicates a non-stationary, "random walk" process. In hydrology, this often corresponds to cumulative storage processes (e.g., large aquifers or reservoirs) where current values are the sum of past inputs. The system has infinite memory of past events.
+*   **Contrast with Beta $\approx$ 0.0 (White Noise):** If you saw $\beta \approx 0$, it would imply a "memoryless" system dominated by rapid, uncorrelated events (e.g., flash floods in small impervious catchments).
+*   **Overlapping Benefit:** The plot shows that overlapping windows produce a much smoother scaling curve with tighter confidence intervals, especially at large scales where data is scarce. This gives you higher confidence in the estimated slope.
 
 ---
 
@@ -112,8 +114,11 @@ print(f"Slope (H) after breakpoint: {seg['Hs'][1]:.2f}")
 # H2 should be close to +0.5 (Random Walk, beta=2).
 ```
 
-**Visualization:**
-The plot shows the data points and two distinct regression lines meeting at the breakpoint.
+**Interpretation of Results:**
+*   **The Breakpoint:** The detected scale (e.g., ~40 hours in this synthetic example) represents the "characteristic time" of the system. In a real catchment, this could correspond to the transition from storm-event scale to seasonal scale.
+*   **Slope Change:**
+    *   **Small Scales ($H \approx -0.5, \beta \approx 0$):** The system behaves like white noise. It forgets perturbations quickly. Management actions here (e.g., stopping a point source) would have immediate effects.
+    *   **Large Scales ($H \approx 0.5, \beta \approx 2$):** The system behaves like a random walk. It "remembers" and integrates inputs. Management actions will take a long time to manifest as a trend change against the background wandering.
 
 ---
 
@@ -164,8 +169,10 @@ for lag, rho in zip(cross_results['lags'], cross_results['correlation']):
 # High positive correlation at scales > 14 days (reflecting the constructed flushing relationship).
 ```
 
-**Visualization:**
-The plot displays Correlation vs Scale, indicating how the strength of the C-Q relationship changes with the observation window.
+**Interpretation of Results:**
+*   **Positive Correlation ($\rho > 0$):** Indicates "Flushing" or "Mobilization". High flows mobilize more constituent (e.g., sediment, particulate P).
+*   **Negative Correlation ($\rho < 0$):** Indicates "Dilution". High flows dilute a constant source (e.g., point source inputs, weathering-derived ions).
+*   **Scale Dependence:** If $\rho$ is near 0 at short scales but high at long scales, it suggests that individual storms don't drive concentration changes, but seasonal wet/dry cycles do. This implies distinct transport pathways are active at different frequencies.
 
 ---
 
@@ -203,8 +210,10 @@ print(f"Loop Area: {hyst_stats['area']:.4f}")
 # Area: Positive
 ```
 
-**Visualization:**
-The phase-space plot shows $\Delta C$ vs $\Delta Q$, revealing the loop structure and direction.
+**Interpretation of Results:**
+*   **Clockwise (Negative Area):** Concentration peaks *before* discharge. This suggests a "first flush" effect where available pollutants on the surface are washed off quickly and exhausted before the peak flow arrives.
+*   **Counter-Clockwise (Positive Area):** Concentration peaks *after* discharge. This suggests a delayed source, such as distant groundwater inputs or slow subsurface mixing, which arrives later in the event.
+*   **Zero Area:** Linear response (no hysteresis). The system responds instantaneously.
 
 ---
 
@@ -247,8 +256,9 @@ if len(anomalies) > 0:
 # Should detect the volatility burst around t=100.
 ```
 
-**Visualization:**
-The top panel shows the raw time series (where the anomaly might be hidden in noise), and the bottom panel shows the Haar Fluctuation spiking clearly at the anomaly time.
+**Interpretation of Results:**
+*   **Why Volatility Matters:** In the example, the mean of the data didn't change, so a standard "mean shift" detector might miss it. However, the *variability* exploded. This often precedes system failures (e.g., sensor drift start) or indicates a new pollution source type (e.g., intermittent dumping).
+*   **Action:** When the sliding Haar metric exceeds a threshold (e.g., $3\sigma$), it triggers an alarm for operators to investigate, even if the concentration levels are technically "legal".
 
 ---
 
@@ -291,5 +301,9 @@ print(f"Estimated Lag: {peak_lag} days")
 # Estimated Lag should be 5.0 days.
 ```
 
-**Visualization:**
-The plot shows Cross-Haar Correlation vs Lag Offset. The peak of the curve identifies the dominant response time.
+**Interpretation of Results:**
+*   **Peak Location:** The lag offset where correlation is maximized represents the *dominant travel time* or reaction time of the catchment.
+*   **Physical Meaning:**
+    *   **Short Lag (~0 days):** Surface runoff dominance. Pollutants are washed off immediately.
+    *   **Long Lag (Days to Weeks):** Subsurface flow. Rain infiltrates, pushes old water out (piston flow), and solutes arrive much later.
+    *   **Application:** If you install a Best Management Practice (BMP) like a buffer strip, you might expect the lag time to increase as the flow path becomes longer/slower.
