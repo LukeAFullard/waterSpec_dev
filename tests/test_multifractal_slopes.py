@@ -212,7 +212,7 @@ def test_uneven_sampling(tmp_path, missing_fraction):
     Test that waterSpec correctly estimates the spectral slope (beta)
     even when the time series is unevenly sampled (missing data).
     """
-    n_points = 1000
+    n_points = 2000
     dt = 1.0
     beta = 1.5  # Pink/Red noise
 
@@ -329,7 +329,8 @@ def test_haar_mannks_segmentation(tmp_path):
     # Run Haar
     haar = HaarAnalysis(time, series)
     # Use many lags to capture the shape well
-    haar_results = haar.run(min_lag=dt, max_lag=n_points*dt/2, num_lags=50)
+    # Reduce min_samples_per_window to 1 to capture short lags (High Freq)
+    haar_results = haar.run(min_lag=dt, max_lag=n_points*dt/2, num_lags=50, min_samples_per_window=1)
     lags = haar_results["lags"]
     s1 = haar_results["s1"]
 
@@ -439,7 +440,7 @@ def test_haar_ls_uneven_multifractal(tmp_path):
     # --- 2. Haar Analysis ---
     print("\n--- Haar Analysis ---")
     haar = HaarAnalysis(uneven_time, uneven_series)
-    haar_results = haar.run(min_lag=dt, max_lag=n_points*dt/2, num_lags=50)
+    haar_results = haar.run(min_lag=dt, max_lag=n_points*dt/2, num_lags=50, min_samples_per_window=1)
     lags = haar_results["lags"]
     s1 = haar_results["s1"]
 
