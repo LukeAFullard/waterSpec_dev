@@ -226,12 +226,11 @@ class BivariateAnalysis:
         if max_gap is None:
             max_gap = 5.0 * median_dt
 
+        warning_flags = []
         if np.max(dt) > max_gap:
-             warnings.warn(
-                f"Large data gap ({np.max(dt):.2f}) detected in surrogate generation. "
-                "Interpolation may introduce artifacts. Results should be interpreted with caution.",
-                UserWarning
-            )
+             msg = f"Large data gap ({np.max(dt):.2f}) detected in surrogate generation."
+             warnings.warn(msg + " Interpolation may introduce artifacts.", UserWarning)
+             warning_flags.append(msg)
 
         reg_time = np.arange(time[0], time[-1] + median_dt, median_dt)
 
@@ -272,7 +271,8 @@ class BivariateAnalysis:
             'lags': lags,
             'observed_correlation': obs_corrs,
             'p_values': np.array(p_values),
-            'surrogate_correlations': surr_corrs
+            'surrogate_correlations': surr_corrs,
+            'warning_flags': warning_flags
         }
 
     def run_lagged_cross_haar(
@@ -479,6 +479,15 @@ class BivariateAnalysis:
         # Interpolate to regular grid
         dt = np.diff(time)
         median_dt = np.median(dt[dt > 0])
+
+        # Check for large gaps
+        max_gap = 5.0 * median_dt
+        warning_flags = []
+        if np.max(dt) > max_gap:
+             msg = f"Large data gap ({np.max(dt):.2f}) detected."
+             warnings.warn(msg + " Interpolation may introduce artifacts in coherence.", UserWarning)
+             warning_flags.append(msg)
+
         reg_time = np.arange(time[0], time[-1], median_dt)
 
         reg_val1 = np.interp(reg_time, time, val1)
@@ -504,5 +513,6 @@ class BivariateAnalysis:
 
         return {
             'frequency': f,
-            'coherence': Cxy
+            'coherence': Cxy,
+            'warning_flags': warning_flags
         }

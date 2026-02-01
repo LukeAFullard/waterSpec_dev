@@ -39,6 +39,11 @@ The `BivariateAnalysis` class now fully supports:
 *   **Hysteresis Metrics:** Quantifying loop direction and area.
 *   *Verification:* `tests/test_bivariate.py` confirms alignment and metric calculation.
 
+### 2.4. Monte Carlo Uncertainty for Spectral Slopes
+To further strengthen legal defensibility, especially for irregularly sampled data where standard errors might be underestimated:
+*   **Monte Carlo Bootstrap:** `HaarAnalysis` now supports a `monte_carlo` bootstrap method. This generates synthetic surrogate time series with the estimated spectral slope and re-analyzes them to produce a rigorous Confidence Interval (CI) for $\beta$.
+*   *Verification:* `tests/test_haar_monte_carlo.py` confirms that the method produces valid CIs for red noise.
+
 ---
 
 ## 3. Suggestions for Further Methods (Extended Applications)
