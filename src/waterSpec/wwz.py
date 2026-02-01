@@ -37,7 +37,6 @@ def calculate_wwz(
             - freqs: The frequency array used.
             - taus: The time shift array used.
     """
-    # 1. Setup
     n = len(time)
     if taus is None:
         taus = np.linspace(time.min(), time.max(), len(time))
@@ -47,168 +46,146 @@ def calculate_wwz(
 
     wwz_matrix = np.zeros((n_freqs, n_taus))
 
-    # Pre-calculate data variance for normalization?
-    # WWZ is naturally normalized as a Z-statistic (like F-test).
+    # Vectorize over tau for each frequency
+    # We iterate over frequency to keep memory usage manageable.
 
-    # 2. Main Loop (Vectorized over time, iterated over freq/tau or freq)
-    # To be efficient, we iterate over tau and freq.
-    # Fully vectorizing over 3 dimensions (t, tau, freq) might explode memory.
-    # Let's loop over Frequency (outer) and Tau (inner), vectorizing the weighted sums over N data points.
+    # Pre-calculate T and Data grids?
+    # Shape of Delta_T will be (n_taus, n_points)
+    # Delta_T[j, k] = time[k] - taus[j]
+    # This might be large (e.g. 1000x1000 = 1MB). Totally fine.
+
+    # Taus shape: (n_taus, 1)
+    # Time shape: (1, n_points)
+    delta_t = time[None, :] - taus[:, None] # (n_taus, n_points)
+    delta_t_sq = delta_t ** 2
+
+    # Data shape: (1, n_points)
+    # Broadcast data for weighted sums
+    data_b = data[None, :]
+    data_sq_b = (data**2)[None, :]
 
     for i, freq in enumerate(freqs):
         omega = 2 * np.pi * freq
+        z = decay_constant * (omega ** 2)
 
-        for j, tau in enumerate(taus):
-            # Calculate Weights: w_i = exp(-c * omega^2 * (t_i - tau)^2)
-            # Note: Foster (1996) uses w = exp(-c * omega^2 * (t - tau)^2)
-            # This ensures the window size scales with frequency (wavelet property).
+        # Calculate weights for all taus at once
+        # weights shape: (n_taus, n_points)
+        weights = np.exp(-1.0 * z * delta_t_sq)
 
-            # Distance from center
-            delta_t = time - tau
-            z = c_omega2 = decay_constant * (omega ** 2)
-            weights = np.exp(-1.0 * z * (delta_t ** 2))
+        # Check for essentially zero weights sum
+        sum_w = np.sum(weights, axis=1) # (n_taus,)
+        valid_mask = sum_w > 1e-9
 
-            # Avoid numerical instability if weights are too small
-            # (though with exp, they just go to 0, which is fine)
+        if not np.any(valid_mask):
+            continue
 
-            sum_w = np.sum(weights)
-            if sum_w < 1e-9:
-                wwz_matrix[i, j] = 0.0
-                continue
+        # Filter valid calculations to avoid division by zero
+        # We perform calculations only on valid indices or mask later
+        # Let's perform on all and mask result
 
-            # Weighted averages (moment 0)
-            V_x = np.sum(weights * data) / sum_w
-            V_1 = 1.0 # By definition of weighted average of 1s
+        # Basis functions
+        # phi2 = cos, phi3 = sin
+        # shape: (n_taus, n_points)
+        phi2 = np.cos(omega * delta_t)
+        phi3 = np.sin(omega * delta_t)
 
-            # Define basis functions centered at tau
-            # phi1 = 1
-            # phi2 = cos(omega(t - tau))
-            # phi3 = sin(omega(t - tau))
+        # Weighted sums (vectorized over n_points axis=1)
+        # resulting shape: (n_taus,)
 
-            # We need weighted projections onto these basis functions.
-            # Foster (1996) simplifies this by computing weighted variations.
+        S_w = sum_w
+        S_c   = np.sum(weights * phi2, axis=1)
+        S_s   = np.sum(weights * phi3, axis=1)
+        S_cc  = np.sum(weights * phi2 * phi2, axis=1)
+        S_ss  = np.sum(weights * phi3 * phi3, axis=1)
+        S_cs  = np.sum(weights * phi2 * phi3, axis=1)
+        S_y   = np.sum(weights * data_b, axis=1)
+        S_yc  = np.sum(weights * data_b * phi2, axis=1)
+        S_ys  = np.sum(weights * data_b * phi3, axis=1)
+        S_yy  = np.sum(weights * data_sq_b, axis=1)
 
-            # Let's follow the standard projection formulation for Weighted Least Squares.
-            # We want to fit y = a + b*cos(...) + c*sin(...)
-            # But the basis functions are not orthogonal under the weighted inner product.
-            # So we build the Normal Equations matrix.
+        # Calculate Weighted Variation (TSS)
+        # TSS = S_yy - (S_y^2 / S_w)
+        TSS = S_yy - (S_y**2 / S_w)
 
-            phi2 = np.cos(omega * delta_t)
-            phi3 = np.sin(omega * delta_t)
+        # 3x3 Matrix Inversion (Analytic or solve small systems)
+        # Since we have N_taus independent 3x3 systems, we can use
+        # numpy.linalg.solve with broadcasting if shape is (N_taus, 3, 3)
 
-            # Weighted sums
-            # S_k = sum(w * phi_k)
-            # But we can simplify by centering the data?
-            # Foster calculates N_eff and weighted variations.
+        # Construct M stack: (n_taus, 3, 3)
+        M = np.zeros((n_taus, 3, 3))
+        M[:, 0, 0] = S_w
+        M[:, 0, 1] = S_c; M[:, 1, 0] = S_c
+        M[:, 0, 2] = S_s; M[:, 2, 0] = S_s
+        M[:, 1, 1] = S_cc
+        M[:, 1, 2] = S_cs; M[:, 2, 1] = S_cs
+        M[:, 2, 2] = S_ss
 
-            # Let's use the explicit matrix inversion (3x3) for clarity and correctness.
-            # Design matrix A (N x 3): [1, cos, sin]
-            # Weight matrix W (diagonal)
-            # Solve (A^T W A) beta = A^T W y
+        # Construct B stack: (n_taus, 3)
+        B = np.zeros((n_taus, 3))
+        B[:, 0] = S_y
+        B[:, 1] = S_yc
+        B[:, 2] = S_ys
 
-            # Construct A^T W A  (3x3 symmetric matrix)
-            # Elements: sum(w * phi_k * phi_m)
+        # Solve M * x = B for x (coeffs)
+        # Only for valid masks
+        coeffs = np.zeros((n_taus, 3))
 
-            S_w   = np.sum(weights)
-            S_c   = np.sum(weights * phi2)
-            S_s   = np.sum(weights * phi3)
-            S_cc  = np.sum(weights * phi2 * phi2)
-            S_ss  = np.sum(weights * phi3 * phi3)
-            S_cs  = np.sum(weights * phi2 * phi3)
-            S_y   = np.sum(weights * data)
-            S_yc  = np.sum(weights * data * phi2)
-            S_ys  = np.sum(weights * data * phi3)
-            S_yy  = np.sum(weights * data * data) # Total weighted power
+        # Using linalg.solve on the whole stack
+        # Handle singular matrices by catching? Or check det first.
+        # Check determinanats
+        det = np.linalg.det(M)
+        valid_matrix_mask = np.abs(det) > 1e-12
 
-            # Matrix M = [[S_w, S_c, S_s], [S_c, S_cc, S_cs], [S_s, S_cs, S_ss]]
-            # Vector B = [S_y, S_yc, S_ys]
+        final_mask = valid_mask & valid_matrix_mask
 
-            # However, Foster (1996) provides a cleaner form for the Z-statistic
-            # by orthogonalizing.
-            # "The Weighted Wavelet Z-transform is defined as the reduction in the weighted
-            # variation of the data due to the fitted model function."
-
-            # Weighted Variation of data: V_y = sum(w * y^2) / S_w - (sum(w*y)/S_w)^2
-            # Actually simpler: Total Sum of Squares (Weighted)
-            # TSS = sum(w * (y - weighted_mean_y)^2)
-
-            weighted_mean = S_y / S_w
-            TSS = S_yy - (S_y**2 / S_w) # Weighted Total Sum of Squares
-
-            if TSS <= 0:
-                wwz_matrix[i, j] = 0.0
-                continue
-
-            # Model Sum of Squares (RSS_model)
-            # We solve the 2x2 system for the oscillating terms after projecting out the mean?
-            # Or just solve the full 3x3.
-            # Let's solve the 3x3 to get the fitted coefficients [a, b, c].
-            # fitted_y = a + b*cos + c*sin
-            # RSS = sum(w * (y - fitted_y)^2)
-
-            # Z = (N_eff - 3)/2 * (TSS - RSS) / RSS  (This is F-stat form)
-            # Foster defines WWZ = (N_eff - 3)/2 * (V_y - V_res) / V_res?
-            # Actually Foster defines Z = (N_eff - 1)/2 * V_mod / V_res ?
-
-            # Let's compute the "Power" as the Model Sum of Squares relative to Total.
-            # Or simply the Model Sum of Squares (Weighted).
-
-            # Inversion of 3x3 symmetric matrix
-            det_M = (S_w * (S_cc * S_ss - S_cs**2) -
-                     S_c * (S_c * S_ss - S_cs * S_s) +
-                     S_s * (S_c * S_cs - S_cc * S_s))
-
-            if np.abs(det_M) < 1e-12:
-                wwz_matrix[i, j] = 0.0
-                continue
-
-            # We only need the reduction in variance.
-            # Let's use numpy.linalg.solve for stability
-            M = np.array([[S_w, S_c, S_s],
-                          [S_c, S_cc, S_cs],
-                          [S_s, S_cs, S_ss]])
-            B = np.array([S_y, S_yc, S_ys])
-
+        if np.any(final_mask):
             try:
-                coeffs = np.linalg.solve(M, B) # [a, b, c]
+                # Reshape B to (k, 3, 1) to ensure it's treated as column vectors
+                # This prevents ambiguity in broadcasting rules for stacked solve
+                B_masked = B[final_mask][..., None]
+                M_masked = M[final_mask]
+
+                sol = np.linalg.solve(M_masked, B_masked)
+
+                # Squeeze back to (k, 3)
+                coeffs[final_mask] = sol[..., 0]
             except np.linalg.LinAlgError:
-                 wwz_matrix[i, j] = 0.0
-                 continue
+                # Fallback or just ignore (zeros)
+                pass
 
-            # RSS (Weighted Residual Sum of Squares)
-            # RSS = sum(w * (y - (a + b*c + c*s))^2)
-            # Expand: sum(w*y^2) - 2*coeffs*B + coeffs*M*coeffs
-            # = S_yy - coeffs.T @ M @ coeffs?
-            # Let's verify:
-            # (y - Xb)^T W (y - Xb) = yWy - 2bXWy + bXWXb
-            # XTy = B. XWX = M.
-            # RSS = S_yy - 2*coeffs.dot(B) + coeffs.dot(M.dot(coeffs))
-            # Since M.coeffs = B, then coeffs.dot(M.dot(coeffs)) = coeffs.dot(B).
-            # So RSS = S_yy - coeffs.dot(B).
+        # Model SS
+        # Power = (coeffs dot B) - (S_y^2 / S_w)
+        # Dot product for each tau: sum(coeffs * B, axis=1)
+        term1 = np.sum(coeffs * B, axis=1)
+        model_SS = term1 - (S_y**2 / S_w)
 
-            model_SS = np.dot(coeffs, B) - (S_y**2 / S_w)
-            # Note: We subtract the mean component to get the power of the *oscillation*
-            # The "Total Sum of Squares" usually refers to variation around the mean.
-            # The 3-param model includes the mean (a).
-            # The 1-param model (just mean) has SS = S_y^2 / S_w.
-            # So the contribution of the oscillation (params b, c) is:
-            # Power = (coeffs.dot(B)) - (S_y^2 / S_w)
+        # N_eff
+        sum_w2 = np.sum(weights**2, axis=1)
+        n_eff = (S_w**2) / sum_w2
 
-            # N_eff calculation (Effective number of points in the window)
-            # N_eff = (sum w)^2 / sum(w^2)
-            sum_w2 = np.sum(weights**2)
-            n_eff = (S_w**2) / sum_w2
+        # Residual SS
+        residual_SS = TSS - model_SS
 
-            # WWZ Statistic (Foster 1996, eq 5.1 - 5.4ish)
-            # Z = (N_eff - 3)/2 * Power / (TSS - Power)
-            # where TSS - Power = Residual SS
+        # Calculate Z
+        # Z = (N_eff - 3)/2 * (Model_SS / Residual_SS)
 
-            residual_SS = TSS - model_SS
+        z_scores = np.zeros(n_taus)
 
-            if residual_SS <= 1e-12:
-                 wwz_matrix[i, j] = np.nan # Perfect fit?
-            else:
-                 wwz = ((n_eff - 3.0) / 2.0) * (model_SS / residual_SS)
-                 wwz_matrix[i, j] = wwz
+        # Case 1: Normal Residuals
+        normal_mask = (residual_SS > 1e-12) & final_mask
+        if np.any(normal_mask):
+             z_scores[normal_mask] = ((n_eff[normal_mask] - 3.0) / 2.0) * (model_SS[normal_mask] / residual_SS[normal_mask])
+
+        # Case 2: Near-Perfect Fit (Residuals ~ 0, Model >> 0)
+        # Assign a high value (e.g. based on machine precision limit)
+        perfect_mask = (residual_SS <= 1e-12) & (model_SS > 1e-12) & final_mask
+        if np.any(perfect_mask):
+             # Use a large finite number effectively representing infinity for comparison
+             # or theoretically calculated limit if we capped RSS.
+             # Here we just use a proxy for "Very Significant"
+             # Since typical Z scores are O(10-100), 1e9 is safe.
+             z_scores[perfect_mask] = 1e9
+
+        wwz_matrix[i, :] = z_scores
 
     return wwz_matrix, freqs, taus
