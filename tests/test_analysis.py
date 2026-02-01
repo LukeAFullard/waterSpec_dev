@@ -846,3 +846,32 @@ def test_analysis_raises_error_for_loess_with_errors_and_no_bootstrap():
         input_time_unit="days",
     )
     assert analyzer is not None
+def test_analysis_validate_model_psresp(tmp_path):
+    """Test that PSRESP validation is triggered and runs successfully."""
+    time = np.arange(100, dtype=np.float64)
+    # Generate random walk (Red Noise)
+    series = np.cumsum(np.random.normal(0, 1, 100))
+    output_dir = tmp_path / "results_validation"
+
+    analyzer = Analysis(
+        time_col="time",
+        data_col="value",
+        time_array=time,
+        data_array=series,
+        input_time_unit="days",
+    )
+
+    # Run with small parameters for speed
+    results = analyzer.run_full_analysis(
+        output_dir=str(output_dir),
+        n_bootstraps=10,
+        validate_model=True
+    )
+
+    assert results["psresp_performed"] is True
+    assert "psresp_success_fraction" in results
+    assert 0.0 <= results["psresp_success_fraction"] <= 1.0
+
+    summary_path = output_dir / "value_summary.txt"
+    content = summary_path.read_text()
+    assert "Model Validation (PSRESP)" in content

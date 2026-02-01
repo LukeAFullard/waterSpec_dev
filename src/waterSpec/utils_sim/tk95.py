@@ -2,12 +2,6 @@
 import numpy as np
 from typing import Callable, Tuple, Union
 
-def power_law(f: Union[float, np.ndarray], beta: float, amp: float) -> Union[float, np.ndarray]:
-    """
-    Power law PSD: P(f) = amp * f^(-beta)
-    """
-    return amp * (f**(-beta))
-
 def simulate_tk95(
     psd_func: Callable,
     params: Tuple,
