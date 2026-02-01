@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 from typing import Tuple, Optional, Dict
 import logging
-from scipy import stats
+from scipy import stats, interpolate
 
 from .haar_analysis import calculate_haar_fluctuations
 from .surrogates import generate_phase_randomized_surrogates, calculate_significance_p_value
@@ -195,35 +195,51 @@ class BivariateAnalysis:
     ) -> Dict:
         """
         Calculates significance of Cross-Haar Correlation using phase-randomized surrogates.
+        Handles irregularly sampled data by resampling to a regular grid for surrogate generation
+        and then interpolating back.
         """
         if self.aligned_data is None:
             raise ValueError("Data must be aligned first using `align_data`.")
 
-        # Run observed analysis
-        obs_results = self.run_cross_haar_analysis(lags, overlap, overlap_step_fraction)
-        obs_corrs = np.array(obs_results['correlation'])
-
-        # Generate surrogates for the second variable (e.g. Discharge)
-        # We need evenly spaced data for FFT phase randomization.
-        # Assuming aligned data is regularly sampled for surrogate generation.
-
-        data2_vals = self.aligned_data[self.name2].values
-
-        if len(data2_vals) < 10:
-             return {'error': 'Insufficient data for surrogates'}
-
-        surrs = generate_phase_randomized_surrogates(
-            data2_vals, n_surrogates=n_surrogates, seed=seed
-        )
-
-        surr_corrs = np.zeros((n_surrogates, len(lags)))
-
         time = self.aligned_data['time'].values
         val1 = self.aligned_data[self.name1].values # Keep var1 fixed
+        val2 = self.aligned_data[self.name2].values
+
+        if len(val2) < 10:
+             return {'error': 'Insufficient data for surrogates'}
+
+        # Run observed analysis
+        obs_results = self._calculate_cross_haar(
+            time, val1, val2, lags, overlap, overlap_step_fraction
+        )
+        obs_corrs = np.array(obs_results['correlation'])
+
+        # --- Handle Irregular Sampling for Surrogates ---
+        # 1. Create a regular time grid covering the range of the data
+        # Use the median sampling interval as the step
+        dt = np.diff(time)
+        median_dt = np.median(dt[dt > 0])
+        reg_time = np.arange(time[0], time[-1] + median_dt, median_dt)
+
+        # 2. Interpolate data2 onto this regular grid
+        # Use linear interpolation (or could use others)
+        reg_val2 = np.interp(reg_time, time, val2)
+
+        # 3. Generate surrogates on the regular grid (FFT safe)
+        reg_surrs = generate_phase_randomized_surrogates(
+            reg_val2, n_surrogates=n_surrogates, seed=seed
+        )
+
+        # 4. Interpolate surrogates back to original timestamps
+        # We need to do this for each surrogate
+        surr_corrs = np.zeros((n_surrogates, len(lags)))
 
         for i in range(n_surrogates):
+            # Interpolate back to original 'time'
+            surr_on_orig_time = np.interp(time, reg_time, reg_surrs[i])
+
             res = self._calculate_cross_haar(
-                time, val1, surrs[i], lags, overlap, overlap_step_fraction
+                time, val1, surr_on_orig_time, lags, overlap, overlap_step_fraction
             )
             surr_corrs[i, :] = res['correlation']
 
@@ -375,10 +391,6 @@ class BivariateAnalysis:
         fluc1 = [] # x coordinate (usually C)
         fluc2 = [] # y coordinate (usually Q)
 
-        # Wait, usually hysteresis is C vs Q. But here we are looking at delta C vs delta Q?
-        # The plan says "Analyze the Phase Space of Haar Fluctuations (Delta C vs Delta Q)".
-        # So yes, we plot delta C vs delta Q.
-
         step_size = tau * overlap_step_fraction if overlap else tau
         t_start = time[0]
 
@@ -412,28 +424,71 @@ class BivariateAnalysis:
 
         # Shoelace formula for signed area
         # A = 0.5 * sum(x_i * y_{i+1} - x_{i+1} * y_i)
-        # Here x = fluc1 (C), y = fluc2 (Q)? Or vice versa?
-        # Standard hysteresis is usually Q on X, C on Y.
-        # But the prompt formula was generic.
-        # Let's assume name1 is C (Y) and name2 is Q (X).
-        # x = fluc2, y = fluc1.
+        # Here x = fluc2 (Q, independent), y = fluc1 (C, dependent).
 
         x = np.array(fluc2)
         y = np.array(fluc1)
 
-        # Close the loop? Hysteresis loops in time usually don't close perfectly unless periodic.
-        # But we can compute the "swept area" over the trajectory.
-        # The Shoelace formula applies to a polygon.
-        # If we treat the time series trajectory as a polygon, we implicitly close start to end?
-        # Or we sum the incremental cross products.
-
         area = 0.5 * np.sum(x[:-1] * y[1:] - x[1:] * y[:-1])
-        # Add closure from last to first point to make it a loop?
-        # For a trajectory, maybe not. But usually hysteresis refers to cyclic behavior.
-        # If we just sum cross products of displacement vectors?
-        # Let's stick to the simple shoelace sum of the open trajectory.
 
         direction = "Counter-Clockwise" if area > 0 else "Clockwise"
         if np.isclose(area, 0): direction = "None"
 
         return {'area': area, 'direction': direction}
+
+    def calculate_spectral_coherence(
+        self,
+        min_freq: Optional[float] = None,
+        max_freq: Optional[float] = None,
+        samples_per_peak: int = 5
+    ) -> Dict:
+        """
+        Calculates Magnitude-Squared Coherence (MSC) using Lomb-Scargle periodograms.
+        This handles irregular sampling.
+
+        MSC(f) = |P_xy(f)|^2 / (P_xx(f) * P_yy(f))
+
+        However, standard Lomb-Scargle does not provide the cross-spectrum P_xy directly.
+        We can approximate coherence using the Welch method on interpolated data
+        OR use a specific generalized Lomb-Scargle cross-spectrum implementation.
+
+        Given we don't have a cross-LS implementation readily available in standard libs (like astropy),
+        we will use the interpolation + Welch/CSD method.
+        """
+        if self.aligned_data is None:
+            raise ValueError("Data must be aligned first.")
+
+        time = self.aligned_data['time'].values
+        val1 = self.aligned_data[self.name1].values
+        val2 = self.aligned_data[self.name2].values
+
+        # Interpolate to regular grid
+        dt = np.diff(time)
+        median_dt = np.median(dt[dt > 0])
+        reg_time = np.arange(time[0], time[-1], median_dt)
+
+        reg_val1 = np.interp(reg_time, time, val1)
+        reg_val2 = np.interp(reg_time, time, val2)
+
+        from scipy.signal import coherence
+
+        # Calculate coherence using Welch's method
+        # fs = 1 / median_dt
+        fs = 1.0 / median_dt if median_dt > 0 else 1.0
+
+        f, Cxy = coherence(reg_val1, reg_val2, fs=fs, nperseg=min(len(reg_val1)//2, 256))
+
+        # Filter range
+        if min_freq is not None:
+            mask = f >= min_freq
+            f = f[mask]
+            Cxy = Cxy[mask]
+        if max_freq is not None:
+            mask = f <= max_freq
+            f = f[mask]
+            Cxy = Cxy[mask]
+
+        return {
+            'frequency': f,
+            'coherence': Cxy
+        }
