@@ -7,67 +7,8 @@ import concurrent.futures
 import numpy as np
 from astropy.timeseries import LombScargle
 
-
-def simulate_tk95(
-    psd_func: Callable,
-    params: Tuple,
-    N: int,
-    dt: float
-) -> Tuple[np.ndarray, np.ndarray]:
-    """
-    Simulate a time series with a given PSD using the Timmer & Koenig (1995) method.
-
-    Args:
-        psd_func (Callable): Function that computes the PSD. Signature: func(f, *params).
-        params (Tuple): Parameters for the PSD function.
-        N (int): Number of time points to simulate.
-        dt (float): Time step.
-
-    Returns:
-        Tuple[np.ndarray, np.ndarray]: (time, flux) arrays.
-    """
-    freqs = np.fft.rfftfreq(N, d=dt)
-
-    psd = np.zeros_like(freqs)
-    mask = freqs > 0
-    psd[mask] = psd_func(freqs[mask], *params)
-
-    scale = np.sqrt(psd * N / (2 * dt))
-
-    real_part = np.random.normal(0, 1, size=len(freqs)) * scale
-    imag_part = np.random.normal(0, 1, size=len(freqs)) * scale
-
-    real_part[0] = 0
-    imag_part[0] = 0
-
-    if N % 2 == 0:
-        imag_part[-1] = 0
-        real_part[-1] *= np.sqrt(2)
-
-    fourier_components = real_part + 1j * imag_part
-
-    flux = np.fft.irfft(fourier_components, n=N)
-    time = np.arange(N) * dt
-
-    return time, flux
-
-def resample_to_times(
-    source_time: np.ndarray,
-    source_flux: np.ndarray,
-    target_time: np.ndarray
-) -> np.ndarray:
-    """
-    Resample the simulated time series to the observed time stamps using linear interpolation.
-    NOTE: target_time must be relative to the start of the simulation (normally 0).
-    If target_time has large offsets (like MJD), subtract the start time before calling this.
-    """
-    return np.interp(target_time, source_time, source_flux)
-
-def power_law(f: Union[float, np.ndarray], beta: float, amp: float) -> Union[float, np.ndarray]:
-    """
-    Power law PSD: P(f) = amp * f^(-beta)
-    """
-    return amp * (f**(-beta))
+# Import shared simulation utilities
+from .utils_sim import simulate_tk95, resample_to_times
 
 def _run_single_simulation(
     i: int,
@@ -85,12 +26,12 @@ def _run_single_simulation(
     Helper function to run a single simulation iteration.
     To be used with multiprocessing.
     """
-    if seed is not None:
-        np.random.seed(seed)
-    else:
-        np.random.seed() # Reseed with entropy
+    # Seed is handled inside simulate_tk95 now if passed,
+    # but simulate_tk95 expects an integer seed, not setting global seed.
+    # The original code set global seed.
+    # The new simulate_tk95 takes a 'seed' argument.
 
-    t_sim, x_sim = simulate_tk95(psd_func, params, N_sim, dt_sim)
+    t_sim, x_sim = simulate_tk95(psd_func, params, N_sim, dt_sim, seed=seed)
 
     # 2. Resample
     # t_obs_relative is already shifted to start at 0 (or close to 0)
@@ -98,7 +39,8 @@ def _run_single_simulation(
 
     # 3. Add noise
     if err_obs is not None:
-        noise = np.random.normal(0, err_obs)
+        rng = np.random.default_rng(seed) # Use same seed for noise
+        noise = rng.normal(0, err_obs)
         x_resampled += noise
 
     # 4. Compute Periodogram

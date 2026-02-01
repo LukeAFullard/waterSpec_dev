@@ -1,6 +1,7 @@
 
 import numpy as np
 from typing import Optional
+from waterSpec.utils_sim import simulate_tk95, resample_to_times, power_law
 
 def generate_phase_randomized_surrogates(
     data: np.ndarray,
@@ -114,3 +115,68 @@ def calculate_significance_p_value(
         count = np.sum(surrogate_metrics >= observed_metric)
 
     return (count + 1) / (n_surr + 1)
+
+def generate_power_law_surrogates(
+    time: np.ndarray,
+    beta: float,
+    n_surrogates: int = 100,
+    seed: Optional[int] = None,
+    oversample: int = 5
+) -> np.ndarray:
+    """
+    Generates surrogates with a specific power-law spectral slope (1/f^beta)
+    sampled at the specific (potentially irregular) timestamps provided.
+
+    This uses the Timmer & Koenig (1995) method to simulate a high-resolution
+    process and then resamples it to the observed times. This is the "Lomb-Scargle"
+    compatible surrogate method (model-based).
+
+    Args:
+        time (np.ndarray): Observed timestamps.
+        beta (float): Spectral slope (e.g. 0=white, 1=pink, 2=brown).
+        n_surrogates (int): Number of surrogates.
+        seed (int): Random seed.
+        oversample (int): Factor to oversample the simulation grid relative to average sampling.
+
+    Returns:
+        np.ndarray: Array of shape (n_surrogates, len(time)).
+    """
+    # Determine simulation parameters
+    t_start = time.min()
+    t_relative = time - t_start
+    duration = time.max() - t_start
+    n_points = len(time)
+    dt_avg = duration / (n_points - 1) if n_points > 1 else 1.0
+
+    dt_sim = dt_avg / oversample
+    # Ensure simulation covers the full duration plus a bit
+    N_sim = int(np.ceil(duration / dt_sim)) + 100
+
+    # Generate seeds
+    ss = np.random.SeedSequence(seed)
+    seeds = ss.generate_state(n_surrogates)
+
+    surrogates = []
+
+    for i in range(n_surrogates):
+        # 1. Simulate high-res regular process
+        # Amplitude 1.0 is arbitrary; usually we match variance later
+        t_sim, x_sim = simulate_tk95(
+            power_law,
+            params=(beta, 1.0),
+            N=N_sim,
+            dt=dt_sim,
+            seed=seeds[i]
+        )
+
+        # 2. Resample to observed times
+        x_resampled = resample_to_times(t_sim, x_sim, t_relative)
+
+        # 3. Normalize to zero mean, unit variance (standard practice for shape comparison)
+        # Or match original variance? Let's standardize.
+        if np.std(x_resampled) > 0:
+            x_resampled = (x_resampled - np.mean(x_resampled)) / np.std(x_resampled)
+
+        surrogates.append(x_resampled)
+
+    return np.array(surrogates)
