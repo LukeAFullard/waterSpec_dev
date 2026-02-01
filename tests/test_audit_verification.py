@@ -108,3 +108,31 @@ def test_audit_null_hypothesis_validity():
 
     # If surrogates work, the distribution of surrogate correlations should cover the observed one.
     assert p_val > 0.01, f"False Positive! Found significant correlation (p={p_val}) between independent red noise."
+
+def test_audit_reproducibility():
+    """
+    AUDIT CHECK 4: Reproducibility of Monte Carlo Results.
+    Legal Defensibility: Analysis must be repeatable with identical results given the same seed.
+    """
+    t, y = generate_irregular_red_noise(beta=1.5, seed=500)
+
+    # Run 1
+    haar1 = HaarAnalysis(t, y)
+    res1 = haar1.run(num_lags=10, n_bootstraps=20, bootstrap_method="monte_carlo", seed=12345)
+
+    # Run 2
+    haar2 = HaarAnalysis(t, y)
+    res2 = haar2.run(num_lags=10, n_bootstraps=20, bootstrap_method="monte_carlo", seed=12345)
+
+    # Check key metrics
+    assert np.allclose(res1['boot_betas'], res2['boot_betas']), "Monte Carlo bootstraps are not reproducible!"
+    assert res1['beta_ci_lower'] == res2['beta_ci_lower'], "Confidence Intervals differ!"
+    assert res1['beta_ci_upper'] == res2['beta_ci_upper'], "Confidence Intervals differ!"
+
+    # Run 3 with different seed
+    haar3 = HaarAnalysis(t, y)
+    res3 = haar3.run(num_lags=10, n_bootstraps=20, bootstrap_method="monte_carlo", seed=99999)
+
+    # Should differ
+    # Note: Small chance they are identical if n_bootstraps is small and data is weird, but highly unlikely for floats.
+    assert not np.allclose(res1['boot_betas'], res3['boot_betas']), "Seed change did not change random numbers!"
