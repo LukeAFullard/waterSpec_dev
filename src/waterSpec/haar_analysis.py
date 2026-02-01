@@ -8,6 +8,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import MannKS
 
+from .surrogates import generate_power_law_surrogates
+
 def calculate_haar_fluctuations(
     time: np.ndarray,
     data: np.ndarray,
@@ -363,15 +365,28 @@ class HaarAnalysis:
         self.segmented_results = None
         self.full_results = {} # Store full dictionary
 
-    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=5):
+    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=5, bootstrap_method="standard", seed=None):
+        """
+        Runs the Haar analysis.
+
+        Args:
+            bootstrap_method (str): "standard" (MannKS fit bootstrap) or "monte_carlo" (Parametric bootstrap on time series).
+                                    "monte_carlo" is recommended for irregular data to rigorously estimate spectral uncertainty.
+            seed (int): Random seed for bootstrap.
+        """
         self.lags, self.s1, self.counts, self.n_effective = calculate_haar_fluctuations(
             self.time, self.data, min_lag=min_lag, max_lag=max_lag, num_lags=num_lags, log_spacing=log_spacing,
             overlap=overlap, overlap_step_fraction=overlap_step_fraction, min_samples_per_window=min_samples_per_window
         )
 
-        # Always run standard fit
+        # Run standard fit. If monte_carlo, use 0 bootstraps for the initial fit to save time (we will bootstrap later).
+        # Actually, let's keep n_bootstraps for standard even if monte_carlo, so we have a comparison?
+        # No, if monte_carlo is chosen, we want the "defensible" CI to override the standard one.
+
+        initial_bootstraps = n_bootstraps if bootstrap_method == "standard" else 0
+
         fit_results = fit_haar_slope(
-            self.lags, self.s1, n_bootstraps=n_bootstraps
+            self.lags, self.s1, n_bootstraps=initial_bootstraps
         )
 
         self.H = fit_results.get("H", np.nan)
@@ -379,16 +394,59 @@ class HaarAnalysis:
         self.r2 = fit_results.get("r2", np.nan)
         self.intercept = fit_results.get("intercept", np.nan)
 
+        if bootstrap_method == "monte_carlo" and not np.isnan(self.beta):
+            # Parametric Bootstrap (Monte Carlo)
+            # 1. Generate N surrogates with the estimated beta
+            surrogates = generate_power_law_surrogates(
+                self.time, self.beta, n_surrogates=n_bootstraps, seed=seed
+            )
+
+            betas_boot = []
+            Hs_boot = []
+
+            for surr in surrogates:
+                # Calculate S1 for surrogate
+                lags_b, s1_b, _, _ = calculate_haar_fluctuations(
+                    self.time, surr,
+                    lag_times=self.lags, # Use same lags
+                    overlap=overlap,
+                    overlap_step_fraction=overlap_step_fraction,
+                    min_samples_per_window=min_samples_per_window
+                )
+
+                # Fit slope (no bootstrap needed here, just the slope)
+                res_b = fit_haar_slope(lags_b, s1_b, n_bootstraps=0)
+
+                if not np.isnan(res_b['beta']):
+                    betas_boot.append(res_b['beta'])
+                    Hs_boot.append(res_b['H'])
+
+            betas_boot = np.array(betas_boot)
+            Hs_boot = np.array(Hs_boot)
+
+            if len(betas_boot) > 10:
+                std_beta = np.std(betas_boot)
+                std_H = np.std(Hs_boot)
+
+                # Update CIs using 1.96 * std (approx 95%)
+                # Center around the OBSERVED estimate
+                fit_results['beta_ci_lower'] = self.beta - 1.96 * std_beta
+                fit_results['beta_ci_upper'] = self.beta + 1.96 * std_beta
+
+                fit_results['slope_ci_lower'] = self.H - 1.96 * std_H
+                fit_results['slope_ci_upper'] = self.H + 1.96 * std_H
+
+                # Store full distribution for advanced users
+                fit_results['boot_betas'] = betas_boot
+                fit_results['boot_Hs'] = Hs_boot
+                fit_results['bootstrap_method'] = 'monte_carlo'
+
         # Run segmented fit if requested
         if max_breakpoints > 0:
             best_bic = np.inf
             best_results = None
 
             # Calculate BIC for standard fit (0 breakpoints)
-            # Use data from fit_results? fit_results doesn't return BIC yet?
-            # Let's calculate approx BIC for 0 bp here or trust fit_segmented_haar(n=0) if it supported it.
-            # fit_segmented_haar relies on MannKS.segmented which expects n >= 1?
-            # Let's manually calc BIC for standard fit
             valid = (self.lags > 0) & (self.s1 > 0)
             if np.sum(valid) > 2:
                 log_lags = np.log10(self.lags[valid])
@@ -400,6 +458,8 @@ class HaarAnalysis:
                 best_bic = bic_0
 
             for nb in range(1, max_breakpoints + 1):
+                # Note: Segmented fit still uses standard MannKS bootstrap for now.
+                # Monte Carlo for segmented fit is very expensive and complex (finding breakpoints in surrogates).
                 res = fit_segmented_haar(self.lags, self.s1, n_breakpoints=nb, n_bootstraps=n_bootstraps)
                 if res.get("bic", np.inf) < best_bic:
                     best_bic = res["bic"]
