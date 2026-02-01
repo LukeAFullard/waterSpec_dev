@@ -46,3 +46,20 @@ def test_spectral_coherence():
     # Check peak coherence at 0.1 Hz
     target_idx = np.argmin(np.abs(freqs - 0.1))
     assert coherence[target_idx] > 0.8 # Should be high
+
+def test_large_gap_warning():
+    """
+    Test that large gaps trigger a warning in surrogates.
+    """
+    # Create data with a huge gap
+    # Use floats for time to avoid pandas int tolerance issues
+    time = np.concatenate([np.arange(0.0, 10.0), np.arange(100.0, 110.0)])
+    data = np.random.randn(20)
+
+    biv = BivariateAnalysis(time, data, "V1", time, data, "V2")
+    biv.align_data(tolerance=0.1)
+
+    lags = np.array([1, 2])
+
+    with pytest.warns(UserWarning, match="Large data gap"):
+        biv.calculate_significance(lags, n_surrogates=5)

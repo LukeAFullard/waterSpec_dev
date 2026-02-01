@@ -39,3 +39,33 @@ def test_optimal_embedding():
 
     assert E_opt >= 1
     assert E_opt <= 5
+
+def test_irregular_sampling_ccm():
+    """
+    Test that CCM handles irregular sampling by interpolating.
+    We create a regular system, then subsample it irregularly.
+    """
+    # 1. Create high-res regular system
+    t_fine = np.linspace(0, 50, 500)
+    X_fine = np.sin(t_fine)
+    Y_fine = np.cos(t_fine) # Coupled
+
+    # 2. Subsample irregularly
+    rng = np.random.default_rng(42)
+    indices = np.sort(rng.choice(len(t_fine), 100, replace=False))
+
+    t_irr = t_fine[indices]
+    X_irr = X_fine[indices]
+    Y_irr = Y_fine[indices]
+
+    # Ensure it is actually irregular
+    dt = np.diff(t_irr)
+    assert not np.allclose(dt, np.median(dt))
+
+    # 3. Run CCM
+    # Should warn about interpolation
+    with pytest.warns(UserWarning, match="unevenly sampled"):
+        res = convergent_cross_mapping(t_irr, X_irr, Y_irr, E=2, tau=1)
+
+    # Should still give good result
+    assert res['rho'][-1] > 0.8

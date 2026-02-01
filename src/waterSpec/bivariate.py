@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from typing import Tuple, Optional, Dict
 import logging
+import warnings
 from scipy import stats, interpolate
 
 from .haar_analysis import calculate_haar_fluctuations
@@ -191,7 +192,8 @@ class BivariateAnalysis:
         n_surrogates: int = 100,
         overlap: bool = True,
         overlap_step_fraction: float = 0.1,
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
+        max_gap: Optional[float] = None
     ) -> Dict:
         """
         Calculates significance of Cross-Haar Correlation using phase-randomized surrogates.
@@ -219,6 +221,18 @@ class BivariateAnalysis:
         # Use the median sampling interval as the step
         dt = np.diff(time)
         median_dt = np.median(dt[dt > 0])
+
+        # Safe gap handling
+        if max_gap is None:
+            max_gap = 5.0 * median_dt
+
+        if np.max(dt) > max_gap:
+             warnings.warn(
+                f"Large data gap ({np.max(dt):.2f}) detected in surrogate generation. "
+                "Interpolation may introduce artifacts. Results should be interpreted with caution.",
+                UserWarning
+            )
+
         reg_time = np.arange(time[0], time[-1] + median_dt, median_dt)
 
         # 2. Interpolate data2 onto this regular grid

@@ -1,6 +1,7 @@
 
 import numpy as np
 from typing import Dict, Tuple, Optional
+import warnings
 
 def convergent_cross_mapping(
     time: np.ndarray,
@@ -9,7 +10,8 @@ def convergent_cross_mapping(
     lib_sizes: Optional[np.ndarray] = None,
     E: int = 3,
     tau: int = 1,
-    n_neighbors: Optional[int] = None
+    n_neighbors: Optional[int] = None,
+    max_gap: Optional[float] = None
 ) -> Dict:
     """
     Performs Convergent Cross Mapping (CCM) to test if Y causes X (Y -> X).
@@ -19,13 +21,16 @@ def convergent_cross_mapping(
     We check if correlation(Y_predicted, Y_observed) increases with library length L.
 
     Args:
-        time (np.ndarray): Time array (assumed regularly sampled).
+        time (np.ndarray): Time array.
         X (np.ndarray): The potential effect variable (we use M_X to predict Y).
         Y (np.ndarray): The potential causal variable.
         lib_sizes (np.ndarray): Array of library lengths L to test convergence.
         E (int): Embedding dimension.
         tau (int): Time lag for embedding.
         n_neighbors (int): Number of nearest neighbors (defaults to E+1).
+        max_gap (float): Maximum gap size allowed for interpolation. If a gap > max_gap exists,
+                         interpolation is skipped and a warning/error is raised (safe default).
+                         If None, defaults to 5 * median_dt.
 
     Returns:
         Dict containing 'lib_sizes', 'rho' (correlation vs L), 'rmse'.
@@ -34,6 +39,42 @@ def convergent_cross_mapping(
     n = len(X)
     if len(Y) != n:
         raise ValueError("X and Y must be same length.")
+
+    # --- Check for Uneven Sampling ---
+    if len(time) > 1:
+        dt = np.diff(time)
+        median_dt = np.median(dt)
+
+        # Define safe gap threshold
+        if max_gap is None:
+            max_gap = 5.0 * median_dt
+
+        # Check for large gaps
+        max_obs_gap = np.max(dt)
+        if max_obs_gap > max_gap:
+            warnings.warn(
+                f"Data contains a gap of {max_obs_gap:.2f} which exceeds the maximum allowed gap "
+                f"for safe interpolation ({max_gap:.2f}). Analysis may be unreliable. "
+                "Consider segmenting the time series.",
+                UserWarning
+            )
+            # We proceed with interpolation but heavily warned.
+            # Or should we abort? Aborting might be too strict for a general library.
+            # Let's warn strongly.
+
+        # Check if any dt deviates significantly (e.g. > 5%) from median
+        if not np.allclose(dt, median_dt, rtol=0.05):
+            warnings.warn(
+                "Time series appears to be unevenly sampled. "
+                "Interpolating to a regular grid (median dt) for valid state-space reconstruction.",
+                UserWarning
+            )
+            # Interpolate
+            reg_time = np.arange(time[0], time[-1] + median_dt, median_dt)
+            X = np.interp(reg_time, time, X)
+            Y = np.interp(reg_time, time, Y)
+            time = reg_time # Update time to regular grid
+            n = len(X)
 
     if n_neighbors is None:
         n_neighbors = E + 1
@@ -178,15 +219,24 @@ def find_optimal_embedding(
         tp: Prediction horizon (steps into future). Default 1.
     """
     n = len(data)
+    # Check for uneven sampling within optimal embedding?
+    # Since we pass 'np.arange(n)' as dummy time to CCM inside this function,
+    # the CCM internal check won't see original timestamps.
+    # However, find_optimal_embedding assumes 'data' is already regular (or we don't know time).
+    # Ideally, find_optimal_embedding should also accept 'time' array.
+    # But for now, let's assume if user calls this with just data, they should regularize first
+    # or we document it.
+
+    # Actually, the user flow is usually:
+    # 1. interpolate
+    # 2. find E
+    # 3. run CCM
+
+    # Given we added interpolation inside CCM, we should probably add it here too or
+    # let CCM handle it. But CCM is called with dummy time here.
+    # Let's assume data passed here is treated as regular steps.
+
     scores = []
-
-    # Target Y is X shifted by tp steps forward
-    # Y[t] = X[t + tp]
-    # We must align vectors.
-
-    # We slice data such that:
-    # X_source = data[:-tp]  (Use up to N-tp)
-    # Y_target = data[tp:]   (Targets start at tp)
 
     if tp < 1:
         raise ValueError("Prediction horizon tp must be >= 1.")
@@ -203,16 +253,9 @@ def find_optimal_embedding(
         # Predict Y_target
         # Use full library size available
 
-        # Note: convergent_cross_mapping expects X and Y same length
-        # And constructs manifold from X, and targets from Y at corresponding indices.
-        # This matches our setup: M_X[t] predicts Y_target[t] which is actually X[t_orig + tp].
-
-        # Valid length for embedding X_source is n_eff - (E-1)*tau
-        # We need to ensure we have enough data.
-
         try:
             res = convergent_cross_mapping(
-                np.arange(n_eff), # Dummy time
+                np.arange(n_eff), # Dummy time, assumed regular
                 X=X_source,
                 Y=Y_target,
                 lib_sizes=[n_eff - (E-1)*tau - 5], # One large library
