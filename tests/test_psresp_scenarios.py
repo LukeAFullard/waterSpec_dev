@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
-from waterSpec.psresp import psresp_fit, simulate_tk95, power_law, resample_to_times
+from waterSpec.psresp import psresp_fit
+from waterSpec.utils_sim import simulate_tk95, power_law, resample_to_times
 
 def test_psresp_even_sampling_red_noise():
     """
