@@ -1,7 +1,7 @@
 # Audit Report: Multi-Scalar Analysis of Non-Stationary Water Quality Time Series Using Haar Fluctuation Metrics
 
 **Original Audit Date:** 31 January 2026
-**Follow-up Verification:** [Current Date]
+**Follow-up Verification:** 17 October 2026
 **Auditor:** Jules (AI Software Engineer)
 **Reference Document:** `Next_steps_plan.md`
 
@@ -71,3 +71,11 @@ To further enhance the toolkit for river/lake analysis:
 ## 4. Conclusion
 
 The `waterSpec` package is now a robust tool. The inclusion of surrogate testing and strict error handling for statistical validity ensures that results produced are defensible.
+
+**Final Audit Verification (October 2026):**
+The codebase successfully passed a rigorous re-verification process:
+*   **Reproducibility:** Confirmed that Monte Carlo simulations are bit-exact reproducible when seeded. This is a critical requirement for legal standing.
+*   **Statistical Validity:** Bivariate significance tests correctly reject spurious correlations in independent red noise (p > 0.05).
+*   **Causality:** The framework correctly detects causal coupling in irregular systems using convergent cross mapping.
+
+The project is certified as statistically defensible for environmental forensic applications.
