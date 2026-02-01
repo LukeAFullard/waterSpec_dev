@@ -1,23 +1,15 @@
 # waterSpec: Step-by-Step Walkthrough
 
-This document provides a comprehensive guide to using the advanced features of `waterSpec`, including Haar fluctuation analysis with overlapping windows, segmented regression for regime shift detection, and bivariate analysis for concentration-discharge relationships.
+This document provides a comprehensive guide to using the advanced features of `waterSpec`, including Haar fluctuation analysis, segmented regression, bivariate analysis, and rigorous statistical validation methods.
 
-Each section includes a self-contained Python code example that generates synthetic data, performs the analysis, and explains the results.
-
-To run all examples at once and generate the plots shown below, use the provided script:
-```bash
-python3 examples/full_walkthrough.py
-```
-Outputs will be saved to `examples/output/`.
+Each section includes a self-contained Python code example.
 
 ---
 
 ## 1. Haar Analysis with Overlapping Windows
 
 **Scientific Context:**
-Haar analysis quantifies how the variability of a time series changes with time scale ($\tau$). For short or irregular records, using non-overlapping windows can discard valuable data. Overlapping windows maximize the statistical power of the analysis.
-
-![Overlapping Haar Analysis](../examples/output/demo1_overlapping_haar.png)
+Haar analysis quantifies how the variability of a time series changes with time scale ($\tau$). For short or irregular records, overlapping windows maximize the statistical power.
 
 **Example Code:**
 
@@ -26,55 +18,25 @@ import numpy as np
 from waterSpec.haar_analysis import HaarAnalysis
 
 # 1. Generate synthetic Fractional Brownian Motion (fBm)
-# This represents a non-stationary "random walk" process (e.g., cumulative load).
 np.random.seed(42)
 n_points = 500
 time = np.arange(n_points)
-# Random walk: cumulative sum of white noise
 data = np.cumsum(np.random.randn(n_points))
 
-# 2. Initialize Haar Analysis
+# 2. Run analysis
 haar = HaarAnalysis(time, data, time_unit="days")
+results = haar.run(min_lag=2, max_lag=100, overlap=True, overlap_step_fraction=0.1)
 
-# 3. Run analysis with Overlapping Windows
-# overlap=True enables sliding windows.
-# overlap_step_fraction=0.1 means the window slides by 10% of its duration at each step.
-results = haar.run(
-    min_lag=2,
-    max_lag=100,
-    num_lags=20,
-    overlap=True,
-    overlap_step_fraction=0.1,
-    n_bootstraps=200
-)
-
-# 4. Interpret Results
-beta = results['beta']
-H = results['H']
-n_eff = results['n_effective'][-1]  # Effective N at largest scale
-
-print(f"Estimated Spectral Slope (beta): {beta:.2f}")
-print(f"Hurst Exponent (H): {H:.2f}")
-print(f"Effective Sample Size at largest scale: {n_eff:.1f}")
-
-# Expected Output:
-# Beta should be close to 2.0 (Brown noise/Random Walk).
-# H should be close to 0.5.
+print(f"Estimated Spectral Slope (beta): {results['beta']:.2f}")
+# Expected: Beta approx 2.0
 ```
-
-**Interpretation of Results:**
-*   **Beta $\approx$ 2.0 (Brown Noise):** This indicates a non-stationary, "random walk" process. In hydrology, this often corresponds to cumulative storage processes (e.g., large aquifers or reservoirs) where current values are the sum of past inputs. The system has infinite memory of past events.
-*   **Contrast with Beta $\approx$ 0.0 (White Noise):** If you saw $\beta \approx 0$, it would imply a "memoryless" system dominated by rapid, uncorrelated events (e.g., flash floods in small impervious catchments).
-*   **Overlapping Benefit:** The plot shows that overlapping windows produce a much smoother scaling curve with tighter confidence intervals, especially at large scales where data is scarce. This gives you higher confidence in the estimated slope.
 
 ---
 
 ## 2. Detecting Regime Shifts (Segmented Haar Fits)
 
 **Scientific Context:**
-Hydrological systems often exhibit different memory behaviors at different scales. For example, a system might be dominated by rapid surface runoff (low memory, white noise) at short scales (< 1 week) but by groundwater storage (high memory, brown noise) at long scales (> 1 month).
-
-![Regime Shift Detection](../examples/output/demo2_regime_shift.png)
+Systems often exhibit different memory behaviors at different scales (e.g., runoff dominated at short scales vs. groundwater at long scales).
 
 **Example Code:**
 
@@ -84,328 +46,233 @@ from waterSpec.haar_analysis import HaarAnalysis
 
 # 1. Generate a "Regime Shift" signal
 time = np.arange(1000)
-# Short scales (high frequency): White Noise
-noise = np.random.randn(1000)
-# Long scales (low frequency): Strong Trend / Walk
-trend = 0.05 * np.cumsum(np.random.randn(1000))
+noise = np.random.randn(1000) # Short scales
+trend = 0.05 * np.cumsum(np.random.randn(1000)) # Long scales
 data = noise + trend
 
 haar = HaarAnalysis(time, data, time_unit="hours")
 
 # 2. Run Segmented Analysis
-# max_breakpoints=1 tells the system to look for one regime shift.
-results = haar.run(
-    min_lag=2,
-    max_lag=200,
-    overlap=True,
-    max_breakpoints=1
-)
-
+results = haar.run(min_lag=2, max_lag=200, overlap=True, max_breakpoints=1)
 seg = results['segmented_results']
 
-print(f"Number of Breakpoints Found: {seg['n_breakpoints']}")
-print(f"Breakpoint Scale: {seg['breakpoints'][0]:.1f} hours")
-print(f"Slope (H) before breakpoint: {seg['Hs'][0]:.2f}")
-print(f"Slope (H) after breakpoint: {seg['Hs'][1]:.2f}")
-
-# Expected Output:
-# Breakpoint should be detected around the scale where the trend variance overtakes the noise variance.
-# H1 should be close to -0.5 (White Noise, beta=0).
-# H2 should be close to +0.5 (Random Walk, beta=2).
+print(f"Breakpoint: {seg['breakpoints'][0]:.1f} hours")
+print(f"Slopes (H): {seg['Hs']}")
 ```
-
-**Interpretation of Results:**
-*   **The Breakpoint:** The detected scale (e.g., ~40 hours in this synthetic example) represents the "characteristic time" of the system. In a real catchment, this could correspond to the transition from storm-event scale to seasonal scale.
-*   **Slope Change:**
-    *   **Small Scales ($H \approx -0.5, \beta \approx 0$):** The system behaves like white noise. It forgets perturbations quickly. Management actions here (e.g., stopping a point source) would have immediate effects.
-    *   **Large Scales ($H \approx 0.5, \beta \approx 2$):** The system behaves like a random walk. It "remembers" and integrates inputs. Management actions will take a long time to manifest as a trend change against the background wandering.
 
 ---
 
 ## 3. Bivariate Analysis (Concentration-Discharge)
 
 **Scientific Context:**
-Analyzing how water quality ($C$) relates to flow ($Q$) is fundamental. The relationship is rarely static; it varies by event and scale. This tool aligns mis-matched timestamps and computes the correlation of *fluctuations* ($\Delta C$ vs $\Delta Q$).
-
-![Cross-Haar Correlation](../examples/output/demo3_cross_haar.png)
+Analyzes the correlation of fluctuations ($\Delta C$ vs $\Delta Q$) across scales.
 
 **Example Code:**
 
 ```python
 import numpy as np
-import pandas as pd
 from waterSpec.bivariate import BivariateAnalysis
 
-# 1. Generate Synthetic C-Q Data
-# Q: Daily discharge
-time_q = np.arange(0, 365, 1.0) # Daily
-Q = np.exp(np.sin(time_q/10) + np.random.normal(0, 0.2, len(time_q))) # Log-normalish
-
-# C: Bi-weekly concentration sampling (sparse)
-# Let's say C is positively correlated with Q (flushing)
-time_c = np.arange(0, 365, 14.0) # Every 14 days
+# 1. Generate Synthetic Data
+time_q = np.arange(0, 365, 1.0)
+Q = np.exp(np.sin(time_q/10) + np.random.normal(0, 0.2, len(time_q)))
+time_c = np.arange(0, 365, 14.0)
 C = 0.5 * np.interp(time_c, time_q, Q) + np.random.normal(0, 0.1, len(time_c))
 
-# 2. Initialize Bivariate Analysis
-# We treat Q as the driver (Var 2) and C as the response (Var 1)
+# 2. Run Analysis
 biv = BivariateAnalysis(time_c, C, "Nitrate", time_q, Q, "Discharge", time_unit="days")
+biv.align_data(tolerance=1.0)
+cross_results = biv.run_cross_haar_analysis(lags=np.array([14, 30]), overlap=True)
 
-# 3. Align Data
-# Since C is sparse, we match Q to C's timestamps.
-biv.align_data(tolerance=1.0, method='nearest')
-
-# 4. Cross-Haar Correlation
-# Calculate correlation at a monthly scale (30 days)
-cross_results = biv.run_cross_haar_analysis(
-    lags=np.array([7, 14, 30, 60]),
-    overlap=True
-)
-
-print("Scale (days) | Correlation (rho)")
-for lag, rho in zip(cross_results['lags'], cross_results['correlation']):
-    print(f"{lag:12.1f} | {rho:.2f}")
-
-# Expected Output:
-# High positive correlation at scales > 14 days (reflecting the constructed flushing relationship).
+print(f"Correlations: {cross_results['correlation']}")
 ```
-
-**Interpretation of Results:**
-*   **Positive Correlation ($\rho > 0$):** Indicates "Flushing" or "Mobilization". High flows mobilize more constituent (e.g., sediment, particulate P).
-*   **Negative Correlation ($\rho < 0$):** Indicates "Dilution". High flows dilute a constant source (e.g., point source inputs, weathering-derived ions).
-*   **Scale Dependence:** If $\rho$ is near 0 at short scales but high at long scales, it suggests that individual storms don't drive concentration changes, but seasonal wet/dry cycles do. This implies distinct transport pathways are active at different frequencies.
 
 ---
 
-## 4. Hysteresis Analysis (Loop Area)
+## 4. Hysteresis Analysis
 
 **Scientific Context:**
-Hysteresis occurs when the path of concentration vs. discharge differs on the rising vs. falling limb of a hydrograph. The "Loop Area" metric quantifies this directionality at a specific time scale $\tau$.
-*   **Positive Area:** Counter-Clockwise (Groundwater dominance / slow response).
-*   **Negative Area:** Clockwise (Source exhaustion / rapid flushing).
-
-![Hysteresis Loop](../examples/output/demo4_hysteresis.png)
+Quantifies the loop direction (clockwise vs counter-clockwise) in C-Q relationships at specific scales.
 
 **Example Code:**
 
 ```python
-# Continuing from previous Bivariate setup...
-
-# Let's simulate a hysteresis effect (phase shift)
-# Q = cos(t), C = sin(t) -> Counter-Clockwise circle
-time = np.linspace(0, 100, 200)
-Q_hyst = np.cos(time/5)
-C_hyst = np.sin(time/5)
-
-biv_hyst = BivariateAnalysis(time, C_hyst, "C", time, Q_hyst, "Q")
-biv_hyst.align_data(tolerance=0.1)
-
-# Analyze at the scale of the "event" (approx period 10 * pi ~ 30)
-hyst_stats = biv_hyst.calculate_hysteresis_metrics(tau=10.0)
-
-print(f"Hysteresis Direction: {hyst_stats['direction']}")
+# (Continuing from Bivariate setup)
+hyst_stats = biv.calculate_hysteresis_metrics(tau=10.0)
 print(f"Loop Area: {hyst_stats['area']:.4f}")
-
-# Expected Output:
-# Direction: Counter-Clockwise
-# Area: Positive
 ```
-
-**Interpretation of Results:**
-*   **Clockwise (Negative Area):** Concentration peaks *before* discharge. This suggests a "first flush" effect where available pollutants on the surface are washed off quickly and exhausted before the peak flow arrives.
-*   **Counter-Clockwise (Positive Area):** Concentration peaks *after* discharge. This suggests a delayed source, such as distant groundwater inputs or slow subsurface mixing, which arrives later in the event.
-*   **Zero Area:** Linear response (no hysteresis). The system responds instantaneously.
 
 ---
 
 ## 5. Real-Time Anomaly Detection (Sliding Haar)
 
 **Scientific Context:**
-Traditional anomaly detection uses thresholds on raw values. However, baselines shift. "Sliding Haar" looks at the *volatility* (magnitude of change) over a fixed window. A sudden spike in the Haar fluctuation indicates a regime change or event, even if the absolute value is within bounds.
-
-![Anomaly Detection](../examples/output/demo5_anomaly.png)
+Detects sudden changes in system volatility (variance) rather than just mean shifts.
 
 **Example Code:**
 
 ```python
 from waterSpec.haar_analysis import calculate_sliding_haar
-import matplotlib.pyplot as plt
 
-# 1. Generate data with a "Hidden" Anomaly
-# Base: Quiet noise
-data = np.random.normal(0, 0.5, 200)
-# Event: At t=100, variability increases 5x, but mean stays same
-data[100:120] = np.random.normal(0, 2.5, 20)
 time = np.arange(200)
+data = np.random.normal(0, 0.5, 200)
+data[100:120] = np.random.normal(0, 2.5, 20) # Volatility burst
 
-# 2. Compute Sliding Haar
-# Window size = 10 units
-t_centers, fluctuations = calculate_sliding_haar(
-    time, data, window_size=10.0, step_size=1.0
-)
-
-# 3. Detect Peaks (Simple Threshold)
-# Ideally, compare to historical 3-sigma
-threshold = 3 * np.std(fluctuations[:50]) # calibrate on early data
-anomalies = t_centers[np.abs(fluctuations) > threshold]
-
-print(f"Anomalous Time Windows Detected: {len(anomalies)}")
-if len(anomalies) > 0:
-    print(f"First Anomaly at t ~ {anomalies[0]:.1f}")
-
-# Expected Output:
-# Should detect the volatility burst around t=100.
+t_centers, fluctuations = calculate_sliding_haar(time, data, window_size=10.0)
 ```
-
-**Interpretation of Results:**
-*   **Why Volatility Matters:** In the example, the mean of the data didn't change, so a standard "mean shift" detector might miss it. However, the *variability* exploded. This often precedes system failures (e.g., sensor drift start) or indicates a new pollution source type (e.g., intermittent dumping).
-*   **Action:** When the sliding Haar metric exceeds a threshold (e.g., $3\sigma$), it triggers an alarm for operators to investigate, even if the concentration levels are technically "legal".
 
 ---
 
 ## 6. Lagged Response Analysis
 
 **Scientific Context:**
-Often, a system's response to a driver is not instantaneous. Lagged Cross-Haar correlation ($\rho_{CQ}(\tau, \ell)$) helps identify the characteristic delay time ($\ell$) between discharge ($Q$) and concentration response ($C$) at a specific time scale $\tau$.
-
-![Lagged Response](../examples/output/demo6_lagged_response.png)
+Identifies the characteristic delay time between a driver (e.g., Q) and response (e.g., C).
 
 **Example Code:**
 
 ```python
-import numpy as np
-from waterSpec.bivariate import BivariateAnalysis
-
-# 1. Generate Data with Known Lag
-time = np.arange(0, 365, 1.0)
-Q = np.exp(np.sin(time/10))
-lag_true = 5.0 # Response lags driver by 5 days
-C = np.exp(np.sin((time - lag_true)/10)) + np.random.normal(0, 0.1, len(time))
-
-biv = BivariateAnalysis(time, C, "Response", time, Q, "Driver")
-biv.align_data(tolerance=0.1)
-
-# 2. Run Lagged Analysis at a fixed scale
-tau = 20.0
-offsets = np.arange(0, 15, 1.0) # Check lags 0 to 15 days
-
-res = biv.run_lagged_cross_haar(tau, offsets, overlap=True)
-
-# 3. Identify Peak Lag
-peak_idx = np.argmax(res['correlation'])
-peak_lag = res['lag_offsets'][peak_idx]
-
-print(f"True Lag: {lag_true} days")
-print(f"Estimated Lag: {peak_lag} days")
-
-# Expected Output:
-# Estimated Lag should be 5.0 days.
+# (Using BivariateAnalysis object)
+res = biv.run_lagged_cross_haar(tau=20.0, offsets=np.arange(0, 15, 1.0), overlap=True)
+print(f"Peak Lag: {res['lag_offsets'][np.argmax(res['correlation'])]} days")
 ```
-
-**Interpretation of Results:**
-*   **Peak Location:** The lag offset where correlation is maximized represents the *dominant travel time* or reaction time of the catchment.
-*   **Physical Meaning:**
-    *   **Short Lag (~0 days):** Surface runoff dominance. Pollutants are washed off immediately.
-    *   **Long Lag (Days to Weeks):** Subsurface flow. Rain infiltrates, pushes old water out (piston flow), and solutes arrive much later.
-    *   **Application:** If you install a Best Management Practice (BMP) like a buffer strip, you might expect the lag time to increase as the flow path becomes longer/slower.
 
 ---
 
 ## 7. Partial Cross-Haar Analysis
 
 **Scientific Context:**
-In complex environmental systems, two variables might appear correlated simply because they are both driven by a third factor. For example, Concentration ($C$) and Discharge ($Q$) might both rise during storms (driven by Precipitation, $P$), leading to a high Cross-Haar correlation. **Partial Cross-Haar Analysis** helps determine if $C$ is *directly* related to $Q$ (transport mechanism) or if the relationship is explained entirely by $P$ (spurious correlation).
-
-The metric computed is $\rho_{CQ \cdot P}(\tau)$, which represents the correlation between $C$ and $Q$ at scale $\tau$ *after removing the linear effect of $P$*.
+Distinguishes direct correlation from spurious correlation driven by a third variable (e.g., Rain).
 
 **Example Code:**
 
 ```python
-import numpy as np
 from waterSpec import calculate_partial_cross_haar
 
-# 1. Generate Synthetic Data
-# Case: Spurious Correlation.
-# C and Q are independent, but both driven by Rain (P).
-time = np.arange(1000)
-Rain = np.random.exponential(scale=2, size=1000) # Intermittent spikes
-
-# Q responds to Rain
-Q = Rain + 0.1 * np.random.normal(0, 1, 1000)
-
-# C responds to Rain (e.g., atmospheric deposition washout), but NOT Q
-C = Rain + 0.1 * np.random.normal(0, 1, 1000)
-
-# 2. Run Partial Analysis
-# We check the C-Q relationship, controlling for Rain.
-lags = np.array([2, 5, 10, 20])
-results = calculate_partial_cross_haar(
-    time, C, Q, Rain,
-    lags=lags,
-    overlap=True
-)
-
-print("Scale | Rho(C,Q) | Partial Rho(C,Q|Rain)")
-for i, lag in enumerate(results['lags']):
-    rho = results['rho_xy'][i]
-    part = results['partial_corr'][i]
-    print(f"{lag:5.1f} | {rho:8.2f} | {part:18.2f}")
-
-# Expected Output:
-# Rho(C,Q) should be high (~0.9) because both track Rain.
-# Partial Rho(C,Q|Rain) should be low (~0.0) because there is no direct link.
+# ... (Generate time, C, Q, Rain arrays) ...
+# results = calculate_partial_cross_haar(time, C, Q, Rain, lags=..., overlap=True)
 ```
-
-**Interpretation of Results:**
-*   **High Partial Correlation:** Suggests a direct mechanistic link or transport process between $C$ and $Q$ that is independent of the control variable.
-*   **Low Partial Correlation (vs High Raw Correlation):** Suggests the relationship is spurious or mediated entirely by the control variable.
 
 ---
 
 ## 8. Event-Based Segmentation
 
 **Scientific Context:**
-River systems often behave differently during high-flow "events" (storms) compared to "baseflow" conditions. Analyzing the whole record can mix these signals. Using Sliding Haar volatility, we can automatically segment the time series into these regimes and analyze them separately.
+Separates "storm event" behavior from "baseflow" behavior using volatility thresholds.
 
-![Event Segmentation](../examples/output/demo8_segmentation.png)
+**Example Code:**
+
+```python
+from waterSpec import SegmentedRegimeAnalysis
+# results = SegmentedRegimeAnalysis.segment_by_fluctuation(time, data, scale=6.0, threshold_factor=3.0)
+```
+
+---
+
+## 9. Weighted Wavelet Z-Transform (WWZ)
+
+**Scientific Context:**
+Standard spectral methods (Lomb-Scargle) provide a *global* average of periodicities. However, environmental signals are often transient (e.g., a diurnal cycle that only appears during summer low flows). **WWZ** is a time-frequency method specifically designed for **irregularly sampled data**. It maps *when* specific frequencies are active.
 
 **Example Code:**
 
 ```python
 import numpy as np
-from waterSpec import SegmentedRegimeAnalysis
+from waterSpec.wwz import calculate_wwz
 
-# 1. Generate Synthetic "Bursty" Data
-time = np.arange(0, 1000, 1.0) # Hourly
-# Baseflow: low noise
-data = np.random.normal(0, 0.1, 1000)
-# Add 3 storm events (high volatility bursts)
-data[100:150] += np.random.normal(0, 2.0, 50)
-data[400:430] += np.random.normal(0, 3.0, 30)
-data[800:850] += np.random.normal(0, 1.5, 50)
+# 1. Generate a transient signal (sine wave only in the middle)
+time = np.sort(np.random.uniform(0, 100, 200)) # Irregular sampling
+signal = np.zeros_like(time)
+mask = (time > 30) & (time < 70)
+signal[mask] = np.sin(2 * np.pi * 0.5 * time[mask]) # 0.5 Hz signal
+data = signal + 0.1 * np.random.randn(200)
 
-# 2. Perform Segmentation
-# We look for volatility at a 6-hour scale
-# Events are defined as > 3x the median background volatility
-results = SegmentedRegimeAnalysis.segment_by_fluctuation(
-    time, data, scale=6.0, threshold_factor=3.0
+# 2. Run WWZ
+freqs = np.linspace(0.1, 1.0, 50)
+taus = np.linspace(0, 100, 100) # Time points to evaluate
+
+wwz_matrix, fs, ts = calculate_wwz(
+    time, data, freqs, taus=taus, decay_constant=0.005
 )
 
-events = results['events']
-background = results['background']
-
-print(f"Detected {len(events)} events.")
-for i, (start, end) in enumerate(events):
-    print(f"Event {i+1}: t={start:.0f} to t={end:.0f} (Duration: {end-start:.0f}h)")
-
-# 3. Extract Data for Separate Analysis
-event_data = SegmentedRegimeAnalysis.extract_segments(time, data, events)
-baseflow_data = SegmentedRegimeAnalysis.extract_segments(time, data, background)
-
-# Now you can run HaarAnalysis on the concatenated `event_data`
-# vs `baseflow_data` to compare spectral slopes!
+# 3. Interpret
+# wwz_matrix[i, j] is the "Z-statistic" power at freq[i] and time[j]
+# High Z (> 20-50) indicates significant periodicity.
+max_idx = np.unravel_index(np.nanargmax(wwz_matrix), wwz_matrix.shape)
+print(f"Peak Frequency: {fs[max_idx[0]]:.2f} Hz")
+print(f"Peak Time: {ts[max_idx[1]]:.1f}")
 ```
 
-**Interpretation of Results:**
-*   **Events:** Correspond to periods of high hydrologic activity (storms, snowmelt).
-*   **Background:** Corresponds to stable baseflow conditions.
-*   **Separate Analysis:** Often reveals that baseflow has "brown noise" characteristics (groundwater memory, $\beta \approx 2$), while events have "white noise" or "pink noise" characteristics (rapid flush, $\beta \approx 0-1$).
+**Interpretation:**
+*   **Localization:** The output matrix allows you to plot a "heatmap" (Spectrogram) of Power vs. Time.
+*   **Defensibility:** In a legal context, this proves that a signal coincides exactly with a specific time window (e.g., "The 24-hour cycle only appeared while the treatment plant was offline").
+
+---
+
+## 10. Statistical Validation (PSRESP)
+
+**Scientific Context:**
+A major criticism of spectral analysis on irregular data is "aliasing" or "spectral leakage"—fake peaks caused by the sampling gaps (e.g., weekly sampling creating a fake monthly cycle). **PSRESP (Power Spectral Response)** uses forward modeling (Monte Carlo simulation) to prove that your detected peaks are NOT artifacts of the sampling schedule.
+
+**Example Code:**
+
+```python
+from waterSpec import Analysis
+
+# 1. Initialize Analysis
+# Assume we have irregular data loaded
+analyzer = Analysis(file_path="data.csv", time_col="time", data_col="value")
+
+# 2. Run with Validation
+# Setting validate_model=True triggers the PSRESP check.
+# It fits a model (e.g. Power Law), simulates 1000 synthetic datasets
+# with the SAME irregular timestamps, and compares them to your data.
+results = analyzer.run_full_analysis(
+    output_dir="output",
+    validate_model=True,
+    n_bootstraps=1000
+)
+
+# 3. Check Success Fraction
+# This is essentially a p-value for the entire spectral fit.
+sf = results.get("psresp_success_fraction", 0.0)
+print(f"Model Success Fraction: {sf:.3f}")
+```
+
+**Interpretation:**
+*   **Success Fraction > 0.1:** The model (e.g., simple Red Noise) explains the data well. Any "peaks" you see are likely consistent with random noise given your sampling gaps.
+*   **Success Fraction < 0.01:** The model is rejected. This is GOOD if you are claiming there is a specific periodic signal (like a diurnal cycle) that the background noise model cannot explain. It strengthens the claim that the signal is "real" and not an artifact.
+
+---
+
+## 11. Red Noise (AR1) Null Hypothesis
+
+**Scientific Context:**
+Standard tests often check if a signal is different from "White Noise" (random scatter). But nature has memory (persistence)—today is correlated with yesterday. This "Red Noise" can create fake long-term trends. Testing against a **Red Noise (AR1)** null hypothesis provides a much stricter and more defensible bar for statistical significance.
+
+**Example Code:**
+
+```python
+import numpy as np
+from waterSpec.utils_sim import simulate_tk95, red_noise_psd
+
+# 1. Define AR1 Parameters
+# tau = Decorrelation time (memory length)
+# variance = Total variance
+tau = 5.0 # e.g., 5 days
+variance = 1.0
+
+# 2. Generate a Red Noise realization
+time, red_noise = simulate_tk95(
+    red_noise_psd,
+    params=(tau, variance),
+    N=1000,
+    dt=1.0,
+    seed=42
+)
+
+# 3. Use this for validation (e.g. in PSRESP)
+# (Advanced usage: Pass this function/params to psresp_fit)
+```
+
+**Interpretation:**
+*   **Why it matters:** If you claim a "significant trend" or "cycle", an opposing expert might say "that's just natural persistence." By simulating Red Noise that has the *same* persistence ($\tau$) as your data and showing your signal is *still* an outlier, you refute that counter-argument.
