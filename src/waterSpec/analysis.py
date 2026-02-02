@@ -58,7 +58,7 @@ class Analysis:
         detrend_method: Optional[str] = None,
         normalize_data: bool = False,
         detrend_options: Optional[Dict] = None,
-        min_valid_data_points: int = 10,
+        min_valid_data_points: int = 50,
         changepoint_mode: str = "none",
         changepoint_index: Optional[int] = None,
         changepoint_options: Optional[Dict] = None,

@@ -29,7 +29,7 @@ class SiteComparison:
         self,
         site1_config: Dict,
         site2_config: Dict,
-        min_valid_data_points: int = 10,
+        min_valid_data_points: int = 50,
     ):
         """
         Initializes the SiteComparison object by loading and preprocessing data for two sites.
@@ -42,7 +42,7 @@ class SiteComparison:
                 'decimal_separator'.
             site2_config (Dict): A dictionary of parameters for the second site.
             min_valid_data_points (int, optional): The minimum number of valid
-                data points required to proceed with an analysis. Defaults to 10.
+                data points required to proceed with an analysis. Defaults to 50.
             verbose (bool, optional): If True, sets logging level to INFO.
                 Defaults to False (logging level WARNING).
         """

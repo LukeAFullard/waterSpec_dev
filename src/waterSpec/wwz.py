@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.stats import f as f_dist
 from typing import Tuple, Optional, Union
 
 def calculate_wwz(
@@ -180,12 +181,54 @@ def calculate_wwz(
         # Assign a high value (e.g. based on machine precision limit)
         perfect_mask = (residual_SS <= 1e-12) & (model_SS > 1e-12) & final_mask
         if np.any(perfect_mask):
-             # Use a large finite number effectively representing infinity for comparison
-             # or theoretically calculated limit if we capped RSS.
-             # Here we just use a proxy for "Very Significant"
-             # Since typical Z scores are O(10-100), 1e9 is safe.
-             z_scores[perfect_mask] = 1e9
+             # Represent as infinity as statistical significance is effectively absolute
+             z_scores[perfect_mask] = np.inf
 
         wwz_matrix[i, :] = z_scores
 
     return wwz_matrix, freqs, taus
+
+def calculate_wwz_statistics(
+    wwz_matrix: np.ndarray,
+    n_eff: Union[float, np.ndarray],
+    n_params: int = 3
+) -> np.ndarray:
+    """
+    Calculates p-values for WWZ statistics based on F-distribution.
+
+    The WWZ statistic roughly follows F(n_params-1, n_eff-n_params).
+    Actually, Foster (1996) defines Z as (N_eff - 3)/2 * (Model_SS / Residual_SS).
+    This Z corresponds to F * (n_params-1) / 2? No.
+
+    Foster (1996) Eq 4-1: Z = (R_w(omega, tau) / (1 - R_w(omega, tau))) * (N_eff - 3)/2
+    Where R_w is weighted variation explained.
+    This is equivalent to F-statistic * (k/nu2) * nu2/2 ?
+
+    More simply, standard F-test: F = (Model_SS / (p-1)) / (Residual_SS / (n-p))
+    Here p=3 (constant, sin, cos). So df1 = 2, df2 = N_eff - 3.
+    F = (Model_SS / 2) / (Residual_SS / (N_eff - 3))
+      = (N_eff - 3)/2 * (Model_SS / Residual_SS)
+
+    Wait, that IS exactly the Z definition used in the code!
+    So Z = F.
+
+    Therefore, Z ~ F(2, N_eff - 3).
+
+    Args:
+        wwz_matrix: The Z-score matrix.
+        n_eff: Effective number of points (can be scalar or array same shape as wwz).
+               Note: The calculate_wwz function does not currently return n_eff.
+               We might need to update it to return n_eff or recalculate it.
+               For now, users often approximate N_eff or we need to extract it.
+
+    Returns:
+        p_values: Array of p-values (1 - CDF).
+    """
+    # Degrees of freedom
+    df1 = 2
+    df2 = n_eff - 3
+
+    # Handle broadcasting if n_eff is array
+    # p-value = survival function (1 - cdf)
+    p_values = f_dist.sf(wwz_matrix, df1, df2)
+    return p_values

@@ -11,7 +11,8 @@ def convergent_cross_mapping(
     E: int = 3,
     tau: int = 1,
     n_neighbors: Optional[int] = None,
-    max_gap: Optional[float] = None
+    max_gap: Optional[float] = None,
+    allow_interpolation: bool = False
 ) -> Dict:
     """
     Performs Convergent Cross Mapping (CCM) to test if Y causes X (Y -> X).
@@ -31,6 +32,9 @@ def convergent_cross_mapping(
         max_gap (float): Maximum gap size allowed for interpolation. If a gap > max_gap exists,
                          interpolation is skipped and a warning/error is raised (safe default).
                          If None, defaults to 5 * median_dt.
+        allow_interpolation (bool): If True, unevenly sampled data will be interpolated to a regular grid.
+                                    WARNING: Interpolation can destroy nonlinear dynamics and create false causality.
+                                    Default is False (reject uneven data).
 
     Returns:
         Dict containing 'lib_sizes', 'rho' (correlation vs L), 'rmse'.
@@ -58,15 +62,20 @@ def convergent_cross_mapping(
                 "Consider segmenting the time series.",
                 UserWarning
             )
-            # We proceed with interpolation but heavily warned.
-            # Or should we abort? Aborting might be too strict for a general library.
-            # Let's warn strongly.
 
         # Check if any dt deviates significantly (e.g. > 5%) from median
         if not np.allclose(dt, median_dt, rtol=0.05):
+            if not allow_interpolation:
+                raise ValueError(
+                    "Time series is unevenly sampled. Standard CCM requires even sampling to preserve "
+                    "nonlinear dynamics. Interpolation is disabled by default to prevent false findings. "
+                    "Set allow_interpolation=True to override (not recommended) or use event-based embedding methods."
+                )
+
             warnings.warn(
                 "Time series appears to be unevenly sampled. "
-                "Interpolating to a regular grid (median dt) for valid state-space reconstruction.",
+                "Interpolating to a regular grid (median dt) for valid state-space reconstruction. "
+                "This may affect nonlinear signatures.",
                 UserWarning
             )
             # Interpolate
