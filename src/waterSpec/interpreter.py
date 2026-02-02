@@ -23,6 +23,7 @@ def _get_uncertainty_warning(ci, threshold, name="value"):
 
 
 # Benchmark table based on Liang et al. (2021) and general hydrological knowledge.
+# See REFERENCES.md for full citation details.
 def _load_benchmarks():
     try:
         # For Python 3.9+ structure using files() or older open_text

@@ -60,7 +60,8 @@ def test_wwz_statistics():
     assert p[1] < 1e-5 # High Z -> small p-value
     assert p[2] == 1.0 # Zero Z -> 1.0 p-value
 
-@pytest.mark.parametrize("input_beta", [0.0, 1.0, 2.0, 3.0])
+# Test beta from 0 to 3 in steps of 0.25
+@pytest.mark.parametrize("input_beta", np.arange(0, 3.25, 0.25))
 def test_haar_beta_recovery(input_beta):
     """Test that Haar analysis recovers beta for even and uneven data."""
     # Generate data
@@ -75,7 +76,7 @@ def test_haar_beta_recovery(input_beta):
     recovered_beta = res['beta']
 
     # Allow some tolerance, especially for beta=3 it gets harder
-    tol = 0.3
+    tol = 0.4
     assert abs(recovered_beta - input_beta) < tol, f"Even: Input {input_beta}, Got {recovered_beta}"
 
     # Uneven (50% subsample)

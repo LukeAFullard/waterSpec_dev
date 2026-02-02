@@ -165,7 +165,7 @@ def psresp_fit(
         # Limit to 32 to prevent excessive overhead/OS limits
         max_workers = min(max_workers, 32)
     else:
-        max_workers = n_jobs
+        max_workers = max(1, n_jobs) # Ensure at least 1 worker
 
     for params in params_list:
         sim_binned_powers = []
