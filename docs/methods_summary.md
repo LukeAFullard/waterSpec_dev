@@ -109,3 +109,45 @@ This document summarizes the methods available in the `waterSpec` package, outli
     *   **Residual:** Good for finding peaks superimposed on a "colored noise" background (power law).
 *   **Weaknesses:**
     *   **Residual:** Depends heavily on the quality of the power-law fit.
+
+---
+
+## Potential Future Methods
+
+These methods are identified as candidates for future implementation to enhance handling of irregular sampling and answer specific questions.
+
+### 1. CARMA (Continuous AutoRegressive Moving Average)
+*   **Description:** A continuous-time generalization of ARMA models. It models the time series as a stochastic process governed by a linear differential equation driven by white noise.
+*   **Strengths (Uneven Data):** Designed specifically for continuous-time processes sampled at arbitrary times. It directly handles irregularity without interpolation or windowing artifacts. It is the standard in astronomy for irregular variability (e.g., quasar light curves).
+*   **Weaknesses:** Computationally intensive to fit (usually requires MCMC or complex optimization); model order selection (p, q) is non-trivial.
+*   **Key Questions Answered:** "What is the characteristic timescale (damping time) of the system?" "Is the process consistent with a Damped Random Walk (DRW/OU process)?"
+
+### 2. Multitaper Method (MTM)
+*   **Description:** An extension of periodogram analysis that uses multiple orthogonal tapers (Slepian sequences) to estimate the power spectrum. The final spectrum is an average of the eigenspectra.
+*   **Strengths (Uneven Data):** Provides significantly reduced variance compared to single-taper methods (like standard Lomb-Scargle) while minimizing spectral leakage. While traditionally for even sampling, adaptations for uneven sampling exist (e.g., point-process MTM).
+*   **Weaknesses:** More complex to implement for highly irregular data than Lomb-Scargle; resolution-variance trade-off must be managed via the time-bandwidth product.
+*   **Key Questions Answered:** "Is this spectral peak real or a noise artifact?" (MTM provides rigorous F-tests for line components). "What is the true background continuum shape?"
+
+### 3. Gaussian Process (GP) Periodograms
+*   **Description:** Models the time series as a Gaussian Process with a specific kernel (covariance function). The "periodogram" is often derived from the spectral density of the fitted kernel (e.g., Quasi-Periodic kernel).
+*   **Strengths (Uneven Data):** Native handling of irregular sampling and measurement errors. Provides a full Bayesian posterior for the spectrum, yielding rigorous uncertainty quantification (the "error bars" on the spectrum).
+*   **Weaknesses:** Scaling is $O(N^3)$ (cubic) without approximations like celerite, making it slow for large datasets ($N > 1000$).
+*   **Key Questions Answered:** "What is the probability distribution of the period or spectral slope?" "Can we separate quasi-periodic oscillations from correlated noise?"
+
+### 4. CLEAN Algorithm
+*   **Description:** An iterative deconvolution method (originally from radio astronomy) that attempts to remove the artifacts caused by the "dirty beam" (the spectral window function resulting from irregular sampling) from the "dirty map" (the raw periodogram).
+*   **Strengths (Uneven Data):** Can effectively remove alias peaks and side lobes caused by periodic gaps (e.g., missing weekends or daily sampling cycles).
+*   **Weaknesses:** Can produce spurious features if not stopped correctly (stopping criterion is subjective); modifies the noise properties of the residual spectrum.
+*   **Key Questions Answered:** "Is this secondary peak a true periodicity or just an alias of the main annual cycle due to my sampling pattern?"
+
+### 5. Wavelet Coherence
+*   **Description:** A measure of the correlation between two time series as a function of both frequency (scale) and time, using continuous wavelet transforms (CWT).
+*   **Strengths (Uneven Data):** Identifies transient correlations that appear and disappear over time.
+*   **Weaknesses:** Standard CWT requires even sampling; would require Weighted Wavelet Z-transform (WWZ) coherence or interpolation-based approaches.
+*   **Key Questions Answered:** "Did the relationship between discharge and nitrate change after the 2015 flood?" "Is the correlation only present during winter months?"
+
+### 6. Cross-Spectral Phase Analysis
+*   **Description:** Analysis of the phase difference between two time series at each frequency.
+*   **Strengths (Uneven Data):** Determines the lead/lag relationship between variables as a function of timescale.
+*   **Weaknesses:** Phase estimation is noisy for irregular data; requires careful handling of phase wrapping and significance testing.
+*   **Key Questions Answered:** "Does discharge lead concentration (transport) or lag it (dilution/hysteresis)?" "What is the specific time lag at the annual cycle vs. the storm event scale?"
