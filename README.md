@@ -72,7 +72,12 @@ pip install -e '.[test]'
 
 ## Documentation
 
-For a comprehensive step-by-step guide on using the advanced features (Haar, Bivariate, Hysteresis, Anomaly Detection), please see the **[Walkthrough Tutorial](docs/WALKTHROUGH.md)**.
+*   **[Walkthrough Tutorial](docs/WALKTHROUGH.md):** Step-by-step guide on advanced features (Haar, Bivariate, Hysteresis, Anomaly Detection).
+*   **[Methods Summary](docs/methods_summary.md):** Overview of algorithms (Lomb-Scargle, Haar, PSRESP) and their strengths/weaknesses.
+*   **[Validation & Benchmarks](docs/validation_and_benchmarks.md):** Scientific validation of the methods against real-world data.
+*   **[Beta Values Library](docs/beta_values_library.md):** Reference values for spectral slopes across different domains (Hydrology, Climate, etc.).
+*   **[Dataset Sources](docs/dataset_sources.md):** Sources for public datasets used for testing and benchmarking.
+*   **[Haar Framework Design](docs/design_docs/haar_framework_design.md):** Deep dive into the theoretical framework of the Haar analysis implementation.
 
 ---
 
