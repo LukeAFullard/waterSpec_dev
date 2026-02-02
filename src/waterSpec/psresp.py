@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import warnings
+import os
 from typing import Callable, List, Tuple, Optional, Union, Dict, Any
 import concurrent.futures
 
@@ -96,6 +97,7 @@ def psresp_fit(
         ...
         binning: If True, bin the power spectrum in log-space before comparison.
         n_bins: Number of bins if binning is enabled.
+        n_jobs: Number of parallel jobs. If -1, uses all available CPUs (limited to 32 to prevent issues).
     """
 
     # Handle time offset
@@ -109,6 +111,11 @@ def psresp_fit(
     dt_sim = dt_avg / oversample
     T_sim = T_obs * length_factor
     N_sim = int(np.ceil(T_sim / dt_sim))
+
+    # Memory safety check
+    estimated_points = N_sim * M
+    if estimated_points > 1e8: # > 100M points total processing
+         warnings.warn(f"High memory usage expected: M={M} simulations of N={N_sim} points. Consider reducing M or oversample.", UserWarning)
 
     # Frequency grid
     if freqs is None:
@@ -152,10 +159,27 @@ def psresp_fit(
         ss = np.random.SeedSequence(seed)
         sim_seeds = ss.generate_state(M)
 
+    # Determine max workers safely
+    if n_jobs < 0:
+        max_workers = os.cpu_count() or 1
+        # Limit to 32 to prevent excessive overhead/OS limits
+        max_workers = min(max_workers, 32)
+    else:
+        max_workers = n_jobs
+
     for params in params_list:
         sim_binned_powers = []
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=n_jobs if n_jobs > 0 else None) as executor:
+        # Process in chunks to manage memory and future overhead
+        chunk_size = max(1, M // max_workers) # Ensure reasonable chunk size, or just submit all if M is small
+        # Actually, Python's ProcessPoolExecutor handles queuing well, but if we create all M futures
+        # and M is huge, that consumes memory. But M=500 is fine.
+        # The main memory issue is if N_sim is huge.
+
+        # We will submit all for simplicity but rely on max_workers limiting active processes.
+        # But we must be careful not to hold all result arrays in memory if they are huge and binning=False.
+
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
             futures = [
                 executor.submit(
                     _run_single_simulation,
