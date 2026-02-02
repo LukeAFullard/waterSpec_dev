@@ -70,7 +70,7 @@ def test_audit_causality_detection():
     # Y is the "Effect", so Y's manifold should predict X
     # Filter warnings about uneven sampling (which we expect)
     with pytest.warns(UserWarning, match="unevenly sampled"):
-        res_x_cause_y = convergent_cross_mapping(t_irr, X=x_irr, Y=y_irr, E=3, tau=2)
+        res_x_cause_y = convergent_cross_mapping(t_irr, X=x_irr, Y=y_irr, E=3, tau=2, allow_interpolation=True)
 
     rho_final = res_x_cause_y['rho'][-1]
     print(f"CCM Rho (Effect Y predicting Cause X): {rho_final}")
