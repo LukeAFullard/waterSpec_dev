@@ -132,6 +132,7 @@ The Haar scaling exponent $m$ (slope of $\log S_1$ vs $\log \tau$) maps to the s
 
 | Haar Slope $m$ | Spectral Exponent $\beta$ | Physical Interpretation | Process Type |
 | :--- | :--- | :--- | :--- |
+| **< -0.5** | **< 0.0** | Blue/Violet Noise (Anti-persistent) | Super-diffusive / Rapid fluctuation |
 | **-0.5** | **0.0** | White Noise (uncorrelated) | Stationary (fGn) |
 | **0.0** | **1.0** | Pink Noise (1/f) | Boundary |
 | **+0.5** | **2.0** | Brown Noise (Random Walk) | Non-Stationary (fBm) |

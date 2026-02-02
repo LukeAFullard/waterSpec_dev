@@ -33,10 +33,11 @@ def calculate_wwz(
             Defaults to 0.00125.
 
     Returns:
-        Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
             - wwz_matrix: 2D array of WWZ power (shape: len(freqs) x len(taus)).
             - freqs: The frequency array used.
             - taus: The time shift array used.
+            - n_eff_matrix: 2D array of effective number of points (shape: len(freqs) x len(taus)).
     """
     n = len(time)
     if taus is None:
@@ -46,6 +47,7 @@ def calculate_wwz(
     n_taus = len(taus)
 
     wwz_matrix = np.zeros((n_freqs, n_taus))
+    n_eff_matrix = np.zeros((n_freqs, n_taus))
 
     # Vectorize over tau for each frequency
     # We iterate over frequency to keep memory usage manageable.
@@ -185,8 +187,9 @@ def calculate_wwz(
              z_scores[perfect_mask] = np.inf
 
         wwz_matrix[i, :] = z_scores
+        n_eff_matrix[i, :] = n_eff
 
-    return wwz_matrix, freqs, taus
+    return wwz_matrix, freqs, taus, n_eff_matrix
 
 def calculate_wwz_statistics(
     wwz_matrix: np.ndarray,
