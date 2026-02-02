@@ -21,7 +21,7 @@ $$
 Where $\overline{C}_{(a, b)}$ denotes the mean value of the data points falling within the time interval $(a, b)$.
 
 **Note on Scaling:**
-In some formulations, the fluctuation is defined as a derivative approximation ($\frac{\Delta \overline{C}}{\Delta t}$). However, for the purpose of estimating the standard scaling exponent $H$ consistent with $1/f^\beta$ noise (where white noise corresponds to $H=-0.5$), we utilize the difference of means directly. Dividing by $\Delta t$ would shift the exponent by -1, leading to inconsistent interpretation of standard noise colors.
+In some formulations, the fluctuation is defined as a derivative approximation ($\frac{\Delta \overline{C}}{\Delta t}$). However, for the purpose of estimating the Haar scaling slope $m$ consistent with $1/f^\beta$ noise (where white noise corresponds to $m=-0.5$), we utilize the difference of means directly. Dividing by $\Delta t$ would shift the exponent by -1, leading to inconsistent interpretation of standard noise colors.
 
 ### 2. The Structure Function ($S_1$)
 
@@ -33,29 +33,35 @@ $$
 
 For irregular data, this average is computed by identifying all available non-overlapping pairs of intervals of duration $\Delta t/2$ and computing the difference of their means. Our implementation uses a sliding window approach that maximizes data usage while ensuring that each calculated fluctuation represents a distinct, non-overlapping segment locally (though the search for segments scans the whole series).
 
-### 3. Fractal Scaling and Exponent $H$
+### 3. Fractal Scaling and Haar Slope $m$
 
 In fractal processes, the structure function follows a power law scaling relationship with the time lag:
 
 $$
-S_1(\Delta t) \propto \Delta t^{H}
+S_1(\Delta t) \propto \Delta t^{m}
 $$
 
-By plotting $\log(S_1)$ against $\log(\Delta t)$, the fluctuation scaling exponent $H$ can be estimated as the slope of the linear fit.
+By plotting $\log(S_1)$ against $\log(\Delta t)$, the fluctuation slope $m$ can be estimated as the slope of the linear fit.
 
 ## Relation to Spectral Slope ($\beta$)
 
-The exponent $H$ derived from the Haar analysis is directly related to the power spectral density slope $\beta$ (where $P(f) \propto f^{-\beta}$) by the following relation:
+The slope $m$ derived from the Haar analysis is directly related to the power spectral density slope $\beta$ (where $P(f) \propto f^{-\beta}$) by the following relation:
 
 $$
-\beta = 1 + 2H
+\beta = 2m + 1
 $$
+
+### Note on Haar Slope $m$ vs. Hurst Exponent $H$
+It is common to see the relationship $\beta = 2H - 1$ (for stationary noise) or $\beta = 2H + 1$ (for non-stationary motion). Our measured slope $m$ unifies these:
+*   For non-stationary processes (fBm), $m = H$.
+*   For stationary processes (fGn), $m = H - 1$.
+*   See [Spectral Slope vs. Hurst](spectral_slope_vs_hurst.md) for a detailed explanation.
 
 ### Interpretation of Regimes
 
-The value of $\beta$ (and consequently $H$) provides insight into the "color" or memory of the noise process:
+The value of $\beta$ (and consequently $m$) provides insight into the "color" or memory of the noise process:
 
-| Noise Type | Beta ($\beta$) | Haar Exponent ($H$) | Description |
+| Noise Type | Beta ($\beta$) | Haar Slope ($m$) | Description |
 | :--- | :--- | :--- | :--- |
 | **White Noise** | $\approx 0$ | $\approx -0.5$ | No correlation; memoryless process. |
 | **Pink Noise** | $\approx 1$ | $\approx 0$ | $1/f$ noise; long-range dependence. |
@@ -66,7 +72,7 @@ The value of $\beta$ (and consequently $H$) provides insight into the "color" or
 
 1.  **Robustness to Gaps:** Unlike the Fast Fourier Transform (FFT), which requires evenly spaced data, the HSF method naturally handles gaps. It simply skips intervals where data is missing, calculating statistics only on valid segments.
 2.  **Short Time Series:** Spectral methods often become unstable or yield high variance for short records ($N < 100$). The HSF method provides a more stable estimate of the scaling behavior by averaging fluctuations in the time domain.
-3.  **Stationarity:** The method can effectively distinguish between stationary ($H < 0$) and non-stationary ($H > 0$) regimes, a distinction that is often blurred in periodogram analysis.
+3.  **Stationarity:** The method can effectively distinguish between stationary ($m < 0$) and non-stationary ($m > 0$) regimes, a distinction that is often blurred in periodogram analysis.
 
 ## Implementation Details
 
@@ -74,4 +80,4 @@ Our implementation (`src/waterSpec/haar_analysis.py`) performs the following ste
 1.  **Lag Generation:** Generates a sequence of logarithmically spaced lag times ($\Delta t$) from the minimum resolution up to half the series duration.
 2.  **Fluctuation Calculation:** For each $\Delta t$, iterates through the time series to find valid windows $[t, t+\Delta t/2)$ and $[t+\Delta t/2, t+\Delta t)$ containing data.
 3.  **Averaging:** Computes the mean difference for each valid window and averages their absolute values.
-4.  **Fitting:** Performs a linear regression on the log-log data to determine $H$ and $\beta$.
+4.  **Fitting:** Performs a linear regression on the log-log data to determine $m$ and $\beta$.

@@ -586,7 +586,7 @@ Used together, Haar fluctuation metrics and surrogate-based inference provide on
 
 To ensure the reliability of the implemented toolkit, a rigorous validation suite must be established:
 
-1.  **Synthetic Data Tests (fBm):** Generate fractional Brownian motion (fBm) series with known Hurst exponents ($H$). Verify that the Haar scaling exponent $m$ recovers the theoretical relationship $m = H - 1$ (for noise) or appropriate equivalent within 95% confidence intervals.
+1.  **Synthetic Data Tests:** Generate fractional Brownian motion (fBm) and fractional Gaussian noise (fGn) series with known Hurst exponents ($H$). Verify that the Haar scaling exponent $m$ recovers the theoretical relationship ($m = H$ for fBm, $m = H - 1$ for fGn) within 95% confidence intervals.
 2.  **Known-Solution Benchmarks:** Use "sawtooth" and sine-wave synthetic signals to verify that the Haar filter correctly identifies the characteristic scale (period) as a break in the structure function.
 3.  **Cross-Validation:** Split long-term real-world datasets (e.g., USGS high-frequency nitrate) into training/testing halves to verify the stability of estimated exponents.
 
