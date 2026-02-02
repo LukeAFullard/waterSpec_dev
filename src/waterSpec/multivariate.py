@@ -27,6 +27,11 @@ def calculate_multivariate_fluctuations(
     """
     results = {}
 
+    # Validate input lengths
+    for i, d in enumerate(datasets):
+        if len(d) != len(time):
+            raise ValueError(f"Dataset {i} length ({len(d)}) does not match time array length ({len(time)}).")
+
     # Sort by time just in case (though we assume alignment)
     sort_idx = np.argsort(time)
     time = time[sort_idx]

@@ -179,23 +179,45 @@ def psresp_fit(
         # We will submit all for simplicity but rely on max_workers limiting active processes.
         # But we must be careful not to hold all result arrays in memory if they are huge and binning=False.
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-            futures = [
-                executor.submit(
-                    _run_single_simulation,
-                    i, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization,
-                    seed=sim_seeds[i]
-                )
-                for i in range(M)
-            ]
+        # Optimize memory usage by batching submissions
+        if not binning and M * len(freqs) * 8 > 1e8: # > 100MB of raw data expected
+            warnings.warn("binning=False with large M and high resolution frequencies may consume excessive memory.", UserWarning)
 
-            for future in concurrent.futures.as_completed(futures):
-                p = future.result()
-                if binning:
-                    _, bp = bin_power_spectrum(freqs, p, bins)
-                    sim_binned_powers.append(bp[valid_mask])
-                else:
-                    sim_binned_powers.append(p)
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+            # Batch submission to avoid creating M futures at once (which pickles args M times)
+            futures_set = set()
+            sim_idx = 0
+
+            # Initial batch
+            while sim_idx < M and len(futures_set) < max_workers * 2:
+                fut = executor.submit(
+                    _run_single_simulation,
+                    sim_idx, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization,
+                    seed=sim_seeds[sim_idx]
+                )
+                futures_set.add(fut)
+                sim_idx += 1
+
+            while futures_set:
+                done, futures_set = concurrent.futures.wait(futures_set, return_when=concurrent.futures.FIRST_COMPLETED)
+
+                for future in done:
+                    p = future.result()
+                    if binning:
+                        _, bp = bin_power_spectrum(freqs, p, bins)
+                        sim_binned_powers.append(bp[valid_mask])
+                    else:
+                        sim_binned_powers.append(p)
+
+                    # Submit next task if available
+                    if sim_idx < M:
+                        fut = executor.submit(
+                            _run_single_simulation,
+                            sim_idx, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization,
+                            seed=sim_seeds[sim_idx]
+                        )
+                        futures_set.add(fut)
+                        sim_idx += 1
 
         sim_binned_powers = np.array(sim_binned_powers) # Shape (M, n_bins_valid)
 

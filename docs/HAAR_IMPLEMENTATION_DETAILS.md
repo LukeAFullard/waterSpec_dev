@@ -30,13 +30,13 @@ $$S_1(\tau) = \langle |D(t, \tau)| \rangle_t$$
 ### 2.3 Scaling and Spectral Slope
 
 In a process with power-law scaling (colored noise), the structure function follows:
-$$S_1(\tau) \propto \tau^H$$
-where $H$ is the fluctuation scaling exponent.
+$$S_1(\tau) \propto \tau^m$$
+where $m$ is the fluctuation scaling slope.
 
-The spectral slope $\beta$ (from $P(f) \propto f^{-\beta}$) is related to $H$ by:
-$$\beta = 1 + 2H$$
+The spectral slope $\beta$ (from $P(f) \propto f^{-\beta}$) is related to $m$ by:
+$$\beta = 2m + 1$$
 
-*Note: In `waterSpec`, we use $S_1$ directly. For a white noise process ($\beta=0$), $H \approx -0.5$. for a pink noise process ($\beta=1$), $H \approx 0$. For Brownian motion ($\beta=2$), $H \approx 0.5$.*
+*Note: In `waterSpec`, we use $S_1$ directly. For a white noise process ($\beta=0$), $m \approx -0.5$. for a pink noise process ($\beta=1$), $m \approx 0$. For Brownian motion ($\beta=2$), $m \approx 0.5$.*
 
 ## 3. Implementation Details
 
@@ -54,7 +54,7 @@ The function `calculate_haar_fluctuations` robustly handles irregular sampling u
 
 ### 3.2 Fitting
 
-The function `fit_haar_slope` performs a robust linear regression on $\log_{10}(S_1)$ vs $\log_{10}(\tau)$ using the Mann-Kendall/Theil-Sen estimator (via the `MannKS` library). This provides a more reliable estimate of the scaling exponent $H$ that is less sensitive to outliers. It returns $H$, $\beta$, $R^2$ (calculated via OLS for reference), and the intercept.
+The function `fit_haar_slope` performs a robust linear regression on $\log_{10}(S_1)$ vs $\log_{10}(\tau)$ using the Mann-Kendall/Theil-Sen estimator (via the `MannKS` library). This provides a more reliable estimate of the scaling slope $m$ that is less sensitive to outliers. It returns $m$, $\beta$, $R^2$ (calculated via OLS for reference), and the intercept.
 
 ## 4. Usage in waterSpec
 

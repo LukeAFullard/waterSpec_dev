@@ -14,7 +14,7 @@ class SegmentedRegimeAnalysis:
         data: np.ndarray,
         scale: float,
         threshold_factor: float = 3.0,
-        min_event_duration: float = 0
+        min_event_duration: Optional[float] = None
     ) -> Dict[str, List[Tuple[float, float]]]:
         """
         Segments the time series into 'event' and 'background' regimes based on
@@ -25,11 +25,15 @@ class SegmentedRegimeAnalysis:
             data (np.ndarray): Data array.
             scale (float): The Haar scale (window size) to compute fluctuations.
             threshold_factor (float): Multiplier for the background noise level (MAD).
-            min_event_duration (float): Minimum duration to classify as an event.
+            min_event_duration (float, optional): Minimum duration to classify as an event.
+                If None, defaults to scale / 2.0.
 
         Returns:
             Dict containing lists of (start, end) time tuples for 'events' and 'background'.
         """
+        if min_event_duration is None:
+            min_event_duration = scale / 2.0
+
         # 1. Compute Sliding Haar Fluctuations
         # We use a step size smaller than scale for resolution
         t_centers, fluctuations = calculate_sliding_haar(
