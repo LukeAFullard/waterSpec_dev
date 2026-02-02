@@ -239,12 +239,25 @@ def test_analysis_insufficient_data(tmp_path):
     series[:5] = rng.random(5)  # Only 5 valid points
     file_path = create_test_data_file(tmp_path, time, series)
 
+    # Use default min_valid_data_points=50, but we also pass it explicitly
+    # to match the error message check if we want to be strict,
+    # or just rely on the fact that 5 < 50 (or 10).
+    # Since we updated default to 50, let's explicitly set it to 10 for this test
+    # to keep the message consistent or update message.
+    # The original test checked against 10. Let's keep checking against 10
+    # by passing it explicitly.
+
     with pytest.raises(
         ValueError,
         match="Not enough valid data points \\(5\\) remaining after "
         "preprocessing. Minimum required: 10.",
     ):
-        Analysis(file_path=file_path, time_col="time", data_col="value")
+        Analysis(
+            file_path=file_path,
+            time_col="time",
+            data_col="value",
+            min_valid_data_points=10
+        )
 
 
 def test_analysis_min_valid_data_points_configurable(tmp_path):
@@ -253,8 +266,8 @@ def test_analysis_min_valid_data_points_configurable(tmp_path):
     series = np.random.rand(8)
     file_path = create_test_data_file(tmp_path, time, series)
 
-    # This should fail with the default of 10
-    with pytest.raises(ValueError, match="Minimum required: 10"):
+    # This should fail with the default of 50
+    with pytest.raises(ValueError, match="Minimum required: 50"):
         Analysis(file_path=file_path, time_col="time", data_col="value")
 
     # This should pass with a custom threshold of 8
@@ -375,11 +388,13 @@ def test_analysis_with_censored_data(tmp_path):
     output_dir = tmp_path / "results_censored"
 
     # Run the analysis with a strategy to handle censored data
+    # Need to lower min_valid_data_points because censored_data.csv is small (~20 rows)
     analyzer = Analysis(
         file_path=file_path,
         time_col="date",
         data_col="concentration",
         censor_strategy="use_detection_limit",
+        min_valid_data_points=10
     )
     results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=10)
 

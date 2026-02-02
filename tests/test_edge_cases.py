@@ -93,7 +93,8 @@ def test_analysis_raises_error_for_insufficient_data_post_processing(tmp_path):
             time_col="time",
             data_col="value",
             censor_strategy="drop",
-                censor_options={"left_censor_symbol": "<"},
+            censor_options={"left_censor_symbol": "<"},
+            min_valid_data_points=10 # Explicitly set to 10
         )
 
 # --- Tests for Gaps in preprocessor.py ---
@@ -255,6 +256,7 @@ def test_preprocess_handles_non_numeric_censored_values(tmp_path):
             file_path=file_path,
             time_col="time",
             data_col="value",
+            min_valid_data_points=10 # Explicitly set to 10
         )
 
 def test_load_data_all_nan_data(tmp_path):

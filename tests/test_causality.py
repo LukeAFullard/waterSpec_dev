@@ -63,9 +63,9 @@ def test_irregular_sampling_ccm():
     assert not np.allclose(dt, np.median(dt))
 
     # 3. Run CCM
-    # Should warn about interpolation
+    # Should warn about interpolation if allowed
     with pytest.warns(UserWarning, match="unevenly sampled"):
-        res = convergent_cross_mapping(t_irr, X_irr, Y_irr, E=2, tau=1)
+        res = convergent_cross_mapping(t_irr, X_irr, Y_irr, E=2, tau=1, allow_interpolation=True)
 
     # Should still give good result
     assert res['rho'][-1] > 0.8
