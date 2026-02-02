@@ -95,6 +95,12 @@ def calculate_partial_cross_haar(
     """
     Calculates Partial Cross-Haar Correlation between X and Y controlling for Z.
 
+    WARNING: This method is experimental. Applying partial correlation to Haar fluctuations
+    assumes that the fluctuations at a given scale follow a multivariate Gaussian distribution
+    and that the linear partial correlation formula is valid for these increments.
+    This assumption has not been rigorously validated in the literature for all environmental
+    processes. Use with caution.
+
     Formula: rho_{XY.Z} = (rho_{XY} - rho_{XZ} * rho_{YZ}) / sqrt((1 - rho_{XZ}^2) * (1 - rho_{YZ}^2))
 
     Args:
@@ -108,6 +114,13 @@ def calculate_partial_cross_haar(
     Returns:
         Dict containing arrays for lags, rho_xy, rho_xz, rho_yz, partial_corr, n_pairs.
     """
+    import warnings
+    warnings.warn(
+        "calculate_partial_cross_haar is experimental and its statistical validity "
+        "for Haar fluctuations has not been fully established. Interpret results with caution.",
+        UserWarning
+    )
+
     # Calculate fluctuations
     fluc_dict = calculate_multivariate_fluctuations(
         time, [data_x, data_y, data_z], lags, overlap, overlap_step_fraction, min_samples_per_window

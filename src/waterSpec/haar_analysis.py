@@ -55,7 +55,8 @@ def calculate_haar_fluctuations(
         if max_lag > total_duration / 2:
             warnings.warn(
                 f"max_lag ({max_lag}) is greater than half the total duration ({total_duration/2}). "
-                "It is recommended to use a max_lag between T/4 and T/2, and Nyquist frequency for min_lag.",
+                "It is recommended to use a max_lag between T/4 and T/2, and Nyquist frequency for min_lag. "
+                "Results for lags > T/2 are statistically unreliable.",
                 UserWarning
             )
 
