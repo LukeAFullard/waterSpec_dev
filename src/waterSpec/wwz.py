@@ -9,7 +9,7 @@ def calculate_wwz(
     taus: Optional[np.ndarray] = None,
     decay_constant: float = 0.00125,
     parallel: bool = False # Placeholder for future optimization
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculates the Weighted Wavelet Z-transform (WWZ) for unevenly sampled data.
 

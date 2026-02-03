@@ -25,7 +25,7 @@ def test_wwz_synthetic_signal():
     freqs = np.linspace(0.1, 1.0, 50)
     taus = np.linspace(0, 100, 100)
 
-    wwz, fs, ts = calculate_wwz(time, data, freqs, taus=taus, decay_constant=0.005)
+    wwz, fs, ts, _ = calculate_wwz(time, data, freqs, taus=taus, decay_constant=0.005)
 
     # 3. Validation
     # Shape check
@@ -57,7 +57,7 @@ def test_wwz_constant_signal():
     data = np.ones(50) * 5.0
     freqs = np.linspace(1, 5, 10)
 
-    wwz, _, _ = calculate_wwz(time, data, freqs)
+    wwz, _, _, _ = calculate_wwz(time, data, freqs)
 
     # Should be close to zero (numerical noise)
     assert np.nanmax(wwz) < 1e-5
@@ -68,7 +68,7 @@ def test_wwz_empty_or_small():
     data = np.array([1, 1])
     freqs = np.array([1.0])
 
-    wwz, _, _ = calculate_wwz(time, data, freqs)
+    wwz, _, _, _ = calculate_wwz(time, data, freqs)
     # Should not crash, output shape (1, 2)
     assert wwz.shape == (1, 2)
 
@@ -82,7 +82,7 @@ def test_wwz_vectorization_consistency():
     freqs = np.array([1.0])
     taus = np.array([5.0])
 
-    wwz, _, _ = calculate_wwz(time, data, freqs, taus=taus, decay_constant=0.01)
+    wwz, _, _, _ = calculate_wwz(time, data, freqs, taus=taus, decay_constant=0.01)
 
     # Should be high
     assert wwz[0, 0] > 10.0

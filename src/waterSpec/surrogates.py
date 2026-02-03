@@ -1,5 +1,6 @@
 
 import numpy as np
+import warnings
 from typing import Optional
 from waterSpec.utils_sim import simulate_tk95, resample_to_times, power_law
 
@@ -12,8 +13,22 @@ def generate_phase_randomized_surrogates(
     Generates surrogates by randomizing the Fourier phases while preserving the
     amplitude spectrum (and thus autocorrelation). This is Method 5.2 from the Audit Plan.
 
+    .. warning::
+        **Assumes Even Sampling**
+
+        This function uses the standard Fast Fourier Transform (FFT), which implicitly
+        assumes the data is evenly sampled (constant time step).
+
+        If you use this on irregularly sampled data, the resulting surrogates and
+        any statistical tests derived from them will be **invalid**.
+
+        For irregular data, you must either:
+        1. Interpolate your data to a regular grid before calling this function (as done in `BivariateAnalysis`).
+        2. Use `generate_power_law_surrogates` which is designed for irregular data.
+
     Args:
         data (np.ndarray): Input time series (must be evenly spaced or interpolated).
+                           NaNs will be treated as zeros or propagate errors in FFT.
         n_surrogates (int): Number of surrogates to generate.
         seed (int): Random seed.
 
@@ -22,6 +37,13 @@ def generate_phase_randomized_surrogates(
     """
     rng = np.random.default_rng(seed)
     n = len(data)
+
+    if np.any(np.isnan(data)):
+        warnings.warn(
+            "Input data contains NaNs. FFT will propagate these, resulting in garbage surrogates. "
+            "Please fill or interpolate NaNs before generating phase-randomized surrogates.",
+            UserWarning
+        )
 
     # FFT
     fft_data = np.fft.rfft(data)
@@ -67,6 +89,13 @@ def generate_block_shuffled_surrogates(
     """
     Generates surrogates by shuffling blocks of data.
     Destroys long-term memory > block_size, preserves short-term structure.
+
+    .. warning::
+        **Assumes Indices map to Time**
+
+        This method shuffles blocks of *indices*. If your data is irregularly sampled,
+        a block of N indices does not correspond to a constant duration of time.
+        Use with caution on irregular data.
     """
     rng = np.random.default_rng(seed)
     n = len(data)
