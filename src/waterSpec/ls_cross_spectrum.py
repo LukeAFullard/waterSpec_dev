@@ -118,10 +118,13 @@ def _compute_ls_complex_coeffs(
     coeffs = np.zeros(n_freqs, dtype=complex)
 
     # Weights
-    if errors is None:
+    if errors is None or np.all(errors == 0):
         w = np.ones_like(data)
     else:
-        w = 1.0 / (errors**2)
+        # Handle zeros in errors safely
+        safe_errors = errors.copy()
+        safe_errors[safe_errors == 0] = 1e-9 # Prevent div by zero
+        w = 1.0 / (safe_errors**2)
 
     # We vectorise over time, loop over freq (for simplicity/memory)
     # Solving 3x3 system: [ [sum w, sum w cos, sum w sin], ... ]

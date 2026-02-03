@@ -276,3 +276,61 @@ time, red_noise = simulate_tk95(
 
 **Interpretation:**
 *   **Why it matters:** If you claim a "significant trend" or "cycle", an opposing expert might say "that's just natural persistence." By simulating Red Noise that has the *same* persistence ($\tau$) as your data and showing your signal is *still* an outlier, you refute that counter-argument.
+
+---
+
+## 12. Advanced Irregular Analysis (Coherence, Phase, CARMA)
+
+**Scientific Context:**
+For complex questions ("Did the correlation disappear after the drought?" or "Is this a Damped Random Walk?"), simple correlation or spectral slopes are insufficient. These advanced tools work natively on **irregularly sampled data** without interpolation.
+
+### A. WWZ Coherence (Time-Localized Correlation)
+
+Maps *when* and at *what frequency* two variables are correlated.
+
+```python
+from waterSpec import calculate_wwz_coherence
+
+# Calculate Coherence between Discharge (y1) and Nitrate (y2)
+# Both sampled at irregular times (t1, t2)
+coh, freqs, time = calculate_wwz_coherence(
+    t1, y1, t2, y2,
+    freqs=np.linspace(0.01, 0.5, 50),
+    smoothing_window=2.0
+)
+
+# Result: coh is a (freq x time) matrix of R^2 values [0, 1]
+# High values indicate strong coupling at that specific time/scale.
+```
+
+### B. Lomb-Scargle Cross-Spectrum (Lead/Lag Analysis)
+
+Determines if one variable leads or lags another at specific frequencies.
+
+```python
+from waterSpec import calculate_ls_cross_spectrum, calculate_ls_phase
+
+# Calculate Cross-Spectrum
+# Returns complex cross-spectrum Sxy and Phase difference
+Sxy, phase, freqs = calculate_ls_cross_spectrum(t1, y1, t2, y2, freqs=my_freqs)
+
+# Convert Phase (radians) to Time Lag (days)
+# Positive Lag usually means y2 lags y1 (check sign convention in docs)
+time_lags = phase / (2 * np.pi * freqs)
+```
+
+### C. CARMA Modeling (Process Identification)
+
+Fits a stochastic differential equation to find the "Damping Timescale" (Memory).
+
+```python
+from waterSpec import fit_carma_drw
+
+# Fit a Damped Random Walk (Ornstein-Uhlenbeck process)
+model = fit_carma_drw(time, data)
+
+print(f"Damping Timescale (tau): {model['tau']:.2f} days")
+print(f"Driving Amplitude (sigma): {model['sigma']:.3f}")
+
+# 'tau' is the characteristic recovery time of the catchment.
+```

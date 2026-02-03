@@ -32,6 +32,9 @@
   - **Event-Based Segmentation:** Automatically segment time series into "Storm" vs "Baseflow" regimes using Sliding Haar volatility.
   - **Real-Time Anomaly Detection:** Compute "Sliding Haar" fluctuations to detect sudden volatility changes.
   - **Hysteresis Classification:** Quantify loop area and direction in the C-Q phase space across scales.
+  - **WWZ Coherence:** Estimate time-localized correlation on irregular data.
+  - **LS Cross-Spectrum:** Determine phase lags (lead/lag) across frequencies.
+  - **CARMA Modeling:** Fit continuous-time autoregressive models to identify process physics (e.g., damping time).
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
@@ -122,7 +125,7 @@ print(results['summary_text'])
 2.  **Haar Wavelet Analysis:**
     *   **Best for:** Estimating the spectral slope ($\beta$) on unevenly sampled data.
     *   **How it works:** Calculates the first-order structure function (average fluctuations) across different timescales (lags).
-    *   **Relation to Spectrum:** The Haar fluctuation exponent $H$ is related to the spectral exponent by $\beta = 1 + 2H$.
+    *   **Relation to Spectrum:** The Haar fluctuation slope $m$ is related to the spectral exponent by $\beta = 2m + 1$.
 
 **Recommendation:** If your primary goal is to estimate the power-law slope ($\beta$) and your data has irregular sampling steps, use the Haar method. If you are looking for specific frequency peaks, use Lomb-Scargle.
 
@@ -210,6 +213,27 @@ from waterSpec.haar_analysis import calculate_sliding_haar
 t_centers, fluctuations = calculate_sliding_haar(
     time_array, data_array, window_size=6*3600
 )
+```
+
+### Advanced Spectral Tools (Irregular Data Native)
+
+These methods work directly on irregular data without interpolation.
+
+```python
+from waterSpec import calculate_wwz_coherence, calculate_ls_cross_spectrum, fit_carma_drw
+
+# 1. WWZ Coherence (Time-Localized Correlation)
+# 'Is the correlation transient?'
+coh, freqs, time = calculate_wwz_coherence(t1, y1, t2, y2, freqs=my_freqs)
+
+# 2. Lomb-Scargle Cross-Spectrum (Lead/Lag Analysis)
+# 'Does Variable A lead Variable B?'
+cross_power, phase_lag, _, _ = calculate_ls_cross_spectrum(t1, y1, t2, y2, freqs=my_freqs)
+
+# 3. CARMA Modeling (Process Identification)
+# 'What is the memory timescale?'
+model = fit_carma_drw(time, data)
+print(f"Damping Timescale: {model['tau']:.2f} days")
 ```
 
 ---

@@ -112,17 +112,47 @@ This document summarizes the methods available in the `waterSpec` package, outli
 
 ---
 
+## Advanced Irregular Spectral Methods (Implemented)
+
+These methods are now available in `waterSpec` to address specific questions in irregular data analysis.
+
+### 9. WWZ Coherence (Time-Localized Correlation)
+**Implementation:** `waterSpec.calculate_wwz_coherence`
+**Usage:** Standalone function.
+
+*   **Description:** Estimates the magnitude squared coherence between two time series as a function of both frequency and time. Uses the Weighted Wavelet Z-transform to handle irregular sampling natively.
+*   **Strengths:**
+    *   **Time-Localization:** Reveals transient relationships (e.g., correlations that only appear during wet years).
+    *   **Irregularity:** Avoids interpolation bias.
+*   **Weaknesses:** Computationally intensive ($O(N^2)$); requires smoothing parameter tuning.
+
+### 10. Lomb-Scargle Cross-Spectrum (Phase Analysis)
+**Implementation:** `waterSpec.calculate_ls_cross_spectrum`
+**Usage:** Standalone function.
+
+*   **Description:** Calculates the cross-spectrum and phase difference between two time series by fitting joint sinusoidal models.
+*   **Strengths:**
+    *   **Lead/Lag:** Determines the time delay between variables at specific frequencies.
+    *   **Mutually Uneven:** Works even if the two series are sampled at different times.
+*   **Weaknesses:** Phase estimation is noisy when coherence is low.
+
+### 11. CARMA Modeling (Process Identification)
+**Implementation:** `waterSpec.fit_carma_drw`
+**Usage:** Standalone function.
+
+*   **Description:** Fits a Continuous AutoRegressive Moving Average model (specifically CARMA(1,0) / Damped Random Walk) to the time series.
+*   **Strengths:**
+    *   **Physics:** Directly estimates the "damping timescale" (system memory) and "driving amplitude" (volatility).
+    *   **Rigorous:** The gold standard for modeling memory processes in irregular data.
+*   **Weaknesses:** Assumes stationarity and Gaussianity.
+
+---
+
 ## Potential Future Methods
 
-These methods are identified as candidates for future implementation to enhance handling of irregular sampling and answer specific questions.
+These methods are identified as candidates for future implementation.
 
-### 1. CARMA (Continuous AutoRegressive Moving Average)
-*   **Description:** A continuous-time generalization of ARMA models. It models the time series as a stochastic process governed by a linear differential equation driven by white noise.
-*   **Strengths (Uneven Data):** Designed specifically for continuous-time processes sampled at arbitrary times. It directly handles irregularity without interpolation or windowing artifacts. It is the standard in astronomy for irregular variability (e.g., quasar light curves).
-*   **Weaknesses:** Computationally intensive to fit (usually requires MCMC or complex optimization); model order selection (p, q) is non-trivial.
-*   **Key Questions Answered:** "What is the characteristic timescale (damping time) of the system?" "Is the process consistent with a Damped Random Walk (DRW/OU process)?"
-
-### 2. Multitaper Method (MTM)
+### 1. Multitaper Method (MTM)
 *   **Description:** An extension of periodogram analysis that uses multiple orthogonal tapers (Slepian sequences) to estimate the power spectrum. The final spectrum is an average of the eigenspectra.
 *   **Strengths (Uneven Data):** Provides significantly reduced variance compared to single-taper methods (like standard Lomb-Scargle) while minimizing spectral leakage. While traditionally for even sampling, adaptations for uneven sampling exist (e.g., point-process MTM).
 *   **Weaknesses:** More complex to implement for highly irregular data than Lomb-Scargle; resolution-variance trade-off must be managed via the time-bandwidth product.
@@ -139,15 +169,3 @@ These methods are identified as candidates for future implementation to enhance 
 *   **Strengths (Uneven Data):** Can effectively remove alias peaks and side lobes caused by periodic gaps (e.g., missing weekends or daily sampling cycles).
 *   **Weaknesses:** Can produce spurious features if not stopped correctly (stopping criterion is subjective); modifies the noise properties of the residual spectrum.
 *   **Key Questions Answered:** "Is this secondary peak a true periodicity or just an alias of the main annual cycle due to my sampling pattern?"
-
-### 5. Wavelet Coherence
-*   **Description:** A measure of the correlation between two time series as a function of both frequency (scale) and time, using continuous wavelet transforms (CWT).
-*   **Strengths (Uneven Data):** Identifies transient correlations that appear and disappear over time.
-*   **Weaknesses:** Standard CWT requires even sampling; would require Weighted Wavelet Z-transform (WWZ) coherence or interpolation-based approaches.
-*   **Key Questions Answered:** "Did the relationship between discharge and nitrate change after the 2015 flood?" "Is the correlation only present during winter months?"
-
-### 6. Cross-Spectral Phase Analysis
-*   **Description:** Analysis of the phase difference between two time series at each frequency.
-*   **Strengths (Uneven Data):** Determines the lead/lag relationship between variables as a function of timescale.
-*   **Weaknesses:** Phase estimation is noisy for irregular data; requires careful handling of phase wrapping and significance testing.
-*   **Key Questions Answered:** "Does discharge lead concentration (transport) or lag it (dilution/hysteresis)?" "What is the specific time lag at the annual cycle vs. the storm event scale?"
