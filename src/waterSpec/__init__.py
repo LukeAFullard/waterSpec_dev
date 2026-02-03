@@ -28,6 +28,9 @@ __all__ = [
     "Analysis",
     "calculate_partial_cross_haar",
     "SegmentedRegimeAnalysis",
+    "calculate_wwz_coherence",
+    "calculate_ls_cross_spectrum",
+    "fit_carma_drw",
 ]
 
 # ---- Metadata ----
@@ -113,6 +116,20 @@ plot_spectrum = _lazy_import(
 
 calculate_partial_cross_haar = _lazy_import(
     "calculate_partial_cross_haar", "multivariate"
+)
+
+calculate_wwz_coherence = _lazy_import(
+    "calculate_wwz_coherence", "wwz_coherence",
+    dep_message="scipy is required for WWZ coherence smoothing."
+)
+
+calculate_ls_cross_spectrum = _lazy_import(
+    "calculate_ls_cross_spectrum", "ls_cross_spectrum"
+)
+
+fit_carma_drw = _lazy_import(
+    "fit_carma_drw", "carma_model",
+    dep_message="scipy is required for CARMA fitting."
 )
 
 # SegmentedRegimeAnalysis is a class with static methods, so we need special handling
