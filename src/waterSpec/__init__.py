@@ -29,6 +29,7 @@ __all__ = [
     "calculate_partial_cross_haar",
     "SegmentedRegimeAnalysis",
     "calculate_wwz_coherence",
+    "calculate_ls_cross_spectrum",
 ]
 
 # ---- Metadata ----
@@ -119,6 +120,10 @@ calculate_partial_cross_haar = _lazy_import(
 calculate_wwz_coherence = _lazy_import(
     "calculate_wwz_coherence", "wwz_coherence",
     dep_message="scipy is required for WWZ coherence smoothing."
+)
+
+calculate_ls_cross_spectrum = _lazy_import(
+    "calculate_ls_cross_spectrum", "ls_cross_spectrum"
 )
 
 # SegmentedRegimeAnalysis is a class with static methods, so we need special handling
