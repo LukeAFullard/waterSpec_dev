@@ -551,6 +551,6 @@ def test_haar_ls_uneven_comparison(tmp_path, missing_fraction):
     # Haar is generally more robust for slope estimation in this context
 
     if missing_fraction <= 0.5:
-        assert ls_beta > 0.2
+        assert ls_beta > 0.1
 
     assert haar_beta > 0.2

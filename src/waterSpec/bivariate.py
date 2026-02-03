@@ -8,11 +8,13 @@ from scipy import stats, interpolate
 
 from .haar_analysis import calculate_haar_fluctuations
 from .surrogates import generate_phase_randomized_surrogates, calculate_significance_p_value
+from .ls_cross_spectrum import calculate_ls_cross_spectrum, calculate_time_lag
+from .wwz_coherence import calculate_wwz_coherence
 
 class BivariateAnalysis:
     """
     Performs bivariate analysis between two time series (e.g., Concentration and Discharge).
-    Supports Cross-Haar Correlation and Lagged Response Analysis.
+    Supports Cross-Haar Correlation, Lagged Response Analysis, and Cross-Spectral Analysis.
     """
 
     def __init__(self,
@@ -450,6 +452,77 @@ class BivariateAnalysis:
 
         return {'area': area, 'direction': direction}
 
+    def run_ls_cross_analysis(
+        self,
+        freqs: np.ndarray,
+        errors1: Optional[np.ndarray] = None,
+        errors2: Optional[np.ndarray] = None
+    ) -> Dict:
+        """
+        Calculates Lomb-Scargle Cross-Spectrum and Phase directly on irregular data.
+        This is the statistically defensible method for phase estimation on uneven series.
+
+        Args:
+            freqs (np.ndarray): Frequencies to analyze.
+            errors1 (np.ndarray, optional): Errors for first series.
+            errors2 (np.ndarray, optional): Errors for second series.
+
+        Returns:
+            Dict: Contains 'cross_power', 'phase_lag', 'time_lag', 'freqs'.
+        """
+        # No alignment needed! Using original timestamps.
+
+        cross_power, phase_lag, _, _ = calculate_ls_cross_spectrum(
+            self.time1, self.data1,
+            self.time2, self.data2,
+            freqs, errors1, errors2
+        )
+
+        time_lag = calculate_time_lag(phase_lag, freqs)
+
+        return {
+            'freqs': freqs,
+            'cross_power': cross_power,
+            'phase_lag': phase_lag,
+            'time_lag': time_lag
+        }
+
+    def run_wwz_coherence_analysis(
+        self,
+        freqs: np.ndarray,
+        taus: Optional[np.ndarray] = None,
+        decay_constant: float = 0.00125,
+        smoothing_window: float = 2.0
+    ) -> Dict:
+        """
+        Calculates WWZ Coherence directly on irregular data.
+        This is the statistically defensible method for coherence estimation on uneven series.
+
+        Args:
+            freqs (np.ndarray): Frequencies.
+            taus (np.ndarray, optional): Time shift grid.
+            decay_constant (float): Morlet wavelet decay constant.
+            smoothing_window (float): Smoothing window sigma (pixels).
+
+        Returns:
+            Dict: 'coherence', 'freqs', 'taus'.
+        """
+        # No alignment needed.
+
+        coherence, _, taus_out = calculate_wwz_coherence(
+            self.time1, self.data1,
+            self.time2, self.data2,
+            freqs, taus=taus,
+            decay_constant=decay_constant,
+            smoothing_window=smoothing_window
+        )
+
+        return {
+            'freqs': freqs,
+            'taus': taus_out,
+            'coherence': coherence
+        }
+
     def calculate_spectral_coherence(
         self,
         min_freq: Optional[float] = None,
@@ -457,17 +530,23 @@ class BivariateAnalysis:
         samples_per_peak: int = 5
     ) -> Dict:
         """
-        Calculates Magnitude-Squared Coherence (MSC) using Lomb-Scargle periodograms.
-        This handles irregular sampling.
+        Calculates Magnitude-Squared Coherence (MSC) using interpolation and Welch's method.
 
-        MSC(f) = |P_xy(f)|^2 / (P_xx(f) * P_yy(f))
+        .. warning::
+            **Interpolation Artifacts**
 
-        However, standard Lomb-Scargle does not provide the cross-spectrum P_xy directly.
-        We can approximate coherence using the Welch method on interpolated data
-        OR use a specific generalized Lomb-Scargle cross-spectrum implementation.
+            This method interpolates data to a regular grid before calculating coherence.
+            For strictly irregular data, this can introduce spectral artifacts.
 
-        Given we don't have a cross-LS implementation readily available in standard libs (like astropy),
-        we will use the interpolation + Welch/CSD method.
+            **Recommended Alternatives:**
+            - For **Phase/Time Lag** analysis, use `run_ls_cross_analysis` (Lomb-Scargle Cross Spectrum).
+            - For **Coherence** (time-localized), use `run_wwz_coherence_analysis` (WWZ Coherence).
+
+            These alternatives operate directly on the irregular data without interpolation.
+
+        Args:
+            min_freq (float, optional): Min frequency.
+            max_freq (float, optional): Max frequency.
         """
         if self.aligned_data is None:
             raise ValueError("Data must be aligned first.")
@@ -485,7 +564,7 @@ class BivariateAnalysis:
         warning_flags = []
         if np.max(dt) > max_gap:
              msg = f"Large data gap ({np.max(dt):.2f}) detected."
-             warnings.warn(msg + " Interpolation may introduce artifacts in coherence.", UserWarning)
+             warnings.warn(msg + " Interpolation may introduce artifacts in coherence. Consider using `run_wwz_coherence_analysis`.", UserWarning)
              warning_flags.append(msg)
 
         reg_time = np.arange(time[0], time[-1], median_dt)
