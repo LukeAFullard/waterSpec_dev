@@ -629,8 +629,15 @@ class Analysis:
             haar_summary = "\n\n-----------------------------------\n"
             haar_summary += "Haar Wavelet Analysis:\n"
             haar_summary += f"  β = {beta:.2f}\n"
-            haar_summary += f"  H = {hr.get('H', np.nan):.2f}\n"
+            haar_summary += f"  m = {hr.get('H', np.nan):.2f}\n"
             haar_summary += f"  R² = {hr.get('r2', np.nan):.2f}\n"
+
+            # Add Effective Sample Size info
+            n_eff_vals = hr.get('n_effective', None)
+            if n_eff_vals is not None and len(n_eff_vals) > 0:
+                mean_neff = np.nanmean(n_eff_vals)
+                haar_summary += f"  Mean N_eff: {mean_neff:.1f} (of N={len(self.time)})\n"
+
             haar_summary += f"  Persistence: {get_persistence_traffic_light(beta)}\n"
             haar_summary += f"  Interpretation: {get_scientific_interpretation(beta)}\n"
 
