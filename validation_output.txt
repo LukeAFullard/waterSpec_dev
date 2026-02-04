@@ -1,0 +1,15 @@
+
+--- Micro Validation (Small Dataset) ---
+Left Data: [1 2 3 4 5]
+Right Data: [ 6  7  8  9 10]
+Manual 90th Left: 5.0
+Manual 90th Right: 10.0
+Expected Fluctuation: 5.0
+Code Calculated Fluctuation: 5.0
+✅ Micro validation PASSED.
+
+--- Macro Validation (Gaussian White Noise) ---
+Beta (Mean): 0.021 (Expected ~0 for White Noise)
+Beta (90th): 0.093
+Difference: 0.072
+✅ Macro validation PASSED (Scaling is consistent).
