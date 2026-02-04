@@ -81,6 +81,7 @@ pip install -e '.[test]'
 *   **[Beta Values Library](docs/beta_values_library.md):** Reference values for spectral slopes across different domains (Hydrology, Climate, etc.).
 *   **[Dataset Sources](docs/dataset_sources.md):** Sources for public datasets used for testing and benchmarking.
 *   **[Haar Framework Design](docs/design_docs/haar_framework_design.md):** Deep dive into the theoretical framework of the Haar analysis implementation.
+*   **[Analyzing Extremes with Percentiles](docs/WALKTHROUGH_PERCENTILES.md):** Guide on using median and percentile statistics to study the scaling of extremes.
 
 ---
 
