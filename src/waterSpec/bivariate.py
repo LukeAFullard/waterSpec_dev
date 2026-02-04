@@ -6,7 +6,7 @@ import logging
 import warnings
 from scipy import stats, interpolate
 
-from .haar_analysis import calculate_haar_fluctuations
+from .haar_analysis import calculate_haar_fluctuations, _compute_statistic
 from .surrogates import generate_phase_randomized_surrogates, calculate_significance_p_value
 from .ls_cross_spectrum import calculate_ls_cross_spectrum, calculate_time_lag
 from .wwz_coherence import calculate_wwz_coherence
@@ -98,7 +98,13 @@ class BivariateAnalysis:
         val2: np.ndarray,
         lags: np.ndarray,
         overlap: bool = True,
-        overlap_step_fraction: float = 0.1
+        overlap_step_fraction: float = 0.1,
+        statistic1: str = "mean",
+        percentile1: Optional[float] = None,
+        percentile_method1: str = "hazen",
+        statistic2: str = "mean",
+        percentile2: Optional[float] = None,
+        percentile_method2: str = "hazen"
     ) -> Dict:
         """Helper to calculate Cross-Haar Correlation."""
         results = {
@@ -136,8 +142,14 @@ class BivariateAnalysis:
 
                 # Require data in both halves for BOTH variables
                 if len(v1_left) > 0 and len(v1_right) > 0 and len(v2_left) > 0 and len(v2_right) > 0:
-                    d1 = np.mean(v1_right) - np.mean(v1_left)
-                    d2 = np.mean(v2_right) - np.mean(v2_left)
+                    # Use helper for flexible stats
+                    stat1_r = _compute_statistic(v1_right, statistic1, percentile1, percentile_method1)
+                    stat1_l = _compute_statistic(v1_left, statistic1, percentile1, percentile_method1)
+                    d1 = stat1_r - stat1_l
+
+                    stat2_r = _compute_statistic(v2_right, statistic2, percentile2, percentile_method2)
+                    stat2_l = _compute_statistic(v2_left, statistic2, percentile2, percentile_method2)
+                    d2 = stat2_r - stat2_l
 
                     fluc1.append(d1)
                     fluc2.append(d2)
@@ -172,7 +184,13 @@ class BivariateAnalysis:
         self,
         lags: np.ndarray,
         overlap: bool = True,
-        overlap_step_fraction: float = 0.1
+        overlap_step_fraction: float = 0.1,
+        statistic1: str = "mean",
+        percentile1: Optional[float] = None,
+        percentile_method1: str = "hazen",
+        statistic2: str = "mean",
+        percentile2: Optional[float] = None,
+        percentile_method2: str = "hazen"
     ) -> Dict:
         """
         Calculates Cross-Haar Correlation at specified lags.
@@ -185,7 +203,9 @@ class BivariateAnalysis:
         val2 = self.aligned_data[self.name2].values
 
         return self._calculate_cross_haar(
-            time, val1, val2, lags, overlap, overlap_step_fraction
+            time, val1, val2, lags, overlap, overlap_step_fraction,
+            statistic1, percentile1, percentile_method1,
+            statistic2, percentile2, percentile_method2
         )
 
     def calculate_significance(
@@ -195,15 +215,28 @@ class BivariateAnalysis:
         overlap: bool = True,
         overlap_step_fraction: float = 0.1,
         seed: Optional[int] = None,
-        max_gap: Optional[float] = None
+        max_gap: Optional[float] = None,
+        statistic1: str = "mean",
+        percentile1: Optional[float] = None,
+        percentile_method1: str = "hazen",
+        statistic2: str = "mean",
+        percentile2: Optional[float] = None,
+        percentile_method2: str = "hazen"
     ) -> Dict:
         """
         Calculates significance of Cross-Haar Correlation using phase-randomized surrogates.
-        Handles irregularly sampled data by resampling to a regular grid for surrogate generation
-        and then interpolating back.
         """
         if self.aligned_data is None:
             raise ValueError("Data must be aligned first using `align_data`.")
+
+        # Warning about surrogates and non-mean statistics
+        if statistic1 != "mean" or statistic2 != "mean":
+            warnings.warn(
+                "Using phase-randomized surrogates with non-mean statistics (e.g. percentiles) "
+                "may be statistically invalid if the process is non-Gaussian, as phase randomization "
+                "imposes a Gaussian distribution on the surrogates. Use with caution.",
+                UserWarning
+            )
 
         time = self.aligned_data['time'].values
         val1 = self.aligned_data[self.name1].values # Keep var1 fixed
@@ -214,7 +247,9 @@ class BivariateAnalysis:
 
         # Run observed analysis
         obs_results = self._calculate_cross_haar(
-            time, val1, val2, lags, overlap, overlap_step_fraction
+            time, val1, val2, lags, overlap, overlap_step_fraction,
+            statistic1, percentile1, percentile_method1,
+            statistic2, percentile2, percentile_method2
         )
         obs_corrs = np.array(obs_results['correlation'])
 
@@ -254,7 +289,9 @@ class BivariateAnalysis:
             surr_on_orig_time = np.interp(time, reg_time, reg_surrs[i])
 
             res = self._calculate_cross_haar(
-                time, val1, surr_on_orig_time, lags, overlap, overlap_step_fraction
+                time, val1, surr_on_orig_time, lags, overlap, overlap_step_fraction,
+                statistic1, percentile1, percentile_method1,
+                statistic2, percentile2, percentile_method2
             )
             surr_corrs[i, :] = res['correlation']
 
@@ -282,7 +319,13 @@ class BivariateAnalysis:
         tau: float,
         lag_offsets: np.ndarray,
         overlap: bool = True,
-        overlap_step_fraction: float = 0.1
+        overlap_step_fraction: float = 0.1,
+        statistic1: str = "mean",
+        percentile1: Optional[float] = None,
+        percentile_method1: str = "hazen",
+        statistic2: str = "mean",
+        percentile2: Optional[float] = None,
+        percentile_method2: str = "hazen"
     ) -> Dict:
         """
         Calculates Lagged Cross-Haar Correlation for a FIXED scale tau,
@@ -320,7 +363,10 @@ class BivariateAnalysis:
             v1_right = val1[idx_mid:idx_end]
 
             if len(v1_left) > 0 and len(v1_right) > 0:
-                d1 = np.mean(v1_right) - np.mean(v1_left)
+                s1_r = _compute_statistic(v1_right, statistic1, percentile1, percentile_method1)
+                s1_l = _compute_statistic(v1_left, statistic1, percentile1, percentile_method1)
+                d1 = s1_r - s1_l
+
                 t_centers.append(t_mid) # Use mid point as reference
                 fluc1_vals.append(d1)
 
@@ -362,7 +408,10 @@ class BivariateAnalysis:
                 v2_right = val2[idx_q_mid:idx_q_end]
 
                 if len(v2_left) > 0 and len(v2_right) > 0:
-                    d2 = np.mean(v2_right) - np.mean(v2_left)
+                    s2_r = _compute_statistic(v2_right, statistic2, percentile2, percentile_method2)
+                    s2_l = _compute_statistic(v2_left, statistic2, percentile2, percentile_method2)
+                    d2 = s2_r - s2_l
+
                     fluc2_vals.append(d2)
                     valid_indices.append(i)
 
@@ -385,7 +434,13 @@ class BivariateAnalysis:
         self,
         tau: float,
         overlap: bool = True,
-        overlap_step_fraction: float = 0.1
+        overlap_step_fraction: float = 0.1,
+        statistic1: str = "mean",
+        percentile1: Optional[float] = None,
+        percentile_method1: str = "hazen",
+        statistic2: str = "mean",
+        percentile2: Optional[float] = None,
+        percentile_method2: str = "hazen"
     ) -> Dict:
         """
         Calculates the Hysteresis Loop Area between fluctuations of the two variables at scale tau.
@@ -424,8 +479,14 @@ class BivariateAnalysis:
             v2_right = val2[idx_mid:idx_end]
 
             if len(v1_left) > 0 and len(v1_right) > 0 and len(v2_left) > 0 and len(v2_right) > 0:
-                d1 = np.mean(v1_right) - np.mean(v1_left)
-                d2 = np.mean(v2_right) - np.mean(v2_left)
+                s1_r = _compute_statistic(v1_right, statistic1, percentile1, percentile_method1)
+                s1_l = _compute_statistic(v1_left, statistic1, percentile1, percentile_method1)
+                d1 = s1_r - s1_l
+
+                s2_r = _compute_statistic(v2_right, statistic2, percentile2, percentile_method2)
+                s2_l = _compute_statistic(v2_left, statistic2, percentile2, percentile_method2)
+                d2 = s2_r - s2_l
+
                 fluc1.append(d1)
                 fluc2.append(d2)
 
