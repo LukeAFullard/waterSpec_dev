@@ -1,6 +1,7 @@
 
 import numpy as np
 from typing import Dict, List, Optional
+from .haar_analysis import _compute_statistic
 
 def calculate_multivariate_fluctuations(
     time: np.ndarray,
@@ -8,7 +9,10 @@ def calculate_multivariate_fluctuations(
     lags: np.ndarray,
     overlap: bool = True,
     overlap_step_fraction: float = 0.1,
-    min_samples_per_window: int = 5
+    min_samples_per_window: int = 5,
+    statistic: str = "mean",
+    percentile: Optional[float] = None,
+    percentile_method: str = "hazen"
 ) -> Dict[float, List[np.ndarray]]:
     """
     Calculates Haar fluctuations for multiple aligned time series on the exact same windows.
@@ -20,6 +24,9 @@ def calculate_multivariate_fluctuations(
         overlap (bool): Whether to use overlapping windows.
         overlap_step_fraction (float): Fraction of lag to step forward.
         min_samples_per_window (int): Minimum samples required in each half-window.
+        statistic (str): Statistic to use ("mean", "median", "percentile").
+        percentile (float): Percentile value.
+        percentile_method (str): Percentile method.
 
     Returns:
         Dict mapping lag (float) to a list of fluctuation arrays [fluc_1, fluc_2, ...].
@@ -69,7 +76,11 @@ def calculate_multivariate_fluctuations(
 
                 # We want absolute fluctuation?
                 # No, for correlation we want signed fluctuation.
-                d = np.mean(v_right) - np.mean(v_left)
+
+                val_right = _compute_statistic(v_right, statistic, percentile, percentile_method)
+                val_left = _compute_statistic(v_left, statistic, percentile, percentile_method)
+                d = val_right - val_left
+
                 diffs.append(d)
 
             if valid_window:
@@ -95,7 +106,10 @@ def calculate_partial_cross_haar(
     lags: np.ndarray,
     overlap: bool = True,
     overlap_step_fraction: float = 0.1,
-    min_samples_per_window: int = 5
+    min_samples_per_window: int = 5,
+    statistic: str = "mean",
+    percentile: Optional[float] = None,
+    percentile_method: str = "hazen"
 ) -> Dict:
     """
     Calculates Partial Cross-Haar Correlation between X and Y controlling for Z.
@@ -128,7 +142,8 @@ def calculate_partial_cross_haar(
 
     # Calculate fluctuations
     fluc_dict = calculate_multivariate_fluctuations(
-        time, [data_x, data_y, data_z], lags, overlap, overlap_step_fraction, min_samples_per_window
+        time, [data_x, data_y, data_z], lags, overlap, overlap_step_fraction, min_samples_per_window,
+        statistic, percentile, percentile_method
     )
 
     results = {
