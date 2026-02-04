@@ -90,3 +90,33 @@ print(f"Beta (95th):   {results_95['haar_results']['beta']:.2f}")
 
 *   **Data Requirements:** Percentile estimation requires sufficient data points within each window. The default `min_samples_per_window` is 5, but for high percentiles (e.g., 95th, 99th), you may need larger windows to get stable estimates. The code will automatically skip windows with insufficient data.
 *   **Computational Cost:** Calculating percentiles is computationally more expensive than calculating means. For very large datasets, this analysis may take longer.
+
+## Case Study: Stochastic Volatility
+
+A classic example of divergent scaling is a **Stochastic Volatility** process, often used to model financial markets or turbulent flows. In this model, the signal is "uncorrelated" white noise, but its variance (volatility) changes over time with a persistent memory.
+
+$$ y_t = \epsilon_t \cdot \sigma_t $$
+
+where $\epsilon_t$ is white noise ($\beta \approx 0$) and $\log \sigma_t$ is a persistent process (e.g., $\beta \approx 1.5$).
+
+### Running the Demo
+
+`waterSpec` includes a demonstration script for this scenario: `examples/demo_stochastic_volatility.py`.
+
+```bash
+python examples/demo_stochastic_volatility.py
+```
+
+### Expected Output
+
+When running this analysis, you will see that the **mean** fluctuation scales like white noise, while the **90th percentile** tracks the persistent volatility structure.
+
+```text
+Running Haar Analysis (Mean)...
+-> Beta (Mean): 0.14 (Expected ~0.0 for white noise structure)
+
+Running Haar Analysis (90th Percentile)...
+-> Beta (90th): 1.24 (Expected >0.0, tracking volatility)
+```
+
+This confirms that examining percentiles can reveal hidden structure in data that appears random to standard spectral analysis.
