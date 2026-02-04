@@ -477,14 +477,25 @@ class Analysis:
 
         return fit_results
 
-    def _perform_haar_analysis(self, overlap: bool = True, overlap_step_fraction: float = 0.1, max_breakpoints: int = 0):
+    def _perform_haar_analysis(
+        self,
+        overlap: bool = True,
+        overlap_step_fraction: float = 0.1,
+        max_breakpoints: int = 0,
+        statistic: str = "mean",
+        percentile: Optional[float] = None,
+        percentile_method: str = "hazen"
+    ):
         """Performs Haar Wavelet Analysis."""
         self.logger.info("Performing Haar Wavelet Analysis...")
         haar = HaarAnalysis(self.time, self.data, time_unit=self.time_unit)
         haar_results = haar.run(
             overlap=overlap,
             overlap_step_fraction=overlap_step_fraction,
-            max_breakpoints=max_breakpoints
+            max_breakpoints=max_breakpoints,
+            statistic=statistic,
+            percentile=percentile,
+            percentile_method=percentile_method
         )
         self.logger.info(
             f"Haar Analysis complete. Beta: {haar_results.get('beta', np.nan):.2f}, "
@@ -856,7 +867,10 @@ class Analysis:
             haar_obj, haar_res = self._perform_haar_analysis(
                 overlap=analysis_kwargs.get("haar_overlap", True),
                 overlap_step_fraction=analysis_kwargs.get("haar_overlap_step_fraction", 0.1),
-                max_breakpoints=analysis_kwargs.get("haar_max_breakpoints", 0)
+                max_breakpoints=analysis_kwargs.get("haar_max_breakpoints", 0),
+                statistic=analysis_kwargs.get("haar_statistic", "mean"),
+                percentile=analysis_kwargs.get("haar_percentile"),
+                percentile_method=analysis_kwargs.get("haar_percentile_method", "hazen"),
             )
             fit_results["haar_results"] = haar_res
             # We don't store haar_obj here for segments to avoid clutter/serialization issues if any,
@@ -984,6 +998,9 @@ class Analysis:
         max_breakpoints,
         nyquist_factor,
         max_freq,
+        haar_statistic,
+        haar_percentile,
+        haar_percentile_method,
     ):
         """Validates parameters for the `run_full_analysis` method."""
         if fit_method not in ["theil-sen", "ols"]:
@@ -1021,6 +1038,13 @@ class Analysis:
         if max_freq is not None and (not isinstance(max_freq, (int, float)) or max_freq <= 0):
             raise ValueError("`max_freq`, if provided, must be a positive number.")
 
+        if haar_statistic not in ["mean", "median", "percentile"]:
+            raise ValueError("`haar_statistic` must be 'mean', 'median', or 'percentile'.")
+        if haar_statistic == "percentile" and haar_percentile is None:
+            raise ValueError("`haar_percentile` must be provided if `haar_statistic` is 'percentile'.")
+        if haar_percentile is not None and not (0 <= haar_percentile <= 100):
+             raise ValueError("`haar_percentile` must be between 0 and 100.")
+
     def run_full_analysis(
         self,
         output_dir,
@@ -1044,6 +1068,9 @@ class Analysis:
         haar_overlap=True,
         haar_overlap_step_fraction=0.1,
         haar_max_breakpoints=0,
+        haar_statistic="mean",
+        haar_percentile=None,
+        haar_percentile_method="hazen",
         validate_model=False,
     ):
         """
@@ -1115,6 +1142,9 @@ class Analysis:
             haar_overlap (bool, optional): If True, use overlapping windows for Haar.
             haar_overlap_step_fraction (float, optional): Step size fraction for overlap.
             haar_max_breakpoints (int, optional): Max breakpoints for segmented Haar fit.
+            haar_statistic (str, optional): Statistic for Haar window aggregation ("mean", "median", "percentile"). Defaults to "mean".
+            haar_percentile (float, optional): Percentile to compute if `haar_statistic` is "percentile".
+            haar_percentile_method (str, optional): Method for percentile calculation. Defaults to "hazen".
             validate_model (bool, optional): If True, perform PSRESP validation
                 to assess if the fitted model is consistent with the data given
                 sampling gaps. Defaults to False.
@@ -1138,6 +1168,9 @@ class Analysis:
             max_breakpoints,
             nyquist_factor,
             max_freq,
+            haar_statistic,
+            haar_percentile,
+            haar_percentile_method,
         )
         analysis_kwargs = {
             "fit_method": fit_method,
@@ -1160,6 +1193,9 @@ class Analysis:
             "haar_overlap": haar_overlap,
             "haar_overlap_step_fraction": haar_overlap_step_fraction,
             "haar_max_breakpoints": haar_max_breakpoints,
+            "haar_statistic": haar_statistic,
+            "haar_percentile": haar_percentile,
+            "haar_percentile_method": haar_percentile_method,
             "validate_model": validate_model,
         }
 
@@ -1218,7 +1254,10 @@ class Analysis:
             haar_obj, haar_res = self._perform_haar_analysis(
                 overlap=haar_overlap,
                 overlap_step_fraction=haar_overlap_step_fraction,
-                max_breakpoints=haar_max_breakpoints
+                max_breakpoints=haar_max_breakpoints,
+                statistic=haar_statistic,
+                percentile=haar_percentile,
+                percentile_method=haar_percentile_method,
             )
             fit_results["haar_results"] = haar_res
             fit_results["haar_obj"] = haar_obj

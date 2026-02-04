@@ -202,6 +202,21 @@ results = analyzer.run_full_analysis(
 )
 ```
 
+### Custom Haar Statistics
+
+By default, Haar fluctuations are calculated using the mean of data in adjacent windows. You can now use other statistics, such as the median or specific percentiles, to study the scaling of extremes (e.g., 95th percentile).
+
+```python
+# Analyze the scaling of the 95th percentile (using Hazen plotting position)
+results = analyzer.run_full_analysis(
+    ...,
+    run_haar=True,
+    haar_statistic="percentile",
+    haar_percentile=95,
+    haar_percentile_method="hazen" # Default is "hazen"
+)
+```
+
 ### Real-Time Anomaly Detection (Sliding Haar)
 
 Monitor volatility changes in real-time.

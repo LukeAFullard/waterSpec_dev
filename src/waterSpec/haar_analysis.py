@@ -10,6 +10,33 @@ import MannKS
 
 from .surrogates import generate_power_law_surrogates
 
+def _compute_statistic(
+    data: np.ndarray,
+    statistic: str = "mean",
+    percentile: Optional[float] = None,
+    percentile_method: str = "hazen"
+) -> float:
+    """
+    Computes the specified statistic for an array of data.
+
+    Args:
+        data (np.ndarray): Input data array.
+        statistic (str): "mean", "median", or "percentile".
+        percentile (float): Percentile to compute (0-100), required if statistic="percentile".
+        percentile_method (str): Method for percentile calculation (default "hazen").
+                                 See numpy.percentile documentation for options.
+    """
+    if statistic == "mean":
+        return np.mean(data)
+    elif statistic == "median":
+        return np.median(data)
+    elif statistic == "percentile":
+        if percentile is None:
+            raise ValueError("percentile must be provided when statistic is 'percentile'")
+        return np.percentile(data, percentile, method=percentile_method)
+    else:
+        raise ValueError(f"Unknown statistic: {statistic}")
+
 def calculate_haar_fluctuations(
     time: np.ndarray,
     data: np.ndarray,
@@ -20,7 +47,10 @@ def calculate_haar_fluctuations(
     log_spacing: bool = True,
     overlap: bool = True,
     overlap_step_fraction: float = 0.1,
-    min_samples_per_window: int = 5
+    min_samples_per_window: int = 5,
+    statistic: str = "mean",
+    percentile: Optional[float] = None,
+    percentile_method: str = "hazen"
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculates the first-order Haar structure function S_1(Delta t) and effective sample size.
@@ -34,6 +64,11 @@ def calculate_haar_fluctuations(
     n = len(time)
     if n < 2:
         raise ValueError("Time series must have at least 2 points.")
+
+    if statistic not in ["mean", "median", "percentile"]:
+        raise ValueError(f"Unknown statistic: {statistic}")
+    if statistic == "percentile" and percentile is None:
+        raise ValueError("percentile must be provided when statistic is 'percentile'")
 
     # Sort data by time just in case
     sort_idx = np.argsort(time)
@@ -95,9 +130,9 @@ def calculate_haar_fluctuations(
 
             # Only calculate if we have sufficient data in both halves
             if len(vals1) >= min_samples_per_window and len(vals2) >= min_samples_per_window:
-                mean1 = np.mean(vals1)
-                mean2 = np.mean(vals2)
-                delta_f = (mean2 - mean1)
+                val1 = _compute_statistic(vals1, statistic, percentile, percentile_method)
+                val2 = _compute_statistic(vals2, statistic, percentile, percentile_method)
+                delta_f = (val2 - val1)
                 fluctuations.append(np.abs(delta_f))
 
             # Move window
@@ -130,11 +165,19 @@ def calculate_sliding_haar(
     data: np.ndarray,
     window_size: float,
     step_size: Optional[float] = None,
-    min_samples_per_window: int = 5
+    min_samples_per_window: int = 5,
+    statistic: str = "mean",
+    percentile: Optional[float] = None,
+    percentile_method: str = "hazen"
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Calculates a continuous time series of Haar fluctuations.
     """
+    if statistic not in ["mean", "median", "percentile"]:
+        raise ValueError(f"Unknown statistic: {statistic}")
+    if statistic == "percentile" and percentile is None:
+        raise ValueError("percentile must be provided when statistic is 'percentile'")
+
     if step_size is None:
         step_size = window_size / 10.0
 
@@ -156,7 +199,9 @@ def calculate_sliding_haar(
         vals2 = data[idx_mid:idx_end]
 
         if len(vals1) >= min_samples_per_window and len(vals2) >= min_samples_per_window:
-            d = np.mean(vals2) - np.mean(vals1)
+            val1 = _compute_statistic(vals1, statistic, percentile, percentile_method)
+            val2 = _compute_statistic(vals2, statistic, percentile, percentile_method)
+            d = val2 - val1
             fluctuations.append(d)
             t_centers.append(t_mid)
 
@@ -366,7 +411,7 @@ class HaarAnalysis:
         self.segmented_results = None
         self.full_results = {} # Store full dictionary
 
-    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=5, bootstrap_method="standard", seed=None):
+    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=5, bootstrap_method="standard", seed=None, statistic="mean", percentile=None, percentile_method="hazen"):
         """
         Runs the Haar analysis.
 
@@ -374,10 +419,14 @@ class HaarAnalysis:
             bootstrap_method (str): "standard" (MannKS fit bootstrap) or "monte_carlo" (Parametric bootstrap on time series).
                                     "monte_carlo" is recommended for irregular data to rigorously estimate spectral uncertainty.
             seed (int): Random seed for bootstrap.
+            statistic (str): Statistic to use for window aggregation ("mean", "median", "percentile").
+            percentile (float): Percentile to compute if statistic is "percentile".
+            percentile_method (str): Method for percentile calculation (default "hazen").
         """
         self.lags, self.s1, self.counts, self.n_effective = calculate_haar_fluctuations(
             self.time, self.data, min_lag=min_lag, max_lag=max_lag, num_lags=num_lags, log_spacing=log_spacing,
-            overlap=overlap, overlap_step_fraction=overlap_step_fraction, min_samples_per_window=min_samples_per_window
+            overlap=overlap, overlap_step_fraction=overlap_step_fraction, min_samples_per_window=min_samples_per_window,
+            statistic=statistic, percentile=percentile, percentile_method=percentile_method
         )
 
         # Run standard fit. If monte_carlo, use 0 bootstraps for the initial fit to save time (we will bootstrap later).
@@ -412,7 +461,8 @@ class HaarAnalysis:
                     lag_times=self.lags, # Use same lags
                     overlap=overlap,
                     overlap_step_fraction=overlap_step_fraction,
-                    min_samples_per_window=min_samples_per_window
+                    min_samples_per_window=min_samples_per_window,
+                    statistic=statistic, percentile=percentile, percentile_method=percentile_method
                 )
 
                 # Fit slope (no bootstrap needed here, just the slope)
@@ -475,7 +525,8 @@ class HaarAnalysis:
             "s1": self.s1,
             "counts": self.counts,
             "n_effective": self.n_effective,
-            "segmented_results": self.segmented_results
+            "segmented_results": self.segmented_results,
+            "statistic": statistic
         }
 
         return self.full_results
