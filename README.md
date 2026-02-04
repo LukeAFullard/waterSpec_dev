@@ -171,6 +171,13 @@ results = biv.run_cross_haar_analysis(
 # Calculate Hysteresis Metrics (Loop Area)
 hyst_stats = biv.calculate_hysteresis_metrics(tau=86400) # 1 day scale
 print(f"Loop Area: {hyst_stats['area']}, Direction: {hyst_stats['direction']}")
+
+# Cross-Haar Correlation of Extremes (e.g., 95th Percentile)
+results_95 = biv.run_cross_haar_analysis(
+    lags=np.logspace(3, 6, 20),
+    statistic1="percentile", percentile1=95,
+    statistic2="percentile", percentile2=95
+)
 ```
 
 ### Partial Cross-Haar Analysis
