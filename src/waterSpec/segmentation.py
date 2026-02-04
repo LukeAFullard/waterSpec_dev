@@ -14,7 +14,10 @@ class SegmentedRegimeAnalysis:
         data: np.ndarray,
         scale: float,
         threshold_factor: float = 3.0,
-        min_event_duration: Optional[float] = None
+        min_event_duration: Optional[float] = None,
+        statistic: str = "mean",
+        percentile: Optional[float] = None,
+        percentile_method: str = "hazen"
     ) -> Dict[str, List[Tuple[float, float]]]:
         """
         Segments the time series into 'event' and 'background' regimes based on
@@ -27,6 +30,9 @@ class SegmentedRegimeAnalysis:
             threshold_factor (float): Multiplier for the background noise level (MAD).
             min_event_duration (float, optional): Minimum duration to classify as an event.
                 If None, defaults to scale / 2.0.
+            statistic (str): Statistic to use for window aggregation ("mean", "median", "percentile").
+            percentile (float): Percentile to compute if statistic is "percentile".
+            percentile_method (str): Method for percentile calculation (default "hazen").
 
         Returns:
             Dict containing lists of (start, end) time tuples for 'events' and 'background'.
@@ -37,7 +43,8 @@ class SegmentedRegimeAnalysis:
         # 1. Compute Sliding Haar Fluctuations
         # We use a step size smaller than scale for resolution
         t_centers, fluctuations = calculate_sliding_haar(
-            time, data, window_size=scale, step_size=scale/5.0
+            time, data, window_size=scale, step_size=scale/5.0,
+            statistic=statistic, percentile=percentile, percentile_method=percentile_method
         )
 
         if len(fluctuations) == 0:

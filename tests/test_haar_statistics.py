@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
-from waterSpec.haar_analysis import calculate_haar_fluctuations, HaarAnalysis
+from waterSpec.haar_analysis import calculate_haar_fluctuations, calculate_sliding_haar, HaarAnalysis
+from waterSpec.segmentation import SegmentedRegimeAnalysis
 
 def test_haar_mean_default():
     """Test that default statistic is mean and matches manual calculation."""
@@ -106,3 +107,76 @@ def test_invalid_statistic():
     data = np.arange(10)
     with pytest.raises(ValueError, match="Unknown statistic"):
         calculate_haar_fluctuations(time, data, statistic="invalid")
+
+def test_sliding_haar_percentiles():
+    """Test sliding Haar calculation with percentiles."""
+    time = np.arange(11)
+    # Window size 10.
+    # t=0..10. Mid=5. Left=0..4, Right=5..9.
+    # Sliding step 1. Next window t=1..11? (Data only goes to 10).
+    # So basically one window.
+
+    # Left: 0,1,2,3,4. 90th percentile (Hazen) approx 3.6
+    # Right: 5,6,7,8,9. 90th percentile (Hazen) approx 8.6
+    # Diff approx 5.
+
+    data = np.arange(11)
+
+    t_centers, fluctuations = calculate_sliding_haar(
+        time, data, window_size=10.0, step_size=10.0, min_samples_per_window=5,
+        statistic="percentile", percentile=50
+    )
+
+    assert len(fluctuations) == 1
+    assert np.isclose(fluctuations[0], 5.0) # Median diff is exactly 5
+
+def test_segmentation_integration():
+    """Test that segmentation accepts percentile arguments."""
+    # Simple case: burst of variance
+    time = np.arange(20)
+    data = np.zeros(20)
+    # Introduce an "extreme" event in middle
+    # t=10. Window size 10 -> [5, 15]
+    # Left [5, 10], Right [10, 15]
+    data[10] = 100 # Huge outlier
+
+    # If using mean, this window will have large fluctuation.
+    # If using median, it won't (median of 5 zeros is 0).
+
+    seg = SegmentedRegimeAnalysis()
+
+    # Using Median: fluctuation should be 0 (mostly, unless noise makes it jump)
+    # The point is to test that the ARGUMENT is passed through.
+
+    # With a massive spike, median fluctuation is still small (just background noise).
+    res_median = seg.segment_by_fluctuation(
+        time, data, scale=10.0, statistic="median"
+    )
+    # Should find few or no events (only noise), or at least much fewer/smaller.
+
+    # Using Max (100th percentile): fluctuation should be huge.
+    # However, segmentation relies on (fluctuation > factor * median_fluctuation).
+    # If using 'max', the *median* fluctuation will also be driven by noise max range.
+    # But the local fluctuation around the spike will be 100.
+
+    # Let's verify that the 'statistic' argument is actually used by checking
+    # the returned 'fluctuations' array in the result dict.
+
+    # For the window around index 10:
+    # Scale 10. Sliding step 2 (scale/5).
+    # One window will be approx [5, 15]. Left [5,10], Right [10,15].
+    # Left max ~ 0 (noise). Right max = 100. Diff ~ 100.
+
+    res_max = seg.segment_by_fluctuation(
+        time, data, scale=10.0, statistic="percentile", percentile=100
+    )
+
+    max_fluc = np.max(np.abs(res_max['fluctuations']))
+    assert max_fluc > 90 # Should see the spike
+
+    # Now check median statistic
+    res_median = seg.segment_by_fluctuation(
+        time, data, scale=10.0, statistic="median"
+    )
+    max_fluc_median = np.max(np.abs(res_median['fluctuations']))
+    assert max_fluc_median < 10 # Should ignore the spike (median of [noise... 100 ... noise] is noise)
