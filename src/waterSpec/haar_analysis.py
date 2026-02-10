@@ -472,9 +472,63 @@ class HaarAnalysis:
         self.r2 = None
         self.intercept = None
         self.segmented_results = None
+
+        self.K2 = None
+        self.beta_multifractal = None
+
         self.full_results = {} # Store full dictionary
 
-    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=5, bootstrap_method="standard", seed=None, statistic="mean", percentile=None, percentile_method="hazen", aggregation="mean"):
+    def calculate_intermittency(self, **kwargs):
+        """
+        Calculates the intermittency correction K(2) and the multifractal beta estimate.
+
+        This requires running Haar analysis with 'rms' aggregation to get S2 scaling (zeta2),
+        comparing it with the current 'mean' aggregation scaling (zeta1/H).
+
+        K(2) = 2*zeta(1) - zeta(2).
+        Beta_multi = 1 + 2H - K(2).
+
+        Note: This updates self.K2 and self.beta_multifractal.
+        """
+        if self.H is None:
+            raise ValueError("Run standard analysis first to get H (zeta1).")
+
+        # Run secondary analysis with RMS aggregation
+        # Re-use most parameters from self.full_results if available, or defaults
+        lags_rms, s_rms, _, _ = calculate_haar_fluctuations(
+            self.time, self.data,
+            lag_times=self.lags, # Use exactly same lags
+            statistic=self.full_results.get("statistic", "mean"),
+            percentile=kwargs.get("percentile"), # Should match
+            aggregation="rms",
+            overlap=True # Generally better for higher moments
+        )
+
+        # Fit scaling for RMS (zeta2/2)
+        res_rms = fit_haar_slope(lags_rms, s_rms, n_bootstraps=0)
+        zeta2_half = res_rms.get("H", np.nan)
+
+        if np.isnan(zeta2_half):
+            warnings.warn("Could not estimate zeta(2) for intermittency calculation.")
+            return
+
+        zeta2 = 2 * zeta2_half
+
+        # Calculate K(2)
+        # H corresponds to zeta(1) (scaling of first order structure function)
+        self.K2 = 2 * self.H - zeta2
+
+        # Calculate corrected Beta
+        self.beta_multifractal = 1 + 2 * self.H - self.K2
+
+        # Store in results
+        self.full_results["K2"] = self.K2
+        self.full_results["zeta2"] = zeta2
+        self.full_results["beta_multifractal"] = self.beta_multifractal
+
+        return self.K2
+
+    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=5, bootstrap_method="standard", seed=None, statistic="mean", percentile=None, percentile_method="hazen", aggregation="mean", calc_intermittency=False):
         """
         Runs the Haar analysis.
 
@@ -488,6 +542,7 @@ class HaarAnalysis:
             aggregation (str): Method to aggregate fluctuations ("mean", "median", "rms", "std_corrected").
                                "std_corrected" is recommended for Gaussian data or sufficiently large windows
                                to avoid small-sample bias.
+            calc_intermittency (bool): If True, also calculates K(2) intermittency correction.
         """
         self.lags, self.s1, self.counts, self.n_effective = calculate_haar_fluctuations(
             self.time, self.data, min_lag=min_lag, max_lag=max_lag, num_lags=num_lags, log_spacing=log_spacing,
@@ -595,6 +650,9 @@ class HaarAnalysis:
             "segmented_results": self.segmented_results,
             "statistic": statistic
         }
+
+        if calc_intermittency:
+            self.calculate_intermittency(percentile=percentile)
 
         return self.full_results
 
