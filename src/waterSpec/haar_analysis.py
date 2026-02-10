@@ -6,9 +6,32 @@ from typing import Dict, Optional, Tuple, List, Union
 
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.special import gammaln
 import MannKS
 
 from .surrogates import generate_power_law_surrogates
+
+def _small_sample_std(data: np.ndarray) -> float:
+    """
+    Computes the standard deviation with a correction for small sample bias,
+    assuming the data is drawn from a Gaussian distribution.
+    This effectively provides an unbiased estimator for the population sigma.
+    """
+    n = len(data)
+    if n < 2:
+        return np.nan
+
+    # Sample standard deviation (ddof=1)
+    s = np.std(data, ddof=1)
+
+    # Correction for small N
+    if n < 101:
+        # Correction factor derived from Gamma functions
+        # This factor converts the biased estimator s to an unbiased estimator of sigma
+        factor = np.exp(gammaln((n - 1) / 2) - gammaln(n / 2)) * np.sqrt((n - 1) / 2)
+        return s * factor
+    else:
+        return s
 
 def _compute_statistic(
     data: np.ndarray,
@@ -50,10 +73,27 @@ def calculate_haar_fluctuations(
     min_samples_per_window: int = 5,
     statistic: str = "mean",
     percentile: Optional[float] = None,
-    percentile_method: str = "hazen"
+    percentile_method: str = "hazen",
+    aggregation: str = "mean"
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculates the first-order Haar structure function S_1(Delta t) and effective sample size.
+
+    Args:
+        aggregation (str): Method to aggregate fluctuations for S1 calculation.
+                           "mean": Mean Absolute Fluctuation (Standard S1).
+                                   Robust and distribution-agnostic, but may be biased for small samples.
+                           "median": Median Absolute Fluctuation (Robust S1).
+                           "rms": Root Mean Square Fluctuation (Approximates S2^0.5).
+                           "std_corrected": Unbiased estimation of MAD assuming Gaussianity (matches GapWaveSpectra).
+                                            Uses small-sample correction for standard deviation.
+
+                                            Note: This method assumes the fluctuations (differences of window means)
+                                            follow a Gaussian distribution. Due to the Central Limit Theorem, this
+                                            assumption holds for most finite-variance processes at sufficient window
+                                            sizes (N >= 5). For very small scales (N < 5) with non-Gaussian data,
+                                            this may introduce a bias in the fluctuation magnitude (intercept), but
+                                            the spectral slope (beta) typically remains robust.
 
     Returns:
         valid_lags (np.ndarray): The lag times used.
@@ -69,6 +109,9 @@ def calculate_haar_fluctuations(
         raise ValueError(f"Unknown statistic: {statistic}")
     if statistic == "percentile" and percentile is None:
         raise ValueError("percentile must be provided when statistic is 'percentile'")
+
+    if aggregation not in ["mean", "median", "rms", "std_corrected"]:
+        raise ValueError(f"Unknown aggregation method: {aggregation}")
 
     # Sort data by time just in case
     sort_idx = np.argsort(time)
@@ -133,7 +176,7 @@ def calculate_haar_fluctuations(
                 val1 = _compute_statistic(vals1, statistic, percentile, percentile_method)
                 val2 = _compute_statistic(vals2, statistic, percentile, percentile_method)
                 delta_f = (val2 - val1)
-                fluctuations.append(np.abs(delta_f))
+                fluctuations.append(delta_f)
 
             # Move window
             if overlap:
@@ -145,7 +188,27 @@ def calculate_haar_fluctuations(
 
         count = len(fluctuations)
         if count > 0:
-            s1 = np.mean(fluctuations)
+            flucs_arr = np.array(fluctuations)
+
+            if aggregation == "mean":
+                s1 = np.mean(np.abs(flucs_arr))
+            elif aggregation == "median":
+                s1 = np.median(np.abs(flucs_arr))
+            elif aggregation == "rms":
+                s1 = np.sqrt(np.mean(flucs_arr**2))
+            elif aggregation == "std_corrected":
+                # Matches GapWaveSpectra approach:
+                # 1. Enforce zero mean by concatenating flucs and -flucs
+                # 2. Use small-sample corrected standard deviation of the combined set
+                # 3. Convert sigma to MAD (Mean Absolute Deviation) assuming Gaussianity
+                #    MAD = sigma * sqrt(2/pi)
+
+                # Note: GapWaveSpectra concatenates (flucs, -flucs).
+                # This doubles the effective sample size and enforces mean=0.
+                combined = np.concatenate((flucs_arr, -flucs_arr))
+                sigma_est = _small_sample_std(combined)
+                s1 = sigma_est * np.sqrt(2 / np.pi)
+
             s1_values.append(s1)
             counts.append(count)
             valid_lags.append(delta_t)
@@ -409,9 +472,63 @@ class HaarAnalysis:
         self.r2 = None
         self.intercept = None
         self.segmented_results = None
+
+        self.K2 = None
+        self.beta_multifractal = None
+
         self.full_results = {} # Store full dictionary
 
-    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=5, bootstrap_method="standard", seed=None, statistic="mean", percentile=None, percentile_method="hazen"):
+    def calculate_intermittency(self, **kwargs):
+        """
+        Calculates the intermittency correction K(2) and the multifractal beta estimate.
+
+        This requires running Haar analysis with 'rms' aggregation to get S2 scaling (zeta2),
+        comparing it with the current 'mean' aggregation scaling (zeta1/H).
+
+        K(2) = 2*zeta(1) - zeta(2).
+        Beta_multi = 1 + 2H - K(2).
+
+        Note: This updates self.K2 and self.beta_multifractal.
+        """
+        if self.H is None:
+            raise ValueError("Run standard analysis first to get H (zeta1).")
+
+        # Run secondary analysis with RMS aggregation
+        # Re-use most parameters from self.full_results if available, or defaults
+        lags_rms, s_rms, _, _ = calculate_haar_fluctuations(
+            self.time, self.data,
+            lag_times=self.lags, # Use exactly same lags
+            statistic=self.full_results.get("statistic", "mean"),
+            percentile=kwargs.get("percentile"), # Should match
+            aggregation="rms",
+            overlap=True # Generally better for higher moments
+        )
+
+        # Fit scaling for RMS (zeta2/2)
+        res_rms = fit_haar_slope(lags_rms, s_rms, n_bootstraps=0)
+        zeta2_half = res_rms.get("H", np.nan)
+
+        if np.isnan(zeta2_half):
+            warnings.warn("Could not estimate zeta(2) for intermittency calculation.")
+            return
+
+        zeta2 = 2 * zeta2_half
+
+        # Calculate K(2)
+        # H corresponds to zeta(1) (scaling of first order structure function)
+        self.K2 = 2 * self.H - zeta2
+
+        # Calculate corrected Beta
+        self.beta_multifractal = 1 + 2 * self.H - self.K2
+
+        # Store in results
+        self.full_results["K2"] = self.K2
+        self.full_results["zeta2"] = zeta2
+        self.full_results["beta_multifractal"] = self.beta_multifractal
+
+        return self.K2
+
+    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=5, bootstrap_method="standard", seed=None, statistic="mean", percentile=None, percentile_method="hazen", aggregation="mean", calc_intermittency=False):
         """
         Runs the Haar analysis.
 
@@ -422,11 +539,15 @@ class HaarAnalysis:
             statistic (str): Statistic to use for window aggregation ("mean", "median", "percentile").
             percentile (float): Percentile to compute if statistic is "percentile".
             percentile_method (str): Method for percentile calculation (default "hazen").
+            aggregation (str): Method to aggregate fluctuations ("mean", "median", "rms", "std_corrected").
+                               "std_corrected" is recommended for Gaussian data or sufficiently large windows
+                               to avoid small-sample bias.
+            calc_intermittency (bool): If True, also calculates K(2) intermittency correction.
         """
         self.lags, self.s1, self.counts, self.n_effective = calculate_haar_fluctuations(
             self.time, self.data, min_lag=min_lag, max_lag=max_lag, num_lags=num_lags, log_spacing=log_spacing,
             overlap=overlap, overlap_step_fraction=overlap_step_fraction, min_samples_per_window=min_samples_per_window,
-            statistic=statistic, percentile=percentile, percentile_method=percentile_method
+            statistic=statistic, percentile=percentile, percentile_method=percentile_method, aggregation=aggregation
         )
 
         # Run standard fit. If monte_carlo, use 0 bootstraps for the initial fit to save time (we will bootstrap later).
@@ -462,7 +583,8 @@ class HaarAnalysis:
                     overlap=overlap,
                     overlap_step_fraction=overlap_step_fraction,
                     min_samples_per_window=min_samples_per_window,
-                    statistic=statistic, percentile=percentile, percentile_method=percentile_method
+                    statistic=statistic, percentile=percentile, percentile_method=percentile_method,
+                    aggregation=aggregation
                 )
 
                 # Fit slope (no bootstrap needed here, just the slope)
@@ -528,6 +650,9 @@ class HaarAnalysis:
             "segmented_results": self.segmented_results,
             "statistic": statistic
         }
+
+        if calc_intermittency:
+            self.calculate_intermittency(percentile=percentile)
 
         return self.full_results
 

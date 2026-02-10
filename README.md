@@ -24,6 +24,8 @@
   - Detect narrowband oscillations or dominant periodicities.
 
 - **Advanced Haar Analysis:**
+  - **Small-Sample Bias Correction:** Implements unbiased fluctuation estimates matching `GapWaveSpectra` (using `aggregation="std_corrected"`).
+  - **Multifractal Intermittency Correction ($K(2)$):** Corrects spectral slope estimates for intermittent processes using the Universal Multifractal relation $\beta = 1 + 2H - K(2)$.
   - **Overlapping Windows:** Maximize data usage for long-term records.
   - **Segmented Fits:** Detect regime shifts in system memory using robust regression (`MannKS`).
   - **Bivariate Analysis:** Analyze Cross-Haar correlation between Concentration and Discharge.
@@ -83,6 +85,7 @@ pip install -e '.[test]'
 *   **[Dataset Sources](docs/dataset_sources.md):** Sources for public datasets used for testing and benchmarking.
 *   **[Haar Framework Design](docs/design_docs/haar_framework_design.md):** Deep dive into the theoretical framework of the Haar analysis implementation.
 *   **[Analyzing Extremes with Percentiles](docs/WALKTHROUGH_PERCENTILES.md):** Guide on using median and percentile statistics to study the scaling of extremes.
+*   **[Haar Analysis Guide](docs/HAAR_ANALYSIS_GUIDE.md):** Detailed guide on aggregation methods and intermittency corrections.
 
 ---
 
