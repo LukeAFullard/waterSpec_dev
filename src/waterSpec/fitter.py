@@ -354,7 +354,7 @@ def fit_standard_model(
     # 4. Calculate Confidence Intervals
     residuals = log_power - log_power_fit
 
-    # BUG #1 FIX: Validate residuals before bootstrap
+    # Validate residuals before bootstrap
     if not np.all(np.isfinite(residuals)):
         msg = "Residuals contain non-finite values; cannot perform bootstrap."
         logger.error(msg)
