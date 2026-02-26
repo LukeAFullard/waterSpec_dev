@@ -2,6 +2,7 @@
 import numpy as np
 import pandas as pd
 import pytest
+import os
 
 from waterSpec.data_loader import load_data
 
@@ -41,14 +42,25 @@ def create_test_json(tmp_path):
 
 def test_load_data_from_json(create_test_json):
     """Test loading data from a .json file."""
-    time, value, _ = load_data(create_test_json, time_col="time", data_col="value")
+    # Since tests run in /app but temp files are in /tmp, we must explicitly allow access
+    time, value, _ = load_data(
+        create_test_json,
+        time_col="time",
+        data_col="value",
+        base_dir=os.path.dirname(create_test_json)
+    )
     assert len(time) == 2
     assert value.iloc[1] == 2.0
 
 
 def test_load_data_from_excel(create_test_excel):
     """Test loading data from an .xlsx file."""
-    time, value, _ = load_data(create_test_excel, time_col="time", data_col="value")
+    time, value, _ = load_data(
+        create_test_excel,
+        time_col="time",
+        data_col="value",
+        base_dir=os.path.dirname(create_test_excel)
+    )
     assert len(time) == 2
     assert value.iloc[1] == 2.0
 
@@ -58,7 +70,10 @@ def test_load_data_from_csv(create_test_csv):
     Test that load_data function loads data correctly from a CSV file.
     """
     time, concentration, errors = load_data(
-        create_test_csv, time_col="timestamp", data_col="concentration"
+        create_test_csv,
+        time_col="timestamp",
+        data_col="concentration",
+        base_dir=os.path.dirname(create_test_csv)
     )
 
     assert isinstance(time, np.ndarray)
@@ -78,7 +93,10 @@ def test_load_data_with_nans(tmp_path):
     )
     with pytest.warns(UserWarning, match="1 rows were dropped"):
         time, concentration, _ = load_data(
-            file_path, time_col="timestamp", data_col="concentration"
+            file_path,
+            time_col="timestamp",
+            data_col="concentration",
+            base_dir=str(tmp_path)
         )
     # The loader should drop the row with the NaN value
     assert len(time) == 2
@@ -91,13 +109,23 @@ def test_load_data_empty_file(tmp_path):
     file_path = tmp_path / "empty.csv"
     file_path.write_text("timestamp,concentration\n")
     with pytest.raises(ValueError, match="The provided DataFrame is empty"):
-        load_data(file_path, time_col="timestamp", data_col="concentration")
+        load_data(
+            file_path,
+            time_col="timestamp",
+            data_col="concentration",
+            base_dir=str(tmp_path)
+        )
 
 
 def test_load_data_missing_column(create_test_csv):
     """Test that a missing column raises a ValueError."""
     with pytest.raises(ValueError, match="Data column 'bad_col' not found"):
-        load_data(create_test_csv, time_col="timestamp", data_col="bad_col")
+        load_data(
+            create_test_csv,
+            time_col="timestamp",
+            data_col="bad_col",
+            base_dir=os.path.dirname(create_test_csv)
+        )
 
 
 def test_load_data_unparseable_time(tmp_path):
@@ -114,7 +142,12 @@ def test_load_data_unparseable_time(tmp_path):
     with pytest.raises(
         ValueError, match=r"\d+ value\(s\) in the time column 'time' could not be parsed"
     ):
-        load_data(file_path, time_col="time", data_col="value")
+        load_data(
+            file_path,
+            time_col="time",
+            data_col="value",
+            base_dir=str(tmp_path)
+        )
 
 
 def test_load_data_raises_on_duplicate_timestamps(tmp_path):
@@ -135,7 +168,12 @@ def test_load_data_raises_on_duplicate_timestamps(tmp_path):
         "First duplicate found at index 1 with value: 2023-01-01 00:00:00"
     )
     with pytest.raises(ValueError, match=expected_error_msg):
-        load_data(file_path, time_col="timestamp", data_col="concentration")
+        load_data(
+            file_path,
+            time_col="timestamp",
+            data_col="concentration",
+            base_dir=str(tmp_path)
+        )
 
 
 def test_load_data_raises_on_duplicate_numeric_timestamps(tmp_path):
@@ -158,13 +196,15 @@ def test_load_data_raises_on_duplicate_numeric_timestamps(tmp_path):
             time_col="time_hours",
             data_col="value",
             input_time_unit="hours",
+            base_dir=str(tmp_path)
         )
 
 
 def test_load_data_from_excel_sheet_by_name():
     """Test loading data from a specific sheet of an .xlsx file by name."""
     file_path = "tests/data/multi_sheet_data.xlsx"
-    # Load from the second sheet, which has different values
+    # This file is inside the repo, so default CWD should be fine if we run pytest from root
+    # BUT, to be safe and explicit in tests, we can set base_dir="." or None (default)
     time, value, _ = load_data(
         file_path, time_col="timestamp", data_col="value", sheet_name="Data_Sheet_2"
     )
@@ -190,7 +230,11 @@ def test_load_data_with_time_format(tmp_path):
     file_path = tmp_path / "formatted_time.csv"
     file_path.write_text("day,value\n01/01/2023,1\n02/01/2023,2")
     time, _, _ = load_data(
-        file_path, time_col="day", data_col="value", time_format="%d/%m/%Y"
+        file_path,
+        time_col="day",
+        data_col="value",
+        time_format="%d/%m/%Y",
+        base_dir=str(tmp_path)
     )
     assert len(time) == 2
     # The first timestamp should be 0.0 seconds (relative time)
@@ -205,7 +249,11 @@ def test_load_data_with_incorrect_time_format(tmp_path):
     file_path.write_text("day,value\n2023-01-01,1\n2023-01-02,2")
     with pytest.raises(ValueError, match="Please check that the format string"):
         load_data(
-            file_path, time_col="day", data_col="value", time_format="%d-%m-%Y"
+            file_path,
+            time_col="day",
+            data_col="value",
+            time_format="%d-%m-%Y",
+            base_dir=str(tmp_path)
         )
 
 
@@ -214,7 +262,12 @@ def test_load_data_unsupported_format(tmp_path):
     file_path = tmp_path / "test.txt"
     file_path.write_text("data")
     with pytest.raises(IOError, match="Failed to read the file"):
-        load_data(file_path, time_col="time", data_col="value")
+        load_data(
+            file_path,
+            time_col="time",
+            data_col="value",
+            base_dir=str(tmp_path)
+        )
 
 
 def test_load_data_missing_error_column(create_test_csv):
@@ -225,6 +278,7 @@ def test_load_data_missing_error_column(create_test_csv):
             time_col="timestamp",
             data_col="concentration",
             error_col="bad_error_col",
+            base_dir=os.path.dirname(create_test_csv)
         )
 
 
@@ -233,7 +287,13 @@ def test_load_data_bad_error_column(tmp_path):
     file_path = tmp_path / "bad_error.csv"
     file_path.write_text("time,value,error\n2023-01-01,10,1\n2023-01-02,11,foo")
     with pytest.warns(UserWarning, match="could not be converted to a numeric type"):
-        load_data(file_path, time_col="time", data_col="value", error_col="error")
+        load_data(
+            file_path,
+            time_col="time",
+            data_col="value",
+            error_col="error",
+            base_dir=str(tmp_path)
+        )
 
 
 def test_load_data_negative_error_column(tmp_path):
@@ -241,7 +301,13 @@ def test_load_data_negative_error_column(tmp_path):
     file_path = tmp_path / "neg_error.csv"
     file_path.write_text("time,value,error\n2023-01-01,10,1\n2023-01-02,11,-0.5")
     with pytest.warns(UserWarning, match="error column contains negative values"):
-        load_data(file_path, time_col="time", data_col="value", error_col="error")
+        load_data(
+            file_path,
+            time_col="time",
+            data_col="value",
+            error_col="error",
+            base_dir=str(tmp_path)
+        )
 
 
 def test_load_high_frequency_data(tmp_path):
@@ -262,7 +328,10 @@ def test_load_high_frequency_data(tmp_path):
     # conversion of time would treat all timestamps as the same second.
     # The function should now run without raising an error.
     time_numeric, data, _ = load_data(
-        file_path, time_col="timestamp", data_col="value"
+        file_path,
+        time_col="timestamp",
+        data_col="value",
+        base_dir=str(tmp_path)
     )
 
     assert len(time_numeric) == 3
@@ -284,7 +353,12 @@ def test_load_data_ambiguous_columns(tmp_path):
     with pytest.raises(
         ValueError, match="Duplicate column names found \\(case-insensitive\\)"
     ):
-        load_data(file_path, time_col="timestamp", data_col="Value")
+        load_data(
+            file_path,
+            time_col="timestamp",
+            data_col="Value",
+            base_dir=str(tmp_path)
+        )
 
 
 def test_load_data_time_unit_conversion(tmp_path):
@@ -293,25 +367,42 @@ def test_load_data_time_unit_conversion(tmp_path):
     file_path.write_text("timestamp,value\n2023-01-01T00:00:00Z,1\n2023-01-02T00:00:00Z,2")
 
     # Default is seconds
-    time_sec, _, _ = load_data(file_path, time_col="timestamp", data_col="value")
+    time_sec, _, _ = load_data(
+        file_path,
+        time_col="timestamp",
+        data_col="value",
+        base_dir=str(tmp_path)
+    )
     assert np.isclose(time_sec[1], 86400.0)
 
     # Test conversion to days
     time_days, _, _ = load_data(
-        file_path, time_col="timestamp", data_col="value", output_time_unit="days"
+        file_path,
+        time_col="timestamp",
+        data_col="value",
+        output_time_unit="days",
+        base_dir=str(tmp_path)
     )
     assert np.isclose(time_days[1], 1.0)
 
     # Test conversion to hours
     time_hours, _, _ = load_data(
-        file_path, time_col="timestamp", data_col="value", output_time_unit="hours"
+        file_path,
+        time_col="timestamp",
+        data_col="value",
+        output_time_unit="hours",
+        base_dir=str(tmp_path)
     )
     assert np.isclose(time_hours[1], 24.0)
 
     # Test invalid unit
     with pytest.raises(ValueError, match="Invalid output_time_unit"):
         load_data(
-            file_path, time_col="timestamp", data_col="value", output_time_unit="weeks"
+            file_path,
+            time_col="timestamp",
+            data_col="value",
+            output_time_unit="weeks",
+            base_dir=str(tmp_path)
         )
 
 
@@ -326,6 +417,7 @@ def test_load_data_with_numeric_time_input(tmp_path):
         time_col="time_days",
         data_col="value",
         input_time_unit="days",
+        base_dir=str(tmp_path)
     )
     assert data.iloc[0] == 10
     assert np.allclose(time_sec, [0, 86400, 172800])
@@ -337,6 +429,7 @@ def test_load_data_with_numeric_time_input(tmp_path):
         data_col="value",
         input_time_unit="days",
         output_time_unit="hours",
+        base_dir=str(tmp_path)
     )
     assert np.allclose(time_hours, [0, 24, 48])
 
@@ -347,6 +440,7 @@ def test_load_data_with_numeric_time_input(tmp_path):
             time_col="time_days",
             data_col="value",
             input_time_unit="years",
+            base_dir=str(tmp_path)
         )
 
 
@@ -362,4 +456,54 @@ def test_load_data_numeric_time_without_unit_raises_error(tmp_path):
         ValueError,
         match="The time column 'time' is numeric, but `input_time_unit` was not provided.",
     ):
-        load_data(file_path, time_col="time", data_col="value")
+        load_data(
+            file_path,
+            time_col="time",
+            data_col="value",
+            base_dir=str(tmp_path)
+        )
+
+
+def test_load_data_security_violation(tmp_path):
+    """
+    Test that loading a file outside the base directory raises a Security Error.
+    """
+    # Create a "safe" directory and an "outside" file
+    safe_dir = tmp_path / "safe"
+    safe_dir.mkdir()
+
+    secret_file = tmp_path / "secret.csv"
+    secret_file.write_text("time,value\n2023-01-01,100")
+
+    # Try to access secret file from safe_dir context using relative path
+    rel_path = "../secret.csv"
+    full_path_via_safe = safe_dir / rel_path # conceptually this resolves to secret_file
+
+    # If we pass base_dir=safe_dir, it should block access to ../secret.csv
+    # Note: load_data takes file_path as a string.
+    # We must construct a path that looks like it is traversing.
+    # If we pass absolute path of secret_file, it should also fail if base_dir is safe_dir.
+
+    with pytest.raises(ValueError, match="Security Error: Access to file"):
+        load_data(
+            str(secret_file),
+            time_col="time",
+            data_col="value",
+            base_dir=str(safe_dir)
+        )
+
+def test_load_data_security_bypass_explicit(tmp_path):
+    """
+    Test that explicitly setting base_dir="" allows access (bypass).
+    """
+    secret_file = tmp_path / "secret.csv"
+    secret_file.write_text("time,value\n2023-01-01,100\n2023-01-02,200")
+
+    # Should succeed with warning (though we aren't testing for warning here, just success)
+    time, value, _ = load_data(
+        str(secret_file),
+        time_col="time",
+        data_col="value",
+        base_dir=""
+    )
+    assert len(time) == 2
