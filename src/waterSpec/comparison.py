@@ -12,8 +12,7 @@ from .plotting import plot_site_comparison
 from .preprocessor import preprocess_data
 from .spectral_analyzer import (
     calculate_periodogram,
-    find_peaks_via_residuals,
-    find_significant_peaks,
+    detect_peaks,
 )
 
 
@@ -404,23 +403,16 @@ class SiteComparison:
         peak_fdr_level, fap_threshold, fap_method
     ):
         """Detects significant peaks."""
-        if peak_detection_method == "residual":
-            peaks, threshold = find_peaks_via_residuals(
-                fit_results, fdr_level=peak_fdr_level
-            )
-            fit_results["significant_peaks"] = peaks
-            fit_results["residual_threshold"] = threshold
-            fit_results["peak_fdr_level"] = peak_fdr_level
-        elif peak_detection_method == "fap":
-            peaks, level = find_significant_peaks(
-                ls_obj, frequency, power,
-                fap_threshold=fap_threshold,
-                fap_method=fap_method,
-            )
-            fit_results["significant_peaks"] = peaks
-            fit_results["fap_level"] = level
-            fit_results["fap_threshold"] = fap_threshold
-        return fit_results
+        return detect_peaks(
+            fit_results,
+            ls_obj,
+            frequency,
+            power,
+            peak_detection_method=peak_detection_method,
+            peak_fdr_level=peak_fdr_level,
+            fap_threshold=fap_threshold,
+            fap_method=fap_method,
+        )
 
     def _validate_run_parameters(
         self, fit_method, ci_method, bootstrap_type, n_bootstraps,

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import logging
 import warnings
-from typing import TYPE_CHECKING, Dict, List, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 import numpy as np
 from scipy.signal import find_peaks
@@ -306,3 +307,66 @@ def find_peaks_via_residuals(
     min_significant_residual = min(p["residual"] for p in significant_peaks)
 
     return significant_peaks, min_significant_residual
+
+
+def detect_peaks(
+    fit_results: Dict,
+    ls_obj: LombScargle,
+    frequency: np.ndarray,
+    power: np.ndarray,
+    peak_detection_method: Optional[str] = "fap",
+    peak_fdr_level: float = 0.05,
+    fap_threshold: float = 0.01,
+    fap_method: str = "baluev",
+) -> Dict:
+    """
+    Detects significant peaks using the chosen method and updates the fit_results dictionary.
+
+    Args:
+        fit_results (dict): Dictionary to store results.
+        ls_obj (LombScargle): LombScargle object.
+        frequency (np.ndarray): Frequency array.
+        power (np.ndarray): Power array.
+        peak_detection_method (str, optional): 'fap' or 'residual'.
+        peak_fdr_level (float, optional): FDR level for 'residual' method.
+        fap_threshold (float, optional): Threshold for 'fap' method.
+        fap_method (str, optional): Method for FAP calculation.
+
+    Returns:
+        dict: Updated fit_results.
+    """
+    logger = logging.getLogger(__name__)
+
+    if peak_detection_method == "residual":
+        if fap_method != "baluev" or fap_threshold != 0.01:
+            logger.warning(
+                "'peak_detection_method' is 'residual', so 'fap_method' and "
+                "'fap_threshold' parameters are ignored."
+            )
+        peaks, threshold = find_peaks_via_residuals(
+            fit_results, fdr_level=peak_fdr_level
+        )
+        fit_results["significant_peaks"] = peaks
+        fit_results["residual_threshold"] = threshold
+        fit_results["peak_fdr_level"] = peak_fdr_level
+    elif peak_detection_method == "fap" and fap_threshold is not None:
+        if peak_fdr_level != 0.05:
+            logger.warning(
+                "'peak_detection_method' is 'fap', so the 'peak_fdr_level' "
+                "parameter is ignored."
+            )
+        peaks, level = find_significant_peaks(
+            ls_obj, frequency, power,
+            fap_threshold=fap_threshold,
+            fap_method=fap_method,
+        )
+        fit_results["significant_peaks"] = peaks
+        fit_results["fap_level"] = level
+        fit_results["fap_threshold"] = fap_threshold
+    elif peak_detection_method is not None and peak_detection_method != "fap":
+        logger.warning(
+            f"Unknown peak_detection_method '{peak_detection_method}'. "
+            "No peak detection performed."
+        )
+
+    return fit_results
