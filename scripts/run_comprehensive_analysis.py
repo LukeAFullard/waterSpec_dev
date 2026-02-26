@@ -1,6 +1,7 @@
 
 import os
 import sys
+import re
 import pandas as pd
 import numpy as np
 import wfdb
@@ -190,9 +191,32 @@ def run_analysis_case(name, time, data, is_uneven, expected_beta):
     summary_file = os.path.join(output_subdir, f"{name}_{suffix}_summary.txt")
     if os.path.exists(summary_file):
         logger.info(f"Analysis for {name} ({suffix}) already exists. Skipping.")
-        # Attempt to retrieve existing beta from summary or just return dummy/N/A
-        # For simplicity, we'll return N/A betas but point to the plots.
-        # Ideally we'd parse the summary, but this is a quick fix to resume.
+
+        ls_beta = np.nan
+        haar_beta = np.nan
+
+        try:
+            with open(summary_file, 'r') as f:
+                content = f.read()
+
+            # Parse Lomb-Scargle Beta
+            ls_match = re.search(r"Value:\s+β\s*=\s*([-\d\.]+)", content)
+            if ls_match:
+                try:
+                    ls_beta = float(ls_match.group(1))
+                except ValueError:
+                    pass
+
+            # Parse Haar Beta
+            haar_match = re.search(r"Haar Wavelet Analysis:.*?β\s*=\s*([-\d\.]+)", content, re.DOTALL)
+            if haar_match:
+                try:
+                    haar_beta = float(haar_match.group(1))
+                except ValueError:
+                    pass
+        except Exception as e:
+            logger.warning(f"Failed to parse summary file for {name} ({suffix}): {e}")
+
         analyzer = Analysis(time_array=time[:10], data_array=data[:10], time_col="time", data_col="data", input_time_unit="seconds", param_name=f"{name}_{suffix}")
         sanitized_name = analyzer._sanitize_filename(analyzer.param_name)
 
@@ -200,8 +224,8 @@ def run_analysis_case(name, time, data, is_uneven, expected_beta):
             "dataset": name,
             "type": suffix,
             "expected_beta": expected_beta,
-            "ls_beta": np.nan, # TODO: Parse from file if needed
-            "haar_beta": np.nan,
+            "ls_beta": ls_beta,
+            "haar_beta": haar_beta,
             "ls_plot": os.path.join(output_subdir, f"{sanitized_name}_spectrum_plot.png"),
             "haar_plot": os.path.join(output_subdir, f"{sanitized_name}_haar_plot.png")
         }
