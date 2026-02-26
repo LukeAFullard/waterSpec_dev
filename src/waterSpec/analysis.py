@@ -2,7 +2,7 @@ import logging
 import os
 import re
 import warnings
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -687,11 +687,23 @@ class Analysis:
         self.logger.info(f"Changepoint comparison plot saved to {plot_path}")
         self.logger.info(f"Changepoint summary saved to {summary_path}")
 
-    def _analyze_with_changepoint(
-        self, changepoint_idx: int, output_dir: str, **analysis_kwargs
-    ) -> Dict:
+    def _validate_segment(self, n_points: int, segment_name: str) -> None:
         """
-        Performs separate spectral analysis on segments before/after changepoint.
+        Validates that a segment has sufficient data points.
+        """
+        if n_points < self.min_valid_data_points:
+            raise ValueError(
+                f"{segment_name} has insufficient valid data "
+                f"({n_points} points) after preprocessing. Minimum "
+                f"required: {self.min_valid_data_points}."
+            )
+
+    def _prepare_changepoint_segments(self, changepoint_idx: int) -> Tuple[Dict, Dict]:
+        """
+        Splits data into segments and validates them.
+
+        Returns:
+            Tuple[Dict, Dict]: Two dictionaries containing data for 'before' and 'after' segments.
         """
         # Split data into segments
         time_before = self.time[:changepoint_idx]
@@ -707,22 +719,10 @@ class Analysis:
         )
 
         # --- Segment Validation ---
-        # This is the critical validation step. It happens *after* splitting the
-        # preprocessed data, ensuring the segments used for fitting are valid.
         n_before, n_after = len(data_before), len(data_after)
 
-        if n_before < self.min_valid_data_points:
-            raise ValueError(
-                f"Segment before changepoint has insufficient valid data "
-                f"({n_before} points) after preprocessing. Minimum "
-                f"required: {self.min_valid_data_points}."
-            )
-        if n_after < self.min_valid_data_points:
-            raise ValueError(
-                f"Segment after changepoint has insufficient valid data "
-                f"({n_after} points) after preprocessing. Minimum "
-                f"required: {self.min_valid_data_points}."
-            )
+        self._validate_segment(n_before, "Segment before changepoint")
+        self._validate_segment(n_after, "Segment after changepoint")
 
         # Warn if segments are highly imbalanced
         if min(n_before, n_after) > 0:  # Avoid division by zero
@@ -734,10 +734,21 @@ class Analysis:
                     "Results may be less reliable for the smaller segment."
                 )
 
-        cp_time_str = get_changepoint_time(
-            changepoint_idx, self.time, self.time_unit
+        return (
+            {"time": time_before, "data": data_before, "errors": errors_before},
+            {"time": time_after, "data": data_after, "errors": errors_after},
         )
 
+    def _run_changepoint_analysis_steps(
+        self,
+        seg_before: Dict,
+        seg_after: Dict,
+        cp_time_str: str,
+        analysis_kwargs: Dict
+    ) -> Tuple[Dict, Dict]:
+        """
+        Handles seeding and runs analysis for both segments.
+        """
         # Create separate kwargs for each segment to handle seeding correctly.
         analysis_kwargs_before = analysis_kwargs.copy()
         analysis_kwargs_after = analysis_kwargs.copy()
@@ -752,25 +763,43 @@ class Analysis:
 
         # Analyze each segment
         self.logger.info(
-            f"Analyzing segment BEFORE changepoint (n={len(time_before)})..."
+            f"Analyzing segment BEFORE changepoint (n={len(seg_before['time'])})..."
         )
         results_before = self._run_segment_analysis(
-            time_before,
-            data_before,
-            errors_before,
+            seg_before["time"],
+            seg_before["data"],
+            seg_before["errors"],
             segment_name=f"Before {cp_time_str}",
             **analysis_kwargs_before,
         )
 
         self.logger.info(
-            f"Analyzing segment AFTER changepoint (n={len(time_after)})..."
+            f"Analyzing segment AFTER changepoint (n={len(seg_after['time'])})..."
         )
         results_after = self._run_segment_analysis(
-            time_after,
-            data_after,
-            errors_after,
+            seg_after["time"],
+            seg_after["data"],
+            seg_after["errors"],
             segment_name=f"After {cp_time_str}",
             **analysis_kwargs_after,
+        )
+
+        return results_before, results_after
+
+    def _analyze_with_changepoint(
+        self, changepoint_idx: int, output_dir: str, **analysis_kwargs
+    ) -> Dict:
+        """
+        Performs separate spectral analysis on segments before/after changepoint.
+        """
+        seg_before, seg_after = self._prepare_changepoint_segments(changepoint_idx)
+
+        cp_time_str = get_changepoint_time(
+            changepoint_idx, self.time, self.time_unit
+        )
+
+        results_before, results_after = self._run_changepoint_analysis_steps(
+            seg_before, seg_after, cp_time_str, analysis_kwargs
         )
 
         # Combine results
