@@ -1,3 +1,4 @@
+import logging
 import re
 from unittest.mock import ANY, patch
 
@@ -658,7 +659,9 @@ def test_analysis_warns_on_ignored_peak_fdr_level(tmp_path, mocker):
     )
 
     # Spy on the logger to check for the warning
-    spy_logger = mocker.spy(analyzer.logger, "warning")
+    # The warning is issued by spectral_analyzer, so we must spy on its logger
+    target_logger = logging.getLogger("waterSpec.spectral_analyzer")
+    spy_logger = mocker.spy(target_logger, "warning")
 
     analyzer.run_full_analysis(
         output_dir=tmp_path,
@@ -685,7 +688,9 @@ def test_peak_detection_ignored_parameter_warning(tmp_path, mocker):
         time_col="time",
         data_col="value",
     )
-    spy_logger = mocker.spy(analyzer.logger, "warning")
+    # The warning is issued by spectral_analyzer, so we must spy on its logger
+    target_logger = logging.getLogger("waterSpec.spectral_analyzer")
+    spy_logger = mocker.spy(target_logger, "warning")
 
     # Test for ignored fap parameters when using 'residual' method
     analyzer.run_full_analysis(
