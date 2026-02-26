@@ -1,4 +1,5 @@
 import numpy as np
+import re
 
 
 def make_rng(seed=None):
@@ -46,6 +47,13 @@ def spawn_generators(master_seed, n_children):
     else:
         ss = SeedSequence(master_seed)
     return [np.random.default_rng(s) for s in ss.spawn(n_children)]
+
+
+def sanitize_filename(filename):
+    """Sanitizes a string to be a valid filename."""
+    s = str(filename).strip().replace(" ", "_")
+    s = re.sub(r"(?u)[^-\w.]", "", s)
+    return s
 
 
 _NOT_PROVIDED = object()
