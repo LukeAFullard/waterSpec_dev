@@ -19,6 +19,113 @@ def _is_fit_successful(fit_results):
     return is_standard_success or is_segmented_success
 
 
+def _plot_standard_model(ax, fit_results, color, label_prefix, plot_ci, log_freq):
+    """Helper to plot the standard model fit."""
+    beta = fit_results.get("beta")
+    intercept = fit_results.get("intercept")
+    fit_line = 10 ** (intercept - beta * log_freq)
+
+    # Determine label
+    label = f"{label_prefix} Fit (β ≈ {beta:.2f})".strip()
+
+    ax.loglog(
+        10**log_freq,
+        fit_line,
+        "-",
+        color=color,
+        linewidth=2.5,
+        label=label,
+    )
+
+    if plot_ci:
+        beta_ci_lower = fit_results.get("beta_ci_lower")
+        beta_ci_upper = fit_results.get("beta_ci_upper")
+        # Plot the confidence interval if available
+        if beta_ci_lower is not None and beta_ci_upper is not None:
+            lower_bound = 10 ** (intercept - beta_ci_upper * log_freq)
+            upper_bound = 10 ** (intercept - beta_ci_lower * log_freq)
+            ax.fill_between(
+                10**log_freq,
+                lower_bound,
+                upper_bound,
+                color=color,
+                alpha=0.2,
+                label="95% CI on β",
+            )
+
+
+def _plot_segmented_model(ax, fit_results, color, label_prefix, plot_ci, log_freq, plot_breakpoints, use_segment_colors):
+    """Helper to plot the segmented model fit."""
+    n_breakpoints = fit_results.get("n_breakpoints", 0)
+    log_power_fit = fit_results.get("fitted_log_power")
+
+    if use_segment_colors:
+        # Detailed plotting
+        log_bps = [np.log10(bp) for bp in fit_results["breakpoints"]]
+        colors = ["r", "m", "g"]
+
+        # Plot the confidence interval for the entire fit if available
+        if plot_ci:
+            fit_ci_lower = fit_results.get("fit_ci_lower")
+            fit_ci_upper = fit_results.get("fit_ci_upper")
+            if fit_ci_lower is not None and fit_ci_upper is not None:
+                ax.fill_between(
+                    10**log_freq,
+                    10**fit_ci_lower,
+                    10**fit_ci_upper,
+                    color="gray",
+                    alpha=0.3,
+                    label="95% CI on Fit",
+                )
+
+        # Plot each segment
+        for i in range(n_breakpoints + 1):
+            if i == 0:
+                mask = log_freq <= log_bps[0]
+                label = f"Low-Freq (β1≈{fit_results['betas'][0]:.2f})"
+            elif i == n_breakpoints:
+                mask = log_freq > log_bps[i - 1]
+                label = f"High-Freq (β{i+1}≈{fit_results['betas'][i]:.2f})"
+            else:
+                mask = (log_freq > log_bps[i - 1]) & (log_freq <= log_bps[i])
+                label = f"Mid-Freq (β{i+1}≈{fit_results['betas'][i]:.2f})"
+
+            ax.loglog(
+                10 ** log_freq[mask],
+                10 ** log_power_fit[mask],
+                color=colors[i % len(colors)],
+                linestyle="-",
+                linewidth=2.5,
+                label=label,
+            )
+    else:
+        # Simple plotting
+        betas = fit_results.get("betas", [])
+        beta_str = ", ".join([f"β{i+1}≈{b:.2f}" for i, b in enumerate(betas)])
+        label = f"{label_prefix} Fit ({beta_str})".strip()
+
+        ax.loglog(
+            10**log_freq,
+            10**log_power_fit,
+            "-",
+            color=color,
+            linewidth=2.5,
+            label=label,
+        )
+
+    # Plot breakpoint vertical lines
+    if plot_breakpoints and "breakpoints" in fit_results:
+        linestyles = ["--", ":", "-."]
+        for i, bp_freq in enumerate(fit_results["breakpoints"]):
+            ax.axvline(
+                x=bp_freq,
+                color="k",
+                linestyle=linestyles[i % len(linestyles)],
+                alpha=0.8,
+                label=f"BP {i+1} ≈ {_format_period(bp_freq)}",
+            )
+
+
 def _plot_fit_line(
     ax,
     fit_results,
@@ -36,107 +143,9 @@ def _plot_fit_line(
     log_freq = fit_results.get("log_freq")
 
     if analysis_type == "standard":
-        beta = fit_results.get("beta")
-        intercept = fit_results.get("intercept")
-        fit_line = 10 ** (intercept - beta * log_freq)
-
-        # Determine label
-        label = f"{label_prefix} Fit (β ≈ {beta:.2f})".strip()
-
-        ax.loglog(
-            10**log_freq,
-            fit_line,
-            "-",
-            color=color,
-            linewidth=2.5 if not use_segment_colors else 2,
-            label=label,
-        )
-
-        if plot_ci:
-            beta_ci_lower = fit_results.get("beta_ci_lower")
-            beta_ci_upper = fit_results.get("beta_ci_upper")
-            # Plot the confidence interval if available
-            if beta_ci_lower is not None and beta_ci_upper is not None:
-                lower_bound = 10 ** (intercept - beta_ci_upper * log_freq)
-                upper_bound = 10 ** (intercept - beta_ci_lower * log_freq)
-                ax.fill_between(
-                    10**log_freq,
-                    lower_bound,
-                    upper_bound,
-                    color=color,
-                    alpha=0.2,
-                    label="95% CI on β",
-                )
-
+        _plot_standard_model(ax, fit_results, color, label_prefix, plot_ci, log_freq)
     elif analysis_type == "segmented":
-        n_breakpoints = fit_results.get("n_breakpoints", 0)
-        log_power_fit = fit_results.get("fitted_log_power")
-
-        if use_segment_colors:
-            # Detailed plotting
-            log_bps = [np.log10(bp) for bp in fit_results["breakpoints"]]
-            colors = ["r", "m", "g"]
-
-            # Plot the confidence interval for the entire fit if available
-            if plot_ci:
-                fit_ci_lower = fit_results.get("fit_ci_lower")
-                fit_ci_upper = fit_results.get("fit_ci_upper")
-                if fit_ci_lower is not None and fit_ci_upper is not None:
-                    ax.fill_between(
-                        10**log_freq,
-                        10**fit_ci_lower,
-                        10**fit_ci_upper,
-                        color="gray",
-                        alpha=0.3,
-                        label="95% CI on Fit",
-                    )
-
-            # Plot each segment
-            for i in range(n_breakpoints + 1):
-                if i == 0:
-                    mask = log_freq <= log_bps[0]
-                    label = f"Low-Freq (β1≈{fit_results['betas'][0]:.2f})"
-                elif i == n_breakpoints:
-                    mask = log_freq > log_bps[i - 1]
-                    label = f"High-Freq (β{i+1}≈{fit_results['betas'][i]:.2f})"
-                else:
-                    mask = (log_freq > log_bps[i - 1]) & (log_freq <= log_bps[i])
-                    label = f"Mid-Freq (β{i+1}≈{fit_results['betas'][i]:.2f})"
-
-                ax.loglog(
-                    10 ** log_freq[mask],
-                    10 ** log_power_fit[mask],
-                    color=colors[i % len(colors)],
-                    linestyle="-",
-                    linewidth=2.5,
-                    label=label,
-                )
-        else:
-            # Simple plotting
-            betas = fit_results.get("betas", [])
-            beta_str = ", ".join([f"β{i+1}≈{b:.2f}" for i, b in enumerate(betas)])
-            label = f"{label_prefix} Fit ({beta_str})".strip()
-
-            ax.loglog(
-                10**log_freq,
-                10**log_power_fit,
-                "-",
-                color=color,
-                linewidth=2.5,
-                label=label,
-            )
-
-        # Plot breakpoint vertical lines
-        if plot_breakpoints and "breakpoints" in fit_results:
-            linestyles = ["--", ":", "-."]
-            for i, bp_freq in enumerate(fit_results["breakpoints"]):
-                ax.axvline(
-                    x=bp_freq,
-                    color="k",
-                    linestyle=linestyles[i % len(linestyles)],
-                    alpha=0.8,
-                    label=f"BP {i+1} ≈ {_format_period(bp_freq)}",
-                )
+        _plot_segmented_model(ax, fit_results, color, label_prefix, plot_ci, log_freq, plot_breakpoints, use_segment_colors)
 
 
 def _plot_single_spectrum(ax, frequency, power, fit_results, title=""):
