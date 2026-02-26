@@ -1,5 +1,6 @@
 import os
 import shutil
+import tempfile
 
 from waterSpec import Analysis
 
@@ -13,43 +14,39 @@ def main():
     # Define key paths
     file_path = 'examples/sample_data.csv'
     asset_dir = 'assets'
-    temp_dir = 'temp_readme_output'
     param_name = 'readme_example'
 
     # Ensure the assets directory exists
     os.makedirs(asset_dir, exist_ok=True)
-    os.makedirs(temp_dir, exist_ok=True)
 
     print("Running analysis to generate README assets...")
 
-    # 1. Initialize and run the analysis
-    # We use a temporary directory because the output filenames are auto-generated.
-    analyzer = Analysis(
-        file_path=file_path,
-        time_col='timestamp',
-        data_col='concentration',
-        param_name=param_name
-    )
-    analyzer.run_full_analysis(output_dir=temp_dir)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # 1. Initialize and run the analysis
+        # We use a temporary directory because the output filenames are auto-generated.
+        analyzer = Analysis(
+            file_path=file_path,
+            time_col='timestamp',
+            data_col='concentration',
+            param_name=param_name
+        )
+        analyzer.run_full_analysis(output_dir=temp_dir)
 
-    # 2. Define source and destination paths
-    sanitized_name = analyzer._sanitize_filename(param_name)
+        # 2. Define source and destination paths
+        sanitized_name = analyzer._sanitize_filename(param_name)
 
-    source_plot_path = os.path.join(temp_dir, f"{sanitized_name}_spectrum_plot.png")
-    dest_plot_path = os.path.join(asset_dir, 'readme_spec_plot.png')
+        source_plot_path = os.path.join(temp_dir, f"{sanitized_name}_spectrum_plot.png")
+        dest_plot_path = os.path.join(asset_dir, 'readme_spec_plot.png')
 
-    source_summary_path = os.path.join(temp_dir, f"{sanitized_name}_summary.txt")
-    dest_summary_path = os.path.join(asset_dir, 'readme_summary.txt')
+        source_summary_path = os.path.join(temp_dir, f"{sanitized_name}_summary.txt")
+        dest_summary_path = os.path.join(asset_dir, 'readme_summary.txt')
 
-    # 3. Move and rename the files to their final destination
-    print(f"Moving plot to {dest_plot_path}")
-    shutil.move(source_plot_path, dest_plot_path)
+        # 3. Move and rename the files to their final destination
+        print(f"Moving plot to {dest_plot_path}")
+        shutil.move(source_plot_path, dest_plot_path)
 
-    print(f"Moving summary to {dest_summary_path}")
-    shutil.move(source_summary_path, dest_summary_path)
-
-    # 4. Clean up the temporary directory
-    shutil.rmtree(temp_dir)
+        print(f"Moving summary to {dest_summary_path}")
+        shutil.move(source_summary_path, dest_summary_path)
 
     print("README assets generated successfully.")
 
