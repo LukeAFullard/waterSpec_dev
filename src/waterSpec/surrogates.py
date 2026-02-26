@@ -52,33 +52,32 @@ def generate_phase_randomized_surrogates(
     # Amplitudes (preserve these)
     amplitudes = np.abs(fft_data)
 
-    surrogates = []
+    # Generate random phases for all surrogates at once
+    # Shape: (n_surrogates, n_freqs)
+    phases = rng.uniform(-np.pi, np.pi, size=(n_surrogates, n_freqs))
 
-    for _ in range(n_surrogates):
-        # Generate random phases in [-pi, pi]
-        # Keep DC component (idx 0) phase as 0 (real)
-        # If n is even, Nyquist component (last) must also be real
+    # Keep DC component (idx 0) phase as 0 (real)
+    phases[:, 0] = 0
 
-        phases = rng.uniform(-np.pi, np.pi, size=n_freqs)
-        phases[0] = 0
-        if n % 2 == 0:
-            phases[-1] = 0
+    # If n is even, Nyquist component (last) must also be real
+    if n % 2 == 0:
+        phases[:, -1] = 0
 
-        # Construct new complex spectrum
-        new_fft = amplitudes * np.exp(1j * phases)
+    # Construct new complex spectrum using broadcasting
+    # amplitudes shape: (n_freqs,) -> broadcasts to (n_surrogates, n_freqs)
+    new_fft = amplitudes * np.exp(1j * phases)
 
-        # Inverse FFT
-        surr = np.fft.irfft(new_fft, n=n)
+    # Inverse FFT along the last axis
+    # returns shape: (n_surrogates, n)
+    surrogates = np.fft.irfft(new_fft, n=n, axis=-1)
 
-        # Original IAAFT methods iterate to match amplitude distribution too.
-        # This is basic Phase Randomization (preserves linear correlation, but not distribution).
-        # For simple robustness checks, this is usually sufficient for testing linear correlation significance.
-        # But if data is highly non-Gaussian, IAAFT is better.
-        # For now, we stick to simple Phase Randomization as per plan (Method 5.2 table col 2).
+    # Original IAAFT methods iterate to match amplitude distribution too.
+    # This is basic Phase Randomization (preserves linear correlation, but not distribution).
+    # For simple robustness checks, this is usually sufficient for testing linear correlation significance.
+    # But if data is highly non-Gaussian, IAAFT is better.
+    # For now, we stick to simple Phase Randomization as per plan (Method 5.2 table col 2).
 
-        surrogates.append(surr)
-
-    return np.array(surrogates)
+    return surrogates
 
 def generate_block_shuffled_surrogates(
     data: np.ndarray,
