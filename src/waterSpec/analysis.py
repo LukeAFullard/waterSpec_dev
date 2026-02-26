@@ -20,8 +20,7 @@ from .plotting import plot_changepoint_analysis, plot_spectrum
 from .preprocessor import preprocess_data
 from .spectral_analyzer import (
     calculate_periodogram,
-    find_peaks_via_residuals,
-    find_significant_peaks,
+    detect_peaks,
 )
 from .haar_analysis import HaarAnalysis
 from .psresp import psresp_fit
@@ -513,39 +512,16 @@ class Analysis:
     ):
         """Detects significant peaks based on the chosen method."""
         self.logger.info(f"Detecting significant peaks using '{peak_detection_method}' method...")
-        if peak_detection_method == "residual":
-            if fap_method != "baluev" or fap_threshold != 0.01:
-                self.logger.warning(
-                    "'peak_detection_method' is 'residual', so 'fap_method' and "
-                    "'fap_threshold' parameters are ignored."
-                )
-            peaks, threshold = find_peaks_via_residuals(
-                fit_results, fdr_level=peak_fdr_level
-            )
-            fit_results["significant_peaks"] = peaks
-            fit_results["residual_threshold"] = threshold
-            fit_results["peak_fdr_level"] = peak_fdr_level
-        elif peak_detection_method == "fap" and fap_threshold is not None:
-            if peak_fdr_level != 0.05:
-                self.logger.warning(
-                    "'peak_detection_method' is 'fap', so the 'peak_fdr_level' "
-                    "parameter is ignored."
-                )
-            peaks, level = find_significant_peaks(
-                self.ls_obj,
-                self.frequency,
-                self.power,
-                fap_threshold=fap_threshold,
-                fap_method=fap_method,
-            )
-            fit_results["significant_peaks"] = peaks
-            fit_results["fap_level"] = level
-            fit_results["fap_threshold"] = fap_threshold
-        elif peak_detection_method is not None and peak_detection_method != "fap":
-            self.logger.warning(
-                f"Unknown peak_detection_method '{peak_detection_method}'. "
-                "No peak detection performed."
-            )
+        fit_results = detect_peaks(
+            fit_results,
+            self.ls_obj,
+            self.frequency,
+            self.power,
+            peak_detection_method=peak_detection_method,
+            peak_fdr_level=peak_fdr_level,
+            fap_threshold=fap_threshold,
+            fap_method=fap_method,
+        )
 
         if "significant_peaks" in fit_results:
             self.logger.info(
