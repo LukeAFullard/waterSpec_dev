@@ -82,6 +82,87 @@ def bin_power_spectrum(
 
     return np.array(binned_freqs), np.array(binned_power)
 
+def _run_simulations_for_params(
+    psd_func: Callable,
+    params: Tuple,
+    t_obs_relative: np.ndarray,
+    err_obs: np.ndarray,
+    freqs: np.ndarray,
+    N_sim: int,
+    dt_sim: float,
+    normalization: str,
+    sim_seeds: List[Optional[int]],
+    max_workers: int,
+    binning: bool,
+    bins: Optional[np.ndarray],
+    valid_mask: Optional[np.ndarray],
+    M: int
+) -> np.ndarray:
+    """
+    Run M simulations for a given set of parameters.
+    Returns:
+        sim_binned_powers: Array of shape (M, n_bins_valid) or (M, n_freqs)
+    """
+    sim_binned_powers = []
+
+    # Pre-calculate scale once per parameter set to avoid redundant computation in workers
+    freqs_sim = np.fft.rfftfreq(N_sim, d=dt_sim)
+    psd_sim = np.zeros_like(freqs_sim)
+    mask_sim = freqs_sim > 0
+    psd_sim[mask_sim] = psd_func(freqs_sim[mask_sim], *params)
+    precomputed_scale = np.sqrt(psd_sim * N_sim / (2 * dt_sim))
+
+    # Process in chunks to manage memory and future overhead
+    # chunk_size = max(1, M // max_workers) # Unused in loop
+
+    # Optimize memory usage by batching submissions
+    if not binning and M * len(freqs) * 8 > 1e8: # > 100MB of raw data expected
+        warnings.warn("binning=False with large M and high resolution frequencies may consume excessive memory.", UserWarning)
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        # Batch submission to avoid creating M futures at once (which pickles args M times)
+        futures_set = set()
+        sim_idx = 0
+
+        # Initial batch
+        while sim_idx < M and len(futures_set) < max_workers * 2:
+            fut = executor.submit(
+                _run_single_simulation,
+                sim_idx, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization,
+                seed=sim_seeds[sim_idx],
+                precomputed_scale=precomputed_scale
+            )
+            futures_set.add(fut)
+            sim_idx += 1
+
+        while futures_set:
+            done, futures_set = concurrent.futures.wait(futures_set, return_when=concurrent.futures.FIRST_COMPLETED)
+
+            for future in done:
+                p = future.result()
+                if binning:
+                    _, bp = bin_power_spectrum(freqs, p, bins)
+                    # Use provided valid_mask if available, otherwise append as is (though it should be provided if binning=True)
+                    if valid_mask is not None:
+                         sim_binned_powers.append(bp[valid_mask])
+                    else:
+                         sim_binned_powers.append(bp)
+                else:
+                    sim_binned_powers.append(p)
+
+                # Submit next task if available
+                if sim_idx < M:
+                    fut = executor.submit(
+                        _run_single_simulation,
+                        sim_idx, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization,
+                        seed=sim_seeds[sim_idx],
+                        precomputed_scale=precomputed_scale
+                    )
+                    futures_set.add(fut)
+                    sim_idx += 1
+
+    return np.array(sim_binned_powers)
+
 def psresp_fit(
     t_obs: np.ndarray,
     x_obs: np.ndarray,
@@ -102,10 +183,20 @@ def psresp_fit(
     Perform PSRESP (Power Spectral Response) analysis.
 
     Args:
-        ...
+        t_obs: Observed time points.
+        x_obs: Observed values.
+        err_obs: Observational errors.
+        psd_func: Function to calculate PSD.
+        params_list: List of parameter tuples for psd_func.
+        freqs: Frequencies to evaluate.
+        M: Number of simulations per parameter set.
+        oversample: Oversampling factor for simulation.
+        length_factor: Length factor for simulation (relative to T_obs).
+        normalization: Lomb-Scargle normalization.
+        n_jobs: Number of parallel jobs. If -1, uses all available CPUs (limited to 32 to prevent issues).
         binning: If True, bin the power spectrum in log-space before comparison.
         n_bins: Number of bins if binning is enabled.
-        n_jobs: Number of parallel jobs. If -1, uses all available CPUs (limited to 32 to prevent issues).
+        seed: Random seed for reproducibility.
     """
 
     # Handle time offset
@@ -139,6 +230,8 @@ def psresp_fit(
         f_min_bin = freqs.min()
         f_max_bin = freqs.max()
         bins = np.logspace(np.log10(f_min_bin), np.log10(f_max_bin), n_bins + 1)
+    else:
+        bins = None
 
     # Calculate observed periodogram
     ls_obs = LombScargle(t_obs_relative, x_obs, dy=err_obs)
@@ -155,6 +248,7 @@ def psresp_fit(
     else:
         target_power = obs_power
         target_freqs = freqs
+        valid_mask = None
 
     results = []
     target_log_power = np.log10(target_power)
@@ -176,67 +270,11 @@ def psresp_fit(
         max_workers = max(1, n_jobs) # Ensure at least 1 worker
 
     for params in params_list:
-        sim_binned_powers = []
-
-        # Pre-calculate scale once per parameter set to avoid redundant computation in workers
-        freqs_sim = np.fft.rfftfreq(N_sim, d=dt_sim)
-        psd_sim = np.zeros_like(freqs_sim)
-        mask_sim = freqs_sim > 0
-        psd_sim[mask_sim] = psd_func(freqs_sim[mask_sim], *params)
-        precomputed_scale = np.sqrt(psd_sim * N_sim / (2 * dt_sim))
-
-        # Process in chunks to manage memory and future overhead
-        chunk_size = max(1, M // max_workers) # Ensure reasonable chunk size, or just submit all if M is small
-        # Actually, Python's ProcessPoolExecutor handles queuing well, but if we create all M futures
-        # and M is huge, that consumes memory. But M=500 is fine.
-        # The main memory issue is if N_sim is huge.
-
-        # We will submit all for simplicity but rely on max_workers limiting active processes.
-        # But we must be careful not to hold all result arrays in memory if they are huge and binning=False.
-
-        # Optimize memory usage by batching submissions
-        if not binning and M * len(freqs) * 8 > 1e8: # > 100MB of raw data expected
-            warnings.warn("binning=False with large M and high resolution frequencies may consume excessive memory.", UserWarning)
-
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-            # Batch submission to avoid creating M futures at once (which pickles args M times)
-            futures_set = set()
-            sim_idx = 0
-
-            # Initial batch
-            while sim_idx < M and len(futures_set) < max_workers * 2:
-                fut = executor.submit(
-                    _run_single_simulation,
-                    sim_idx, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization,
-                    seed=sim_seeds[sim_idx],
-                    precomputed_scale=precomputed_scale
-                )
-                futures_set.add(fut)
-                sim_idx += 1
-
-            while futures_set:
-                done, futures_set = concurrent.futures.wait(futures_set, return_when=concurrent.futures.FIRST_COMPLETED)
-
-                for future in done:
-                    p = future.result()
-                    if binning:
-                        _, bp = bin_power_spectrum(freqs, p, bins)
-                        sim_binned_powers.append(bp[valid_mask])
-                    else:
-                        sim_binned_powers.append(p)
-
-                    # Submit next task if available
-                    if sim_idx < M:
-                        fut = executor.submit(
-                            _run_single_simulation,
-                            sim_idx, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization,
-                            seed=sim_seeds[sim_idx],
-                            precomputed_scale=precomputed_scale
-                        )
-                        futures_set.add(fut)
-                        sim_idx += 1
-
-        sim_binned_powers = np.array(sim_binned_powers) # Shape (M, n_bins_valid)
+        sim_binned_powers = _run_simulations_for_params(
+            psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim,
+            normalization, sim_seeds, max_workers, binning, bins,
+            valid_mask, M
+        )
 
         # Statistics on log power
         sim_log_powers = np.log10(sim_binned_powers)
