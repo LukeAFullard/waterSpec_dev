@@ -473,3 +473,28 @@ def test_detrend_wls_correctness():
     np.testing.assert_array_almost_equal(
         detrended_data_from_func, expected_detrended_data_wls
     )
+
+
+def test_detrend_loess_small_input():
+    """
+    Test that LOESS detrending handles small inputs (<5 points) gracefully
+    by issuing a warning and returning the original data.
+    """
+    x = np.array([1, 2, 3, 4])
+    y = np.array([10, 20, 30, 40])
+
+    with pytest.warns(UserWarning, match="Not enough data points"):
+        detrended_y, errors, diagnostics = detrend_loess(x, y.copy())
+
+    # Verify the output matches the input
+    np.testing.assert_array_equal(detrended_y, y)
+
+    # Verify diagnostics indicate no trend was removed
+    assert diagnostics["trend_removed"] is False
+    assert np.isnan(diagnostics["variance_explained_by_trend"])
+
+    # Verify errors are passed through if provided
+    errors_in = np.array([0.1, 0.1, 0.1, 0.1])
+    with pytest.warns(UserWarning, match="Not enough data points"):
+        detrended_y, errors_out, _ = detrend_loess(x, y.copy(), errors=errors_in.copy())
+    np.testing.assert_array_equal(errors_out, errors_in)
