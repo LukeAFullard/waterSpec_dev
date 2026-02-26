@@ -25,7 +25,7 @@ from .spectral_analyzer import (
 from .haar_analysis import HaarAnalysis
 from .psresp import psresp_fit
 from .utils_sim import power_law
-from .utils import make_rng, validate_run_parameters
+from .utils import make_rng, validate_run_parameters, sanitize_filename
 
 
 class Analysis:
@@ -295,12 +295,6 @@ class Analysis:
                 f"Changepoint detected at index {cp_idx} (~{cp_time_str})."
             )
         return cp_idx
-
-    def _sanitize_filename(self, filename):
-        """Sanitizes a string to be a valid filename."""
-        s = str(filename).strip().replace(" ", "_")
-        s = re.sub(r"(?u)[^-\w.]", "", s)
-        return s
 
     def _calculate_periodogram(
         self,
@@ -590,7 +584,7 @@ class Analysis:
         """Generates and saves the plot and summary text file."""
         self.logger.info(f"Generating outputs in directory: {output_dir}")
         os.makedirs(output_dir, exist_ok=True)
-        sanitized_name = self._sanitize_filename(self.param_name)
+        sanitized_name = sanitize_filename(self.param_name)
 
         # Plot
         plot_path = os.path.join(output_dir, f"{sanitized_name}_spectrum_plot.png")
@@ -662,7 +656,7 @@ class Analysis:
         """
         self.logger.info(f"Generating changepoint outputs in directory: {output_dir}")
         os.makedirs(output_dir, exist_ok=True)
-        sanitized_name = self._sanitize_filename(self.param_name)
+        sanitized_name = sanitize_filename(self.param_name)
 
         # Generate the comparison plot with the specified style
         plot_changepoint_analysis(

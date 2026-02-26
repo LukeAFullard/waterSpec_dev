@@ -14,7 +14,7 @@ from .spectral_analyzer import (
     calculate_periodogram,
     detect_peaks,
 )
-from .utils import validate_run_parameters
+from .utils import validate_run_parameters, sanitize_filename
 
 
 class SiteComparison:
@@ -112,12 +112,6 @@ class SiteComparison:
             "param_name": config.get("param_name", config["data_col"]),
             "time_unit": config.get("time_unit", "seconds"),
         }
-
-    def _sanitize_filename(self, filename):
-        """Sanitizes a string to be a valid filename."""
-        s = str(filename).strip().replace(" ", "_")
-        s = re.sub(r"(?u)[^-\w.]", "", s)
-        return s
 
     def run_comparison(
         self,
@@ -324,7 +318,7 @@ class SiteComparison:
         """
         self.logger.info(f"Generating comparison outputs in directory: {output_dir}")
         os.makedirs(output_dir, exist_ok=True)
-        sanitized_name = self._sanitize_filename(results["comparison_name"])
+        sanitized_name = sanitize_filename(results["comparison_name"])
 
         # Generate the comparison plot
         plot_site_comparison(
