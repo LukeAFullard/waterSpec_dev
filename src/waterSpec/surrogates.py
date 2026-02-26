@@ -181,22 +181,22 @@ def generate_power_law_surrogates(
     # Ensure simulation covers the full duration plus a bit
     N_sim = int(np.ceil(duration / dt_sim)) + 100
 
-    # Generate seeds
-    ss = np.random.SeedSequence(seed)
-    seeds = ss.generate_state(n_surrogates)
+    # 1. Simulate high-res regular processes in one batch.
+    # Amplitude 1.0 is arbitrary; usually we match variance later.
+    # Generating in batches avoids redundant PSD calculations and uses vectorized operations.
+    t_sim, x_sims = simulate_tk95(
+        psd_func=power_law,
+        params=(beta, 1.0),
+        N=N_sim,
+        dt=dt_sim,
+        seed=seed,
+        n_simulations=n_surrogates
+    )
 
     surrogates = []
 
     for i in range(n_surrogates):
-        # 1. Simulate high-res regular process
-        # Amplitude 1.0 is arbitrary; usually we match variance later
-        t_sim, x_sim = simulate_tk95(
-            power_law,
-            params=(beta, 1.0),
-            N=N_sim,
-            dt=dt_sim,
-            seed=seeds[i]
-        )
+        x_sim = x_sims[i]
 
         # 2. Resample to observed times
         x_resampled = resample_to_times(t_sim, x_sim, t_relative)
