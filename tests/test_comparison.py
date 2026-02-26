@@ -149,8 +149,8 @@ def test_site_comparison_insufficient_data_raises_error(tmp_path):
     with pytest.raises(ValueError, match="Not enough valid data points \\(5\\) for site 'BadSite'"):
         SiteComparison(site1_config, site2_config)
 
-@patch("waterSpec.comparison.fit_segmented_spectrum")
-@patch("waterSpec.comparison.fit_standard_model")
+@patch("waterSpec.model_selector.fit_segmented_spectrum")
+@patch("waterSpec.model_selector.fit_standard_model")
 def test_site_comparison_generates_correct_summary_and_plot_data(
     mock_fit_standard, mock_fit_segmented, tmp_path
 ):

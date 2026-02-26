@@ -7,6 +7,7 @@ import numpy as np
 
 from .data_loader import load_data
 from .fitter import fit_segmented_spectrum, fit_standard_model
+from .model_selector import ModelSelector
 from .interpreter import get_persistence_traffic_light, interpret_results
 from .plotting import plot_site_comparison
 from .preprocessor import preprocess_data
@@ -341,68 +342,18 @@ class SiteComparison:
         n_bootstraps, p_threshold, max_breakpoints, seed
     ):
         """Performs fits and selects the best model using BIC."""
-        all_models = []
-
-        # If a seed is provided, create a SeedSequence to generate independent
-        # seeds for each model. This is crucial for reproducible and
-        # independent bootstrap resampling across different models.
-        if seed is not None:
-            ss = np.random.SeedSequence(seed)
-            # We are fitting up to `max_breakpoints` + 1 models (standard, 1bp, 2bp, etc.)
-            child_seeds = ss.spawn(max_breakpoints + 1)
-        else:
-            child_seeds = [None] * (max_breakpoints + 1)
-
-        # Re-fit the standard model with the correct child seed
-        try:
-            standard_results = fit_standard_model(
-                frequency, power,
-                method=fit_method,
-                ci_method=ci_method,
-                bootstrap_type=bootstrap_type,
-                n_bootstraps=n_bootstraps,
-                seed=child_seeds[0],  # Use the first child seed
-                logger=self.logger,
-            )
-            if "bic" in standard_results and np.isfinite(standard_results["bic"]):
-                standard_results["n_breakpoints"] = 0
-                all_models.append(standard_results)
-        except Exception as e:
-            self.logger.error("Standard model fit crashed: %s", e, exc_info=True)
-
-        # Segmented models
-        for n_bp in range(1, max_breakpoints + 1):
-            try:
-                # Spawn a new seed for each model to ensure independent bootstrap samples.
-                model_seed = child_seeds[n_bp]
-                seg_results = fit_segmented_spectrum(
-                    frequency, power, n_breakpoints=n_bp,
-                    p_threshold=p_threshold,
-                    ci_method=ci_method,
-                    bootstrap_type=bootstrap_type,
-                    n_bootstraps=n_bootstraps,
-                    seed=model_seed,
-                    logger=self.logger,
-                )
-                if "bic" in seg_results and np.isfinite(seg_results["bic"]):
-                    all_models.append(seg_results)
-            except Exception as e:
-                self.logger.error(
-                    "Segmented model (%d bp) fit crashed: %s", n_bp, e, exc_info=True
-                )
-
-        if not all_models:
-            raise RuntimeError("Model fitting failed for all attempted models.")
-
-        best_model = min(all_models, key=lambda x: x["bic"])
-
-        # Add metadata for interpretation and plotting
-        if best_model.get("n_breakpoints", 0) == 0:
-            best_model["chosen_model_type"] = "standard"
-        else:
-            best_model["chosen_model_type"] = "segmented"
-
-        return best_model
+        selector = ModelSelector(logger=self.logger)
+        return selector.select_best_model(
+            frequency,
+            power,
+            fit_method,
+            ci_method,
+            bootstrap_type,
+            n_bootstraps,
+            p_threshold,
+            max_breakpoints,
+            seed,
+        )
 
     def _detect_significant_peaks(
         self, fit_results, ls_obj, frequency, power, peak_detection_method,
