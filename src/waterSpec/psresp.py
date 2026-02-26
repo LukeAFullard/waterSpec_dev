@@ -21,7 +21,8 @@ def _run_single_simulation(
     N_sim: int,
     dt_sim: float,
     normalization: str = "psd",
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
+    precomputed_scale: Optional[np.ndarray] = None
 ) -> np.ndarray:
     """
     Helper function to run a single simulation iteration.
@@ -32,7 +33,14 @@ def _run_single_simulation(
     # The original code set global seed.
     # The new simulate_tk95 takes a 'seed' argument.
 
-    t_sim, x_sim = simulate_tk95(psd_func, params, N_sim, dt_sim, seed=seed)
+    t_sim, x_sim = simulate_tk95(
+        psd_func=psd_func,
+        params=params,
+        N=N_sim,
+        dt=dt_sim,
+        seed=seed,
+        precomputed_scale=precomputed_scale
+    )
 
     # 2. Resample
     # t_obs_relative is already shifted to start at 0 (or close to 0)
@@ -170,6 +178,13 @@ def psresp_fit(
     for params in params_list:
         sim_binned_powers = []
 
+        # Pre-calculate scale once per parameter set to avoid redundant computation in workers
+        freqs_sim = np.fft.rfftfreq(N_sim, d=dt_sim)
+        psd_sim = np.zeros_like(freqs_sim)
+        mask_sim = freqs_sim > 0
+        psd_sim[mask_sim] = psd_func(freqs_sim[mask_sim], *params)
+        precomputed_scale = np.sqrt(psd_sim * N_sim / (2 * dt_sim))
+
         # Process in chunks to manage memory and future overhead
         chunk_size = max(1, M // max_workers) # Ensure reasonable chunk size, or just submit all if M is small
         # Actually, Python's ProcessPoolExecutor handles queuing well, but if we create all M futures
@@ -193,7 +208,8 @@ def psresp_fit(
                 fut = executor.submit(
                     _run_single_simulation,
                     sim_idx, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization,
-                    seed=sim_seeds[sim_idx]
+                    seed=sim_seeds[sim_idx],
+                    precomputed_scale=precomputed_scale
                 )
                 futures_set.add(fut)
                 sim_idx += 1
@@ -214,7 +230,8 @@ def psresp_fit(
                         fut = executor.submit(
                             _run_single_simulation,
                             sim_idx, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization,
-                            seed=sim_seeds[sim_idx]
+                            seed=sim_seeds[sim_idx],
+                            precomputed_scale=precomputed_scale
                         )
                         futures_set.add(fut)
                         sim_idx += 1
