@@ -25,7 +25,7 @@ from .spectral_analyzer import (
 from .haar_analysis import HaarAnalysis
 from .psresp import psresp_fit
 from .utils_sim import power_law
-from .utils import make_rng
+from .utils import make_rng, validate_run_parameters
 
 
 class Analysis:
@@ -958,69 +958,6 @@ class Analysis:
         full_summary = header + comparison + summary_before + "\n\n" + "=" * 60 + "\n\n" + summary_after
         return full_summary
 
-    def _validate_run_parameters(
-        self,
-        fit_method,
-        ci_method,
-        bootstrap_type,
-        n_bootstraps,
-        fap_threshold,
-        samples_per_peak,
-        fap_method,
-        normalization,
-        peak_detection_method,
-        peak_fdr_level,
-        p_threshold,
-        max_breakpoints,
-        nyquist_factor,
-        max_freq,
-        haar_statistic,
-        haar_percentile,
-        haar_percentile_method,
-    ):
-        """Validates parameters for the `run_full_analysis` method."""
-        if fit_method not in ["theil-sen", "ols"]:
-            raise ValueError("`fit_method` must be 'theil-sen' or 'ols'.")
-        if ci_method not in ["bootstrap", "parametric"]:
-            raise ValueError("`ci_method` must be 'bootstrap' or 'parametric'.")
-        if bootstrap_type not in ["pairs", "residuals", "block", "wild"]:
-            raise ValueError(
-                "`bootstrap_type` must be 'pairs', 'residuals', 'block', or 'wild'."
-            )
-        if not isinstance(n_bootstraps, int) or n_bootstraps < 0:
-            raise ValueError("`n_bootstraps` must be a non-negative integer.")
-        if not (isinstance(fap_threshold, float) and 0 < fap_threshold < 1):
-            raise ValueError("`fap_threshold` must be a float between 0 and 1.")
-        if not isinstance(samples_per_peak, int) or samples_per_peak <= 0:
-            raise ValueError("`samples_per_peak` must be a positive integer.")
-        if fap_method not in ["baluev", "bootstrap"]:
-            raise ValueError("`fap_method` must be 'baluev' or 'bootstrap'.")
-        if normalization not in ["standard", "model", "log", "psd"]:
-            raise ValueError(
-                "`normalization` must be one of 'standard', 'model', 'log', or 'psd'."
-            )
-        if peak_detection_method not in ["residual", "fap", None]:
-            raise ValueError(
-                "`peak_detection_method` must be 'residual', 'fap', or None."
-            )
-        if not (isinstance(peak_fdr_level, float) and 0 < peak_fdr_level < 1):
-            raise ValueError("`peak_fdr_level` must be a float between 0 and 1.")
-        if not (isinstance(p_threshold, float) and 0 < p_threshold < 1):
-            raise ValueError("`p_threshold` must be a float between 0 and 1.")
-        if max_breakpoints not in [0, 1, 2]:
-            raise ValueError("`max_breakpoints` must be an integer (0, 1, or 2).")
-        if not isinstance(nyquist_factor, (int, float)) or nyquist_factor <= 0:
-            raise ValueError("`nyquist_factor` must be a positive number.")
-        if max_freq is not None and (not isinstance(max_freq, (int, float)) or max_freq <= 0):
-            raise ValueError("`max_freq`, if provided, must be a positive number.")
-
-        if haar_statistic not in ["mean", "median", "percentile"]:
-            raise ValueError("`haar_statistic` must be 'mean', 'median', or 'percentile'.")
-        if haar_statistic == "percentile" and haar_percentile is None:
-            raise ValueError("`haar_percentile` must be provided if `haar_statistic` is 'percentile'.")
-        if haar_percentile is not None and not (0 <= haar_percentile <= 100):
-             raise ValueError("`haar_percentile` must be between 0 and 100.")
-
     def run_full_analysis(
         self,
         output_dir,
@@ -1129,24 +1066,24 @@ class Analysis:
             dict: A dictionary containing all analysis results.
         """
         # 1. Validate all run parameters
-        self._validate_run_parameters(
-            fit_method,
-            ci_method,
-            bootstrap_type,
-            n_bootstraps,
-            fap_threshold,
-            samples_per_peak,
-            fap_method,
-            normalization,
-            peak_detection_method,
-            peak_fdr_level,
-            p_threshold,
-            max_breakpoints,
-            nyquist_factor,
-            max_freq,
-            haar_statistic,
-            haar_percentile,
-            haar_percentile_method,
+        validate_run_parameters(
+            fit_method=fit_method,
+            ci_method=ci_method,
+            bootstrap_type=bootstrap_type,
+            n_bootstraps=n_bootstraps,
+            fap_threshold=fap_threshold,
+            samples_per_peak=samples_per_peak,
+            fap_method=fap_method,
+            normalization=normalization,
+            peak_detection_method=peak_detection_method,
+            peak_fdr_level=peak_fdr_level,
+            p_threshold=p_threshold,
+            max_breakpoints=max_breakpoints,
+            nyquist_factor=nyquist_factor,
+            max_freq=max_freq,
+            haar_statistic=haar_statistic,
+            haar_percentile=haar_percentile,
+            haar_percentile_method=haar_percentile_method,
         )
         analysis_kwargs = {
             "fit_method": fit_method,
