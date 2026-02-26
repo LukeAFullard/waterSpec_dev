@@ -19,33 +19,42 @@ def _is_fit_successful(fit_results):
     return is_standard_success or is_segmented_success
 
 
-def _plot_single_spectrum(ax, frequency, power, fit_results, title=""):
-    """
-    Plots a single power spectrum and its fit on a given matplotlib Axes object.
-    """
-    # Plot the raw power spectrum
-    ax.loglog(frequency, power, "o", markersize=5, alpha=0.6, label="Raw Periodogram")
+def _plot_fit_line(
+    ax,
+    fit_results,
+    color,
+    label_prefix="",
+    plot_ci=False,
+    plot_breakpoints=False,
+    use_segment_colors=False,
+):
+    """A helper to plot just the fit line and CI on a given axis."""
+    if not _is_fit_successful(fit_results):
+        return
 
-    if _is_fit_successful(fit_results):
-        analysis_type = fit_results.get("chosen_model_type")
-        log_freq = fit_results.get("log_freq")
+    analysis_type = fit_results.get("chosen_model_type")
+    log_freq = fit_results.get("log_freq")
 
-        if analysis_type == "standard":
-            beta = fit_results.get("beta")
-            intercept = fit_results.get("intercept")
+    if analysis_type == "standard":
+        beta = fit_results.get("beta")
+        intercept = fit_results.get("intercept")
+        fit_line = 10 ** (intercept - beta * log_freq)
+
+        # Determine label
+        label = f"{label_prefix} Fit (β ≈ {beta:.2f})".strip()
+
+        ax.loglog(
+            10**log_freq,
+            fit_line,
+            "-",
+            color=color,
+            linewidth=2.5 if not use_segment_colors else 2,
+            label=label,
+        )
+
+        if plot_ci:
             beta_ci_lower = fit_results.get("beta_ci_lower")
             beta_ci_upper = fit_results.get("beta_ci_upper")
-
-            # Plot the main fit line
-            fit_line = 10 ** (intercept - beta * log_freq)
-            ax.loglog(
-                10**log_freq,
-                fit_line,
-                "r-",
-                linewidth=2,
-                label=f"Fit (β ≈ {beta:.2f})",
-            )
-
             # Plot the confidence interval if available
             if beta_ci_lower is not None and beta_ci_upper is not None:
                 lower_bound = 10 ** (intercept - beta_ci_upper * log_freq)
@@ -54,29 +63,34 @@ def _plot_single_spectrum(ax, frequency, power, fit_results, title=""):
                     10**log_freq,
                     lower_bound,
                     upper_bound,
-                    color="r",
+                    color=color,
                     alpha=0.2,
                     label="95% CI on β",
                 )
 
-        elif analysis_type == "segmented":
-            n_breakpoints = fit_results.get("n_breakpoints", 0)
-            log_power_fit = fit_results.get("fitted_log_power")
+    elif analysis_type == "segmented":
+        n_breakpoints = fit_results.get("n_breakpoints", 0)
+        log_power_fit = fit_results.get("fitted_log_power")
+
+        if use_segment_colors:
+            # Detailed plotting
             log_bps = [np.log10(bp) for bp in fit_results["breakpoints"]]
             colors = ["r", "m", "g"]
 
             # Plot the confidence interval for the entire fit if available
-            fit_ci_lower = fit_results.get("fit_ci_lower")
-            fit_ci_upper = fit_results.get("fit_ci_upper")
-            if fit_ci_lower is not None and fit_ci_upper is not None:
-                ax.fill_between(
-                    10**log_freq,
-                    10**fit_ci_lower,
-                    10**fit_ci_upper,
-                    color="gray",
-                    alpha=0.3,
-                    label="95% CI on Fit",
-                )
+            if plot_ci:
+                fit_ci_lower = fit_results.get("fit_ci_lower")
+                fit_ci_upper = fit_results.get("fit_ci_upper")
+                if fit_ci_lower is not None and fit_ci_upper is not None:
+                    ax.fill_between(
+                        10**log_freq,
+                        10**fit_ci_lower,
+                        10**fit_ci_upper,
+                        color="gray",
+                        alpha=0.3,
+                        label="95% CI on Fit",
+                    )
+
             # Plot each segment
             for i in range(n_breakpoints + 1):
                 if i == 0:
@@ -97,8 +111,23 @@ def _plot_single_spectrum(ax, frequency, power, fit_results, title=""):
                     linewidth=2.5,
                     label=label,
                 )
+        else:
+            # Simple plotting
+            betas = fit_results.get("betas", [])
+            beta_str = ", ".join([f"β{i+1}≈{b:.2f}" for i, b in enumerate(betas)])
+            label = f"{label_prefix} Fit ({beta_str})".strip()
 
-            # Plot breakpoint vertical lines
+            ax.loglog(
+                10**log_freq,
+                10**log_power_fit,
+                "-",
+                color=color,
+                linewidth=2.5,
+                label=label,
+            )
+
+        # Plot breakpoint vertical lines
+        if plot_breakpoints and "breakpoints" in fit_results:
             linestyles = ["--", ":", "-."]
             for i, bp_freq in enumerate(fit_results["breakpoints"]):
                 ax.axvline(
@@ -108,6 +137,24 @@ def _plot_single_spectrum(ax, frequency, power, fit_results, title=""):
                     alpha=0.8,
                     label=f"BP {i+1} ≈ {_format_period(bp_freq)}",
                 )
+
+
+def _plot_single_spectrum(ax, frequency, power, fit_results, title=""):
+    """
+    Plots a single power spectrum and its fit on a given matplotlib Axes object.
+    """
+    # Plot the raw power spectrum
+    ax.loglog(frequency, power, "o", markersize=5, alpha=0.6, label="Raw Periodogram")
+
+    if _is_fit_successful(fit_results):
+        _plot_fit_line(
+            ax,
+            fit_results,
+            color="r",
+            plot_ci=True,
+            plot_breakpoints=True,
+            use_segment_colors=True,
+        )
     else:
         ax.text(
             0.5, 0.5, "Fit Failed", ha="center", va="center", transform=ax.transAxes
@@ -245,40 +292,6 @@ def plot_changepoint_analysis(
     fig.savefig(output_path, dpi=300)
     plt.close(fig)
     return fig
-
-
-def _plot_fit_line(ax, fit_results, color, label_prefix=""):
-    """A helper to plot just the fit line and CI on a given axis."""
-    if not _is_fit_successful(fit_results):
-        return
-
-    analysis_type = fit_results.get("chosen_model_type")
-    log_freq = fit_results.get("log_freq")
-
-    if analysis_type == "standard":
-        beta = fit_results.get("beta")
-        intercept = fit_results.get("intercept")
-        fit_line = 10 ** (intercept - beta * log_freq)
-        ax.loglog(
-            10**log_freq,
-            fit_line,
-            "-",
-            color=color,
-            linewidth=2.5,
-            label=f"{label_prefix} Fit (β≈{beta:.2f})",
-        )
-    elif analysis_type == "segmented":
-        log_power_fit = fit_results.get("fitted_log_power")
-        betas = fit_results.get("betas", [])
-        beta_str = ", ".join([f"β{i+1}≈{b:.2f}" for i, b in enumerate(betas)])
-        ax.loglog(
-            10**log_freq,
-            10**log_power_fit,
-            "-",
-            color=color,
-            linewidth=2.5,
-            label=f"{label_prefix} Fit ({beta_str})",
-        )
 
 
 def plot_site_comparison(
