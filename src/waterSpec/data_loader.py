@@ -380,6 +380,7 @@ def load_data(
     sheet_name: Union[int, str] = 0,
     output_time_unit: str = "seconds",
     coerce_to_numeric: bool = True,
+    base_dir: Optional[str] = None,
 ) -> Tuple[np.ndarray, pd.Series, Optional[pd.Series]]:
     """
     Loads time series data from a CSV, JSON, or Excel file and processes it.
@@ -404,6 +405,11 @@ def load_data(
             array. Passed to `process_dataframe`.
         coerce_to_numeric (bool, optional): If True, forces the data column to
             be numeric. Defaults to True.
+        base_dir (Optional[str], optional): The base directory against which
+            to resolve relative file paths. If None, defaults to the current
+            working directory. This restricts file access to the base directory
+            and its subdirectories to prevent path traversal. If set to an empty
+            string "", the security check is bypassed (use with caution).
 
     Returns:
         Tuple[np.ndarray, pd.Series, Optional[pd.Series]]: A tuple containing:
@@ -417,6 +423,24 @@ def load_data(
           `xlrd` depending on the file format.
         - For CSV files, `pd.read_csv` is used with its default settings.
     """
+    # 0. Security check: Prevent path traversal
+    if base_dir != "":
+        if base_dir is None:
+            base_dir = os.getcwd()
+
+        # Resolve paths to absolute
+        abs_base = os.path.abspath(base_dir)
+        abs_path = os.path.abspath(file_path)
+
+        # Check if the file path is within the base directory
+        if not abs_path.startswith(os.path.join(abs_base, "")):
+             if not (abs_path == abs_base): # Allow loading the base dir itself if it was a file? No, usually base_dir is a dir.
+                raise ValueError(
+                    f"Security Error: Access to file '{file_path}' is denied. "
+                    f"File must be within the base directory '{abs_base}'. "
+                    "To access files outside this directory, explicitly set `base_dir`."
+                )
+
     # 1. Validate file existence
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"The specified file was not found: {file_path}")
