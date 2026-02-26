@@ -586,7 +586,7 @@ class Analysis:
 
         return fit_results
 
-    def _generate_outputs(self, results, output_dir):
+    def _save_results(self, results, output_dir):
         """Generates and saves the plot and summary text file."""
         self.logger.info(f"Generating outputs in directory: {output_dir}")
         os.makedirs(output_dir, exist_ok=True)
@@ -958,6 +958,117 @@ class Analysis:
         full_summary = header + comparison + summary_before + "\n\n" + "=" * 60 + "\n\n" + summary_after
         return full_summary
 
+    def _setup_analysis(self, **analysis_kwargs):
+        """
+        Validates parameters and determines the analysis mode (standard or changepoint).
+
+        Returns:
+            tuple: (changepoint_idx, updated_analysis_kwargs)
+        """
+        # 1. Validate all run parameters
+        validate_run_parameters(
+            fit_method=analysis_kwargs.get("fit_method", "theil-sen"),
+            ci_method=analysis_kwargs.get("ci_method", "bootstrap"),
+            bootstrap_type=analysis_kwargs.get("bootstrap_type", "block"),
+            n_bootstraps=analysis_kwargs.get("n_bootstraps", 2000),
+            fap_threshold=analysis_kwargs.get("fap_threshold", 0.01),
+            samples_per_peak=analysis_kwargs.get("samples_per_peak", 5),
+            fap_method=analysis_kwargs.get("fap_method", "baluev"),
+            normalization=analysis_kwargs.get("normalization", "standard"),
+            peak_detection_method=analysis_kwargs.get("peak_detection_method", "fap"),
+            peak_fdr_level=analysis_kwargs.get("peak_fdr_level", 0.05),
+            p_threshold=analysis_kwargs.get("p_threshold", 0.05),
+            max_breakpoints=analysis_kwargs.get("max_breakpoints", 1),
+            nyquist_factor=analysis_kwargs.get("nyquist_factor", 1.0),
+            max_freq=analysis_kwargs.get("max_freq"),
+            haar_statistic=analysis_kwargs.get("haar_statistic", "mean"),
+            haar_percentile=analysis_kwargs.get("haar_percentile"),
+            haar_percentile_method=analysis_kwargs.get("haar_percentile_method", "hazen"),
+        )
+
+        # Determine changepoint
+        changepoint_idx = None
+        if self.changepoint_mode == "auto":
+            changepoint_idx = self._detect_changepoint()
+        elif self.changepoint_mode == "manual":
+            changepoint_idx = self.changepoint_index
+
+        return changepoint_idx, analysis_kwargs
+
+    def _run_analysis_steps(self, **kwargs):
+        """
+        Executes the standard analysis pipeline: Periodogram -> Fit -> Validate -> Haar -> Peaks -> Interpret.
+        """
+        self.logger.info("Performing standard (non-segmented) analysis...")
+
+        # 1. Calculate Periodogram
+        self._calculate_periodogram(
+            kwargs.get("normalization", "standard"),
+            kwargs.get("nyquist_factor", 1.0),
+            kwargs.get("max_freq"),
+            kwargs.get("samples_per_peak", 5),
+        )
+
+        # 2. Fit Spectrum and Select Best Model
+        try:
+            fit_results = self._perform_model_selection(
+                kwargs.get("fit_method", "theil-sen"),
+                kwargs.get("ci_method", "bootstrap"),
+                kwargs.get("bootstrap_type", "block"),
+                kwargs.get("n_bootstraps", 2000),
+                kwargs.get("p_threshold", 0.05),
+                kwargs.get("max_breakpoints", 1),
+                kwargs.get("seed"),
+            )
+        except RuntimeError as e:
+            self.logger.error(f"Analysis failed during model fitting: {e}")
+            return {
+                "betas": [np.nan],
+                "n_breakpoints": 0,
+                "chosen_model_type": "failure",
+                "summary_text": f"Analysis failed: {e}",
+                "failure_reason": str(e),
+                "preprocessing_diagnostics": self.preprocessing_diagnostics,
+            }
+
+        # 3. Perform Model Validation if requested
+        if kwargs.get("validate_model", False):
+            fit_results = self._perform_model_validation(fit_results, seed=kwargs.get("seed"))
+
+        # 4. Run Haar Analysis if requested
+        if kwargs.get("run_haar", False):
+            haar_obj, haar_res = self._perform_haar_analysis(
+                overlap=kwargs.get("haar_overlap", True),
+                overlap_step_fraction=kwargs.get("haar_overlap_step_fraction", 0.1),
+                max_breakpoints=kwargs.get("haar_max_breakpoints", 0),
+                statistic=kwargs.get("haar_statistic", "mean"),
+                percentile=kwargs.get("haar_percentile"),
+                percentile_method=kwargs.get("haar_percentile_method", "hazen"),
+            )
+            fit_results["haar_results"] = haar_res
+            fit_results["haar_obj"] = haar_obj
+
+        # 5. Detect Significant Peaks
+        fit_results = self._detect_significant_peaks(
+            fit_results,
+            kwargs.get("peak_detection_method", "fap"),
+            kwargs.get("peak_fdr_level", 0.05),
+            kwargs.get("fap_threshold", 0.01),
+            kwargs.get("fap_method", "baluev"),
+        )
+
+        # 6. Interpret Results
+        self.logger.info("Interpreting final results and generating summary...")
+        interp_results = interpret_results(
+            fit_results, param_name=self.param_name, time_unit=self.time_unit
+        )
+        results = {**fit_results, **interp_results}
+
+        # Add preprocessing diagnostics to the final results
+        results["preprocessing_diagnostics"] = self.preprocessing_diagnostics
+
+        return results
+
     def run_full_analysis(
         self,
         output_dir,
@@ -1065,26 +1176,7 @@ class Analysis:
         Returns:
             dict: A dictionary containing all analysis results.
         """
-        # 1. Validate all run parameters
-        validate_run_parameters(
-            fit_method=fit_method,
-            ci_method=ci_method,
-            bootstrap_type=bootstrap_type,
-            n_bootstraps=n_bootstraps,
-            fap_threshold=fap_threshold,
-            samples_per_peak=samples_per_peak,
-            fap_method=fap_method,
-            normalization=normalization,
-            peak_detection_method=peak_detection_method,
-            peak_fdr_level=peak_fdr_level,
-            p_threshold=p_threshold,
-            max_breakpoints=max_breakpoints,
-            nyquist_factor=nyquist_factor,
-            max_freq=max_freq,
-            haar_statistic=haar_statistic,
-            haar_percentile=haar_percentile,
-            haar_percentile_method=haar_percentile_method,
-        )
+        # Collect arguments into a dictionary
         analysis_kwargs = {
             "fit_method": fit_method,
             "ci_method": ci_method,
@@ -1112,90 +1204,19 @@ class Analysis:
             "validate_model": validate_model,
         }
 
-        # Determine changepoint
-        changepoint_idx = None
-        if self.changepoint_mode == "auto":
-            changepoint_idx = self._detect_changepoint()
-        elif self.changepoint_mode == "manual":
-            changepoint_idx = self.changepoint_index
+        # 1. Setup (Validation & Changepoint Detection)
+        changepoint_idx, analysis_kwargs = self._setup_analysis(**analysis_kwargs)
 
-        # Branch based on whether we have a changepoint
+        # 2. Execution
         if changepoint_idx is not None:
             self.logger.info("Performing changepoint-segmented analysis...")
             self.results = self._analyze_with_changepoint(
                 changepoint_idx, output_dir, **analysis_kwargs
             )
-            return self.results
+        else:
+            self.results = self._run_analysis_steps(**analysis_kwargs)
+            self._save_results(self.results, output_dir)
 
-        # Standard analysis (existing code)
-        self.logger.info("Performing standard (non-segmented) analysis...")
-        # 2. Calculate Periodogram
-        self._calculate_periodogram(
-            normalization, nyquist_factor, max_freq, samples_per_peak
-        )
-
-        # 3. Fit Spectrum and Select Best Model
-        try:
-            fit_results = self._perform_model_selection(
-                fit_method,
-                ci_method,
-                bootstrap_type,
-                n_bootstraps,
-                p_threshold,
-                max_breakpoints,
-                seed,
-            )
-        except RuntimeError as e:
-            self.logger.error(f"Analysis failed during model fitting: {e}")
-            self.results = {
-                "betas": [np.nan],
-                "n_breakpoints": 0,
-                "chosen_model_type": "failure",
-                "summary_text": f"Analysis failed: {e}",
-                "failure_reason": str(e),
-                "preprocessing_diagnostics": self.preprocessing_diagnostics,
-            }
-            self._generate_outputs(self.results, output_dir)
-            return self.results
-
-        # Perform Model Validation if requested
-        if validate_model:
-            fit_results = self._perform_model_validation(fit_results, seed=seed)
-
-        # Run Haar Analysis if requested
-        if run_haar:
-            haar_obj, haar_res = self._perform_haar_analysis(
-                overlap=haar_overlap,
-                overlap_step_fraction=haar_overlap_step_fraction,
-                max_breakpoints=haar_max_breakpoints,
-                statistic=haar_statistic,
-                percentile=haar_percentile,
-                percentile_method=haar_percentile_method,
-            )
-            fit_results["haar_results"] = haar_res
-            fit_results["haar_obj"] = haar_obj
-
-        # 4. Detect Significant Peaks
-        fit_results = self._detect_significant_peaks(
-            fit_results,
-            peak_detection_method,
-            peak_fdr_level,
-            fap_threshold,
-            fap_method,
-        )
-
-        # 5. Interpret Results
-        self.logger.info("Interpreting final results and generating summary...")
-        interp_results = interpret_results(
-            fit_results, param_name=self.param_name, time_unit=self.time_unit
-        )
-        self.results = {**fit_results, **interp_results}
-
-        # Add preprocessing diagnostics to the final results
-        self.results["preprocessing_diagnostics"] = self.preprocessing_diagnostics
-
-        # 6. Generate and Save Outputs
-        self._generate_outputs(self.results, output_dir)
-
+        # 3. Completion
         self.logger.info(f"Analysis complete. Outputs saved to '{output_dir}'.")
         return self.results
