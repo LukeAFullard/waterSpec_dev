@@ -1,6 +1,7 @@
 import warnings
 import numpy as np
 import pytest
+from unittest.mock import MagicMock
 
 from waterSpec.spectral_analyzer import calculate_periodogram, find_significant_peaks
 
@@ -125,6 +126,43 @@ def test_find_significant_peaks(synthetic_signal):
     assert peaks[0]["frequency"] == pytest.approx(known_frequency, abs=0.01)
     # The FAP of the peak should be very low
     assert peaks[0]["fap"] < 1e-5
+
+
+def test_find_significant_peaks_bootstrap_warnings():
+    """
+    Test that find_significant_peaks emits a warning when the 'bootstrap'
+    fap_method is used, and a second warning if many peaks are detected.
+    """
+    # Create mock LombScargle object to avoid actually running the slow bootstrap
+    mock_ls = MagicMock()
+    mock_ls.false_alarm_level.return_value = 5.0
+    mock_ls.false_alarm_probability.return_value = 0.001
+
+    # Create dummy frequency and power data.
+    # We want more than 5 peaks above the threshold (5.0) to trigger the second warning.
+    frequency = np.linspace(0.1, 1.0, 15)
+    # 6 peaks alternating with low values
+    power = np.array([1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 10, 1, 1, 1])
+
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        peaks, fap_level = find_significant_peaks(
+            mock_ls, frequency, power, fap_threshold=0.01, fap_method="bootstrap"
+        )
+
+        # Verify the two expected warnings are present
+        warning_messages = [str(x.message) for x in w]
+
+        # 1. First warning about using bootstrap method
+        assert any("Using the 'bootstrap' method for FAP calculation" in msg for msg in warning_messages)
+
+        # 2. Second warning about using bootstrap with multiple peaks (> 5)
+        assert any("Calculating the individual FAP for 6 peaks using the 'bootstrap' method may be very slow" in msg for msg in warning_messages)
+
+    # Verify that the correct methods on the mock were called
+    mock_ls.false_alarm_level.assert_called_once()
+    assert mock_ls.false_alarm_probability.call_count == 6
+    assert len(peaks) == 6
 
 
 # --- Tests for the find_peaks_via_residuals function ---
