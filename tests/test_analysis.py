@@ -899,3 +899,44 @@ def test_analysis_validate_model_psresp(tmp_path):
     summary_path = output_dir / "value_summary.txt"
     content = summary_path.read_text()
     assert "Model Validation (PSRESP)" in content
+
+
+def test_analysis_run_failure_handling(mocker):
+    """
+    Test that if _perform_model_selection raises a RuntimeError, _run_analysis_steps
+    catches it and returns a designated failure dictionary.
+    """
+    # Create test data
+    time = np.arange(100)
+    series = np.random.randn(100)
+
+    # Initialize the Analysis object using arrays directly
+    analysis = Analysis(
+        time_col="time",
+        data_col="value",
+        time_array=time,
+        data_array=series,
+        input_time_unit="seconds"
+    )
+
+    # Mock _perform_model_selection to raise RuntimeError
+    error_message = "Simulated fitting failure"
+    mocker.patch.object(
+        analysis,
+        "_perform_model_selection",
+        side_effect=RuntimeError(error_message)
+    )
+
+    # Also need to ensure _calculate_periodogram doesn't fail
+    mocker.patch.object(analysis, "_calculate_periodogram")
+
+    # Execute the method under test
+    result = analysis._run_analysis_steps()
+
+    # Assertions
+    assert result["betas"] == [np.nan]
+    assert result["n_breakpoints"] == 0
+    assert result["chosen_model_type"] == "failure"
+    assert "Analysis failed: Simulated fitting failure" in result["summary_text"]
+    assert result["failure_reason"] == error_message
+    assert "preprocessing_diagnostics" in result
