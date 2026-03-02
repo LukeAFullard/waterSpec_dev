@@ -126,50 +126,70 @@ def _compute_ls_complex_coeffs(
         safe_errors[safe_errors == 0] = 1e-9 # Prevent div by zero
         w = 1.0 / (safe_errors**2)
 
-    # We vectorise over time, loop over freq (for simplicity/memory)
-    # Solving 3x3 system: [ [sum w, sum w cos, sum w sin], ... ]
-
     # Pre-calculate sums
     sum_w = np.sum(w)
     sum_wy = np.sum(w * data)
+    w_data = w * data
 
-    for i, f in enumerate(freqs):
-        omega = 2 * np.pi * f
-        cos_wt = np.cos(omega * time)
-        sin_wt = np.sin(omega * time)
+    # Batch over frequencies to limit memory consumption and improve CPU cache hit rate.
+    # We dynamically size the batch so intermediate matrices stay within ~2MB.
+    bytes_per_row = time.size * time.itemsize
+    target_bytes = 2 * 1024 * 1024
+    if bytes_per_row > 0:
+        BATCH_SIZE = max(1, target_bytes // bytes_per_row)
+    else:
+        BATCH_SIZE = 500
+    BATCH_SIZE = min(max(BATCH_SIZE, 50), 500)
 
-        # Weighted sums
-        # Matrix M = [[Sw, Swc, Sws], [Swc, Swcc, Swcs], [Sws, Swcs, Swss]]
-        Swc = np.sum(w * cos_wt)
-        Sws = np.sum(w * sin_wt)
-        Swcc = np.sum(w * cos_wt**2)
-        Swss = np.sum(w * sin_wt**2)
-        Swcs = np.sum(w * cos_wt * sin_wt)
+    for start_idx in range(0, n_freqs, BATCH_SIZE):
+        end_idx = min(start_idx + BATCH_SIZE, n_freqs)
+        f_batch = freqs[start_idx:end_idx]
+        n_batch = len(f_batch)
 
-        # Vector b = [Swy, Swyc, Swys]
-        Swyc = np.sum(w * data * cos_wt)
-        Swys = np.sum(w * data * sin_wt)
+        omega = 2 * np.pi * f_batch[:, np.newaxis]
+        wt = omega * time
 
-        M = np.array([
-            [sum_w, Swc, Sws],
-            [Swc, Swcc, Swcs],
-            [Sws, Swcs, Swss]
-        ])
-        b = np.array([sum_wy, Swyc, Swys])
+        cos_wt = np.cos(wt)
+        sin_wt = np.sin(wt)
+
+        # Vectorized weighted sums using optimized dot products
+        Swc = cos_wt.dot(w)
+        Sws = sin_wt.dot(w)
+        Swyc = cos_wt.dot(w_data)
+        Swys = sin_wt.dot(w_data)
+
+        Swcc = (cos_wt * cos_wt).dot(w)
+        Swss = sum_w - Swcc
+        Swcs = (cos_wt * sin_wt).dot(w)
+
+        # Construct batch matrices
+        M = np.empty((n_batch, 3, 3))
+        M[:, 0, 0] = sum_w
+        M[:, 0, 1] = Swc
+        M[:, 0, 2] = Sws
+        M[:, 1, 0] = Swc
+        M[:, 1, 1] = Swcc
+        M[:, 1, 2] = Swcs
+        M[:, 2, 0] = Sws
+        M[:, 2, 1] = Swcs
+        M[:, 2, 2] = Swss
+
+        b = np.empty((n_batch, 3, 1))
+        b[:, 0, 0] = sum_wy
+        b[:, 1, 0] = Swyc
+        b[:, 2, 0] = Swys
 
         try:
-            # Solve M x = b
-            # x = [C, A, B]
+            # Solve M x = b for all frequencies in batch simultaneously
             x = np.linalg.solve(M, b)
-            A, B = x[1], x[2]
-
-            # Complex coeff Z such that angle(Z) matches phase lag
-            # y = A cos + B sin = R cos(wt - phi) -> A=R cos phi, B=R sin phi
-            # phi = arctan2(B, A).
-            # Z = A + iB
-            coeffs[i] = A + 1j * B
-
+            coeffs[start_idx:end_idx] = x[:, 1, 0] + 1j * x[:, 2, 0]
         except np.linalg.LinAlgError:
-            coeffs[i] = np.nan
+            # Fallback to solving individually if any matrix in the batch is singular
+            for i in range(n_batch):
+                try:
+                    xi = np.linalg.solve(M[i], b[i, :, 0])
+                    coeffs[start_idx + i] = xi[1] + 1j * xi[2]
+                except np.linalg.LinAlgError:
+                    coeffs[start_idx + i] = np.nan
 
     return coeffs
