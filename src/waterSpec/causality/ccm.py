@@ -275,4 +275,7 @@ def find_optimal_embedding(
         except ValueError:
             scores.append(-np.inf) # Invalid E (too short)
 
+    if all(score == -np.inf for score in scores):
+        raise ValueError("Time series too short to find optimal embedding.")
+
     return np.argmax(scores) + 1
