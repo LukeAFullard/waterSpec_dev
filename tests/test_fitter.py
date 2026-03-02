@@ -396,3 +396,31 @@ def test_fit_segmented_spectrum_invalid_numeric_args(multifractal_spectrum):
     with pytest.raises(ValueError, match="'ci' must be between 0 and 100"):
         fit_segmented_spectrum(frequency, power, ci=100)
 
+
+def test_fit_standard_model_mannks_fallback(synthetic_spectrum, mocker, caplog):
+    """
+    Test that fit_standard_model falls back to the standard implementation
+    when MannKS.trend_test fails.
+    """
+    import logging
+    frequency, power, known_beta = synthetic_spectrum
+
+    # Mock MannKS.trend_test to raise an exception
+    mocker.patch(
+        "waterSpec.fitter.MannKS.trend_test",
+        side_effect=RuntimeError("MannKS failed"),
+    )
+
+    caplog.set_level(logging.WARNING)
+
+    # Call fit_standard_model with method="theil-sen"
+    results = fit_standard_model(frequency, power, method="theil-sen", ci_method="parametric")
+
+    # Check that a warning was logged
+    assert any("MannKS fit failed: MannKS failed. Falling back" in record.message for record in caplog.records)
+
+    # Check that it returned a valid result (fallback succeeded)
+    assert "beta" in results
+    assert not np.isnan(results["beta"])
+    # Result should be roughly equal to known_beta (from theilslopes fallback)
+    assert results["beta"] == pytest.approx(known_beta, abs=0.2)
