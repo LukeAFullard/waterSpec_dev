@@ -40,6 +40,19 @@ def test_optimal_embedding():
     assert E_opt >= 1
     assert E_opt <= 5
 
+def test_optimal_embedding_short_data():
+    """Test that find_optimal_embedding handles very short data correctly."""
+    # Data is too short for any embedding to be valid
+    short_data = np.arange(5)
+    with pytest.raises(ValueError, match="Time series too short"):
+        find_optimal_embedding(short_data, max_E=5, tp=1)
+
+def test_optimal_embedding_invalid_tp():
+    """Test that finding optimal embedding with invalid tp fails."""
+    data = np.sin(np.linspace(0, 20, 100))
+    with pytest.raises(ValueError, match="Prediction horizon tp must be >= 1"):
+        find_optimal_embedding(data, max_E=5, tp=0)
+
 def test_irregular_sampling_ccm():
     """
     Test that CCM handles irregular sampling by interpolating.
