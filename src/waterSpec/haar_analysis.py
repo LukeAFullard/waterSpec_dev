@@ -158,15 +158,36 @@ def calculate_haar_fluctuations(
             step_size = delta_t
 
         # We will iterate by sliding a window start time
+        t_starts = []
         t_start = time[0]
 
+        # Generate window boundaries
         while t_start + delta_t <= time[-1]:
-            t_mid = t_start + delta_t / 2
-            t_end = t_start + delta_t
+            t_starts.append(t_start)
+            # Move window
+            if overlap:
+                t_start += step_size
+            else:
+                t_start += delta_t
+                if t_start >= time[-1]:
+                    break
 
-            idx_start = np.searchsorted(time, t_start, side='left')
-            idx_mid = np.searchsorted(time, t_mid, side='left')
-            idx_end = np.searchsorted(time, t_end, side='left')
+        if not t_starts:
+            continue
+
+        t_starts = np.array(t_starts)
+        t_mids = t_starts + delta_t / 2
+        t_ends = t_starts + delta_t
+
+        # Pre-calculate window indices using vectorized searchsorted
+        idx_starts = np.searchsorted(time, t_starts, side='left')
+        idx_mids = np.searchsorted(time, t_mids, side='left')
+        idx_ends = np.searchsorted(time, t_ends, side='left')
+
+        for i in range(len(t_starts)):
+            idx_start = idx_starts[i]
+            idx_mid = idx_mids[i]
+            idx_end = idx_ends[i]
 
             vals1 = data[idx_start:idx_mid]
             vals2 = data[idx_mid:idx_end]
@@ -177,14 +198,6 @@ def calculate_haar_fluctuations(
                 val2 = _compute_statistic(vals2, statistic, percentile, percentile_method)
                 delta_f = (val2 - val1)
                 fluctuations.append(delta_f)
-
-            # Move window
-            if overlap:
-                t_start += step_size
-            else:
-                t_start = t_end
-                if t_start >= time[-1]:
-                    break
 
         count = len(fluctuations)
         if count > 0:
