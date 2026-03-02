@@ -96,7 +96,8 @@ def _run_simulations_for_params(
     binning: bool,
     bins: Optional[np.ndarray],
     valid_mask: Optional[np.ndarray],
-    M: int
+    M: int,
+    executor: concurrent.futures.ProcessPoolExecutor
 ) -> np.ndarray:
     """
     Run M simulations for a given set of parameters.
@@ -119,47 +120,46 @@ def _run_simulations_for_params(
     if not binning and M * len(freqs) * 8 > 1e8: # > 100MB of raw data expected
         warnings.warn("binning=False with large M and high resolution frequencies may consume excessive memory.", UserWarning)
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        # Batch submission to avoid creating M futures at once (which pickles args M times)
-        futures_set = set()
-        sim_idx = 0
+    # Batch submission to avoid creating M futures at once (which pickles args M times)
+    futures_set = set()
+    sim_idx = 0
 
-        # Initial batch
-        while sim_idx < M and len(futures_set) < max_workers * 2:
-            fut = executor.submit(
-                _run_single_simulation,
-                sim_idx, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization,
-                seed=sim_seeds[sim_idx],
-                precomputed_scale=precomputed_scale
-            )
-            futures_set.add(fut)
-            sim_idx += 1
+    # Initial batch
+    while sim_idx < M and len(futures_set) < max_workers * 2:
+        fut = executor.submit(
+            _run_single_simulation,
+            sim_idx, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization,
+            seed=sim_seeds[sim_idx],
+            precomputed_scale=precomputed_scale
+        )
+        futures_set.add(fut)
+        sim_idx += 1
 
-        while futures_set:
-            done, futures_set = concurrent.futures.wait(futures_set, return_when=concurrent.futures.FIRST_COMPLETED)
+    while futures_set:
+        done, futures_set = concurrent.futures.wait(futures_set, return_when=concurrent.futures.FIRST_COMPLETED)
 
-            for future in done:
-                p = future.result()
-                if binning:
-                    _, bp = bin_power_spectrum(freqs, p, bins)
-                    # Use provided valid_mask if available, otherwise append as is (though it should be provided if binning=True)
-                    if valid_mask is not None:
-                         sim_binned_powers.append(bp[valid_mask])
-                    else:
-                         sim_binned_powers.append(bp)
+        for future in done:
+            p = future.result()
+            if binning:
+                _, bp = bin_power_spectrum(freqs, p, bins)
+                # Use provided valid_mask if available, otherwise append as is (though it should be provided if binning=True)
+                if valid_mask is not None:
+                     sim_binned_powers.append(bp[valid_mask])
                 else:
-                    sim_binned_powers.append(p)
+                     sim_binned_powers.append(bp)
+            else:
+                sim_binned_powers.append(p)
 
-                # Submit next task if available
-                if sim_idx < M:
-                    fut = executor.submit(
-                        _run_single_simulation,
-                        sim_idx, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization,
-                        seed=sim_seeds[sim_idx],
-                        precomputed_scale=precomputed_scale
-                    )
-                    futures_set.add(fut)
-                    sim_idx += 1
+            # Submit next task if available
+            if sim_idx < M:
+                fut = executor.submit(
+                    _run_single_simulation,
+                    sim_idx, psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim, normalization,
+                    seed=sim_seeds[sim_idx],
+                    precomputed_scale=precomputed_scale
+                )
+                futures_set.add(fut)
+                sim_idx += 1
 
     return np.array(sim_binned_powers)
 
@@ -269,33 +269,34 @@ def psresp_fit(
     else:
         max_workers = max(1, n_jobs) # Ensure at least 1 worker
 
-    for params in params_list:
-        sim_binned_powers = _run_simulations_for_params(
-            psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim,
-            normalization, sim_seeds, max_workers, binning, bins,
-            valid_mask, M
-        )
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        for params in params_list:
+            sim_binned_powers = _run_simulations_for_params(
+                psd_func, params, t_obs_relative, err_obs, freqs, N_sim, dt_sim,
+                normalization, sim_seeds, max_workers, binning, bins,
+                valid_mask, M, executor
+            )
 
-        # Statistics on log power
-        sim_log_powers = np.log10(sim_binned_powers)
-        mean_sim_log_power = np.mean(sim_log_powers, axis=0)
-        var_sim_log_power = np.var(sim_log_powers, axis=0, ddof=1)
+            # Statistics on log power
+            sim_log_powers = np.log10(sim_binned_powers)
+            mean_sim_log_power = np.mean(sim_log_powers, axis=0)
+            var_sim_log_power = np.var(sim_log_powers, axis=0, ddof=1)
 
-        var_sim_log_power[var_sim_log_power == 0] = 1e-10
+            var_sim_log_power[var_sim_log_power == 0] = 1e-10
 
-        chi2 = np.sum( (target_log_power - mean_sim_log_power)**2 / var_sim_log_power )
+            chi2 = np.sum( (target_log_power - mean_sim_log_power)**2 / var_sim_log_power )
 
-        chi2_sims = np.sum( (sim_log_powers - mean_sim_log_power)**2 / var_sim_log_power, axis=1 )
-        count_worse = np.sum(chi2_sims >= chi2)
-        success_fraction = count_worse / M
+            chi2_sims = np.sum( (sim_log_powers - mean_sim_log_power)**2 / var_sim_log_power, axis=1 )
+            count_worse = np.sum(chi2_sims >= chi2)
+            success_fraction = count_worse / M
 
-        results.append({
-            "params": params,
-            "chi2": chi2,
-            "success_fraction": success_fraction,
-            "mean_sim_log_power": mean_sim_log_power,
-            "std_sim_log_power": np.sqrt(var_sim_log_power),
-        })
+            results.append({
+                "params": params,
+                "chi2": chi2,
+                "success_fraction": success_fraction,
+                "mean_sim_log_power": mean_sim_log_power,
+                "std_sim_log_power": np.sqrt(var_sim_log_power),
+            })
 
     best_result = min(results, key=lambda x: x["chi2"])
 
