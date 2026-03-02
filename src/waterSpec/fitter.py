@@ -397,64 +397,124 @@ def fit_standard_model(
             # bootstrap_block_size is already validated and set above if applicable
             block_size = bootstrap_block_size
 
-        for _ in range(n_bootstraps):
+        if method == "ols" and n_bootstraps > 0:
+            # Vectorized OLS computation for all bootstraps at once
             try:
+                # 1. Generate resampled data for all bootstraps
                 if bootstrap_type == "pairs":
-                    indices = rng.choice(np.arange(n_points), size=n_points, replace=True)
-                    resampled_log_freq = log_freq[indices]
-                    resampled_log_power = log_power[indices]
+                    indices = rng.choice(np.arange(n_points), size=(n_bootstraps, n_points), replace=True)
+                    X = log_freq[indices]
+                    Y = log_power[indices]
                 elif bootstrap_type == "residuals":
-                    # Resample residuals
                     resampled_residuals = rng.choice(
-                        residuals - np.mean(residuals), size=n_points, replace=True
+                        residuals - np.mean(residuals), size=(n_bootstraps, n_points), replace=True
                     )
-                    # Create a new synthetic dataset
-                    resampled_log_power = log_power_fit + resampled_residuals
-                    resampled_log_freq = log_freq  # Keep original frequencies
+                    Y = log_power_fit + resampled_residuals
+                    X = np.broadcast_to(log_freq, (n_bootstraps, n_points))
                 elif bootstrap_type == "block":
-                    indices = _moving_block_bootstrap_indices(n_points, block_size, rng)
-                    resampled_log_freq = log_freq[indices]
-                    resampled_log_power = log_power[indices]
+                    indices = np.empty((n_bootstraps, n_points), dtype=int)
+                    for i in range(n_bootstraps):
+                        indices[i] = _moving_block_bootstrap_indices(n_points, block_size, rng)
+                    X = log_freq[indices]
+                    Y = log_power[indices]
                 elif bootstrap_type == "wild":
-                    # Wild bootstrap using Rademacher distribution, which does
-                    # not assume constant variance of residuals.
-                    u = rng.choice([-1, 1], size=n_points, replace=True)
+                    u = rng.choice([-1, 1], size=(n_bootstraps, n_points), replace=True)
                     centered_residuals = residuals - np.mean(residuals)
-                    resampled_log_power = log_power_fit + centered_residuals * u
-                    resampled_log_freq = log_freq  # Keep original frequencies
+                    Y = log_power_fit + centered_residuals * u
+                    X = np.broadcast_to(log_freq, (n_bootstraps, n_points))
                 else:
-                    # This case is handled by the initial validation, but included for safety
-                    continue
+                    X = np.empty((0, n_points))
+                    Y = np.empty((0, n_points))
 
-                # Refit the model on the resampled data
-                if method == "ols":
-                    resampled_slope = stats.linregress(
-                        resampled_log_freq, resampled_log_power
-                    ).slope
-                else:  # theil-sen
-                    resampled_slope = stats.theilslopes(
-                        resampled_log_power, resampled_log_freq
-                    )[0]
-                beta_estimates.append(-resampled_slope)
-            except (ValueError, np.linalg.LinAlgError) as e:
-                error_type = type(e).__name__
-                error_counts[error_type] = error_counts.get(error_type, 0) + 1
-                # Log the specific error for a failed iteration
-                msg = f"Bootstrap iteration failed with a numerical error: {e}"
-                if logger:
-                    logger.debug(msg)
-                continue
+                # 2. Vectorized linear regression (slope calculation)
+                # Calculate mean along the data point axis
+                mean_x = np.mean(X, axis=1, keepdims=True)
+                mean_y = np.mean(Y, axis=1, keepdims=True)
+
+                # Calculate covariance and variance
+                cov_xy = np.sum((X - mean_x) * (Y - mean_y), axis=1)
+                var_x = np.sum((X - mean_x)**2, axis=1)
+
+                # Avoid division by zero
+                valid_mask = var_x > 0
+                slopes = np.zeros(n_bootstraps)
+                slopes[valid_mask] = cov_xy[valid_mask] / var_x[valid_mask]
+
+                # Convert slopes to beta estimates
+                beta_estimates = list(-slopes[valid_mask])
+
+                # Count errors for valid_mask false
+                n_invalid = np.sum(~valid_mask)
+                if n_invalid > 0:
+                    error_counts["ZeroVarianceError"] = int(n_invalid)
+                    if logger:
+                        logger.debug(f"Bootstrap iteration failed: Variance of X is zero in {n_invalid} samples.")
             except Exception as e:
+                # Fallback on the entire vectorization failure
                 error_type = type(e).__name__
-                error_counts[error_type] = error_counts.get(error_type, 0) + 1
-                # Log the specific error for a failed iteration
+                error_counts[error_type] = n_bootstraps
                 if logger:
-                    logger.debug(
-                        "Bootstrap iteration failed with an unexpected error: %s",
-                        e,
-                        exc_info=True,
-                    )
-                continue
+                    logger.debug(f"Vectorized bootstrap failed with an unexpected error: {e}", exc_info=True)
+        else:
+            # Sequential loop for non-OLS methods (e.g., theil-sen)
+            for _ in range(n_bootstraps):
+                try:
+                    if bootstrap_type == "pairs":
+                        indices = rng.choice(np.arange(n_points), size=n_points, replace=True)
+                        resampled_log_freq = log_freq[indices]
+                        resampled_log_power = log_power[indices]
+                    elif bootstrap_type == "residuals":
+                        # Resample residuals
+                        resampled_residuals = rng.choice(
+                            residuals - np.mean(residuals), size=n_points, replace=True
+                        )
+                        # Create a new synthetic dataset
+                        resampled_log_power = log_power_fit + resampled_residuals
+                        resampled_log_freq = log_freq  # Keep original frequencies
+                    elif bootstrap_type == "block":
+                        indices = _moving_block_bootstrap_indices(n_points, block_size, rng)
+                        resampled_log_freq = log_freq[indices]
+                        resampled_log_power = log_power[indices]
+                    elif bootstrap_type == "wild":
+                        # Wild bootstrap using Rademacher distribution, which does
+                        # not assume constant variance of residuals.
+                        u = rng.choice([-1, 1], size=n_points, replace=True)
+                        centered_residuals = residuals - np.mean(residuals)
+                        resampled_log_power = log_power_fit + centered_residuals * u
+                        resampled_log_freq = log_freq  # Keep original frequencies
+                    else:
+                        # This case is handled by the initial validation, but included for safety
+                        continue
+
+                    # Refit the model on the resampled data
+                    if method == "ols":
+                        resampled_slope = stats.linregress(
+                            resampled_log_freq, resampled_log_power
+                        ).slope
+                    else:  # theil-sen
+                        resampled_slope = stats.theilslopes(
+                            resampled_log_power, resampled_log_freq
+                        )[0]
+                    beta_estimates.append(-resampled_slope)
+                except (ValueError, np.linalg.LinAlgError) as e:
+                    error_type = type(e).__name__
+                    error_counts[error_type] = error_counts.get(error_type, 0) + 1
+                    # Log the specific error for a failed iteration
+                    msg = f"Bootstrap iteration failed with a numerical error: {e}"
+                    if logger:
+                        logger.debug(msg)
+                    continue
+                except Exception as e:
+                    error_type = type(e).__name__
+                    error_counts[error_type] = error_counts.get(error_type, 0) + 1
+                    # Log the specific error for a failed iteration
+                    if logger:
+                        logger.debug(
+                            "Bootstrap iteration failed with an unexpected error: %s",
+                            e,
+                            exc_info=True,
+                        )
+                    continue
 
         success_rate = len(beta_estimates) / n_bootstraps if n_bootstraps > 0 else 0
         MIN_SUCCESS_RATE = 0.5
