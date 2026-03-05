@@ -2,6 +2,7 @@
 import numpy as np
 from typing import Dict, Tuple, Optional
 import warnings
+from scipy.spatial.distance import cdist
 
 def convergent_cross_mapping(
     time: np.ndarray,
@@ -145,12 +146,13 @@ def convergent_cross_mapping(
         Library = M_X[lib_indices]
         Library_Y = Y_target[lib_indices]
 
-        for t_idx in target_indices:
-            # Vector x_t
-            x_t = M_X[t_idx]
+        # Calculate all distances between target vectors and library vectors using scipy's cdist
+        # cdist with sqeuclidean is significantly faster, then we take the sqrt
+        all_dists = np.sqrt(cdist(M_X[target_indices], Library, metric='sqeuclidean'))
 
+        for i, t_idx in enumerate(target_indices):
             # Distances to library vectors
-            dists = np.linalg.norm(Library - x_t, axis=1)
+            dists = all_dists[i]
 
             # Find closest neighbors
             # Sort distances
