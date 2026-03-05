@@ -122,43 +122,53 @@ class BivariateAnalysis:
             fluc2 = []
 
             step_size = tau * overlap_step_fraction if overlap else tau
-            t_start = t_min
 
-            while t_start + tau <= t_max:
-                t_mid = t_start + tau / 2
-                t_end = t_start + tau
-
-                # Indices in the ALIGNED arrays
-                idx_start = np.searchsorted(time, t_start, side='left')
-                idx_mid = np.searchsorted(time, t_mid, side='left')
-                idx_end = np.searchsorted(time, t_end, side='left')
-
-                # Extract window data for both variables
-                v1_left = val1[idx_start:idx_mid]
-                v1_right = val1[idx_mid:idx_end]
-
-                v2_left = val2[idx_start:idx_mid]
-                v2_right = val2[idx_mid:idx_end]
-
-                # Require data in both halves for BOTH variables
-                if len(v1_left) > 0 and len(v1_right) > 0 and len(v2_left) > 0 and len(v2_right) > 0:
-                    # Use helper for flexible stats
-                    stat1_r = _compute_statistic(v1_right, statistic1, percentile1, percentile_method1)
-                    stat1_l = _compute_statistic(v1_left, statistic1, percentile1, percentile_method1)
-                    d1 = stat1_r - stat1_l
-
-                    stat2_r = _compute_statistic(v2_right, statistic2, percentile2, percentile_method2)
-                    stat2_l = _compute_statistic(v2_left, statistic2, percentile2, percentile_method2)
-                    d2 = stat2_r - stat2_l
-
-                    fluc1.append(d1)
-                    fluc2.append(d2)
-
+            # Generate window boundaries
+            t_starts_list = []
+            curr_t = t_min
+            while curr_t + tau <= t_max:
+                t_starts_list.append(curr_t)
                 if overlap:
-                    t_start += step_size
+                    curr_t += step_size
                 else:
-                    t_start = t_end
-                    if t_start >= t_max: break
+                    curr_t += tau
+                    if curr_t >= t_max: break
+
+            if t_starts_list:
+                t_starts = np.array(t_starts_list)
+                t_mids = t_starts + tau / 2
+                t_ends = t_starts + tau
+
+                # Vectorized searchsorted for all windows at this lag
+                idx_starts = np.searchsorted(time, t_starts, side='left')
+                idx_mids = np.searchsorted(time, t_mids, side='left')
+                idx_ends = np.searchsorted(time, t_ends, side='left')
+
+                for i in range(len(t_starts)):
+                    idx_start = idx_starts[i]
+                    idx_mid = idx_mids[i]
+                    idx_end = idx_ends[i]
+
+                    # Extract window data for both variables
+                    v1_left = val1[idx_start:idx_mid]
+                    v1_right = val1[idx_mid:idx_end]
+
+                    v2_left = val2[idx_start:idx_mid]
+                    v2_right = val2[idx_mid:idx_end]
+
+                    # Require data in both halves for BOTH variables
+                    if len(v1_left) > 0 and len(v1_right) > 0 and len(v2_left) > 0 and len(v2_right) > 0:
+                        # Use helper for flexible stats
+                        stat1_r = _compute_statistic(v1_right, statistic1, percentile1, percentile_method1)
+                        stat1_l = _compute_statistic(v1_left, statistic1, percentile1, percentile_method1)
+                        d1 = stat1_r - stat1_l
+
+                        stat2_r = _compute_statistic(v2_right, statistic2, percentile2, percentile_method2)
+                        stat2_l = _compute_statistic(v2_left, statistic2, percentile2, percentile_method2)
+                        d2 = stat2_r - stat2_l
+
+                        fluc1.append(d1)
+                        fluc2.append(d2)
 
             # Need at least 2 points for correlation
             if len(fluc1) >= 2:
@@ -349,32 +359,41 @@ class BivariateAnalysis:
         fluc1_vals = []
 
         step_size = tau * overlap_step_fraction if overlap else tau
-        t_start = time[0]
 
-        while t_start + tau <= time[-1]:
-            t_mid = t_start + tau / 2
-            t_end = t_start + tau
-
-            idx_start = np.searchsorted(time, t_start, side='left')
-            idx_mid = np.searchsorted(time, t_mid, side='left')
-            idx_end = np.searchsorted(time, t_end, side='left')
-
-            v1_left = val1[idx_start:idx_mid]
-            v1_right = val1[idx_mid:idx_end]
-
-            if len(v1_left) > 0 and len(v1_right) > 0:
-                s1_r = _compute_statistic(v1_right, statistic1, percentile1, percentile_method1)
-                s1_l = _compute_statistic(v1_left, statistic1, percentile1, percentile_method1)
-                d1 = s1_r - s1_l
-
-                t_centers.append(t_mid) # Use mid point as reference
-                fluc1_vals.append(d1)
-
+        t_starts_list = []
+        curr_t = time[0]
+        while curr_t + tau <= time[-1]:
+            t_starts_list.append(curr_t)
             if overlap:
-                t_start += step_size
+                curr_t += step_size
             else:
-                t_start = t_end
-                if t_start >= time[-1]: break
+                curr_t += tau
+                if curr_t >= time[-1]: break
+
+        if t_starts_list:
+            t_starts = np.array(t_starts_list)
+            t_mids = t_starts + tau / 2
+            t_ends = t_starts + tau
+
+            idx_starts = np.searchsorted(time, t_starts, side='left')
+            idx_mids = np.searchsorted(time, t_mids, side='left')
+            idx_ends = np.searchsorted(time, t_ends, side='left')
+
+            for i in range(len(t_starts)):
+                idx_start = idx_starts[i]
+                idx_mid = idx_mids[i]
+                idx_end = idx_ends[i]
+
+                v1_left = val1[idx_start:idx_mid]
+                v1_right = val1[idx_mid:idx_end]
+
+                if len(v1_left) > 0 and len(v1_right) > 0:
+                    s1_r = _compute_statistic(v1_right, statistic1, percentile1, percentile_method1)
+                    s1_l = _compute_statistic(v1_left, statistic1, percentile1, percentile_method1)
+                    d1 = s1_r - s1_l
+
+                    t_centers.append(t_mids[i]) # Use mid point as reference
+                    fluc1_vals.append(d1)
 
         fluc1_vals = np.array(fluc1_vals)
         t_centers = np.array(t_centers)
@@ -390,19 +409,23 @@ class BivariateAnalysis:
             fluc2_vals = []
             valid_indices = [] # Indices in fluc1_vals that have a matching Q pair
 
-            for i, t_c in enumerate(t_centers):
-                t_target_mid = t_c - ell
-                t_q_start = t_target_mid - tau/2
-                t_q_mid = t_target_mid
-                t_q_end = t_target_mid + tau/2
+            t_q_mids = t_centers - ell
+            t_q_starts = t_q_mids - tau/2
+            t_q_ends = t_q_mids + tau/2
 
+            # Vectorized searchsorted for this lag offset
+            idx_q_starts = np.searchsorted(time, t_q_starts, side='left')
+            idx_q_mids = np.searchsorted(time, t_q_mids, side='left')
+            idx_q_ends = np.searchsorted(time, t_q_ends, side='left')
+
+            for i in range(len(t_centers)):
                 # Check bounds
-                if t_q_start < time[0] or t_q_end > time[-1]:
+                if t_q_starts[i] < time[0] or t_q_ends[i] > time[-1]:
                     continue
 
-                idx_q_start = np.searchsorted(time, t_q_start, side='left')
-                idx_q_mid = np.searchsorted(time, t_q_mid, side='left')
-                idx_q_end = np.searchsorted(time, t_q_end, side='left')
+                idx_q_start = idx_q_starts[i]
+                idx_q_mid = idx_q_mids[i]
+                idx_q_end = idx_q_ends[i]
 
                 v2_left = val2[idx_q_start:idx_q_mid]
                 v2_right = val2[idx_q_mid:idx_q_end]
@@ -463,38 +486,48 @@ class BivariateAnalysis:
         fluc2 = [] # y coordinate (usually Q)
 
         step_size = tau * overlap_step_fraction if overlap else tau
-        t_start = time[0]
 
-        while t_start + tau <= time[-1]:
-            t_mid = t_start + tau / 2
-            t_end = t_start + tau
-
-            idx_start = np.searchsorted(time, t_start, side='left')
-            idx_mid = np.searchsorted(time, t_mid, side='left')
-            idx_end = np.searchsorted(time, t_end, side='left')
-
-            v1_left = val1[idx_start:idx_mid]
-            v1_right = val1[idx_mid:idx_end]
-            v2_left = val2[idx_start:idx_mid]
-            v2_right = val2[idx_mid:idx_end]
-
-            if len(v1_left) > 0 and len(v1_right) > 0 and len(v2_left) > 0 and len(v2_right) > 0:
-                s1_r = _compute_statistic(v1_right, statistic1, percentile1, percentile_method1)
-                s1_l = _compute_statistic(v1_left, statistic1, percentile1, percentile_method1)
-                d1 = s1_r - s1_l
-
-                s2_r = _compute_statistic(v2_right, statistic2, percentile2, percentile_method2)
-                s2_l = _compute_statistic(v2_left, statistic2, percentile2, percentile_method2)
-                d2 = s2_r - s2_l
-
-                fluc1.append(d1)
-                fluc2.append(d2)
-
+        t_starts_list = []
+        curr_t = time[0]
+        while curr_t + tau <= time[-1]:
+            t_starts_list.append(curr_t)
             if overlap:
-                t_start += step_size
+                curr_t += step_size
             else:
-                t_start = t_end
-                if t_start >= time[-1]: break
+                curr_t += tau
+                if curr_t >= time[-1]: break
+
+        if t_starts_list:
+            t_starts = np.array(t_starts_list)
+            t_mids = t_starts + tau / 2
+            t_ends = t_starts + tau
+
+            # Vectorized searchsorted for all windows at this scale
+            idx_starts = np.searchsorted(time, t_starts, side='left')
+            idx_mids = np.searchsorted(time, t_mids, side='left')
+            idx_ends = np.searchsorted(time, t_ends, side='left')
+
+            for i in range(len(t_starts)):
+                idx_start = idx_starts[i]
+                idx_mid = idx_mids[i]
+                idx_end = idx_ends[i]
+
+                v1_left = val1[idx_start:idx_mid]
+                v1_right = val1[idx_mid:idx_end]
+                v2_left = val2[idx_start:idx_mid]
+                v2_right = val2[idx_mid:idx_end]
+
+                if len(v1_left) > 0 and len(v1_right) > 0 and len(v2_left) > 0 and len(v2_right) > 0:
+                    s1_r = _compute_statistic(v1_right, statistic1, percentile1, percentile_method1)
+                    s1_l = _compute_statistic(v1_left, statistic1, percentile1, percentile_method1)
+                    d1 = s1_r - s1_l
+
+                    s2_r = _compute_statistic(v2_right, statistic2, percentile2, percentile_method2)
+                    s2_l = _compute_statistic(v2_left, statistic2, percentile2, percentile_method2)
+                    d2 = s2_r - s2_l
+
+                    fluc1.append(d1)
+                    fluc2.append(d2)
 
         if len(fluc1) < 3:
             return {'area': np.nan, 'direction': 'insufficient_data'}
