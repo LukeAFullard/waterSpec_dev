@@ -6,6 +6,8 @@ import numpy as np
 import pytest
 
 from waterSpec.plotting import plot_spectrum, plot_changepoint_analysis
+from waterSpec.haar_analysis import plot_haar_analysis
+
 
 
 @pytest.fixture
@@ -131,15 +133,12 @@ def test_plot_spectrum_with_ci_and_peaks(tmp_path):
 
     output_file = tmp_path / "test_plot_with_ci_and_peaks.png"
 
-    try:
-        plot_spectrum(
+    plot_spectrum(
             frequency,
             power,
             fit_results=fit_results,
             output_path=str(output_file),
         )
-    except Exception as e:
-        pytest.fail(f"plot_spectrum raised an exception with CI and peak data: {e}")
 
     assert os.path.exists(output_file)
 
@@ -156,15 +155,9 @@ def test_plot_spectrum_runs_without_path(spectrum_data):
     original_backend = plt.get_backend()
     plt.switch_backend("Agg")
 
-    try:
-        plot_spectrum(frequency, power, fit_results=fit_results, output_path=None)
-    except Exception as e:
-        pytest.fail(
-            f"plot_spectrum raised an exception when no output path was provided: {e}"
-        )
-    finally:
-        # Restore the original backend
-        plt.switch_backend(original_backend)
+    plot_spectrum(frequency, power, fit_results=fit_results, output_path=None)
+    # Restore the original backend
+    plt.switch_backend(original_backend)
 
 
 def test_plot_spectrum_segmented(spectrum_data, tmp_path):
@@ -190,15 +183,12 @@ def test_plot_spectrum_segmented(spectrum_data, tmp_path):
         "log_freq": np.log(frequency),
     }
 
-    try:
-        plot_spectrum(
+    plot_spectrum(
             frequency,
             power,
             fit_results=segmented_fit_results,
             output_path=str(output_file),
         )
-    except Exception as e:
-        pytest.fail(f"plot_spectrum raised an exception with segmented data: {e}")
 
     assert os.path.exists(output_file)
 
@@ -228,16 +218,113 @@ def test_plot_spectrum_multi_breakpoint(spectrum_data, tmp_path):
         "fitted_log_power": -1.0 * log_freq,  # Mock the fitted line
     }
 
-    try:
-        plot_spectrum(
+    plot_spectrum(
             frequency,
             power,
             fit_results=multi_segmented_fit_results,
             output_path=str(output_file),
         )
-    except Exception as e:
-        pytest.fail(
-            f"plot_spectrum raised an exception with multi-breakpoint data: {e}"
+
+    assert os.path.exists(output_file)
+
+@pytest.fixture
+def haar_data():
+    """Provides synthetic data for testing plot_haar_analysis."""
+    lags = np.logspace(0, 3, 20)
+    # create synthetic standard s1 data
+    H = 0.5
+    intercept = -1.0
+    s1 = 10**intercept * lags**H + np.random.normal(0, 0.01, size=lags.shape)
+    s1 = np.abs(s1)  # Ensure positivity
+    beta = 1 + 2 * H
+    return lags, s1, H, beta, intercept
+
+
+def test_plot_haar_analysis_saves_file(haar_data, tmp_path):
+    """Test that plot_haar_analysis saves a file to the specified path."""
+    lags, s1, H, beta, intercept = haar_data
+    output_file = tmp_path / "test_haar_plot.png"
+
+    plot_haar_analysis(
+        lags,
+        s1,
+        H,
+        beta,
+        intercept=intercept,
+        output_path=str(output_file)
+    )
+
+    assert os.path.exists(output_file)
+
+
+def test_plot_haar_analysis_runs_without_path(haar_data):
+    """
+    Test that plot_haar_analysis runs without error when no output path is given.
+    """
+    lags, s1, H, beta, intercept = haar_data
+
+    # Use a non-interactive backend to prevent GUI windows during tests
+    original_backend = plt.get_backend()
+    plt.switch_backend("Agg")
+
+    plot_haar_analysis(
+            lags,
+            s1,
+            H,
+            beta,
+            intercept=intercept,
+            output_path=None
+        )
+    # Restore the original backend
+    plt.switch_backend(original_backend)
+
+
+def test_plot_haar_analysis_segmented(haar_data, tmp_path):
+    """
+    Test that plot_haar_analysis handles segmented results correctly.
+    """
+    lags, s1, _, _, _ = haar_data
+
+    # Create fake segmented results
+    segmented_results = {
+        "Hs": [0.2, 0.8],
+        "intercepts": [-0.5, -2.0],
+        "breakpoints": [10.0]
+    }
+
+    # H and beta for standard fit typically given even if segmented results exist
+    H_std = 0.5
+    beta_std = 2.0
+
+    output_file = tmp_path / "test_haar_plot_segmented.png"
+
+    plot_haar_analysis(
+            lags,
+            s1,
+            H_std,
+            beta_std,
+            intercept=None,
+            output_path=str(output_file),
+            segmented_results=segmented_results
+        )
+
+    assert os.path.exists(output_file)
+
+
+def test_plot_haar_analysis_no_intercept(haar_data, tmp_path):
+    """
+    Test that plot_haar_analysis handles missing intercept.
+    """
+    lags, s1, H, beta, _ = haar_data
+    output_file = tmp_path / "test_haar_plot_no_intercept.png"
+
+    plot_haar_analysis(
+            lags,
+            s1,
+            H,
+            beta,
+            intercept=None,
+            output_path=str(output_file)
         )
 
     assert os.path.exists(output_file)
