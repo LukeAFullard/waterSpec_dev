@@ -209,15 +209,16 @@ def fit_standard_model(
                 mannks_seed = int(seed)
             elif isinstance(seed, np.random.SeedSequence):
                 mannks_seed = int(seed.generate_state(1)[0])
+            elif isinstance(seed, np.random.Generator):
+                mannks_seed = int(seed.integers(0, 2**31 - 1))
 
             # MannKS.trend_test provides robust slope and CIs
             res = MannKS.trend_test(
-                log_power,
-                log_freq,
+                log_power, log_freq,
                 alpha=1-(ci/100),
                 block_size=mannks_block_size,
                 n_bootstrap=n_bootstraps,
-                random_state=mannks_seed
+                random_state=mannks_seed,
             )
 
             slope = res.slope
@@ -728,6 +729,8 @@ def fit_segmented_spectrum(
             mannks_seed = int(seed)
         elif isinstance(seed, np.random.SeedSequence):
             mannks_seed = int(seed.generate_state(1)[0])
+        elif isinstance(seed, np.random.Generator):
+            mannks_seed = int(seed.integers(0, 2**31 - 1))
 
         # Pass n_bootstrap if ci_method is bootstrap?
         # MannKS uses bagging which involves bootstrapping.
@@ -738,13 +741,12 @@ def fit_segmented_spectrum(
             mannks_block_size = bootstrap_block_size
 
         res = MannKS.segmented_trend_test(
-            log_power,
-            log_freq,
+            log_power, log_freq,
             n_breakpoints=n_breakpoints,
             alpha=1-(ci/100),
             n_bootstrap=n_bootstraps,
+            block_size=mannks_block_size,
             random_state=mannks_seed,
-            block_size=mannks_block_size
         )
 
         # Extract results

@@ -268,14 +268,9 @@ def test_fit_standard_model_is_reproducible(synthetic_spectrum):
         frequency, power, n_bootstraps=10, seed=123
     )
 
-    # MannKS should be reproducible if seed is fixed?
-    # MannKS trend_test has random_state arg?
-    # My implementation didn't pass seed to MannKS!
-    # Wait, I should check if I passed seed to MannKS.
-    # In my implementation:
-    # res = MannKS.trend_test(..., block_size=mannks_block_size, n_bootstrap=n_bootstraps)
-    # I didn't pass 'random_state'. I should fix that in fitter.py first.
-    pass
+    assert results1["beta"] == results2["beta"]
+    assert results1["beta_ci_lower"] == results2["beta_ci_lower"]
+    assert results1["beta_ci_upper"] == results2["beta_ci_upper"]
 
 
 def test_fit_segmented_spectrum_handles_exceptions(
