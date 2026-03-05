@@ -507,3 +507,25 @@ def test_load_data_security_bypass_explicit(tmp_path):
         base_dir=""
     )
     assert len(time) == 2
+
+
+def test_load_data_security_symlink_bypass(tmp_path):
+    """
+    Test that the security check prevents path traversal bypass via symlinks.
+    """
+    safe_dir = tmp_path / "safe"
+    safe_dir.mkdir()
+
+    secret_file = tmp_path / "secret.csv"
+    secret_file.write_text("time,value\n2023-01-01,100")
+
+    symlink_path = safe_dir / "link.csv"
+    os.symlink(str(secret_file), str(symlink_path))
+
+    with pytest.raises(ValueError, match="Security Error: Access to file"):
+        load_data(
+            str(symlink_path),
+            time_col="time",
+            data_col="value",
+            base_dir=str(safe_dir)
+        )
