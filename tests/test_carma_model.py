@@ -146,3 +146,59 @@ def test_fit_carma_drw_unordered_times():
     result = fit_carma_drw(time, y)
 
     assert "success" in result
+
+from unittest.mock import patch
+
+def test_fit_carma_drw_nll_edge_cases():
+    """Test the inner `nll` function of fit_carma_drw with extreme parameters."""
+    time = np.array([1.0, 2.0, 3.0, 4.0])
+    y = np.array([10.0, 11.0, 10.5, 12.0])
+
+    nll_func = None
+
+    # We patch minimize to capture the nll function and return a dummy result
+    def mock_minimize(fun, x0, **kwargs):
+        nonlocal nll_func
+        nll_func = fun
+        class MockRes:
+            x = x0
+            fun = 100.0
+            success = True
+            message = "Mocked"
+        return MockRes()
+
+    with patch('waterSpec.carma_model.minimize', side_effect=mock_minimize):
+        fit_carma_drw(time, y)
+
+    assert nll_func is not None, "nll function was not captured"
+
+    # 1. Normal parameters: log_tau=0 (tau=1), log_sigma=0 (sigma=1), mu=10
+    val_normal = nll_func([0.0, 0.0, 10.0])
+    assert np.isfinite(val_normal)
+
+    # 2. Extreme small tau (large negative log_tau)
+    # This might cause var_proc to approach 0 and generate division/log by zero warnings.
+    # The function should still run and return a float (like inf, nan, or large float).
+    with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
+        val_small_tau = nll_func([-100.0, 0.0, 10.0])
+        assert isinstance(val_small_tau, float)
+
+    # 3. Extreme large tau (large positive log_tau)
+    # Might cause var_proc to approach 0 or infinity
+    with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
+        val_large_tau = nll_func([100.0, 0.0, 10.0])
+        assert isinstance(val_large_tau, float)
+
+    # 4. Extreme large sigma (large positive log_sigma)
+    with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
+        val_large_sigma = nll_func([0.0, 100.0, 10.0])
+        assert isinstance(val_large_sigma, float)
+
+    # 5. Extreme small sigma (large negative log_sigma)
+    with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
+        val_small_sigma = nll_func([0.0, -100.0, 10.0])
+        assert isinstance(val_small_sigma, float)
+
+    # 6. Extreme negative parameter for mu
+    val_neg_mu = nll_func([0.0, 0.0, -100.0])
+    assert np.isfinite(val_neg_mu)
