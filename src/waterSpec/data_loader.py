@@ -428,9 +428,9 @@ def load_data(
         if base_dir is None:
             base_dir = os.getcwd()
 
-        # Resolve paths to absolute
-        abs_base = os.path.abspath(base_dir)
-        abs_path = os.path.abspath(file_path)
+        # Resolve paths to absolute canonical paths (resolves symlinks)
+        abs_base = os.path.realpath(base_dir)
+        abs_path = os.path.realpath(file_path)
 
         # Check if the file path is within the base directory
         if not abs_path.startswith(os.path.join(abs_base, "")):
