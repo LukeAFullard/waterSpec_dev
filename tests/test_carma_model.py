@@ -202,3 +202,89 @@ def test_fit_carma_drw_nll_edge_cases():
     # 6. Extreme negative parameter for mu
     val_neg_mu = nll_func([0.0, 0.0, -100.0])
     assert np.isfinite(val_neg_mu)
+
+def test_psd_analytic_values():
+    """Test the analytical PSD function returned by fit_carma_drw."""
+    time = np.array([1.0, 2.0, 3.0, 4.0])
+    y = np.array([10.0, 11.0, 10.5, 12.0])
+
+    # We patch minimize to control the resulting tau, sigma, mu
+    # Let tau_fit = e^0 = 1.0, sigma_fit = e^0 = 1.0, mu_fit = 0.0
+    def mock_minimize(fun, x0, **kwargs):
+        class MockRes:
+            x = [0.0, 0.0, 0.0]  # log(tau), log(sigma), mu
+            fun = 100.0
+            success = True
+            message = "Mocked"
+        return MockRes()
+
+    with patch('waterSpec.carma_model.minimize', side_effect=mock_minimize):
+        result = fit_carma_drw(time, y)
+
+    psd_func = result["psd_func"]
+
+    # tau = 1.0, sigma = 1.0
+    # Formula: P(f) = (2 * sigma^2 * tau^2) / (1 + (2*pi*f*tau)^2)
+    # P(f) = 2 / (1 + (2*pi*f)^2)
+
+    # 1. Zero frequency
+    assert np.isclose(psd_func(0.0), 2.0)
+
+    # 2. Positive frequency
+    f1 = 0.5
+    expected_f1 = 2.0 / (1.0 + (np.pi)**2)
+    assert np.isclose(psd_func(f1), expected_f1)
+
+    # 3. Negative frequency (should be symmetric)
+    assert np.isclose(psd_func(-f1), expected_f1)
+
+    # 4. Array input
+    freqs = np.array([0.0, 0.5, -0.5])
+    expected_arr = np.array([2.0, expected_f1, expected_f1])
+    np.testing.assert_allclose(psd_func(freqs), expected_arr)
+
+    # 5. Very high frequency (should approach 0)
+    assert psd_func(1e6) < 1e-10
+
+def test_beta_analytic_values():
+    """Test the analytical beta function returned by fit_carma_drw."""
+    time = np.array([1.0, 2.0, 3.0, 4.0])
+    y = np.array([10.0, 11.0, 10.5, 12.0])
+
+    # We patch minimize to control the resulting tau, sigma, mu
+    # Let tau_fit = e^0 = 1.0, sigma_fit = e^0 = 1.0, mu_fit = 0.0
+    def mock_minimize(fun, x0, **kwargs):
+        class MockRes:
+            x = [0.0, 0.0, 0.0]  # log(tau), log(sigma), mu
+            fun = 100.0
+            success = True
+            message = "Mocked"
+        return MockRes()
+
+    with patch('waterSpec.carma_model.minimize', side_effect=mock_minimize):
+        result = fit_carma_drw(time, y)
+
+    beta_func = result["beta_func"]
+
+    # tau = 1.0, sigma = 1.0
+    # Formula: beta(f) = (2 * (2*pi*f*tau)^2) / (1 + (2*pi*f*tau)^2)
+    # beta(f) = (2 * (2*pi*f)^2) / (1 + (2*pi*f)^2)
+
+    # 1. Zero frequency
+    assert np.isclose(beta_func(0.0), 0.0)
+
+    # 2. Positive frequency
+    f1 = 0.5
+    expected_f1 = (2.0 * (np.pi)**2) / (1.0 + (np.pi)**2)
+    assert np.isclose(beta_func(f1), expected_f1)
+
+    # 3. Negative frequency (should be symmetric)
+    assert np.isclose(beta_func(-f1), expected_f1)
+
+    # 4. Array input
+    freqs = np.array([0.0, 0.5, -0.5])
+    expected_arr = np.array([0.0, expected_f1, expected_f1])
+    np.testing.assert_allclose(beta_func(freqs), expected_arr)
+
+    # 5. Very high frequency (should approach 2.0)
+    assert np.isclose(beta_func(1e6), 2.0, atol=1e-5)
