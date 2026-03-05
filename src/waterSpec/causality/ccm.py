@@ -153,28 +153,25 @@ def convergent_cross_mapping(
             dists = np.linalg.norm(Library - x_t, axis=1)
 
             # Find closest neighbors
-            # Sort distances
-            sorted_idx = np.argsort(dists)
-
-            closest_args = []
             min_dist = 1e-9
 
-            count = 0
-            for arg in sorted_idx:
-                if dists[arg] < min_dist: # basically 0, likely self-match
-                     continue
-                closest_args.append(arg)
-                count += 1
-                if count >= n_neighbors:
-                    break
-
-            if len(closest_args) < n_neighbors:
+            # Mask out self-matches or very close points
+            valid_mask = dists >= min_dist
+            if np.sum(valid_mask) < n_neighbors:
                 # Not enough neighbors (library too small?)
                 y_pred_vec.append(np.nan)
                 y_true_vec.append(Y_target[t_idx])
                 continue
 
-            closest_args = np.array(closest_args)
+            dists[~valid_mask] = np.inf
+
+            # Efficiently find the indices of the n_neighbors smallest distances
+            k = n_neighbors - 1
+            closest_args = np.argpartition(dists, k)[:n_neighbors]
+
+            # Sort the selected neighbors by distance
+            # (required because CCM weights use the absolute minimum distance at index 0)
+            closest_args = closest_args[np.argsort(dists[closest_args])]
             nearest_dists = dists[closest_args]
             nearest_y = Library_Y[closest_args]
 
