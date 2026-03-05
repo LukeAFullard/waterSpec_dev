@@ -424,17 +424,17 @@ def load_data(
         - For CSV files, `pd.read_csv` is used with its default settings.
     """
     # 0. Security check: Prevent path traversal
+    real_path = os.path.realpath(file_path)
     if base_dir != "":
         if base_dir is None:
             base_dir = os.getcwd()
 
         # Resolve paths to absolute canonical paths (resolves symlinks)
         abs_base = os.path.realpath(base_dir)
-        abs_path = os.path.realpath(file_path)
 
         # Check if the file path is within the base directory
-        if not abs_path.startswith(os.path.join(abs_base, "")):
-             if not (abs_path == abs_base): # Allow loading the base dir itself if it was a file? No, usually base_dir is a dir.
+        if not real_path.startswith(os.path.join(abs_base, "")):
+             if not (real_path == abs_base): # Allow loading the base dir itself if it was a file? No, usually base_dir is a dir.
                 raise ValueError(
                     f"Security Error: Access to file '{file_path}' is denied. "
                     f"File must be within the base directory '{abs_base}'. "
@@ -442,18 +442,18 @@ def load_data(
                 )
 
     # 1. Validate file existence
-    if not os.path.exists(file_path):
+    if not os.path.exists(real_path):
         raise FileNotFoundError(f"The specified file was not found: {file_path}")
 
     # 2. Load data from file
-    _, file_extension = os.path.splitext(file_path)
+    _, file_extension = os.path.splitext(real_path)
     try:
         if file_extension.lower() == ".csv":
-            df = pd.read_csv(file_path, low_memory=False, index_col=False)
+            df = pd.read_csv(real_path, low_memory=False, index_col=False)
         elif file_extension.lower() in [".xlsx", ".xls"]:
-            df = pd.read_excel(file_path, sheet_name=sheet_name)
+            df = pd.read_excel(real_path, sheet_name=sheet_name)
         elif file_extension.lower() == ".json":
-            df = pd.read_json(file_path)
+            df = pd.read_json(real_path)
         else:
             raise ValueError(f"Unsupported file format: {file_extension}")
     except Exception as e:
