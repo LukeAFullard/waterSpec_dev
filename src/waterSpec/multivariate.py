@@ -51,16 +51,36 @@ def calculate_multivariate_fluctuations(
         fluctuations = [[] for _ in range(n_vars)]
 
         step_size = tau * overlap_step_fraction if overlap else tau
+
+        # We will iterate by sliding a window start time
+        t_starts = []
         t_start = t_min
 
         while t_start + tau <= time[-1]: # Use time[-1] instead of t_max for precision
-            t_mid = t_start + tau / 2
-            t_end = t_start + tau
+            t_starts.append(t_start)
+            if overlap:
+                t_start += step_size
+            else:
+                t_start += tau
+                if t_start >= time[-1]: break
 
-            # Indices in the ALIGNED arrays
-            idx_start = np.searchsorted(time, t_start, side='left')
-            idx_mid = np.searchsorted(time, t_mid, side='left')
-            idx_end = np.searchsorted(time, t_end, side='left')
+        if not t_starts:
+            results[tau] = [np.array([]) for _ in range(n_vars)]
+            continue
+
+        t_starts = np.array(t_starts)
+        t_mids = t_starts + tau / 2
+        t_ends = t_starts + tau
+
+        # Indices in the ALIGNED arrays
+        idx_starts = np.searchsorted(time, t_starts, side='left')
+        idx_mids = np.searchsorted(time, t_mids, side='left')
+        idx_ends = np.searchsorted(time, t_ends, side='left')
+
+        for j in range(len(t_starts)):
+            idx_start = idx_starts[j]
+            idx_mid = idx_mids[j]
+            idx_end = idx_ends[j]
 
             # Check if all variables have sufficient data in this window
             valid_window = True
@@ -86,12 +106,6 @@ def calculate_multivariate_fluctuations(
             if valid_window:
                 for i in range(n_vars):
                     fluctuations[i].append(diffs[i])
-
-            if overlap:
-                t_start += step_size
-            else:
-                t_start = t_end
-                if t_start >= time[-1]: break
 
         # Convert to numpy arrays
         results[tau] = [np.array(f) for f in fluctuations]
