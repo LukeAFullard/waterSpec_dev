@@ -67,9 +67,13 @@ def calculate_wwz(
     data_b = data[None, :]
     data_sq_b = (data**2)[None, :]
 
+    # Pre-calculate omega and z arrays for all frequencies
+    omegas = 2 * np.pi * freqs
+    zs = decay_constant * (omegas ** 2)
+
     for i, freq in enumerate(freqs):
-        omega = 2 * np.pi * freq
-        z = decay_constant * (omega ** 2)
+        omega = omegas[i]
+        z = zs[i]
 
         # Calculate weights for all taus at once
         # weights shape: (n_taus, n_points)
