@@ -262,14 +262,29 @@ def calculate_sliding_haar(
     data = data[sort_idx]
 
     fluctuations = []
+
+    # Pre-calculate window boundaries to avoid iterative searchsorted calls
+    t_starts = np.arange(time[0], time[-1] - window_size + step_size, step_size)
+    # Ensure we don't exceed time[-1] due to floating point issues
+    t_starts = t_starts[t_starts + window_size <= time[-1]]
+
+    if len(t_starts) == 0:
+        return np.array([]), np.array([])
+
+    t_mids = t_starts + window_size / 2
+    t_ends = t_starts + window_size
+
+    # Pre-calculate window indices using vectorized searchsorted
+    idx_starts = np.searchsorted(time, t_starts, side='left')
+    idx_mids = np.searchsorted(time, t_mids, side='left')
+    idx_ends = np.searchsorted(time, t_ends, side='left')
+
     t_centers = []
 
-    t_start = time[0]
-    while t_start + window_size <= time[-1]:
-        t_mid = t_start + window_size / 2
-        idx_start = np.searchsorted(time, t_start, side='left')
-        idx_mid = np.searchsorted(time, t_mid, side='left')
-        idx_end = np.searchsorted(time, t_start + window_size, side='left')
+    for i in range(len(t_starts)):
+        idx_start = idx_starts[i]
+        idx_mid = idx_mids[i]
+        idx_end = idx_ends[i]
 
         vals1 = data[idx_start:idx_mid]
         vals2 = data[idx_mid:idx_end]
@@ -279,9 +294,7 @@ def calculate_sliding_haar(
             val2 = _compute_statistic(vals2, statistic, percentile, percentile_method)
             d = val2 - val1
             fluctuations.append(d)
-            t_centers.append(t_mid)
-
-        t_start += step_size
+            t_centers.append(t_mids[i])
 
     return np.array(t_centers), np.array(fluctuations)
 
