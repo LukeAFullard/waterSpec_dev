@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from waterSpec.plotting import plot_spectrum, plot_changepoint_analysis
+from waterSpec.plotting import plot_spectrum, plot_changepoint_analysis, plot_site_comparison
 from waterSpec.haar_analysis import plot_haar_analysis
 
 
@@ -328,3 +328,85 @@ def test_plot_haar_analysis_no_intercept(haar_data, tmp_path):
         )
 
     assert os.path.exists(output_file)
+
+@pytest.fixture
+def site_comparison_results_data():
+    """Provides a mock results dictionary for site comparison analysis."""
+    freq = np.logspace(-3, 0, 50)
+    power = np.ones_like(freq)
+    fit_res = {
+        "chosen_model_type": "standard",
+        "beta": 1.0,
+        "log_freq": np.log(freq),
+        "intercept": 0,
+    }
+
+    results = {
+        "comparison_name": "Test Site Comparison",
+        "site1": {
+            "site_name": "Site A",
+            "frequency": freq,
+            "power": power * 1.5,
+            **fit_res,
+            "beta": 0.5,
+        },
+        "site2": {
+            "site_name": "Site B",
+            "frequency": freq,
+            "power": power * 0.5,
+            **fit_res,
+            "beta": 1.8,
+        },
+    }
+    return results
+
+
+def test_plot_site_comparison_separate_style(site_comparison_results_data, tmp_path):
+    """
+    Test that `plot_site_comparison` with `plot_style='separate'`
+    creates a separate side-by-side plot.
+    """
+    output_dir = tmp_path / "site_comparison_separate"
+    os.makedirs(output_dir)
+
+    plot_site_comparison(
+        site_comparison_results_data,
+        str(output_dir),
+        plot_style="separate",
+    )
+
+    expected_file = output_dir / "Test_Site_Comparison_comparison_separate.png"
+    assert expected_file.exists()
+
+
+def test_plot_site_comparison_overlaid_style(site_comparison_results_data, tmp_path):
+    """
+    Test that `plot_site_comparison` with `plot_style='overlaid'`
+    creates a single overlaid plot.
+    """
+    output_dir = tmp_path / "site_comparison_overlaid"
+    os.makedirs(output_dir)
+
+    plot_site_comparison(
+        site_comparison_results_data,
+        str(output_dir),
+        plot_style="overlaid",
+    )
+
+    expected_file = output_dir / "Test_Site_Comparison_comparison_overlaid.png"
+    assert expected_file.exists()
+
+
+def test_plot_site_comparison_invalid_style(site_comparison_results_data, tmp_path):
+    """
+    Test that `plot_site_comparison` raises a ValueError for an invalid plot_style.
+    """
+    output_dir = tmp_path / "site_comparison_invalid"
+    os.makedirs(output_dir)
+
+    with pytest.raises(ValueError, match="plot_style must be 'separate' or 'overlaid'."):
+        plot_site_comparison(
+            site_comparison_results_data,
+            str(output_dir),
+            plot_style="invalid_style",
+        )
