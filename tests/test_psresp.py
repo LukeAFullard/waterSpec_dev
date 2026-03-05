@@ -1,7 +1,50 @@
 import numpy as np
 import pytest
-from waterSpec.psresp import psresp_fit
+from waterSpec.psresp import psresp_fit, bin_power_spectrum
 from waterSpec.utils_sim import simulate_tk95, power_law, resample_to_times
+
+def test_bin_power_spectrum():
+    """Test the functionality of bin_power_spectrum."""
+    freqs = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0])
+    power = np.array([10,  20,  30,  40,  50,  60,  70,  80,  90, 100])
+
+    # Test 1: Standard case
+    bins = np.array([0.0, 0.35, 0.65, 1.1])
+    # Bins:
+    # Bin 1 (0.0 to 0.35): freqs [0.1, 0.2, 0.3], powers [10, 20, 30]
+    # Bin 2 (0.35 to 0.65): freqs [0.4, 0.5, 0.6], powers [40, 50, 60]
+    # Bin 3 (0.65 to 1.1): freqs [0.7, 0.8, 0.9, 1.0], powers [70, 80, 90, 100]
+    binned_freqs, binned_power = bin_power_spectrum(freqs, power, bins)
+
+    expected_freqs = np.array([0.2, 0.5, 0.85])
+    expected_power = np.array([20.0, 50.0, 85.0])
+
+    np.testing.assert_allclose(binned_freqs, expected_freqs)
+    np.testing.assert_allclose(binned_power, expected_power)
+
+    # Test 2: Edge case with empty bins
+    bins_empty = np.array([0.0, 0.35, 0.38, 0.65, 1.1])
+    # Bin 2 (0.35 to 0.38) is empty
+    binned_freqs_empty, binned_power_empty = bin_power_spectrum(freqs, power, bins_empty)
+
+    expected_freqs_empty = np.array([0.2, 0.365, 0.5, 0.85])
+    expected_power_empty = np.array([20.0, np.nan, 50.0, 85.0])
+
+    np.testing.assert_allclose(binned_freqs_empty, expected_freqs_empty)
+    np.testing.assert_allclose(binned_power_empty, expected_power_empty, equal_nan=True)
+
+    # Test 3: Edge case where frequencies are out of bounds
+    bins_out_of_bounds = np.array([0.25, 0.85])
+    # freqs [0.1, 0.2] are below the first bin edge
+    # freqs [0.9, 1.0] are above the last bin edge
+    # The only valid bin is 1: (0.25 to 0.85) -> freqs [0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+    binned_freqs_oob, binned_power_oob = bin_power_spectrum(freqs, power, bins_out_of_bounds)
+
+    expected_freqs_oob = np.array([0.55])
+    expected_power_oob = np.array([55.0])
+
+    np.testing.assert_allclose(binned_freqs_oob, expected_freqs_oob)
+    np.testing.assert_allclose(binned_power_oob, expected_power_oob)
 
 def test_simulate_tk95_power_law():
     """Test that TK95 produces a time series with roughly the correct PSD slope."""
