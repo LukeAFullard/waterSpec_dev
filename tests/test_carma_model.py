@@ -146,3 +146,36 @@ def test_fit_carma_drw_unordered_times():
     result = fit_carma_drw(time, y)
 
     assert "success" in result
+
+def test_psd_and_beta_analytic_math():
+    """Verify that psd_analytic and beta_analytic calculate the exact expected mathematical values."""
+    time, y = generate_synthetic_drw(
+        n_points=100,
+        tau=20.0,
+        sigma=1.0,
+        mu=0.0,
+        dt_mean=1.0,
+        seed=111
+    )
+
+    result = fit_carma_drw(time, y)
+
+    tau_fit = result["tau"]
+    sigma_fit = result["sigma"]
+    psd_func = result["psd_func"]
+    beta_func = result["beta_func"]
+
+    # Frequencies to test
+    freqs = np.array([0.001, 0.05, 0.1, 0.5, 1.0, 10.0])
+
+    for f in freqs:
+        omega = 2 * np.pi * f
+
+        # Expected PSD value
+        expected_psd = (2 * sigma_fit**2 * tau_fit**2) / (1 + (omega * tau_fit)**2)
+        assert np.isclose(psd_func(f), expected_psd), f"PSD mismatch at frequency {f}"
+
+        # Expected Beta value
+        x2 = (omega * tau_fit)**2
+        expected_beta = (2 * x2) / (1 + x2)
+        assert np.isclose(beta_func(f), expected_beta), f"Beta mismatch at frequency {f}"
