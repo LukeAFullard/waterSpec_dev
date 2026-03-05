@@ -153,20 +153,41 @@ def convergent_cross_mapping(
             dists = np.linalg.norm(Library - x_t, axis=1)
 
             # Find closest neighbors
-            # Sort distances
-            sorted_idx = np.argsort(dists)
+            # We need n_neighbors + 10 in case there are multiple self-matches or identical vectors
+            k = min(n_neighbors + 10, len(dists))
+
+            # Partially sort to find the k smallest distances
+            if k < len(dists):
+                partitioned_idx = np.argpartition(dists, k - 1)[:k]
+                # Sort the selected k smallest to process them in order
+                sorted_k_idx = partitioned_idx[np.argsort(dists[partitioned_idx])]
+            else:
+                sorted_k_idx = np.argsort(dists)
 
             closest_args = []
             min_dist = 1e-9
 
             count = 0
-            for arg in sorted_idx:
+            for arg in sorted_k_idx:
                 if dists[arg] < min_dist: # basically 0, likely self-match
                      continue
                 closest_args.append(arg)
                 count += 1
                 if count >= n_neighbors:
                     break
+
+            # Fallback if we filtered out too many identical vectors and didn't find enough neighbors
+            if count < n_neighbors and k < len(dists):
+                sorted_all_idx = np.argsort(dists)
+                closest_args = []
+                count = 0
+                for arg in sorted_all_idx:
+                    if dists[arg] < min_dist:
+                         continue
+                    closest_args.append(arg)
+                    count += 1
+                    if count >= n_neighbors:
+                        break
 
             if len(closest_args) < n_neighbors:
                 # Not enough neighbors (library too small?)
