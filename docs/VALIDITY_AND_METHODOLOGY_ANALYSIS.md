@@ -18,7 +18,13 @@ However, the application of these methods requires strict adherence to their und
 ### 2.1 Lomb-Scargle Periodogram (LS)
 
 **Mathematical Foundation:**
-The LS periodogram is effectively a least-squares fit of sinusoids to data. It was derived to handle unequally spaced data in astrophysics (Lomb, 1976; Scargle, 1982).
+The LS periodogram is effectively a least-squares fit of sinusoids to data. It was derived to handle unequally spaced data in astrophysics (Lomb, 1976; Scargle, 1982). For a time series $x(t_i)$ evaluated at arbitrary times $t_i$, the normalized periodogram at angular frequency $\omega = 2\pi f$ is defined as:
+
+$$ P_N(\omega) = \frac{1}{2\sigma^2} \left\{ \frac{\left[\sum_i (x_i - \bar{x}) \cos \omega(t_i - \tau)\right]^2}{\sum_i \cos^2 \omega(t_i - \tau)} + \frac{\left[\sum_i (x_i - \bar{x}) \sin \omega(t_i - \tau)\right]^2}{\sum_i \sin^2 \omega(t_i - \tau)} \right\} $$
+
+where $\tau$ is a frequency-dependent time offset specified by:
+$$ \tan(2\omega\tau) = \frac{\sum_i \sin(2\omega t_i)}{\sum_i \cos(2\omega t_i)} $$
+This specific choice of $\tau$ makes the periodogram identical to a least-squares fit of the model $x(t) = A \cos(\omega t) + B \sin(\omega t)$ to the data.
 
 **Validity & Strengths:**
 *   **Peak Detection:** It is statistically robust for detecting deterministic, narrowband periodicities (e.g., diurnal, annual cycles) superimposed on white noise. The False Alarm Probability (FAP) provides a rigorous frequentist significance threshold, utilizing extreme value statistics to account for multiple independent frequencies. VanderPlas (2018) provides an extensive review of its validity for periodic detection, and Baluev (2008) details the exact extreme value distributions necessary for precise FAP computation.
@@ -38,7 +44,13 @@ The LS periodogram is effectively a least-squares fit of sinusoids to data. It w
 ### 2.2 Haar Wavelet Analysis (First-Order Structure Function)
 
 **Mathematical Foundation:**
-Haar analysis calculates the variance of the difference in means between adjacent non-overlapping (or overlapping) windows of size $\tau$. The scaling exponent $m$ relates to the spectral exponent $\beta$ via $\beta = 2m + 1$ (Lovejoy & Schertzer, 2012).
+Haar analysis calculates the variance of the difference in means between adjacent non-overlapping (or overlapping) windows of size $\tau$. The first-order structure function $S_1(\tau)$ is computed as the variance of the fluctuation $\Delta x(\tau, t)$:
+
+$$ \Delta x(\tau, t) = \langle x(u) \rangle_{t < u < t+\tau} - \langle x(u) \rangle_{t-\tau < u < t} $$
+
+where $\langle \cdot \rangle$ denotes the mean over the specified time interval. The scaling exponent $m$ is derived from the relation:
+$$ S_1(\tau) \propto \tau^m $$
+This exponent $m$ relates to the spectral exponent $\beta$ via the equation $\beta = 2m + 1$ (Lovejoy & Schertzer, 2012).
 
 **Validity & Strengths:**
 *   **Robust to Gaps:** Because it operates in the time domain, a gap simply means a specific window is skipped. It does not corrupt the estimates at other scales.
@@ -69,7 +81,11 @@ Haar analysis calculates the variance of the difference in means between adjacen
 ### 2.3 Multifractal Intermittency Correction ($K(2)$)
 
 **Mathematical Foundation:**
-The relationship $\beta = 2m + 1$ assumes the process is monofractal (Gaussian). For intermittent environmental processes (e.g., rainfall, solute flushing), this fails. The Universal Multifractal framework provides a correction: $\beta = 1 + 2H - K(2)$, where $K(2)$ characterizes the intermittency (Schertzer & Lovejoy, 1987).
+The relationship $\beta = 2m + 1$ assumes the process is monofractal (Gaussian). For intermittent environmental processes (e.g., rainfall, solute flushing), this fails. The Universal Multifractal framework provides a correction:
+
+$$ \beta = 1 + 2H - K(2) $$
+
+where $H$ is the Hurst exponent (related to the first-order mean fluctuation) and $K(2)$ characterizes the intermittency. $K(q)$ is the scaling moment function such that the moments of the fluctuations scale as $\langle (\Delta x)^q \rangle \propto \tau^{qH - K(q)}$. For the second moment (variance or power spectrum), $K(2)$ quantifies the deviation from simple monofractal scaling due to intermittent bursts of variance.
 
 **Validity:**
 *   This is a highly advanced feature. Estimating $K(2)$ (often via the slope of the 2nd vs 1st order structure functions) requires vast amounts of high-quality data.
@@ -93,7 +109,9 @@ Using `mannks` or `piecewise-regression`, the package fits broken stick models t
 ### 2.5 Bivariate (Cross-Haar) Analysis
 
 **Mathematical Foundation:**
-Calculates the Pearson correlation between the Haar fluctuations of two variables at scale $\tau$.
+Calculates the Pearson correlation between the Haar fluctuations of two variables, $X$ and $Y$, at scale $\tau$. Let $\Delta x(\tau, t)$ and $\Delta y(\tau, t)$ be the fluctuations computed at overlapping or non-overlapping time windows of length $\tau$. The Cross-Haar correlation is:
+
+$$ \rho_{XY}(\tau) = \frac{\sum_t (\Delta x(\tau, t) - \overline{\Delta x})(\Delta y(\tau, t) - \overline{\Delta y})}{\sqrt{\sum_t (\Delta x(\tau, t) - \overline{\Delta x})^2 \sum_t (\Delta y(\tau, t) - \overline{\Delta y})^2}} $$
 
 **Validity & Interpretation:**
 *   **Scale-Dependent Correlation:** This is a powerful and valid method for decoupling short-term hysteresis from long-term trends. It serves as a time-domain analog to Cross-Wavelet Transform (XWT) and Wavelet Coherence approaches (Grinsted et al., 2004), without requiring continuous data interpolation.
@@ -107,7 +125,9 @@ Calculates the Pearson correlation between the Haar fluctuations of two variable
 ### 2.6 Hysteresis Classification within Bivariate Analysis
 
 **Mathematical Foundation:**
-Extends bivariate analysis by quantifying the loop area and direction (clockwise vs. counter-clockwise) in the phase space of Haar fluctuations for two variables at a specific scale $\tau$. It utilizes the shoelace formula to compute the signed polygon area formed by the sequential fluctuation pairs $(X_i, Y_i)$ at the chosen scale.
+Extends bivariate analysis by quantifying the loop area and direction (clockwise vs. counter-clockwise) in the phase space of Haar fluctuations for two variables at a specific scale $\tau$. It utilizes the shoelace formula to compute the signed polygon area formed by the sequential fluctuation pairs $(X_i, Y_i) = (\Delta x(\tau, t_i), \Delta y(\tau, t_i))$ at the chosen scale:
+
+$$ \text{Area}(\tau) = \frac{1}{2} \sum_{i=1}^{n-1} (X_i Y_{i+1} - X_{i+1} Y_i) $$
 
 **Validity & Interpretation:**
 *   **Scale-Specific Hysteresis:** Traditional hysteresis analysis (e.g., C-Q loops during storms) is often confounded by long-term baseline shifts. By isolating fluctuations at scale $\tau$, this method provides a mathematically rigorous way to evaluate hysteresis generated strictly by processes operating at that specific timescale (e.g., event-based flushing), decoupling it from seasonal or inter-annual trends.
@@ -139,7 +159,7 @@ Extends LS to two variables to find the phase difference (lead/lag) at specific 
 
 **Validity & Limitations:**
 *   **Computational Rigor and Cache Optimization:** Under the hood, `calculate_ls_cross_spectrum` avoids iterating frequency-by-frequency in pure Python, which destroys cache locality. Instead, it dynamically batches frequencies—targeting ~2MB payload chunks explicitly aligned to maximize CPU L3 cache hits—to perform vectorized block `np.linalg.solve` routines over multidimensional frequency arrays.
-*   **Mathematical Identity Shortcuts:** The batch processing loop further optimizes scaling performance by computing the $\omega$ array per batch (`2 * np.pi * f_batch[:, np.newaxis]`). Inside the batch, trigonometric sum evaluations are dramatically reduced using exact mathematical identities (e.g., `Swss = sum_w - Swcc`). This circumvents redundant floating-point processing overhead, preserving full mathematical exactness while rendering Lomb-Scargle Cross-Spectrum computationally tractable for massive, highly irregular temporal sequences without encountering Out-Of-Memory (OOM) halts.
+*   **Mathematical Identity Shortcuts:** The batch processing loop further optimizes scaling performance by computing the $\omega$ array per batch (`2 * np.pi * f_batch[:, np.newaxis]`) outside the loop and slicing it. Inside the batch, trigonometric sum evaluations are dramatically reduced using exact mathematical identities (e.g., `Swss = sum_w - Swcc`). This circumvents redundant floating-point processing overhead, preserving full mathematical exactness while rendering Lomb-Scargle Cross-Spectrum computationally tractable for massive, highly irregular temporal sequences without encountering Out-Of-Memory (OOM) halts.
 *   **Pre-Calculated Boundary Searches:** Beyond Lomb-Scargle, scaling and windowing functions across the `waterSpec` package (including `calculate_sliding_haar`, `bivariate.py`, and `multivariate.py`) utilize strict boolean masking bounds (e.g., `t_starts[t_starts + window_size <= time[-1]]`) alongside vectorized `np.searchsorted`. Pre-calculating window boundaries ensures zero iterative Python function call overhead when fetching index blocks for complex mathematical evaluations and prevents exceeding array bounds due to floating point inaccuracies.
 *   **Noise Sensitivity and Coherence Thresholding:** Phase estimation is highly sensitive to noise. If the Cross-Spectral Power (Coherence) is low at a given frequency, the estimated phase lag is meaningless (essentially a random variable uniform on $[-\pi, \pi]$). A rigorous statistical threshold for coherence must be established (e.g., via Monte Carlo surrogates) before interpreting phase lags.
 *   **Interpretation of Phase Wraparound:** Phase is circular (defined modulo $2\pi$). Interpreting a phase difference as a definitive time lag (e.g., $\Delta t = \Delta\phi / (2\pi f)$) is ambiguous without prior physical constraints on causality, as a lag of $\Delta\phi$ is indistinguishable from a lead of $2\pi - \Delta\phi$.
@@ -150,10 +170,14 @@ Extends LS to two variables to find the phase difference (lead/lag) at specific 
 ### 2.9 Changepoint Detection (PELT Algorithm)
 
 **Mathematical Foundation:**
-The package utilizes the Pruned Exact Linear Time (PELT) algorithm via the `ruptures` library to detect shifts in the mean or variance of a time series.
+The package utilizes the Pruned Exact Linear Time (PELT) algorithm via the `ruptures` library to detect shifts in the mean or variance of a time series. The algorithm seeks to minimize a penalized cost function:
+
+$$ \min_{m, \tau_1, \dots, \tau_m} \left[ \sum_{i=1}^{m+1} C(y_{\tau_{i-1}:\tau_i}) + \beta m \right] $$
+
+where $C$ is a cost function (e.g., Gaussian log-likelihood or $L_2$ norm) evaluating the fit of the segment $y_{\tau_{i-1}:\tau_i}$, $m$ is the number of changepoints, $\tau_i$ are the changepoint indices, and $\beta$ is the penalty parameter to guard against overfitting.
 
 **Validity & Limitations:**
-*   **Algorithmic Efficiency:** PELT is mathematically exact for finding the global minimum of the penalized cost function and operates efficiently even on large datasets (Killick et al., 2012).
+*   **Algorithmic Efficiency:** PELT is mathematically exact for finding the global minimum of the penalized cost function and operates efficiently even on large datasets (Killick et al., 2012). It achieves $O(N)$ computational time under the assumption that the number of true changepoints increases linearly with $N$.
 *   **Penalty Selection (AIC vs. BIC):** The number of detected changepoints is extremely sensitive to the chosen penalty factor ($\beta$). `waterSpec` typically utilizes a penalty mathematically akin to BIC ($p \log(n)$), which heavily penalizes complexity and favors fewer, more statistically profound regime shifts. Using an AIC-like penalty ($2p$) often results in massive overfitting, tracking high-frequency noise rather than structural shifts.
 *   **The Autocorrelation Problem:** PELT and similar changepoint algorithms assume that the residuals (data minus the fitted piecewise model) are independent, identically distributed (i.i.d.) random variables. Environmental time series are almost universally autocorrelated (red noise).
 *   **False Positives:** Applying standard changepoint detection to highly autocorrelated data will drastically inflate the false positive rate, identifying "regime shifts" that are merely normal low-frequency stochastic excursions of a red noise process.
@@ -220,7 +244,7 @@ The package provides two primary surrogate null models to test significance, but
     *   *Limitation:* Similar to phase randomization, this operates strictly on *indices*. If the data contains large, irregular sampling gaps, a block of $N$ indices does not correspond to a uniform duration of time. Applying this to heavily gappy data will corrupt the temporal axis, rendering the surrogate analysis invalid.
 
 5.  **Empirical P-Value Calculation:**
-    *   *Validity:* When evaluating the significance of a metric against a distribution of surrogate metrics (e.g. `calculate_significance_p_value`), `waterSpec` calculates empirical p-values using the conservative $(k+1)/(n+1)$ formula (where $k$ is the number of surrogate values $\geq$ the observed value, and $n$ is the total number of surrogates). This formulation prevents zero-p-value bounds and correctly accounts for the observation itself as part of the null distribution, providing a rigorously sound test even for small surrogate ensembles. The implementation robustly handles empty surrogate arrays by safely returning `np.nan`.
+    *   *Validity:* When evaluating the significance of a metric against a distribution of surrogate metrics (e.g. `calculate_significance_p_value`), `waterSpec` calculates empirical p-values using the conservative $(k+1)/(n+1)$ formula (where $k$ is the number of surrogate values $\geq$ the observed value, and $n$ is the total number of surrogates). This formulation prevents zero-p-value bounds and correctly accounts for the observation itself as part of the null distribution, providing a rigorously sound test even for small surrogate ensembles. The implementation robustly handles empty surrogate arrays by safely returning `np.nan`. Furthermore, by default it performs a rigorous *two-sided* test checking absolute magnitudes (`two_sided=True`), ensuring that deviations in either direction (positive or negative correlations) are appropriately penalized against the null distribution.
 
 **References:**
 *   Prichard, D., & Theiler, J. (1994). Generating surrogate data for time series with several simultaneously measured variables. *Physical review letters*, 73(7), 951.
