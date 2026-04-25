@@ -21,7 +21,7 @@ However, the application of these methods requires strict adherence to their und
 The LS periodogram is effectively a least-squares fit of sinusoids to data. It was derived to handle unequally spaced data in astrophysics (Lomb, 1976; Scargle, 1982).
 
 **Validity & Strengths:**
-*   **Peak Detection:** It is statistically robust for detecting deterministic, narrowband periodicities (e.g., diurnal, annual cycles) superimposed on white noise. The False Alarm Probability (FAP) provides a rigorous frequentist significance threshold. VanderPlas (2018) provides an extensive review of its validity for periodic detection.
+*   **Peak Detection:** It is statistically robust for detecting deterministic, narrowband periodicities (e.g., diurnal, annual cycles) superimposed on white noise. The False Alarm Probability (FAP) provides a rigorous frequentist significance threshold, utilizing extreme value statistics to account for multiple independent frequencies. VanderPlas (2018) provides an extensive review of its validity for periodic detection, and Baluev (2008) details the exact extreme value distributions necessary for precise FAP computation.
 *   **No Interpolation:** By avoiding interpolation, it prevents the artificial introduction of high-frequency noise or smoothing artifacts.
 
 **Weaknesses & Failure Modes (When NOT to use):**
@@ -29,6 +29,7 @@ The LS periodogram is effectively a least-squares fit of sinusoids to data. It w
 *   **Conclusion:** If the Coefficient of Variation (CV) of the sampling interval is high (> 0.5), or if there are massive gaps (e.g., > 10% of total duration), **do not use LS to estimate $\beta$**. Use Haar Wavelets instead.
 
 **References:**
+*   Baluev, R. V. (2008). Assessing the statistical significance of periodogram peaks. *Monthly Notices of the Royal Astronomical Society*, 385(3), 1279-1285.
 *   Lomb, N. R. (1976). Least-squares frequency analysis of unequally spaced data. *Astrophysics and Space Science*, 39, 447-462.
 *   Scargle, J. D. (1982). Studies in astronomical time series analysis. II - Statistical aspects of spectral analysis of unevenly spaced data. *The Astrophysical Journal*, 263, 835-853.
 *   VanderPlas, J. T. (2018). Understanding the Lomb-Scargle Periodogram. *The Astrophysical Journal Supplement Series*, 236(1), 16.
@@ -43,8 +44,8 @@ Haar analysis calculates the variance of the difference in means between adjacen
 *   **Non-Stationarity:** It inherently handles non-stationary processes (e.g., random walks, $\beta > 1$) better than Fourier methods because the differencing operation acts as a local detrending mechanism.
 
 **Critical Analysis of Overlapping Windows:**
-*   `waterSpec` defaults to overlapping windows to increase statistical power (reducing variance of the estimate). However, overlapping windows introduce *autocorrelation* between the fluctuation estimates at a given scale.
-*   **Statistical Consequence:** While the mean estimate of $S_1(\tau)$ remains unbiased, the standard error is artificially reduced if standard OLS regression is used to fit the slope.
+*   `waterSpec` defaults to overlapping windows to increase statistical power (reducing variance of the estimate), analogous to the Maximum Overlap Discrete Wavelet Transform (MODWT). However, overlapping windows introduce *autocorrelation* between the fluctuation estimates at a given scale.
+*   **Statistical Consequence:** While the mean estimate of $S_1(\tau)$ remains unbiased, the standard error is artificially reduced if standard OLS regression is used to fit the slope, as the degrees of freedom are fewer than the number of overlapping windows. Percival (1995) details the variance properties of the overlapping Haar wavelet variance.
 *   **Mitigation:** `waterSpec` uses block bootstrapping or the Wild bootstrap to estimate confidence intervals on the fit. This is mathematically necessary because standard OLS assumptions are violated.
 
 **Small-Sample Bias Correction:**
@@ -52,6 +53,7 @@ Haar analysis calculates the variance of the difference in means between adjacen
 
 **References:**
 *   Lovejoy, S., & Schertzer, D. (2012). *The Weather and Climate: Emergent Laws and Multifractal Cascades*. Cambridge University Press.
+*   Percival, D. P. (1995). On estimation of the wavelet variance. *Biometrika*, 82(3), 619-631.
 
 ### 2.3 Multifractal Intermittency Correction ($K(2)$)
 
@@ -84,10 +86,11 @@ Using `mannks` or `piecewise-regression`, the package fits broken stick models t
 Calculates the Pearson correlation between the Haar fluctuations of two variables at scale $\tau$.
 
 **Validity:**
-*   **Scale-Dependent Correlation:** This is a powerful and valid method for decoupling short-term hysteresis from long-term trends.
+*   **Scale-Dependent Correlation:** This is a powerful and valid method for decoupling short-term hysteresis from long-term trends. It serves as a time-domain analog to Cross-Wavelet Transform (XWT) and Wavelet Coherence approaches (Grinsted et al., 2004), without requiring continuous data interpolation.
 *   **Assumptions:** It assumes the relationship between the variables at a given scale is linear (Pearson). If the relationship is highly non-linear, Cross-Haar correlation will underestimate the dependency.
 
 **References:**
+*   Grinsted, A., Moore, J. C., & Jevrejeva, S. (2004). Application of the cross wavelet transform and wavelet coherence to geophysical time series. *Nonlinear processes in geophysics*, 11(5/6), 561-566.
 *   Torrence, C., & Compo, G. P. (1998). A practical guide to wavelet analysis. *Bulletin of the American Meteorological society*, 79(1), 61-78.
 
 ### 2.6 Partial Cross-Haar Analysis (Experimental)
@@ -98,8 +101,11 @@ Calculates the partial correlation $\rho_{XY|Z}$ using the linear partial correl
 **Critical Questioning of Validity:**
 *   **The Assumption of Multivariate Normality:** The standard partial correlation formula explicitly assumes that the variables (in this case, the *fluctuations* of X, Y, and Z at scale $\tau$) follow a multivariate Gaussian distribution.
 *   **The Reality of Environmental Data:** Environmental fluctuations, especially at smaller scales, are notoriously non-Gaussian (heavy-tailed, skewed).
-*   **Verdict:** The warning attached to this function in the codebase is entirely justified. While mathematically computable, the *statistical interpretation* of $\rho_{XY|Z}$ as the "true" conditional dependency is weak if the fluctuations are highly non-Gaussian.
+**Verdict:** The warning attached to this function in the codebase is entirely justified. While mathematically computable, the *statistical interpretation* of $\rho_{XY|Z}$ as the "true" conditional dependency is weak if the fluctuations are highly non-Gaussian. Methodologically, this concept draws from Partial Wavelet Coherence (Ng & Chan, 2012), which is generally formulated for continuous frequency domains rather than discrete temporal structures.
 *   **Recommendation:** Use only as a qualitative exploratory tool. Do not base definitive causal conclusions solely on this metric without verifying the distributional assumptions of the fluctuations at each scale.
+
+**References:**
+*   Ng, E. K., & Chan, J. C. (2012). Geophysical applications of partial wavelet coherence and multiple wavelet coherence. *Journal of Atmospheric and Oceanic Technology*, 29(12), 1845-1853.
 
 ### 2.7 Lomb-Scargle Cross-Spectrum (Phase Lag)
 
@@ -119,15 +125,16 @@ Extends LS to two variables to find the phase difference (lead/lag) at specific 
 
 **The Pre-processing Dilemma:**
 `waterSpec` includes tools for linear and LOESS detrending.
-*   *The Trap:* Detrending removes low-frequency power. If you are analyzing a non-stationary process (e.g., groundwater levels), detrending before spectral analysis will artificially flatten the spectrum at large scales, destroying the very information you are trying to measure ($\beta > 1$).
-*   *Rule of Thumb:* Only detrend if you are strictly interested in the stationary fluctuations around a known, deterministic trend (e.g., climate change warming curve), and you are prepared to ignore the largest scales.
+*   *The Trap:* Detrending removes low-frequency power. If you are analyzing a non-stationary process (e.g., groundwater levels), detrending before spectral analysis will artificially flatten the spectrum at large scales, destroying the very information you are trying to measure ($\beta > 1$). This effect is akin to applying a high-pass filter, altering the scaling behavior at low frequencies.
+*   *Rule of Thumb:* Only detrend if you are strictly interested in the stationary fluctuations around a known, deterministic trend (e.g., climate change warming curve), and you are prepared to ignore the largest scales where the trend dominates.
 
 **Surrogate Data Testing:**
 The package uses phase-randomized surrogates.
-*   *Validity:* This perfectly preserves the linear autocorrelation structure (the power spectrum) while destroying non-linearities and phase relationships. It is the gold standard null model for testing the significance of peaks or Cross-Haar correlations against a red-noise background (Theiler et al., 1992).
+*   *Validity:* This perfectly preserves the linear autocorrelation structure (the power spectrum) while destroying non-linearities and phase relationships. It is the gold standard null model for testing the significance of peaks or Cross-Haar correlations against a red-noise background (Theiler et al., 1992). For multivariate applications (e.g., Cross-Haar), preserving the individual auto-spectra while randomizing cross-dependencies is theoretically robust under the Prichard & Theiler (1994) framework for multivariate surrogates.
 *   *Limitation:* Phase randomization of highly irregular data with large gaps (via interpolation/FFT/inverse-interpolation) can introduce artifacts. `waterSpec` correctly issues warnings when generating surrogates for data with large gaps.
 
 **References:**
+*   Prichard, D., & Theiler, J. (1994). Generating surrogate data for time series with several simultaneously measured variables. *Physical review letters*, 73(7), 951.
 *   Theiler, J., Eubank, S., Longtin, A., Galdrikian, B., & Farmer, J. D. (1992). Testing for nonlinearity in time series: the method of surrogate data. *Physica D: Nonlinear Phenomena*, 58(1-4), 77-94.
 
 ---
