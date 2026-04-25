@@ -55,7 +55,7 @@ def test_auto_changepoint_detection(synthetic_data_with_changepoint, tmpdir):
     file_path, cp_index = synthetic_data_with_changepoint
 
     analyzer = Analysis(
-        file_path=file_path,
+        file_path=file_path, base_dir="",
         time_col="time",
         data_col="value",
         input_time_unit="seconds",
@@ -89,7 +89,7 @@ def test_manual_changepoint(synthetic_data_with_changepoint, tmpdir):
     output_dir = str(tmpdir)
 
     analyzer = Analysis(
-        file_path=file_path,
+        file_path=file_path, base_dir="",
         time_col="time",
         data_col="value",
         input_time_unit="seconds",
@@ -118,7 +118,7 @@ def test_no_changepoint_found(synthetic_data_no_changepoint, tmpdir):
     file_path = synthetic_data_no_changepoint
 
     analyzer = Analysis(
-        file_path=file_path,
+        file_path=file_path, base_dir="",
         time_col="time",
         data_col="value",
         input_time_unit="seconds",
@@ -138,7 +138,7 @@ def test_invalid_changepoint_index(synthetic_data_with_changepoint):
 
     with pytest.raises(ValueError, match="is out of the valid data range"):
         Analysis(
-            file_path=file_path,
+            file_path=file_path, base_dir="",
             time_col="time",
             data_col="value",
             input_time_unit="seconds",
@@ -154,7 +154,7 @@ def test_changepoint_edge_cases(synthetic_data_with_changepoint, tmpdir):
 
     # Case 1: Changepoint is too close to the start of the series
     analyzer_start = Analysis(
-        file_path=file_path,
+        file_path=file_path, base_dir="",
         time_col="time",
         data_col="value",
         input_time_unit="seconds",
@@ -166,7 +166,7 @@ def test_changepoint_edge_cases(synthetic_data_with_changepoint, tmpdir):
 
     # Case 2: Changepoint is too close to the end of the series
     analyzer_end = Analysis(
-        file_path=file_path,
+        file_path=file_path, base_dir="",
         time_col="time",
         data_col="value",
         input_time_unit="seconds",
@@ -188,7 +188,7 @@ def test_ruptures_not_installed_raises_error(mocker, synthetic_data_no_changepoi
 
     file_path = synthetic_data_no_changepoint
     analyzer = Analysis(
-        file_path=file_path,
+        file_path=file_path, base_dir="",
         time_col="time",
         data_col="value",
         changepoint_mode='auto',

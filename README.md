@@ -34,9 +34,8 @@
   - **Event-Based Segmentation:** Automatically segment time series into "Storm" vs "Baseflow" regimes using Sliding Haar volatility.
   - **Real-Time Anomaly Detection:** Compute "Sliding Haar" fluctuations to detect sudden volatility changes.
   - **Hysteresis Classification:** Quantify loop area and direction in the C-Q phase space across scales.
-  - **WWZ Coherence:** Estimate time-localized correlation on irregular data.
+  - **Spatial Haar Analysis:** Analyze structure and volatility of variables across space instead of time.
   - **LS Cross-Spectrum:** Determine phase lags (lead/lag) across frequencies.
-  - **CARMA Modeling:** Fit continuous-time autoregressive models to identify process physics (e.g., damping time).
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
@@ -247,20 +246,11 @@ t_centers, fluctuations = calculate_sliding_haar(
 These methods work directly on irregular data without interpolation.
 
 ```python
-from waterSpec import calculate_wwz_coherence, calculate_ls_cross_spectrum, fit_carma_drw
+from waterSpec import calculate_ls_cross_spectrum
 
-# 1. WWZ Coherence (Time-Localized Correlation)
-# 'Is the correlation transient?'
-coh, freqs, time = calculate_wwz_coherence(t1, y1, t2, y2, freqs=my_freqs)
-
-# 2. Lomb-Scargle Cross-Spectrum (Lead/Lag Analysis)
+# Lomb-Scargle Cross-Spectrum (Lead/Lag Analysis)
 # 'Does Variable A lead Variable B?'
 cross_power, phase_lag, _, _ = calculate_ls_cross_spectrum(t1, y1, t2, y2, freqs=my_freqs)
-
-# 3. CARMA Modeling (Process Identification)
-# 'What is the memory timescale?'
-model = fit_carma_drw(time, data)
-print(f"Damping Timescale: {model['tau']:.2f} days")
 ```
 
 ---

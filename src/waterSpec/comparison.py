@@ -82,6 +82,7 @@ class SiteComparison:
             time_format=config.get("time_format"),
             sheet_name=config.get("sheet_name", 0),
             output_time_unit=config.get("time_unit", "seconds"),
+            base_dir=config.get("base_dir"),
         )
 
         processed_data, processed_errors, diagnostics = preprocess_data(

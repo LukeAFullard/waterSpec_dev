@@ -9,7 +9,6 @@ from scipy import stats, interpolate
 from .haar_analysis import calculate_haar_fluctuations, _compute_statistic
 from .surrogates import generate_phase_randomized_surrogates, calculate_significance_p_value
 from .ls_cross_spectrum import calculate_ls_cross_spectrum, calculate_time_lag
-from .wwz_coherence import calculate_wwz_coherence
 
 class BivariateAnalysis:
     """
@@ -579,42 +578,6 @@ class BivariateAnalysis:
             'cross_power': cross_power,
             'phase_lag': phase_lag,
             'time_lag': time_lag
-        }
-
-    def run_wwz_coherence_analysis(
-        self,
-        freqs: np.ndarray,
-        taus: Optional[np.ndarray] = None,
-        decay_constant: float = 0.00125,
-        smoothing_window: float = 2.0
-    ) -> Dict:
-        """
-        Calculates WWZ Coherence directly on irregular data.
-        This is the statistically defensible method for coherence estimation on uneven series.
-
-        Args:
-            freqs (np.ndarray): Frequencies.
-            taus (np.ndarray, optional): Time shift grid.
-            decay_constant (float): Morlet wavelet decay constant.
-            smoothing_window (float): Smoothing window sigma (pixels).
-
-        Returns:
-            Dict: 'coherence', 'freqs', 'taus'.
-        """
-        # No alignment needed.
-
-        coherence, _, taus_out = calculate_wwz_coherence(
-            self.time1, self.data1,
-            self.time2, self.data2,
-            freqs, taus=taus,
-            decay_constant=decay_constant,
-            smoothing_window=smoothing_window
-        )
-
-        return {
-            'freqs': freqs,
-            'taus': taus_out,
-            'coherence': coherence
         }
 
     def calculate_spectral_coherence(
