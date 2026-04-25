@@ -100,7 +100,22 @@ Calculates the Pearson correlation between the Haar fluctuations of two variable
 *   Grinsted, A., Moore, J. C., & Jevrejeva, S. (2004). Application of the cross wavelet transform and wavelet coherence to geophysical time series. *Nonlinear processes in geophysics*, 11(5/6), 561-566.
 *   Torrence, C., & Compo, G. P. (1998). A practical guide to wavelet analysis. *Bulletin of the American Meteorological society*, 79(1), 61-78.
 
-### 2.6 Partial Cross-Haar Analysis (Experimental)
+### 2.6 Hysteresis Classification within Bivariate Analysis
+
+**Mathematical Foundation:**
+Extends bivariate analysis by quantifying the loop area and direction (clockwise vs. counter-clockwise) in the phase space of Haar fluctuations for two variables at a specific scale $\tau$. It utilizes the shoelace formula to compute the signed polygon area formed by the sequential fluctuation pairs $(X_i, Y_i)$ at the chosen scale.
+
+**Validity & Interpretation:**
+*   **Scale-Specific Hysteresis:** Traditional hysteresis analysis (e.g., C-Q loops during storms) is often confounded by long-term baseline shifts. By isolating fluctuations at scale $\tau$, this method provides a mathematically rigorous way to evaluate hysteresis generated strictly by processes operating at that specific timescale (e.g., event-based flushing), decoupling it from seasonal or inter-annual trends.
+*   **Loop Area Significance:** The area of the loop quantifies the magnitude of the hysteresis (the degree to which the relationship depends on the trajectory, or "memory", of the system).
+*   **Directionality:** The sign of the area indicates the direction. A clockwise loop (often implying the source is rapidly depleted or proximal) is distinct from a counter-clockwise loop (often implying a delayed or distal source).
+*   **Limitations:** The metric is sensitive to noise at small scales and requires overlapping windows to adequately resolve the shape of the loop in phase space. If the chosen scale $\tau$ does not match the actual physical timescale of the hysteresis-generating event, the computed area will be near zero or uninterpretable.
+
+**References:**
+*   Lloyd, C. E., Freer, J. E., Johnes, P. J., & Collins, A. L. (2016). Technical Note: Testing an improved index for analysing storm discharge-concentration hysteresis. *Hydrology and Earth System Sciences*, 20(2), 625-632.
+*   Zuecco, G., Penna, D., Borga, M., & van Meerveld, H. J. (2016). A versatile index to characterize hysteresis between hydrological variables at the runoff event timescale. *Hydrological Processes*, 30(9), 1449-1466.
+
+### 2.7 Partial Cross-Haar Analysis (Experimental)
 
 **Mathematical Foundation:**
 Calculates the partial correlation $\rho_{XY|Z}$ using the linear partial correlation formula applied to the Haar fluctuations of X, Y, and Z.
@@ -114,7 +129,7 @@ Calculates the partial correlation $\rho_{XY|Z}$ using the linear partial correl
 **References:**
 *   Ng, E. K., & Chan, J. C. (2012). Geophysical applications of partial wavelet coherence and multiple wavelet coherence. *Journal of Atmospheric and Oceanic Technology*, 29(12), 1845-1853.
 
-### 2.7 Lomb-Scargle Cross-Spectrum (Phase Lag)
+### 2.8 Lomb-Scargle Cross-Spectrum (Phase Lag)
 
 **Mathematical Foundation:**
 Extends LS to two variables to find the phase difference (lead/lag) at specific frequencies.
@@ -127,7 +142,7 @@ Extends LS to two variables to find the phase difference (lead/lag) at specific 
 **References:**
 *   Hocke, K. (1998). Phase estimation with the Lomb-Scargle periodogram method. *Annales Geophysicae*, 16(3), 356-358.
 
-### 2.8 Changepoint Detection (PELT Algorithm)
+### 2.9 Changepoint Detection (PELT Algorithm)
 
 **Mathematical Foundation:**
 The package utilizes the Pruned Exact Linear Time (PELT) algorithm via the `ruptures` library to detect shifts in the mean or variance of a time series.
@@ -142,7 +157,7 @@ The package utilizes the Pruned Exact Linear Time (PELT) algorithm via the `rupt
 **References:**
 *   Killick, R., Fearnhead, P., & Eckley, I. A. (2012). Optimal detection of changepoints with a linear computational cost. *Journal of the American Statistical Association*, 107(500), 1590-1598.
 
-### 2.9 Spatial and Sliding Haar Analysis
+### 2.10 Spatial and Sliding Haar Analysis
 
 **Spatial Haar (Distance instead of Time):**
 *   **Validity:** The mathematics of the Haar structure function are agnostic to the dimension (time vs. space). Analyzing spatial longitudinal profiles (e.g., river chemistry downstream) is perfectly valid, provided the spatial series follows the same assumptions of self-affinity or stationary increments as time series.
@@ -151,6 +166,19 @@ The package utilizes the Pruned Exact Linear Time (PELT) algorithm via the `rupt
 **Sliding Haar (Real-time Volatility):**
 *   **Validity:** Calculating continuous fluctuations via a sliding window is effectively applying a band-pass filter (specifically, a Haar wavelet filter) to the data. This is robust for detecting localized anomalies or periods of heightened variance at a specific scale $\tau$.
 *   **Edge Effects:** Like any moving window operation, estimates at the beginning and end of the dataset suffer from truncation.
+
+### 2.11 Event-Based Segmentation via Sliding Haar Volatility
+
+**Mathematical Foundation:**
+Combines Sliding Haar volatility computation with thresholding based on the Median Absolute Deviation (MAD) to dynamically segment a time series into distinct operational regimes (e.g., "event" vs. "background") at a designated scale.
+
+**Validity & Interpretation:**
+*   **Dynamic vs. Static Thresholds:** Unlike traditional hydrograph separation that relies on absolute magnitude thresholds or arbitrary baseflow separation filters, this method triggers based on *volatility* (variance over scale $\tau$). This provides a mathematically objective definition of an "event" as a period where the system's rate of change significantly deviates from its background scaling behavior.
+*   **Robust Baseline Estimation:** Using the median absolute fluctuation as the baseline estimator is statistically robust against outliers and heavily skewed extreme events, ensuring that massive storms do not artificially inflate the threshold and mask smaller events.
+*   **Limitations:** The binary classification (event vs. non-event) depends heavily on the chosen scale $\tau$ and the `threshold_factor`. It assumes that the "background" regime is characterized by a relatively constant, low-volatility state, which may be violated in strongly non-stationary or highly intermittent systems where the "background" itself exhibits complex multi-scale variation.
+
+**References:**
+*   Meylan, P., Favre, A.-C., & Musy, A. (2012). *Predictive Hydrology: A Frequency Analysis Approach*. CRC Press.
 
 ---
 
