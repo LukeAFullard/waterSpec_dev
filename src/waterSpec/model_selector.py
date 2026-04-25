@@ -20,7 +20,6 @@ class ModelSelector:
         ci_method,
         bootstrap_type,
         n_bootstraps,
-        p_threshold,
         max_breakpoints,
         seed,
     ):
@@ -87,7 +86,6 @@ class ModelSelector:
                     frequency,
                     power,
                     n_breakpoints=n_breakpoints,
-                    p_threshold=p_threshold,
                     ci_method=ci_method,
                     bootstrap_type=bootstrap_type,
                     n_bootstraps=n_bootstraps,

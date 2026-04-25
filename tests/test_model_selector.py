@@ -34,7 +34,6 @@ def test_select_best_model_standard_wins(dummy_data, model_selector, mocker):
         ci_method="parametric",
         bootstrap_type="parametric",
         n_bootstraps=10,
-        p_threshold=0.05,
         max_breakpoints=1,
         seed=42,
     )
@@ -69,7 +68,6 @@ def test_select_best_model_segmented_wins(dummy_data, model_selector, mocker):
         ci_method="parametric",
         bootstrap_type="parametric",
         n_bootstraps=10,
-        p_threshold=0.05,
         max_breakpoints=1,
         seed=42,
     )
@@ -100,7 +98,6 @@ def test_select_best_model_standard_fails_gracefully(dummy_data, model_selector,
         ci_method="parametric",
         bootstrap_type="parametric",
         n_bootstraps=10,
-        p_threshold=0.05,
         max_breakpoints=1,
         seed=None,
     )
@@ -129,7 +126,6 @@ def test_select_best_model_all_fail(dummy_data, model_selector, mocker):
             ci_method="parametric",
             bootstrap_type="parametric",
             n_bootstraps=10,
-            p_threshold=0.05,
             max_breakpoints=1,
             seed=42,
         )
@@ -158,7 +154,6 @@ def test_select_best_model_standard_raises_exception(dummy_data, model_selector,
         ci_method="parametric",
         bootstrap_type="parametric",
         n_bootstraps=10,
-        p_threshold=0.05,
         max_breakpoints=1,
         seed=123,
     )
@@ -187,7 +182,6 @@ def test_select_best_model_segmented_raises_exception(dummy_data, model_selector
         ci_method="parametric",
         bootstrap_type="parametric",
         n_bootstraps=10,
-        p_threshold=0.05,
         max_breakpoints=1,
         seed=123,
     )
@@ -225,7 +219,6 @@ def test_select_best_model_multiple_breakpoints(dummy_data, model_selector, mock
         ci_method="parametric",
         bootstrap_type="parametric",
         n_bootstraps=10,
-        p_threshold=0.05,
         max_breakpoints=2,
         seed=123,
     )

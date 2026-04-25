@@ -14,7 +14,6 @@ def test_validate_valid_parameters():
         normalization="standard",
         peak_detection_method="fap",
         peak_fdr_level=0.05,
-        p_threshold=0.05,
         max_breakpoints=1,
         nyquist_factor=1.0,
         max_freq=None,
@@ -71,10 +70,6 @@ def test_validate_peak_detection_method():
 def test_validate_peak_fdr_level():
     with pytest.raises(ValueError, match="`peak_fdr_level` must be a float between 0 and 1"):
         validate_run_parameters(peak_fdr_level=1.5)
-
-def test_validate_p_threshold():
-    with pytest.raises(ValueError, match="`p_threshold` must be a float between 0 and 1"):
-        validate_run_parameters(p_threshold=1.5)
 
 def test_validate_max_breakpoints():
     with pytest.raises(ValueError, match="`max_breakpoints` must be an integer"):

@@ -326,7 +326,6 @@ class Analysis:
         ci_method,
         bootstrap_type,
         n_bootstraps,
-        p_threshold,
         max_breakpoints,
         seed,
     ):
@@ -342,7 +341,6 @@ class Analysis:
             ci_method,
             bootstrap_type,
             n_bootstraps,
-            p_threshold,
             max_breakpoints,
             seed,
         )
@@ -665,7 +663,6 @@ class Analysis:
             ci_method=analysis_kwargs.get("ci_method", "bootstrap"),
             bootstrap_type=analysis_kwargs.get("bootstrap_type", "block"),
             n_bootstraps=analysis_kwargs.get("n_bootstraps"),
-            p_threshold=analysis_kwargs.get("p_threshold", 0.05),
             max_breakpoints=analysis_kwargs.get("max_breakpoints", 1),
             seed=analysis_kwargs.get("seed"),
         )
@@ -809,7 +806,6 @@ class Analysis:
             normalization=analysis_kwargs.get("normalization", "standard"),
             peak_detection_method=analysis_kwargs.get("peak_detection_method", "fap"),
             peak_fdr_level=analysis_kwargs.get("peak_fdr_level", 0.05),
-            p_threshold=analysis_kwargs.get("p_threshold", 0.05),
             max_breakpoints=analysis_kwargs.get("max_breakpoints", 1),
             nyquist_factor=analysis_kwargs.get("nyquist_factor", 1.0),
             max_freq=analysis_kwargs.get("max_freq"),
@@ -848,7 +844,6 @@ class Analysis:
                 kwargs.get("ci_method", "bootstrap"),
                 kwargs.get("bootstrap_type", "block"),
                 kwargs.get("n_bootstraps", 2000),
-                kwargs.get("p_threshold", 0.05),
                 kwargs.get("max_breakpoints", 1),
                 kwargs.get("seed"),
             )
@@ -912,7 +907,6 @@ class Analysis:
         fap_method="baluev",
         peak_fdr_level=0.05,
         normalization="standard",
-        p_threshold=0.05,
         max_breakpoints=1,
         seed=None,
         changepoint_plot_style="separate",
@@ -979,10 +973,7 @@ class Analysis:
                 Can be 'baluev' (default) or 'bootstrap'. Only used when
                 `peak_detection_method` is 'fap'.
             normalization (str, optional): Normalization for the periodogram.
-                Defaults to 'standard'.
-            p_threshold (float, optional): The p-value threshold for the
-                Davies test for a significant breakpoint in segmented
-                regression (only for 1-breakpoint models). Defaults to 0.05.
+                Defaults to 'standard'. Defaults to 0.05.
             max_breakpoints (int, optional): The maximum number of breakpoints
                 to consider in segmented regression (0, 1, or 2). Defaults to 1.
             seed (int, optional): A seed for the random number generator to
@@ -1014,7 +1005,6 @@ class Analysis:
             "fap_method": fap_method,
             "peak_fdr_level": peak_fdr_level,
             "normalization": normalization,
-            "p_threshold": p_threshold,
             "max_breakpoints": max_breakpoints,
             "seed": seed,
             "changepoint_plot_style": changepoint_plot_style,

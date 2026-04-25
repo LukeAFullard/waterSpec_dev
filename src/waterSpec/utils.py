@@ -70,7 +70,6 @@ def validate_run_parameters(
     normalization=_NOT_PROVIDED,
     peak_detection_method=_NOT_PROVIDED,
     peak_fdr_level=_NOT_PROVIDED,
-    p_threshold=_NOT_PROVIDED,
     max_breakpoints=_NOT_PROVIDED,
     nyquist_factor=_NOT_PROVIDED,
     max_freq=_NOT_PROVIDED,
@@ -127,10 +126,6 @@ def validate_run_parameters(
     if peak_fdr_level is not _NOT_PROVIDED:
         if not (isinstance(peak_fdr_level, float) and 0 < peak_fdr_level < 1):
             raise ValueError("`peak_fdr_level` must be a float between 0 and 1.")
-
-    if p_threshold is not _NOT_PROVIDED:
-        if not (isinstance(p_threshold, float) and 0 < p_threshold < 1):
-            raise ValueError("`p_threshold` must be a float between 0 and 1.")
 
     if max_breakpoints is not _NOT_PROVIDED:
         if max_breakpoints not in [0, 1, 2]:
