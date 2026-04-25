@@ -25,6 +25,7 @@ The LS periodogram is effectively a least-squares fit of sinusoids to data. It w
 *   **No Interpolation:** By avoiding interpolation, it prevents the artificial introduction of high-frequency noise or smoothing artifacts.
 
 **Weaknesses & Failure Modes (When NOT to use):**
+*   **Bootstrap Performance:** `waterSpec` allows using `fap_method="bootstrap"` for empirical FAP estimation. However, this is computationally expensive. The implementation emits a performance `UserWarning` when this method is selected, and a secondary warning if it detects more than 5 peaks, as the bootstrap algorithm's slow execution time scales poorly with multiple peak extraction.
 *   **Spectral Slope Bias:** The most critical weakness of LS is its vulnerability to *spectral leakage* when estimating the continuum spectral slope ($\beta$) of red noise processes in highly irregular or gappy data. Energy from low frequencies "leaks" into high frequencies due to the window function (the sampling pattern), flattening the apparent spectrum.
 *   **Aliasing and the Spectral Window:** Uneven sampling does not completely eliminate aliasing; it merely redistributes aliased power into a complex, continuous background. The "spectral window function" (the Fourier transform of the sampling times) dictates how true peaks are convolved and where "ghost" peaks appear. Highly periodic gaps (e.g., missing weekend data, diurnal gaps) create strong aliases that mimic true physical signals (VanderPlas, 2018).
 *   **Conclusion:** If the Coefficient of Variation (CV) of the sampling interval is high (> 0.5), or if there are massive gaps (e.g., > 10% of total duration), **do not use LS to estimate $\beta$**. Use Haar Wavelets instead.
@@ -132,7 +133,7 @@ Calculates the partial correlation $\rho_{XY|Z}$ using the linear partial correl
 Extends LS to two variables to find the phase difference (lead/lag) at specific frequencies.
 
 **Validity & Limitations:**
-*   **Performance Optimization (Cache Alignment):** Under the hood, `calculate_ls_cross_spectrum` avoids iterating frequency-by-frequency in pure Python, which destroys cache locality. Instead, it dynamically batches frequencies (targeting ~2MB L3 Cache limits) to perform vectorized block `np.linalg.solve` routines over multidimensional frequency chunks. This preserves mathematical exactness while rendering Lomb-Scargle Cross-Spectrum tractable for highly sampled, uneven temporal sequences.
+*   **Performance Optimization (Cache Alignment & Math Identities):** Under the hood, `calculate_ls_cross_spectrum` avoids iterating frequency-by-frequency in pure Python, which destroys cache locality. Instead, it dynamically batches frequencies (targeting ~2MB L3 Cache limits) to perform vectorized block `np.linalg.solve` routines over multidimensional frequency chunks. Furthermore, the batch processing loop optimizes performance by precomputing the `omega` array (`2 * np.pi * freqs[:, np.newaxis]`) outside the loop and slicing it per batch, avoiding redundant calculations for each frequency chunk. Inside the batch, trigonometric sum evaluations are optimized using mathematical identities (e.g., `Swss = sum_w - Swcc`) to reduce redundant processing overhead. This preserves mathematical exactness while rendering Lomb-Scargle Cross-Spectrum tractable for highly sampled, uneven temporal sequences.
 *   **Noise Sensitivity and Coherence Thresholding:** Phase estimation is highly sensitive to noise. If the Cross-Spectral Power (Coherence) is low at a given frequency, the estimated phase lag is meaningless (essentially a random variable uniform on $[-\pi, \pi]$). A rigorous statistical threshold for coherence must be established (e.g., via Monte Carlo surrogates) before interpreting phase lags.
 *   **Interpretation of Phase Wraparound:** Phase is circular (defined modulo $2\pi$). Interpreting a phase difference as a definitive time lag (e.g., $\Delta t = \Delta\phi / (2\pi f)$) is ambiguous without prior physical constraints on causality, as a lag of $\Delta\phi$ is indistinguishable from a lead of $2\pi - \Delta\phi$.
 *   **Conclusion:** Only interpret phase lags at frequencies where both variables exhibit significant, localized power above a red-noise background, and the cross-coherence exceeds a strict surrogate-derived threshold.
@@ -167,7 +168,7 @@ The package utilizes the Pruned Exact Linear Time (PELT) algorithm via the `rupt
 ### 2.11 Event-Based Segmentation via Sliding Haar Volatility
 
 **Mathematical Foundation:**
-Combines Sliding Haar volatility computation with thresholding based on the Median Absolute Deviation (MAD) to dynamically segment a time series into distinct operational regimes (e.g., "event" vs. "background") at a designated scale.
+Implemented via `SegmentedRegimeAnalysis.segment_by_fluctuation`, this method combines Sliding Haar volatility computation with thresholding based on the Median Absolute Deviation (MAD) to dynamically segment a time series into distinct operational regimes (e.g., "event" vs. "background") at a designated scale.
 
 **Validity & Interpretation:**
 *   **Dynamic vs. Static Thresholds:** Unlike traditional hydrograph separation that relies on absolute magnitude thresholds or arbitrary baseflow separation filters, this method triggers based on *volatility* (variance over scale $\tau$). This provides a mathematically objective definition of an "event" as a period where the system's rate of change significantly deviates from its background scaling behavior.
@@ -199,6 +200,9 @@ The package provides two primary surrogate null models to test significance, but
 
 3.  **Block Bootstrapping:**
     *   *Validity:* When non-linearities or heteroskedasticity are present alongside irregular sampling, standard phase randomization fails. Block bootstrapping resamples contiguous chunks of data, preserving short-range autocorrelation and non-linear properties while destroying long-range dependence. `waterSpec` employs this in certain fitting routines (e.g., standard OLS error bars for Haar slopes) to provide robust, distribution-free confidence intervals.
+
+4.  **Empirical P-Value Calculation:**
+    *   *Validity:* When evaluating the significance of a metric against a distribution of surrogate metrics (e.g. `calculate_significance_p_value`), `waterSpec` calculates empirical p-values using the conservative $(k+1)/(n+1)$ formula (where $k$ is the number of surrogate values $\geq$ the observed value, and $n$ is the total number of surrogates). This formulation prevents zero-p-value bounds and correctly accounts for the observation itself as part of the null distribution, providing a rigorously sound test even for small surrogate ensembles.
 
 **References:**
 *   Prichard, D., & Theiler, J. (1994). Generating surrogate data for time series with several simultaneously measured variables. *Physical review letters*, 73(7), 951.
