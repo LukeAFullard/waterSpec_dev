@@ -477,9 +477,15 @@ def fit_standard_model(
                         resampled_log_freq = log_freq[indices]
                         resampled_log_power = log_power[indices]
                     elif bootstrap_type == "wild":
-                        # Wild bootstrap using Rademacher distribution, which does
-                        # not assume constant variance of residuals.
-                        u = rng.choice([-1, 1], size=n_points, replace=True)
+                        # Wild bootstrap using Mammen (1993) two-point distribution.
+                        # This preserves the skewness (E[W^3]=1) of log-transformed
+                        # environmental residuals better than Rademacher.
+                        w1 = -(np.sqrt(5) - 1) / 2
+                        p1 = (np.sqrt(5) + 1) / (2 * np.sqrt(5))
+                        w2 = (np.sqrt(5) + 1) / 2
+                        # p2 = (np.sqrt(5) - 1) / (2 * np.sqrt(5)) = 1 - p1
+
+                        u = rng.choice([w1, w2], size=n_points, replace=True, p=[p1, 1 - p1])
                         centered_residuals = residuals - np.mean(residuals)
                         resampled_log_power = log_power_fit + centered_residuals * u
                         resampled_log_freq = log_freq  # Keep original frequencies
@@ -648,7 +654,6 @@ def fit_segmented_spectrum(
     frequency: np.ndarray,
     power: np.ndarray,
     n_breakpoints: int = 1,
-    p_threshold: float = 0.05,
     ci_method: str = "bootstrap",
     bootstrap_type: str = "block",
     bootstrap_block_size: Optional[int] = None,
@@ -693,8 +698,6 @@ def fit_segmented_spectrum(
 
     if n_breakpoints <= 0:
         raise ValueError("'n_breakpoints' must be a positive integer.")
-    if not 0 < p_threshold < 1:
-        raise ValueError("'p_threshold' must be between 0 and 1.")
     if n_bootstraps < 0:
         raise ValueError("'n_bootstraps' must be non-negative.")
     if not 0 < ci < 100:

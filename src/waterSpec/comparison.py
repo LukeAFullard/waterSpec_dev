@@ -130,7 +130,6 @@ class SiteComparison:
         fap_method="baluev",
         peak_fdr_level=0.05,
         normalization="standard",
-        p_threshold=0.05,
         max_breakpoints=1,
         seed=None,
         comparison_plot_style="separate",
@@ -150,7 +149,6 @@ class SiteComparison:
             normalization=normalization,
             peak_detection_method=peak_detection_method,
             peak_fdr_level=peak_fdr_level,
-            p_threshold=p_threshold,
             max_breakpoints=max_breakpoints,
             nyquist_factor=nyquist_factor,
             max_freq=max_freq,
@@ -164,7 +162,7 @@ class SiteComparison:
             "max_freq": max_freq, "peak_detection_method": peak_detection_method,
             "fap_threshold": fap_threshold, "fap_method": fap_method,
             "peak_fdr_level": peak_fdr_level, "normalization": normalization,
-            "p_threshold": p_threshold, "max_breakpoints": max_breakpoints,
+            "max_breakpoints": max_breakpoints,
             "seed": seed,
         }
 
@@ -236,7 +234,6 @@ class SiteComparison:
             ci_method=analysis_kwargs["ci_method"],
             bootstrap_type=analysis_kwargs["bootstrap_type"],
             n_bootstraps=analysis_kwargs["n_bootstraps"],
-            p_threshold=analysis_kwargs["p_threshold"],
             max_breakpoints=analysis_kwargs["max_breakpoints"],
             seed=analysis_kwargs["seed"],
         )
@@ -340,7 +337,7 @@ class SiteComparison:
 
     def _perform_model_selection(
         self, frequency, power, fit_method, ci_method, bootstrap_type,
-        n_bootstraps, p_threshold, max_breakpoints, seed
+        n_bootstraps, max_breakpoints, seed
     ):
         """Performs fits and selects the best model using BIC."""
         selector = ModelSelector(logger=self.logger)
@@ -351,7 +348,6 @@ class SiteComparison:
             ci_method,
             bootstrap_type,
             n_bootstraps,
-            p_threshold,
             max_breakpoints,
             seed,
         )

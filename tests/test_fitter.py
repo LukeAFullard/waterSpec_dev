@@ -381,10 +381,7 @@ def test_fit_segmented_spectrum_invalid_numeric_args(multifractal_spectrum):
     with pytest.raises(ValueError, match="'n_breakpoints' must be a positive integer"):
         fit_segmented_spectrum(frequency, power, n_breakpoints=0)
 
-    # p_threshold is checked but currently ignored by MannKS wrapper or passed?
-    # Original code checks it before calling fit.
-    with pytest.raises(ValueError, match="'p_threshold' must be between 0 and 1"):
-        fit_segmented_spectrum(frequency, power, p_threshold=1.1)
+
 
     with pytest.raises(ValueError, match="'n_bootstraps' must be non-negative"):
         fit_segmented_spectrum(frequency, power, n_bootstraps=-1)

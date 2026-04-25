@@ -472,7 +472,7 @@ class BivariateAnalysis:
             tau (float): Time scale.
 
         Returns:
-            Dict: {'area': float, 'direction': str}
+            Dict: {'area': float, 'normalized_area': float, 'direction': str}
         """
         if self.aligned_data is None:
             raise ValueError("Data must be aligned first.")
@@ -529,7 +529,7 @@ class BivariateAnalysis:
                     fluc2.append(d2)
 
         if len(fluc1) < 3:
-            return {'area': np.nan, 'direction': 'insufficient_data'}
+            return {'area': np.nan, 'normalized_area': np.nan, 'direction': 'insufficient_data'}
 
         # Shoelace formula for signed area
         # A = 0.5 * sum(x_i * y_{i+1} - x_{i+1} * y_i)
@@ -540,10 +540,18 @@ class BivariateAnalysis:
 
         area = 0.5 * np.sum(x[:-1] * y[1:] - x[1:] * y[:-1])
 
+        # Zuecco et al. (2016) normalized hysteresis index
+        std_x = np.std(x)
+        std_y = np.std(y)
+        if std_x > 0 and std_y > 0:
+            normalized_area = area / (std_x * std_y)
+        else:
+            normalized_area = np.nan
+
         direction = "Counter-Clockwise" if area > 0 else "Clockwise"
         if np.isclose(area, 0): direction = "None"
 
-        return {'area': area, 'direction': direction}
+        return {'area': area, 'normalized_area': normalized_area, 'direction': direction}
 
     def run_ls_cross_analysis(
         self,

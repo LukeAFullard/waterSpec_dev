@@ -441,8 +441,8 @@ def test_analysis_max_breakpoints_selects_best_model(
 
     # Mock the segmented fits (1 and 2 breakpoints) to return different BICs
     def segmented_side_effect(
-        frequency, power, n_breakpoints, p_threshold, **kwargs
-    ):
+            frequency, power, n_breakpoints, **kwargs
+        ):
         """
         A side effect function for the mock that mimics the behavior of
         `fit_segmented_spectrum`, accepting the new bootstrap arguments.
@@ -508,7 +508,6 @@ def test_analysis_max_breakpoints_selects_best_model(
         ANY,
         ANY,
         n_breakpoints=1,
-        p_threshold=0.05,
         ci_method="bootstrap",
         bootstrap_type="block",
         n_bootstraps=10,
@@ -552,7 +551,7 @@ def test_analysis_parametric_ci_is_propagated(tmp_path):
         ),
         ("peak_detection_method", "invalid", "must be 'residual', 'fap', or None."),
         ("peak_fdr_level", 1.1, "`peak_fdr_level` must be a float between 0 and 1."),
-        ("p_threshold", -0.1, "`p_threshold` must be a float between 0 and 1."),
+
         ("max_breakpoints", 3, "`max_breakpoints` must be an integer (0, 1, or 2)."),
     ],
 )
