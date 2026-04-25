@@ -46,10 +46,13 @@ Haar analysis calculates the variance of the difference in means between adjacen
 **Critical Analysis of Overlapping Windows:**
 *   `waterSpec` defaults to overlapping windows to increase statistical power (reducing variance of the estimate), analogous to the Maximum Overlap Discrete Wavelet Transform (MODWT). However, overlapping windows introduce *autocorrelation* between the fluctuation estimates at a given scale.
 *   **Statistical Consequence:** While the mean estimate of $S_1(\tau)$ remains unbiased, the standard error is artificially reduced if standard OLS regression is used to fit the slope, as the degrees of freedom are fewer than the number of overlapping windows. Percival (1995) details the variance properties of the overlapping Haar wavelet variance.
-*   **Mitigation:** `waterSpec` uses block bootstrapping or the Wild bootstrap to estimate confidence intervals on the fit. This is mathematically necessary because standard OLS assumptions are violated.
+*   **Mitigation:** `waterSpec` uses block bootstrapping or parametric Monte Carlo surrogates to estimate confidence intervals on the fit. This is mathematically necessary because standard OLS assumptions are violated.
 
 **Small-Sample Bias Correction:**
 *   Standard Haar variance underestimates true variance when the number of data points per window is small. `waterSpec` implements `aggregation="std_corrected"`. This is crucial for high-frequency (small $\tau$) validity.
+
+**Custom Statistics (Percentiles & Medians):**
+*   `waterSpec` allows evaluating fluctuations using custom statistics like percentiles (e.g., 95th) instead of means. While useful for examining the scaling of extremes, standard scaling relations ($\beta = 2m + 1$) are explicitly derived for variances (or mean-squared fluctuations). The theoretical translation of percentile-based slopes to traditional spectral $\beta$ is not firmly established in linear spectral theory and should be treated as an empirical scaling index.
 
 **References:**
 *   Lovejoy, S., & Schertzer, D. (2012). *The Weather and Climate: Emergent Laws and Multifractal Cascades*. Cambridge University Press.
@@ -119,6 +122,30 @@ Extends LS to two variables to find the phase difference (lead/lag) at specific 
 **References:**
 *   Hocke, K. (1998). Phase estimation with the Lomb-Scargle periodogram method. *Annales Geophysicae*, 16(3), 356-358.
 
+### 2.8 Changepoint Detection (PELT Algorithm)
+
+**Mathematical Foundation:**
+The package utilizes the Pruned Exact Linear Time (PELT) algorithm via the `ruptures` library to detect shifts in the mean or variance of a time series.
+
+**Validity & Limitations:**
+*   **Algorithmic Efficiency:** PELT is mathematically exact for finding the global minimum of the penalized cost function and operates efficiently even on large datasets (Killick et al., 2012).
+*   **The Autocorrelation Problem:** PELT and similar changepoint algorithms assume that the residuals (data minus the fitted piecewise model) are independent, identically distributed (i.i.d.) random variables. Environmental time series are almost universally autocorrelated (red noise).
+*   **False Positives:** Applying standard changepoint detection to highly autocorrelated data will drastically inflate the false positive rate, identifying "regime shifts" that are merely normal low-frequency stochastic excursions of a red noise process.
+*   **Recommendation:** Ensure data is appropriately pre-whitened or explicitly model the autocorrelation structure (e.g., using AR cost functions) before interpreting changepoints in continuous variables.
+
+**References:**
+*   Killick, R., Fearnhead, P., & Eckley, I. A. (2012). Optimal detection of changepoints with a linear computational cost. *Journal of the American Statistical Association*, 107(500), 1590-1598.
+
+### 2.9 Spatial and Sliding Haar Analysis
+
+**Spatial Haar (Distance instead of Time):**
+*   **Validity:** The mathematics of the Haar structure function are agnostic to the dimension (time vs. space). Analyzing spatial longitudinal profiles (e.g., river chemistry downstream) is perfectly valid, provided the spatial series follows the same assumptions of self-affinity or stationary increments as time series.
+*   **Warning:** Rivers are networks, not 1D lines. Applying 1D Spatial Haar across confluences where major tributary inputs occur violates the assumption of a continuous generating process, introducing massive artifactual steps. It should be applied to single, uninterrupted reaches.
+
+**Sliding Haar (Real-time Volatility):**
+*   **Validity:** Calculating continuous fluctuations via a sliding window is effectively applying a band-pass filter (specifically, a Haar wavelet filter) to the data. This is robust for detecting localized anomalies or periods of heightened variance at a specific scale $\tau$.
+*   **Edge Effects:** Like any moving window operation, estimates at the beginning and end of the dataset suffer from truncation.
+
 ---
 
 ## 3. Discussion: Methodological Synergies and Limitations
@@ -128,14 +155,21 @@ Extends LS to two variables to find the phase difference (lead/lag) at specific 
 *   *The Trap:* Detrending removes low-frequency power. If you are analyzing a non-stationary process (e.g., groundwater levels), detrending before spectral analysis will artificially flatten the spectrum at large scales, destroying the very information you are trying to measure ($\beta > 1$). This effect is akin to applying a high-pass filter, altering the scaling behavior at low frequencies.
 *   *Rule of Thumb:* Only detrend if you are strictly interested in the stationary fluctuations around a known, deterministic trend (e.g., climate change warming curve), and you are prepared to ignore the largest scales where the trend dominates.
 
-**Surrogate Data Testing:**
-The package uses phase-randomized surrogates.
-*   *Validity:* This perfectly preserves the linear autocorrelation structure (the power spectrum) while destroying non-linearities and phase relationships. It is the gold standard null model for testing the significance of peaks or Cross-Haar correlations against a red-noise background (Theiler et al., 1992). For multivariate applications (e.g., Cross-Haar), preserving the individual auto-spectra while randomizing cross-dependencies is theoretically robust under the Prichard & Theiler (1994) framework for multivariate surrogates.
-*   *Limitation:* Phase randomization of highly irregular data with large gaps (via interpolation/FFT/inverse-interpolation) can introduce artifacts. `waterSpec` correctly issues warnings when generating surrogates for data with large gaps.
+**Surrogate Data Testing (Phase Randomization vs. Parametric Power Law):**
+The package provides two primary surrogate null models to test significance, but they have strictly non-overlapping valid use cases based on sampling regularity.
+
+1.  **Phase Randomization (FFT-based):**
+    *   *Validity:* This perfectly preserves the linear autocorrelation structure (the power spectrum) while destroying non-linearities and phase relationships. It is the gold standard null model for testing the significance of peaks or Cross-Haar correlations against a red-noise background (Theiler et al., 1992).
+    *   *Fatal Flaw for Irregular Data:* The FFT algorithm intrinsically assumes regular, evenly spaced sampling. `waterSpec` correctly warns that applying `generate_phase_randomized_surrogates` directly to highly irregular data yields fundamentally invalid distributions.
+
+2.  **Parametric Power Law Surrogates (Timmer & Koenig 1995):**
+    *   *Validity:* For irregular data, the robust approach is to simulate a continuous high-resolution process with a target theoretical spectrum ($\beta$), and then *resample* it to the exact irregular timestamps of the observations (Timmer & Koenig, 1995). `waterSpec` implements this via `generate_power_law_surrogates`. This correctly propagates the spectral leakage and aliasing caused by the irregular sampling window into the null distribution.
+    *   *Limitation:* This is a parametric test. It tests against a *theoretical* $\beta$ model, not the exact empirical spectrum of the data like phase randomization does.
 
 **References:**
 *   Prichard, D., & Theiler, J. (1994). Generating surrogate data for time series with several simultaneously measured variables. *Physical review letters*, 73(7), 951.
 *   Theiler, J., Eubank, S., Longtin, A., Galdrikian, B., & Farmer, J. D. (1992). Testing for nonlinearity in time series: the method of surrogate data. *Physica D: Nonlinear Phenomena*, 58(1-4), 77-94.
+*   Timmer, J., & Koenig, M. (1995). On generating power law noise. *Astronomy and Astrophysics*, 300, 707.
 
 ---
 
@@ -147,5 +181,6 @@ The `waterSpec` package implements statistically rigorous methods, but provides 
 2.  **Haar Analysis** is the superior tool for scaling exponents ($\beta$) in irregular data.
 3.  **BIC model selection** protects against overfitting breakpoints.
 4.  **Partial Cross-Haar** must be treated with extreme skepticism due to its reliance on Gaussian assumptions applied to potentially non-Gaussian fluctuations.
+5.  **Surrogate Generation** must be carefully matched to the sampling regime: Phase Randomization for even data, Timmer & Koenig simulation for uneven data.
 
 Researchers must justify their method choices (LS vs Haar) based on the sampling irregularity and the specific scientific question (peaks vs slopes), and respect the boundaries established by the implemented warnings.
