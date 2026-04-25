@@ -26,8 +26,8 @@ The LS periodogram is effectively a least-squares fit of sinusoids to data. It w
 
 **Weaknesses & Failure Modes (When NOT to use):**
 *   **Spectral Slope Bias:** The most critical weakness of LS is its vulnerability to *spectral leakage* when estimating the continuum spectral slope ($\beta$) of red noise processes in highly irregular or gappy data. Energy from low frequencies "leaks" into high frequencies due to the window function (the sampling pattern), flattening the apparent spectrum.
+*   **Aliasing and the Spectral Window:** Uneven sampling does not completely eliminate aliasing; it merely redistributes aliased power into a complex, continuous background. The "spectral window function" (the Fourier transform of the sampling times) dictates how true peaks are convolved and where "ghost" peaks appear. Highly periodic gaps (e.g., missing weekend data, diurnal gaps) create strong aliases that mimic true physical signals (VanderPlas, 2018).
 *   **Conclusion:** If the Coefficient of Variation (CV) of the sampling interval is high (> 0.5), or if there are massive gaps (e.g., > 10% of total duration), **do not use LS to estimate $\beta$**. Use Haar Wavelets instead.
-
 **References:**
 *   Baluev, R. V. (2008). Assessing the statistical significance of periodogram peaks. *Monthly Notices of the Royal Astronomical Society*, 385(3), 1279-1285.
 *   Lomb, N. R. (1976). Least-squares frequency analysis of unequally spaced data. *Astrophysics and Space Science*, 39, 447-462.
@@ -53,6 +53,9 @@ Haar analysis calculates the variance of the difference in means between adjacen
 
 **Custom Statistics (Percentiles & Medians):**
 *   `waterSpec` allows evaluating fluctuations using custom statistics like percentiles (e.g., 95th) instead of means. While useful for examining the scaling of extremes, standard scaling relations ($\beta = 2m + 1$) are explicitly derived for variances (or mean-squared fluctuations). The theoretical translation of percentile-based slopes to traditional spectral $\beta$ is not firmly established in linear spectral theory and should be treated as an empirical scaling index.
+
+**Edge Effects (Cone of Influence):**
+*   Similar to the Continuous Wavelet Transform (CWT), Haar analysis suffers from edge effects near the beginning and end of the time series where windows are truncated or data is sparse. This creates a "Cone of Influence" (COI). Interpretations of long-scale fluctuations near the series boundaries must be treated with caution, as they are calculated from artificially shortened effective window lengths.
 
 **References:**
 *   Lovejoy, S., & Schertzer, D. (2012). *The Weather and Climate: Emergent Laws and Multifractal Cascades*. Cambridge University Press.
@@ -88,8 +91,9 @@ Using `mannks` or `piecewise-regression`, the package fits broken stick models t
 **Mathematical Foundation:**
 Calculates the Pearson correlation between the Haar fluctuations of two variables at scale $\tau$.
 
-**Validity:**
+**Validity & Interpretation:**
 *   **Scale-Dependent Correlation:** This is a powerful and valid method for decoupling short-term hysteresis from long-term trends. It serves as a time-domain analog to Cross-Wavelet Transform (XWT) and Wavelet Coherence approaches (Grinsted et al., 2004), without requiring continuous data interpolation.
+*   **Lead/Lag and Phase Dynamics:** Unlike complex wavelets, Cross-Haar only computes real Pearson correlations (effectively $0$ or $\pi$ phase shifts, representing positive or negative correlations). If two signals have a persistent orthogonal phase shift (e.g., $\pi/2$, a quarter-cycle lag), the Cross-Haar correlation will tend toward zero, failing to capture the causal dependency. Bivariate Haar is strictly for *in-phase* or *anti-phase* scale-dependent relationships.
 *   **Assumptions:** It assumes the relationship between the variables at a given scale is linear (Pearson). If the relationship is highly non-linear, Cross-Haar correlation will underestimate the dependency.
 
 **References:**
@@ -115,9 +119,10 @@ Calculates the partial correlation $\rho_{XY|Z}$ using the linear partial correl
 **Mathematical Foundation:**
 Extends LS to two variables to find the phase difference (lead/lag) at specific frequencies.
 
-**Validity:**
-*   **Noise Sensitivity:** Phase estimation is highly sensitive to noise. If the Cross-Spectral Power (Coherence) is low at a given frequency, the estimated phase lag is meaningless (essentially a random variable uniform on $[-\pi, \pi]$).
-*   **Interpretation:** Only interpret phase lags at frequencies where both variables exhibit significant power and high coherence.
+**Validity & Limitations:**
+*   **Noise Sensitivity and Coherence Thresholding:** Phase estimation is highly sensitive to noise. If the Cross-Spectral Power (Coherence) is low at a given frequency, the estimated phase lag is meaningless (essentially a random variable uniform on $[-\pi, \pi]$). A rigorous statistical threshold for coherence must be established (e.g., via Monte Carlo surrogates) before interpreting phase lags.
+*   **Interpretation of Phase Wraparound:** Phase is circular (defined modulo $2\pi$). Interpreting a phase difference as a definitive time lag (e.g., $\Delta t = \Delta\phi / (2\pi f)$) is ambiguous without prior physical constraints on causality, as a lag of $\Delta\phi$ is indistinguishable from a lead of $2\pi - \Delta\phi$.
+*   **Conclusion:** Only interpret phase lags at frequencies where both variables exhibit significant, localized power above a red-noise background, and the cross-coherence exceeds a strict surrogate-derived threshold.
 
 **References:**
 *   Hocke, K. (1998). Phase estimation with the Lomb-Scargle periodogram method. *Annales Geophysicae*, 16(3), 356-358.
@@ -129,6 +134,7 @@ The package utilizes the Pruned Exact Linear Time (PELT) algorithm via the `rupt
 
 **Validity & Limitations:**
 *   **Algorithmic Efficiency:** PELT is mathematically exact for finding the global minimum of the penalized cost function and operates efficiently even on large datasets (Killick et al., 2012).
+*   **Penalty Selection (AIC vs. BIC):** The number of detected changepoints is extremely sensitive to the chosen penalty factor ($\beta$). `waterSpec` typically utilizes a penalty mathematically akin to BIC ($p \log(n)$), which heavily penalizes complexity and favors fewer, more statistically profound regime shifts. Using an AIC-like penalty ($2p$) often results in massive overfitting, tracking high-frequency noise rather than structural shifts.
 *   **The Autocorrelation Problem:** PELT and similar changepoint algorithms assume that the residuals (data minus the fitted piecewise model) are independent, identically distributed (i.i.d.) random variables. Environmental time series are almost universally autocorrelated (red noise).
 *   **False Positives:** Applying standard changepoint detection to highly autocorrelated data will drastically inflate the false positive rate, identifying "regime shifts" that are merely normal low-frequency stochastic excursions of a red noise process.
 *   **Recommendation:** Ensure data is appropriately pre-whitened or explicitly model the autocorrelation structure (e.g., using AR cost functions) before interpreting changepoints in continuous variables.
@@ -165,6 +171,9 @@ The package provides two primary surrogate null models to test significance, but
 2.  **Parametric Power Law Surrogates (Timmer & Koenig 1995):**
     *   *Validity:* For irregular data, the robust approach is to simulate a continuous high-resolution process with a target theoretical spectrum ($\beta$), and then *resample* it to the exact irregular timestamps of the observations (Timmer & Koenig, 1995). `waterSpec` implements this via `generate_power_law_surrogates`. This correctly propagates the spectral leakage and aliasing caused by the irregular sampling window into the null distribution.
     *   *Limitation:* This is a parametric test. It tests against a *theoretical* $\beta$ model, not the exact empirical spectrum of the data like phase randomization does.
+
+3.  **Block Bootstrapping:**
+    *   *Validity:* When non-linearities or heteroskedasticity are present alongside irregular sampling, standard phase randomization fails. Block bootstrapping resamples contiguous chunks of data, preserving short-range autocorrelation and non-linear properties while destroying long-range dependence. `waterSpec` employs this in certain fitting routines (e.g., standard OLS error bars for Haar slopes) to provide robust, distribution-free confidence intervals.
 
 **References:**
 *   Prichard, D., & Theiler, J. (1994). Generating surrogate data for time series with several simultaneously measured variables. *Physical review letters*, 73(7), 951.
