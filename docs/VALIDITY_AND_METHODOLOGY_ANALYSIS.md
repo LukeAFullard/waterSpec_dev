@@ -46,10 +46,10 @@ Haar analysis calculates the variance of the difference in means between adjacen
 **Critical Analysis of Overlapping Windows:**
 *   `waterSpec` defaults to overlapping windows to increase statistical power (reducing variance of the estimate), analogous to the Maximum Overlap Discrete Wavelet Transform (MODWT). However, overlapping windows introduce *autocorrelation* between the fluctuation estimates at a given scale.
 *   **Statistical Consequence:** While the mean estimate of $S_1(\tau)$ remains unbiased, the standard error is artificially reduced if standard OLS regression is used to fit the slope, as the degrees of freedom are fewer than the number of overlapping windows. Percival (1995) details the variance properties of the overlapping Haar wavelet variance.
-*   **Mitigation:** `waterSpec` uses block bootstrapping or parametric Monte Carlo surrogates to estimate confidence intervals on the fit. This is mathematically necessary because standard OLS assumptions are violated.
+*   **Mitigation:** `waterSpec` uses moving block bootstrapping (via indices) or parametric Monte Carlo surrogates to estimate confidence intervals on the fit. This is mathematically necessary because standard OLS assumptions are violated. Furthermore, robust Theil-Sen regression via `MannKS.trend_test` ensures that outlier fluctuation scales do not completely bias the spectral exponent fit.
 
 **Small-Sample Bias Correction:**
-*   Standard Haar variance underestimates true variance when the number of data points per window is small. `waterSpec` implements `aggregation="std_corrected"`. This is crucial for high-frequency (small $\tau$) validity.
+*   Standard Haar variance underestimates true variance when the number of data points per window is small. `waterSpec` implements an explicitly unbiased standard deviation estimator utilizing correction factors derived from Gamma functions (`gammaln`) under the assumption of local normality. This is crucial for high-frequency (small $\tau$) validity where point density per window drops.
 
 **Custom Statistics (Percentiles & Medians):**
 *   `waterSpec` allows evaluating fluctuations using custom statistics like percentiles (e.g., 95th) instead of means. While useful for examining the scaling of extremes, standard scaling relations ($\beta = 2m + 1$) are explicitly derived for variances (or mean-squared fluctuations). The theoretical translation of percentile-based slopes to traditional spectral $\beta$ is not firmly established in linear spectral theory and should be treated as an empirical scaling index.
@@ -60,7 +60,6 @@ Haar analysis calculates the variance of the difference in means between adjacen
 **References:**
 *   Lovejoy, S., & Schertzer, D. (2012). *The Weather and Climate: Emergent Laws and Multifractal Cascades*. Cambridge University Press.
 *   Percival, D. P. (1995). On estimation of the wavelet variance. *Biometrika*, 82(3), 619-631.
-
 ### 2.3 Multifractal Intermittency Correction ($K(2)$)
 
 **Mathematical Foundation:**
@@ -76,16 +75,15 @@ The relationship $\beta = 2m + 1$ assumes the process is monofractal (Gaussian).
 ### 2.4 Segmented Spectral Fits
 
 **Mathematical Foundation:**
-Using `mannks` or `piecewise-regression`, the package fits broken stick models to the log-log spectrum to identify scales where process dominance shifts (Toms & Lesperance, 2003).
+Using `mannks` or `piecewise-regression`, the package fits broken stick models to the log-log spectrum to identify scales where process dominance shifts (Toms & Lesperance, 2003). The codebase leverages the robust `MannKS` package (`MannKS.segmented_trend_test`) to calculate breakpoints and segments, inherently utilizing block bootstrapping to preserve the spectral autocorrelation structure when determining confidence bounds.
 
 **Validity & The BIC Criterion:**
 *   **Overfitting Risk:** It is trivial to fit a multi-segmented line to a noisy spectrum and lower the Residual Sum of Squares (RSS).
-*   **Defense:** The package's reliance on the Bayesian Information Criterion (BIC) to select between a standard line and a segmented line is statistically sound. BIC heavily penalizes additional parameters (Schwarz, 1978). If BIC selects a segmented fit, the regime shift is robustly supported by the data.
+*   **Defense:** The package's reliance on the Bayesian Information Criterion (BIC) to select between a standard line and a segmented line is statistically sound. BIC heavily penalizes additional parameters (Schwarz, 1978). If BIC selects a segmented fit, the regime shift is robustly supported by the data. The internal `_calculate_bic` routine correctly traps perfectly overfitted "zero RSS" models ($RSS < 10^{-12}$) and returns $BIC = \infty$, effectively banning artificial segments driven by numerical artifacts.
 
 **References:**
 *   Schwarz, G. (1978). Estimating the dimension of a model. *The Annals of Statistics*, 6(2), 461-464.
 *   Toms, P. S., & Lesperance, M. L. (2003). Piecewise regression: a tool for identifying ecological thresholds. *Ecology*, 84(8), 2034-2041.
-
 ### 2.5 Bivariate (Cross-Haar) Analysis
 
 **Mathematical Foundation:**
@@ -107,14 +105,13 @@ Extends bivariate analysis by quantifying the loop area and direction (clockwise
 
 **Validity & Interpretation:**
 *   **Scale-Specific Hysteresis:** Traditional hysteresis analysis (e.g., C-Q loops during storms) is often confounded by long-term baseline shifts. By isolating fluctuations at scale $\tau$, this method provides a mathematically rigorous way to evaluate hysteresis generated strictly by processes operating at that specific timescale (e.g., event-based flushing), decoupling it from seasonal or inter-annual trends.
-*   **Loop Area Significance:** The area of the loop quantifies the magnitude of the hysteresis (the degree to which the relationship depends on the trajectory, or "memory", of the system).
+*   **Loop Area Significance:** The area of the loop quantifies the magnitude of the hysteresis (the degree to which the relationship depends on the trajectory, or "memory", of the system). The shoelace formula (signed polygon area) calculation elegantly captures both the overall magnitude of the deviation from linearity and the prevailing temporal ordering of the events at that scale.
 *   **Directionality:** The sign of the area indicates the direction. A clockwise loop (often implying the source is rapidly depleted or proximal) is distinct from a counter-clockwise loop (often implying a delayed or distal source).
 *   **Limitations:** The metric is sensitive to noise at small scales and requires overlapping windows to adequately resolve the shape of the loop in phase space. If the chosen scale $\tau$ does not match the actual physical timescale of the hysteresis-generating event, the computed area will be near zero or uninterpretable.
 
 **References:**
 *   Lloyd, C. E., Freer, J. E., Johnes, P. J., & Collins, A. L. (2016). Technical Note: Testing an improved index for analysing storm discharge-concentration hysteresis. *Hydrology and Earth System Sciences*, 20(2), 625-632.
 *   Zuecco, G., Penna, D., Borga, M., & van Meerveld, H. J. (2016). A versatile index to characterize hysteresis between hydrological variables at the runoff event timescale. *Hydrological Processes*, 30(9), 1449-1466.
-
 ### 2.7 Partial Cross-Haar Analysis (Experimental)
 
 **Mathematical Foundation:**
@@ -135,13 +132,13 @@ Calculates the partial correlation $\rho_{XY|Z}$ using the linear partial correl
 Extends LS to two variables to find the phase difference (lead/lag) at specific frequencies.
 
 **Validity & Limitations:**
+*   **Performance Optimization (Cache Alignment):** Under the hood, `calculate_ls_cross_spectrum` avoids iterating frequency-by-frequency in pure Python, which destroys cache locality. Instead, it dynamically batches frequencies (targeting ~2MB L3 Cache limits) to perform vectorized block `np.linalg.solve` routines over multidimensional frequency chunks. This preserves mathematical exactness while rendering Lomb-Scargle Cross-Spectrum tractable for highly sampled, uneven temporal sequences.
 *   **Noise Sensitivity and Coherence Thresholding:** Phase estimation is highly sensitive to noise. If the Cross-Spectral Power (Coherence) is low at a given frequency, the estimated phase lag is meaningless (essentially a random variable uniform on $[-\pi, \pi]$). A rigorous statistical threshold for coherence must be established (e.g., via Monte Carlo surrogates) before interpreting phase lags.
 *   **Interpretation of Phase Wraparound:** Phase is circular (defined modulo $2\pi$). Interpreting a phase difference as a definitive time lag (e.g., $\Delta t = \Delta\phi / (2\pi f)$) is ambiguous without prior physical constraints on causality, as a lag of $\Delta\phi$ is indistinguishable from a lead of $2\pi - \Delta\phi$.
 *   **Conclusion:** Only interpret phase lags at frequencies where both variables exhibit significant, localized power above a red-noise background, and the cross-coherence exceeds a strict surrogate-derived threshold.
 
 **References:**
 *   Hocke, K. (1998). Phase estimation with the Lomb-Scargle periodogram method. *Annales Geophysicae*, 16(3), 356-358.
-
 ### 2.9 Changepoint Detection (PELT Algorithm)
 
 **Mathematical Foundation:**
