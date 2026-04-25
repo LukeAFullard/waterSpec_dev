@@ -9,7 +9,7 @@ This document provides a rigorous, critical review of the spectral and statistic
 
 Environmental time series analysis is fraught with challenges: missing data, irregular sampling, non-stationarity, intermittency, and power-law scaling. The `waterSpec` package attempts to navigate these issues using a combination of traditional spectral methods (Lomb-Scargle) and multiscale approaches (Haar Wavelet Analysis).
 
-However, the application of these methods requires strict adherence to their underlying assumptions. Misapplication can lead to spurious scaling exponents, artificial correlations, or misidentified periodicities. This document questions the validity of each component, detailing when they are robust and when they fail.
+However, the application of these methods requires strict adherence to their underlying assumptions. Misapplication can lead to spurious scaling exponents, artificial correlations, or misidentified periodicities. This document questions the validity of each component, detailing when they are robust and when they fail, and provides key literature references justifying these claims.
 
 ---
 
@@ -18,20 +18,25 @@ However, the application of these methods requires strict adherence to their und
 ### 2.1 Lomb-Scargle Periodogram (LS)
 
 **Mathematical Foundation:**
-The LS periodogram is effectively a least-squares fit of sinusoids to data. It was derived to handle unequally spaced data in astrophysics.
+The LS periodogram is effectively a least-squares fit of sinusoids to data. It was derived to handle unequally spaced data in astrophysics (Lomb, 1976; Scargle, 1982).
 
 **Validity & Strengths:**
-*   **Peak Detection:** It is statistically robust for detecting deterministic, narrowband periodicities (e.g., diurnal, annual cycles) superimposed on white noise. The False Alarm Probability (FAP) provides a rigorous frequentist significance threshold.
+*   **Peak Detection:** It is statistically robust for detecting deterministic, narrowband periodicities (e.g., diurnal, annual cycles) superimposed on white noise. The False Alarm Probability (FAP) provides a rigorous frequentist significance threshold. VanderPlas (2018) provides an extensive review of its validity for periodic detection.
 *   **No Interpolation:** By avoiding interpolation, it prevents the artificial introduction of high-frequency noise or smoothing artifacts.
 
 **Weaknesses & Failure Modes (When NOT to use):**
 *   **Spectral Slope Bias:** The most critical weakness of LS is its vulnerability to *spectral leakage* when estimating the continuum spectral slope ($\beta$) of red noise processes in highly irregular or gappy data. Energy from low frequencies "leaks" into high frequencies due to the window function (the sampling pattern), flattening the apparent spectrum.
 *   **Conclusion:** If the Coefficient of Variation (CV) of the sampling interval is high (> 0.5), or if there are massive gaps (e.g., > 10% of total duration), **do not use LS to estimate $\beta$**. Use Haar Wavelets instead.
 
+**References:**
+*   Lomb, N. R. (1976). Least-squares frequency analysis of unequally spaced data. *Astrophysics and Space Science*, 39, 447-462.
+*   Scargle, J. D. (1982). Studies in astronomical time series analysis. II - Statistical aspects of spectral analysis of unevenly spaced data. *The Astrophysical Journal*, 263, 835-853.
+*   VanderPlas, J. T. (2018). Understanding the Lomb-Scargle Periodogram. *The Astrophysical Journal Supplement Series*, 236(1), 16.
+
 ### 2.2 Haar Wavelet Analysis (First-Order Structure Function)
 
 **Mathematical Foundation:**
-Haar analysis calculates the variance of the difference in means between adjacent non-overlapping (or overlapping) windows of size $\tau$. The scaling exponent $m$ relates to the spectral exponent $\beta$ via $\beta = 2m + 1$.
+Haar analysis calculates the variance of the difference in means between adjacent non-overlapping (or overlapping) windows of size $\tau$. The scaling exponent $m$ relates to the spectral exponent $\beta$ via $\beta = 2m + 1$ (Lovejoy & Schertzer, 2012).
 
 **Validity & Strengths:**
 *   **Robust to Gaps:** Because it operates in the time domain, a gap simply means a specific window is skipped. It does not corrupt the estimates at other scales.
@@ -45,23 +50,33 @@ Haar analysis calculates the variance of the difference in means between adjacen
 **Small-Sample Bias Correction:**
 *   Standard Haar variance underestimates true variance when the number of data points per window is small. `waterSpec` implements `aggregation="std_corrected"`. This is crucial for high-frequency (small $\tau$) validity.
 
+**References:**
+*   Lovejoy, S., & Schertzer, D. (2012). *The Weather and Climate: Emergent Laws and Multifractal Cascades*. Cambridge University Press.
+
 ### 2.3 Multifractal Intermittency Correction ($K(2)$)
 
 **Mathematical Foundation:**
-The relationship $\beta = 2m + 1$ assumes the process is monofractal (Gaussian). For intermittent environmental processes (e.g., rainfall, solute flushing), this fails. The Universal Multifractal framework provides a correction: $\beta = 1 + 2H - K(2)$, where $K(2)$ characterizes the intermittency.
+The relationship $\beta = 2m + 1$ assumes the process is monofractal (Gaussian). For intermittent environmental processes (e.g., rainfall, solute flushing), this fails. The Universal Multifractal framework provides a correction: $\beta = 1 + 2H - K(2)$, where $K(2)$ characterizes the intermittency (Schertzer & Lovejoy, 1987).
 
 **Validity:**
 *   This is a highly advanced feature. Estimating $K(2)$ (often via the slope of the 2nd vs 1st order structure functions) requires vast amounts of high-quality data.
 *   **Warning:** Applying the $K(2)$ correction to short, noisy time series will likely inject more variance than it removes bias. It should only be used when physical evidence suggests strong intermittency (e.g., storm-event transport mechanisms) and datasets are extensive ($N > 10^4$).
 
+**References:**
+*   Schertzer, D., & Lovejoy, S. (1987). Physical modeling and analysis of rain and clouds by anisotropic scaling multiplicative processes. *Journal of Geophysical Research: Atmospheres*, 92(D8), 9693-9714.
+
 ### 2.4 Segmented Spectral Fits
 
 **Mathematical Foundation:**
-Using `mannks` or `piecewise-regression`, the package fits broken stick models to the log-log spectrum to identify scales where process dominance shifts.
+Using `mannks` or `piecewise-regression`, the package fits broken stick models to the log-log spectrum to identify scales where process dominance shifts (Toms & Lesperance, 2003).
 
 **Validity & The BIC Criterion:**
 *   **Overfitting Risk:** It is trivial to fit a multi-segmented line to a noisy spectrum and lower the Residual Sum of Squares (RSS).
-*   **Defense:** The package's reliance on the Bayesian Information Criterion (BIC) to select between a standard line and a segmented line is statistically sound. BIC heavily penalizes additional parameters. If BIC selects a segmented fit, the regime shift is robustly supported by the data.
+*   **Defense:** The package's reliance on the Bayesian Information Criterion (BIC) to select between a standard line and a segmented line is statistically sound. BIC heavily penalizes additional parameters (Schwarz, 1978). If BIC selects a segmented fit, the regime shift is robustly supported by the data.
+
+**References:**
+*   Schwarz, G. (1978). Estimating the dimension of a model. *The Annals of Statistics*, 6(2), 461-464.
+*   Toms, P. S., & Lesperance, M. L. (2003). Piecewise regression: a tool for identifying ecological thresholds. *Ecology*, 84(8), 2034-2041.
 
 ### 2.5 Bivariate (Cross-Haar) Analysis
 
@@ -72,6 +87,9 @@ Calculates the Pearson correlation between the Haar fluctuations of two variable
 *   **Scale-Dependent Correlation:** This is a powerful and valid method for decoupling short-term hysteresis from long-term trends.
 *   **Assumptions:** It assumes the relationship between the variables at a given scale is linear (Pearson). If the relationship is highly non-linear, Cross-Haar correlation will underestimate the dependency.
 
+**References:**
+*   Torrence, C., & Compo, G. P. (1998). A practical guide to wavelet analysis. *Bulletin of the American Meteorological society*, 79(1), 61-78.
+
 ### 2.6 Partial Cross-Haar Analysis (Experimental)
 
 **Mathematical Foundation:**
@@ -80,7 +98,7 @@ Calculates the partial correlation $\rho_{XY|Z}$ using the linear partial correl
 **Critical Questioning of Validity:**
 *   **The Assumption of Multivariate Normality:** The standard partial correlation formula explicitly assumes that the variables (in this case, the *fluctuations* of X, Y, and Z at scale $\tau$) follow a multivariate Gaussian distribution.
 *   **The Reality of Environmental Data:** Environmental fluctuations, especially at smaller scales, are notoriously non-Gaussian (heavy-tailed, skewed).
-*   **Verdict:** The warning attached to this function in the codebase (`multivariate.py:151`) is entirely justified. While mathematically computable, the *statistical interpretation* of $\rho_{XY|Z}$ as the "true" conditional dependency is weak if the fluctuations are highly non-Gaussian.
+*   **Verdict:** The warning attached to this function in the codebase is entirely justified. While mathematically computable, the *statistical interpretation* of $\rho_{XY|Z}$ as the "true" conditional dependency is weak if the fluctuations are highly non-Gaussian.
 *   **Recommendation:** Use only as a qualitative exploratory tool. Do not base definitive causal conclusions solely on this metric without verifying the distributional assumptions of the fluctuations at each scale.
 
 ### 2.7 Lomb-Scargle Cross-Spectrum (Phase Lag)
@@ -91,6 +109,9 @@ Extends LS to two variables to find the phase difference (lead/lag) at specific 
 **Validity:**
 *   **Noise Sensitivity:** Phase estimation is highly sensitive to noise. If the Cross-Spectral Power (Coherence) is low at a given frequency, the estimated phase lag is meaningless (essentially a random variable uniform on $[-\pi, \pi]$).
 *   **Interpretation:** Only interpret phase lags at frequencies where both variables exhibit significant power and high coherence.
+
+**References:**
+*   Hocke, K. (1998). Phase estimation with the Lomb-Scargle periodogram method. *Annales Geophysicae*, 16(3), 356-358.
 
 ---
 
@@ -103,8 +124,11 @@ Extends LS to two variables to find the phase difference (lead/lag) at specific 
 
 **Surrogate Data Testing:**
 The package uses phase-randomized surrogates.
-*   *Validity:* This perfectly preserves the linear autocorrelation structure (the power spectrum) while destroying non-linearities and phase relationships. It is the gold standard null model for testing the significance of peaks or Cross-Haar correlations against a red-noise background.
+*   *Validity:* This perfectly preserves the linear autocorrelation structure (the power spectrum) while destroying non-linearities and phase relationships. It is the gold standard null model for testing the significance of peaks or Cross-Haar correlations against a red-noise background (Theiler et al., 1992).
 *   *Limitation:* Phase randomization of highly irregular data with large gaps (via interpolation/FFT/inverse-interpolation) can introduce artifacts. `waterSpec` correctly issues warnings when generating surrogates for data with large gaps.
+
+**References:**
+*   Theiler, J., Eubank, S., Longtin, A., Galdrikian, B., & Farmer, J. D. (1992). Testing for nonlinearity in time series: the method of surrogate data. *Physica D: Nonlinear Phenomena*, 58(1-4), 77-94.
 
 ---
 
