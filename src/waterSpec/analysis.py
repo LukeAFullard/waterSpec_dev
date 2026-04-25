@@ -24,7 +24,6 @@ from .spectral_analyzer import (
     detect_peaks,
 )
 from .haar_analysis import HaarAnalysis
-from .psresp import psresp_fit
 from .utils_sim import power_law
 from .utils import make_rng, validate_run_parameters, sanitize_filename
 
@@ -62,6 +61,7 @@ class Analysis:
         changepoint_mode: str = "none",
         changepoint_index: Optional[int] = None,
         changepoint_options: Optional[Dict] = None,
+        base_dir: Optional[str] = None,
     ):
         """
         Initializes the Analysis object by loading and preprocessing the data.
@@ -140,6 +140,7 @@ class Analysis:
                 sheet_name=sheet_name,
                 output_time_unit=self.time_unit,
                 coerce_to_numeric=coerce_to_numeric,
+                base_dir=base_dir,
             )
         elif dataframe is not None:
             time_numeric, data_series, error_series = process_dataframe(
@@ -399,63 +400,6 @@ class Analysis:
             )
         return fit_results
 
-    def _perform_model_validation(self, fit_results, seed=None):
-        """
-        Runs PSRESP to validate the fitted model against sampling artifacts.
-        """
-        self.logger.info("Performing PSRESP model validation...")
-
-        # Extract parameters from fit_results
-        if fit_results.get("n_breakpoints", 0) > 0:
-            self.logger.warning(
-                "PSRESP validation currently only supports standard (non-segmented) models. "
-                "Using the first segment's parameters as an approximation."
-            )
-
-        beta = fit_results.get("beta")
-        intercept = fit_results.get("intercept")
-
-        # If beta is NaN or missing, try extracting from betas list (segmented case)
-        if (beta is None or np.isnan(beta)) and "betas" in fit_results and len(fit_results["betas"]) > 0:
-            beta = fit_results["betas"][0]
-            intercept = fit_results["intercepts"][0]
-
-        if beta is None or intercept is None or np.isnan(beta) or np.isnan(intercept):
-            self.logger.warning("Could not extract model parameters for PSRESP. Skipping.")
-            return fit_results
-
-        amp = 10**intercept
-        # Power Law: P = amp * f^(-beta)
-        params = (beta, amp)
-
-        # Run PSRESP
-        try:
-            psresp_res = psresp_fit(
-                self.time,
-                self.data,
-                self.errors,
-                power_law,
-                [params],
-                freqs=self.frequency,  # Use the same frequency grid
-                M=1000,  # 1000 simulations for good p-value resolution
-                seed=seed
-            )
-
-            best_res = psresp_res["results"][0]
-            success_fraction = best_res["success_fraction"]
-
-            fit_results["psresp_success_fraction"] = success_fraction
-            fit_results["psresp_performed"] = True
-            fit_results["psresp_params"] = params
-
-            self.logger.info(f"PSRESP Validation Complete. Success Fraction: {success_fraction:.3f}")
-        except Exception as e:
-            self.logger.error(f"PSRESP Validation failed: {e}", exc_info=True)
-            fit_results["psresp_performed"] = False
-            fit_results["psresp_error"] = str(e)
-
-        return fit_results
-
     def _save_results(self, results, output_dir):
         """Generates and saves the plot and summary text file."""
         self.logger.info(f"Generating outputs in directory: {output_dir}")
@@ -507,17 +451,6 @@ class Analysis:
 
         # Append Validation Summary
         validation_summary = ""
-        if results.get("psresp_performed", False):
-            validation_summary += "\n\n-----------------------------------\n"
-            validation_summary += "Model Validation (PSRESP):\n"
-            sf = results.get("psresp_success_fraction", np.nan)
-            validation_summary += f"  Success Fraction: {sf:.3f}\n"
-            if sf > 0.1:
-                validation_summary += "  Interpretation: The model is consistent with the data (p > 0.1).\n"
-            elif sf > 0.01:
-                validation_summary += "  Interpretation: The model is marginally inconsistent (0.01 < p < 0.1).\n"
-            else:
-                validation_summary += "  Interpretation: The model is strongly rejected (p < 0.01). Peaks may be artifacts or true signals not in model.\n"
 
         # Summary Text
         summary_path = os.path.join(output_dir, f"{sanitized_name}_summary.txt")
@@ -930,10 +863,6 @@ class Analysis:
                 "preprocessing_diagnostics": self.preprocessing_diagnostics,
             }
 
-        # 3. Perform Model Validation if requested
-        if kwargs.get("validate_model", False):
-            fit_results = self._perform_model_validation(fit_results, seed=kwargs.get("seed"))
-
         # 4. Run Haar Analysis if requested
         if kwargs.get("run_haar", False):
             haar_obj, haar_res = self._perform_haar_analysis(
@@ -994,7 +923,6 @@ class Analysis:
         haar_statistic="mean",
         haar_percentile=None,
         haar_percentile_method="hazen",
-        validate_model=False,
     ):
         """
         Runs the complete analysis workflow and saves all outputs to a directory.
@@ -1068,9 +996,6 @@ class Analysis:
             haar_statistic (str, optional): Statistic for Haar window aggregation ("mean", "median", "percentile"). Defaults to "mean".
             haar_percentile (float, optional): Percentile to compute if `haar_statistic` is "percentile".
             haar_percentile_method (str, optional): Method for percentile calculation. Defaults to "hazen".
-            validate_model (bool, optional): If True, perform PSRESP validation
-                to assess if the fitted model is consistent with the data given
-                sampling gaps. Defaults to False.
 
         Returns:
             dict: A dictionary containing all analysis results.
@@ -1100,7 +1025,6 @@ class Analysis:
             "haar_statistic": haar_statistic,
             "haar_percentile": haar_percentile,
             "haar_percentile_method": haar_percentile_method,
-            "validate_model": validate_model,
         }
 
         # 1. Setup (Validation & Changepoint Detection)

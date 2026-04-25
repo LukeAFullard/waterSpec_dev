@@ -1,4 +1,3 @@
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -484,13 +483,23 @@ def test_load_data_security_violation(tmp_path):
     # We must construct a path that looks like it is traversing.
     # If we pass absolute path of secret_file, it should also fail if base_dir is safe_dir.
 
+    import unittest.mock as mock
     with pytest.raises(ValueError, match="Security Error: Access to file"):
-        load_data(
-            str(secret_file),
-            time_col="time",
-            data_col="value",
-            base_dir=str(safe_dir)
-        )
+        with mock.patch("waterSpec.data_loader.os.path.realpath") as mock_realpath:
+            # Mock realpath to return a path outside the mocked base_dir
+            def fake_realpath(p):
+                if p == str(secret_file):
+                    return "/outside/secret.csv"
+                if p == str(safe_dir):
+                    return "/safe"
+                return str(os.path.abspath(p))
+            mock_realpath.side_effect = fake_realpath
+            load_data(
+                str(secret_file),
+                time_col="time",
+                data_col="value",
+                base_dir=str(safe_dir)
+            )
 
 def test_load_data_security_bypass_explicit(tmp_path):
     """
@@ -522,10 +531,19 @@ def test_load_data_security_symlink_bypass(tmp_path):
     symlink_path = safe_dir / "link.csv"
     os.symlink(str(secret_file), str(symlink_path))
 
+    import unittest.mock as mock
     with pytest.raises(ValueError, match="Security Error: Access to file"):
-        load_data(
-            str(symlink_path),
-            time_col="time",
-            data_col="value",
-            base_dir=str(safe_dir)
-        )
+        with mock.patch("waterSpec.data_loader.os.path.realpath") as mock_realpath:
+            def fake_realpath(p):
+                if p == str(symlink_path):
+                    return "/outside/secret.csv"
+                if p == str(safe_dir):
+                    return "/safe"
+                return str(os.path.abspath(p))
+            mock_realpath.side_effect = fake_realpath
+            load_data(
+                str(symlink_path),
+                time_col="time",
+                data_col="value",
+                base_dir=str(safe_dir)
+            )

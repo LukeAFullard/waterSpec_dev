@@ -41,7 +41,7 @@ def test_analysis_warns_for_ignored_fap_params(tmp_path, caplog):
     output_dir = tmp_path / "results"
 
     analyzer = Analysis(
-        file_path=file_path,
+        file_path=file_path, base_dir="",
         time_col="timestamp",
         data_col="concentration",
     )
@@ -61,7 +61,7 @@ def test_analysis_raises_error_for_unknown_peak_method(tmp_path):
     file_path = "examples/sample_data.csv"
     output_dir = tmp_path / "results"
     analyzer = Analysis(
-        file_path=file_path,
+        file_path=file_path, base_dir="",
         time_col="timestamp",
         data_col="concentration",
     )
@@ -89,7 +89,7 @@ def test_analysis_raises_error_for_insufficient_data_post_processing(tmp_path):
         match=r"Not enough valid data points \(5\) remaining after preprocessing. Minimum required: 10.",
     ):
         Analysis(
-            file_path=file_path,
+            file_path=file_path, base_dir="",
             time_col="time",
             data_col="value",
             censor_strategy="drop",
@@ -144,7 +144,7 @@ def test_load_data_warns_on_missing_error_column(tmp_path):
 
     with pytest.warns(UserWarning, match="Error column 'non_existent_col' not found"):
         load_data(
-            file_path, time_col="time", data_col="value", error_col="non_existent_col"
+            file_path, time_col="time", data_col="value", error_col="non_existent_col", base_dir=""
         )
 
 def test_load_data_raises_on_unparseable_time(tmp_path):
@@ -156,7 +156,7 @@ def test_load_data_raises_on_unparseable_time(tmp_path):
     file_path = create_test_data_file(tmp_path, time, series)
 
     with pytest.raises(ValueError, match="could not be parsed as datetime objects"):
-        load_data(file_path, time_col="time", data_col="value")
+        load_data(file_path, time_col="time", data_col="value", base_dir="")
 
 # --- Tests for Gaps in fitter.py ---
 
@@ -253,7 +253,7 @@ def test_preprocess_handles_non_numeric_censored_values(tmp_path):
         match=r"Not enough valid data points \(4\) remaining after preprocessing. Minimum required: 10.",
     ):
         Analysis(
-            file_path=file_path,
+            file_path=file_path, base_dir="",
             time_col="time",
             data_col="value",
             min_valid_data_points=10 # Explicitly set to 10
@@ -269,7 +269,7 @@ def test_load_data_all_nan_data(tmp_path):
     file_path = create_test_data_file(tmp_path, time, series)
 
     with pytest.raises(ValueError, match="The data column 'value' contains no valid data."):
-        load_data(file_path, time_col="time", data_col="value")
+        load_data(file_path, time_col="time", data_col="value", base_dir="")
 
 
 def test_interpreter_formats_two_breakpoints(tmp_path):

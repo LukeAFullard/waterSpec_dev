@@ -425,6 +425,7 @@ def load_data(
     """
     # 0. Security check: Prevent path traversal
     real_path = os.path.realpath(file_path)
+
     if base_dir != "":
         if base_dir is None:
             base_dir = os.getcwd()

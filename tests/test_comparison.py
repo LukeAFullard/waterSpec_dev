@@ -43,8 +43,8 @@ def test_site_comparison_initialization(tmp_path):
     series2 = np.random.rand(120)
     file2_path = create_test_data_file(tmp_path, "data2.csv", time2, series2, time_col="timestamp", data_col="value2")
 
-    site1_config = {"name": "SiteA", "file_path": file1_path, "time_col": "timestamp", "data_col": "value1"}
-    site2_config = {"name": "SiteB", "file_path": file2_path, "time_col": "timestamp", "data_col": "value2"}
+    site1_config = {"name": "SiteA", "file_path": file1_path, "base_dir": "", "time_col": "timestamp", "data_col": "value1"}
+    site2_config = {"name": "SiteB", "file_path": file2_path, "base_dir": "", "time_col": "timestamp", "data_col": "value2"}
 
     comparison = SiteComparison(site1_config, site2_config)
 
@@ -104,8 +104,8 @@ def test_site_comparison_run_comparison_creates_outputs(mock_run_analysis, tmp_p
     series2 = 20 + np.random.randn(60)
     file2_path = create_test_data_file(tmp_path, "data2.csv", time2, series2, time_col="timestamp", data_col="value2")
 
-    site1_config = {"name": "SiteA", "file_path": file1_path, "time_col": "timestamp", "data_col": "value1"}
-    site2_config = {"name": "SiteB", "file_path": file2_path, "time_col": "timestamp", "data_col": "value2"}
+    site1_config = {"name": "SiteA", "file_path": file1_path, "base_dir": "", "time_col": "timestamp", "data_col": "value1"}
+    site2_config = {"name": "SiteB", "file_path": file2_path, "base_dir": "", "time_col": "timestamp", "data_col": "value2"}
 
     output_dir = tmp_path / "comparison_results"
 
@@ -143,8 +143,8 @@ def test_site_comparison_insufficient_data_raises_error(tmp_path):
     series2 = np.random.rand(5)
     file2_path = create_test_data_file(tmp_path, "data2.csv", time2, series2)
 
-    site1_config = {"name": "GoodSite", "file_path": file1_path, "time_col": "time", "data_col": "value"}
-    site2_config = {"name": "BadSite", "file_path": file2_path, "time_col": "time", "data_col": "value"}
+    site1_config = {"name": "GoodSite", "file_path": file1_path, "base_dir": "", "time_col": "time", "data_col": "value"}
+    site2_config = {"name": "BadSite", "file_path": file2_path, "base_dir": "", "time_col": "time", "data_col": "value"}
 
     with pytest.raises(ValueError, match="Not enough valid data points \\(5\\) for site 'BadSite'"):
         SiteComparison(site1_config, site2_config)
@@ -183,8 +183,8 @@ def test_site_comparison_generates_correct_summary_and_plot_data(
     file1_path = create_test_data_file(tmp_path, "data1.csv", time, series)
     file2_path = create_test_data_file(tmp_path, "data2.csv", time, series)
 
-    site1_config = {"name": "HighPersistenceSite", "file_path": file1_path, "time_col": "time", "data_col": "value"}
-    site2_config = {"name": "LowPersistenceSite", "file_path": file2_path, "time_col": "time", "data_col": "value"}
+    site1_config = {"name": "HighPersistenceSite", "file_path": file1_path, "base_dir": "", "time_col": "time", "data_col": "value"}
+    site2_config = {"name": "LowPersistenceSite", "file_path": file2_path, "base_dir": "", "time_col": "time", "data_col": "value"}
 
     comparison = SiteComparison(site1_config, site2_config)
     # For Site 1, force only standard model. For Site 2, allow segmented.
