@@ -188,6 +188,16 @@ def calculate_partial_cross_haar(
         r_xz = np.corrcoef(fx, fz)[0, 1]
         r_yz = np.corrcoef(fy, fz)[0, 1]
 
+        # Handle NaNs from constant arrays
+        if np.isnan(r_xy) or np.isnan(r_xz) or np.isnan(r_yz):
+            results['lags'].append(tau)
+            results['rho_xy'].append(r_xy)
+            results['rho_xz'].append(r_xz)
+            results['rho_yz'].append(r_yz)
+            results['partial_corr'].append(np.nan)
+            results['n_pairs'].append(n)
+            continue
+
         # Partial correlation
         denom_sq = (1 - r_xz**2) * (1 - r_yz**2)
 

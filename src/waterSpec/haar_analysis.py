@@ -267,7 +267,7 @@ def calculate_sliding_haar(
     # Pre-calculate window boundaries to avoid iterative searchsorted calls
     t_starts = np.arange(time[0], time[-1] - window_size + step_size, step_size)
     # Ensure we don't exceed time[-1] due to floating point issues
-    t_starts = t_starts[t_starts + window_size <= time[-1]]
+    t_starts = t_starts[t_starts + window_size <= time[-1] + 1e-9]
 
     if len(t_starts) == 0:
         return np.array([]), np.array([])

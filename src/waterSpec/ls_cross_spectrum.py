@@ -159,7 +159,7 @@ def _compute_ls_complex_coeffs(
         Swys = sin_wt.dot(w_data)
 
         Swcc = (cos_wt * cos_wt).dot(w)
-        Swss = sum_w - Swcc
+        Swss = (sin_wt * sin_wt).dot(w)
         Swcs = (cos_wt * sin_wt).dot(w)
 
         # Construct batch matrices

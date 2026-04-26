@@ -135,12 +135,22 @@ def calculate_significance_p_value(
     if n_surr == 0:
         return np.nan
 
+    if np.isnan(observed_metric):
+        return np.nan
+
+    # Ignore NaNs in surrogate metrics
+    valid_surrogates = surrogate_metrics[~np.isnan(surrogate_metrics)]
+    n_surr = len(valid_surrogates)
+
+    if n_surr == 0:
+        return np.nan
+
     if two_sided:
         # Check absolute magnitude
-        count = np.sum(np.abs(surrogate_metrics) >= np.abs(observed_metric))
+        count = np.sum(np.abs(valid_surrogates) >= np.abs(observed_metric))
     else:
         # One-sided (obs > surr)
-        count = np.sum(surrogate_metrics >= observed_metric)
+        count = np.sum(valid_surrogates >= observed_metric)
 
     return (count + 1) / (n_surr + 1)
 
