@@ -230,7 +230,8 @@ def calculate_haar_fluctuations(
             if overlap:
                 # Approximate n_eff based on redundancy
                 n_eff = count * (step_size / delta_t)
-                n_effective_values.append(n_eff)
+                # n_eff should not be less than 1 if we have valid windows
+                n_effective_values.append(max(1.0, n_eff))
             else:
                 n_effective_values.append(count)
 
