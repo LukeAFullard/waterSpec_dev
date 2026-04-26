@@ -61,7 +61,7 @@ def generate_phase_randomized_surrogates(
 
     # If n is even, Nyquist component (last) must also be real
     if n % 2 == 0:
-        phases[:, -1] = 0
+        phases[:, -1] = rng.choice([0, np.pi], size=n_surrogates)
 
     # Construct new complex spectrum using broadcasting
     # amplitudes shape: (n_freqs,) -> broadcasts to (n_surrogates, n_freqs)
