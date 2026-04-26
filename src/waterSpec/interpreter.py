@@ -350,24 +350,25 @@ def interpret_results(
         summary_text = "\n".join(summary_parts)
     else:
         # --- Standard Model Summary ---
-        beta = fit_results["beta"]
-        ci = (fit_results.get("beta_ci_lower"), fit_results.get("beta_ci_upper"))
-        beta_str = f"β = {beta:.2f}"
-        if ci[0] is not None and ci[1] is not None and np.all(np.isfinite(ci)):
-            beta_str += f" (95% CI: {ci[0]:.2f}–{ci[1]:.2f}{ci_method_str})"
-            warning = _get_uncertainty_warning(ci, uncertainty_threshold, name="β")
-            if warning:
-                uncertainty_warnings.append(warning)
+            beta = fit_results.get("beta", fit_results.get("betas", [np.nan])[0])
+            ci = (fit_results.get("beta_ci_lower", fit_results.get("betas_ci", [(np.nan, np.nan)])[0][0]),
+                  fit_results.get("beta_ci_upper", fit_results.get("betas_ci", [(np.nan, np.nan)])[0][1]))
+            beta_str = f"β = {beta:.2f}"
+            if ci[0] is not None and ci[1] is not None and np.all(np.isfinite(ci)):
+                beta_str += f" (95% CI: {ci[0]:.2f}–{ci[1]:.2f}{ci_method_str})"
+                warning = _get_uncertainty_warning(ci, uncertainty_threshold, name="β")
+                if warning:
+                    uncertainty_warnings.append(warning)
 
-        summary_text = "\n".join(
-            [
-                f"Standard Analysis for: {param_name}",
-                f"Value: {beta_str}",
-                f"Persistence Level: {get_persistence_traffic_light(beta)}",
-                f"Scientific Meaning: {get_scientific_interpretation(beta)}",
-                f"Contextual Comparison: {compare_to_benchmarks(beta)}",
-            ]
-        )
+            summary_text = "\n".join(
+                [
+                    f"Standard Analysis for: {param_name}",
+                    f"Value: {beta_str}",
+                    f"Persistence Level: {get_persistence_traffic_light(beta)}",
+                    f"Scientific Meaning: {get_scientific_interpretation(beta)}",
+                    f"Contextual Comparison: {compare_to_benchmarks(beta)}",
+                ]
+            )
 
     # --- Append shared sections (peaks and warnings) ---
     if "significant_peaks" in fit_results and fit_results["significant_peaks"]:

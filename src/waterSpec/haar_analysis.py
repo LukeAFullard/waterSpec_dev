@@ -210,16 +210,20 @@ def calculate_haar_fluctuations(
             elif aggregation == "rms":
                 s1 = np.sqrt(np.mean(flucs_arr**2))
             elif aggregation == "std_corrected":
-                # Matches GapWaveSpectra approach:
-                # 1. Enforce zero mean by concatenating flucs and -flucs
-                # 2. Use small-sample corrected standard deviation of the combined set
-                # 3. Convert sigma to MAD (Mean Absolute Deviation) assuming Gaussianity
-                #    MAD = sigma * sqrt(2/pi)
+                # Compute RMS directly which enforces a strict zero-mean assumption for fluctuations
+                rms = np.sqrt(np.mean(flucs_arr**2))
 
-                # Note: GapWaveSpectra concatenates (flucs, -flucs).
-                # This doubles the effective sample size and enforces mean=0.
-                combined = np.concatenate((flucs_arr, -flucs_arr))
-                sigma_est = _small_sample_std(combined)
+                # Apply the small-sample bias correction for standard deviation strictly based
+                # on the true sample size N (not 2N, which destroys the Gamma correction scaling).
+                n_flucs = len(flucs_arr)
+                if n_flucs < 101 and n_flucs > 1:
+                    factor = np.exp(gammaln((n_flucs - 1) / 2) - gammaln(n_flucs / 2)) * np.sqrt((n_flucs - 1) / 2)
+                    sigma_est = rms * factor
+                else:
+                    sigma_est = rms
+
+                # Convert sigma to expected absolute deviation assuming Gaussianity
+                # E[|X|] = sigma * sqrt(2/pi)
                 s1 = sigma_est * np.sqrt(2 / np.pi)
 
             s1_values.append(s1)

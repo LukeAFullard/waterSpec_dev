@@ -21,8 +21,8 @@ def _is_fit_successful(fit_results):
 
 def _plot_standard_model(ax, fit_results, color, label_prefix, plot_ci, log_freq):
     """Helper to plot the standard model fit."""
-    beta = fit_results.get("beta")
-    intercept = fit_results.get("intercept")
+    beta = fit_results.get("beta", fit_results.get("betas", [np.nan])[0])
+    intercept = fit_results.get("intercept", fit_results.get("intercepts", [np.nan])[0])
     fit_line = 10 ** (intercept - beta * log_freq)
 
     # Determine label
