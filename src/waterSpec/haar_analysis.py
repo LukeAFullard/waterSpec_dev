@@ -438,8 +438,8 @@ def plot_haar_analysis(
     """
     Plots the Haar Structure Function analysis results.
     """
-    plt.figure(figsize=(10, 6))
-    plt.loglog(lags, s1, 'o-', label='Haar Structure Function $S_1(\\Delta t)$', alpha=0.6)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.loglog(lags, s1, 'o-', label='Haar Structure Function $S_1(\\Delta t)$', alpha=0.6)
 
     # Plot standard fit line if available
     if not np.isnan(H) and segmented_results is None:
@@ -451,7 +451,7 @@ def plot_haar_analysis(
         else:
             fit_vals = 10**intercept * lags**H
 
-        plt.loglog(lags, fit_vals, 'r--', label=f'Standard Fit: H={H:.2f}, $\\beta$={beta:.2f}')
+        ax.loglog(lags, fit_vals, 'r--', label=f'Standard Fit: H={H:.2f}, $\\beta$={beta:.2f}')
 
     # Plot segmented fit if available
     if segmented_results and "Hs" in segmented_results:
@@ -471,22 +471,24 @@ def plot_haar_analysis(
             seg_vals = 10**intercepts[i] * seg_lags**Hs[i]
 
             label = f'Seg {i+1}: H={Hs[i]:.2f}, $\\beta$={1+2*Hs[i]:.2f}'
-            plt.loglog(seg_lags, seg_vals, '--', color=colors[i % len(colors)], label=label, linewidth=2)
+            ax.loglog(seg_lags, seg_vals, '--', color=colors[i % len(colors)], label=label, linewidth=2)
 
         for bp in breakpoints:
-            plt.axvline(bp, color='k', linestyle=':', alpha=0.5, label=f'Breakpoint: {bp:.1f}')
+            ax.axvline(bp, color='k', linestyle=':', alpha=0.5, label=f'Breakpoint: {bp:.1f}')
 
-    plt.xlabel(f'Lag Time $\\Delta t$ ({time_unit})')
-    plt.ylabel('Structure Function $S_1(\\Delta t)$')
-    plt.title('Haar Structure Function Analysis')
-    plt.legend()
-    plt.grid(True, which="both", ls="-", alpha=0.5)
+    ax.set_xlabel(f'Lag Time $\\Delta t$ ({time_unit})')
+    ax.set_ylabel('Structure Function $S_1(\\Delta t)$')
+    ax.set_title('Haar Structure Function Analysis')
+    ax.legend()
+    ax.grid(True, which="both", ls="-", alpha=0.5)
 
     if output_path:
-        plt.savefig(output_path)
-        plt.close()
+        fig.savefig(output_path)
+        plt.close(fig)
     else:
         plt.show()
+
+    return fig
 
 class HaarAnalysis:
     def __init__(self, time: np.ndarray, data: np.ndarray, time_unit: str = "seconds"):

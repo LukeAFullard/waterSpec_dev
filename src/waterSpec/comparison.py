@@ -206,7 +206,7 @@ class SiteComparison:
         )
 
         self.logger.info(f"Comparison analysis complete. Outputs will be saved to '{output_dir}'.")
-        return self.results
+        return self.results.copy()
 
     def _run_site_analysis(
         self, site_data: Dict, site_name: str, analysis_kwargs: Dict

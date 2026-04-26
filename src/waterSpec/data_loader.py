@@ -142,9 +142,12 @@ def _process_data_column(
                 "converted to a numeric type and were set to NaN.",
                 UserWarning,
             )
-        return data_series
     else:
-        return series.copy()
+        data_series = series.copy()
+
+    # Replace inf with NaN to prevent catastrophic cancellation
+    data_series = data_series.replace([np.inf, -np.inf], np.nan)
+    return data_series
 
 
 def _process_error_column(

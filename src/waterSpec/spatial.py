@@ -15,7 +15,7 @@ class SpatialHaarAnalysis:
         self.data = data
         self.variable_name = variable_name
         self.distance_unit = distance_unit
-        self.results = {}
+        self.results = None
         self.logger = logging.getLogger(__name__)
 
     def run_spatial_analysis(
@@ -66,7 +66,7 @@ class SpatialHaarAnalysis:
             "beta_ci_upper": fit_res.get("beta_ci_upper")
         }
 
-        return self.results
+        return self.results.copy() if self.results else None
 
     def detect_spatial_hotspots(
         self,

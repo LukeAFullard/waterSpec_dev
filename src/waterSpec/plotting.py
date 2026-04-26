@@ -215,8 +215,11 @@ def plot_spectrum(
 
     if show:
         plt.show()
+    elif output_path is None:
+        pass
+    else:
+        plt.close(fig)
 
-    plt.close(fig)
     return fig
 
 
