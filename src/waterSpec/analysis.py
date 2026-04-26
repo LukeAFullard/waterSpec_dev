@@ -649,83 +649,82 @@ class Analysis:
         # Swap in segment data
         self.time, self.data, self.errors = time, data, errors
 
-        # Calculate periodogram
-        self._calculate_periodogram(
-            analysis_kwargs.get("normalization", "standard"),
-            analysis_kwargs.get("nyquist_factor", 1.0),
-            analysis_kwargs.get("max_freq"),
-            analysis_kwargs.get("samples_per_peak", 5),
-        )
-
-        # Fit models
-        fit_results = self._perform_model_selection(
-            fit_method=analysis_kwargs.get("fit_method", "theil-sen"),
-            ci_method=analysis_kwargs.get("ci_method", "bootstrap"),
-            bootstrap_type=analysis_kwargs.get("bootstrap_type", "block"),
-            n_bootstraps=analysis_kwargs.get("n_bootstraps"),
-            max_breakpoints=analysis_kwargs.get("max_breakpoints", 1),
-            seed=analysis_kwargs.get("seed"),
-        )
-
-        # Run Haar Analysis if requested
-        if analysis_kwargs.get("run_haar", False):
-            haar_obj, haar_res = self._perform_haar_analysis(
-                overlap=analysis_kwargs.get("haar_overlap", True),
-                overlap_step_fraction=analysis_kwargs.get("haar_overlap_step_fraction", 0.1),
-                max_breakpoints=analysis_kwargs.get("haar_max_breakpoints", 0),
-                statistic=analysis_kwargs.get("haar_statistic", "mean"),
-                percentile=analysis_kwargs.get("haar_percentile"),
-                percentile_method=analysis_kwargs.get("haar_percentile_method", "hazen"),
+        try:
+            # Calculate periodogram
+            self._calculate_periodogram(
+                analysis_kwargs.get("normalization", "standard"),
+                analysis_kwargs.get("nyquist_factor", 1.0),
+                analysis_kwargs.get("max_freq"),
+                analysis_kwargs.get("samples_per_peak", 5),
             )
-            fit_results["haar_results"] = haar_res
-            # We don't store haar_obj here for segments to avoid clutter/serialization issues if any,
-            # unless we want to plot per segment. For now let's just keep results.
-            # fit_results["haar_obj"] = haar_obj
 
-        # Detect peaks
-        fit_results = self._detect_significant_peaks(
-            fit_results,
-            analysis_kwargs.get("peak_detection_method", "fap"),
-            analysis_kwargs.get("peak_fdr_level", 0.05),
-            analysis_kwargs.get("fap_threshold", 0.01),
-            analysis_kwargs.get("fap_method", "baluev"),
-        )
+            # Fit models
+            fit_results = self._perform_model_selection(
+                fit_method=analysis_kwargs.get("fit_method", "theil-sen"),
+                ci_method=analysis_kwargs.get("ci_method", "bootstrap"),
+                bootstrap_type=analysis_kwargs.get("bootstrap_type", "block"),
+                n_bootstraps=analysis_kwargs.get("n_bootstraps"),
+                max_breakpoints=analysis_kwargs.get("max_breakpoints", 1),
+                seed=analysis_kwargs.get("seed"),
+            )
 
-        # Interpret
-        interp_results = interpret_results(
-            fit_results,
-            param_name=f"{self.param_name} ({segment_name})",
-            time_unit=self.time_unit,
-        )
+            # Run Haar Analysis if requested
+            if analysis_kwargs.get("run_haar", False):
+                haar_obj, haar_res = self._perform_haar_analysis(
+                    overlap=analysis_kwargs.get("haar_overlap", True),
+                    overlap_step_fraction=analysis_kwargs.get("haar_overlap_step_fraction", 0.1),
+                    max_breakpoints=analysis_kwargs.get("haar_max_breakpoints", 0),
+                    statistic=analysis_kwargs.get("haar_statistic", "mean"),
+                    percentile=analysis_kwargs.get("haar_percentile"),
+                    percentile_method=analysis_kwargs.get("haar_percentile_method", "hazen"),
+                )
+                fit_results["haar_results"] = haar_res
 
-        segment_results = {
-            **fit_results,
-            **interp_results,
-            "segment_name": segment_name,
-            "n_points": len(time),
-            "time_range": (time[0], time[-1]),
-            "frequency": self.frequency,
-            "power": self.power,
-        }
+            # Detect peaks
+            fit_results = self._detect_significant_peaks(
+                fit_results,
+                analysis_kwargs.get("peak_detection_method", "fap"),
+                analysis_kwargs.get("peak_fdr_level", 0.05),
+                analysis_kwargs.get("fap_threshold", 0.01),
+                analysis_kwargs.get("fap_method", "baluev"),
+            )
 
-        # Append Haar summary to segment summary if available
-        if "haar_results" in fit_results:
-             hr = fit_results["haar_results"]
-             beta = hr.get("beta", np.nan)
-             haar_summary = "\n\n  [Haar Analysis]\n"
-             haar_summary += f"  β = {beta:.2f}, H = {hr.get('H', np.nan):.2f}\n"
-             if "segmented_results" in hr and hr["segmented_results"]:
-                 sr = hr["segmented_results"]
-                 haar_summary += f"  (Segmented Fit Detected: Breakpoints {sr['breakpoints']})\n"
-             segment_results["summary_text"] += haar_summary
+            # Interpret
+            interp_results = interpret_results(
+                fit_results,
+                param_name=f"{self.param_name} ({segment_name})",
+                time_unit=self.time_unit,
+            )
 
-        # Restore original data
-        self.time, self.data, self.errors = orig_time, orig_data, orig_errors
-        self.frequency, self.power, self.ls_obj = (
-            orig_freq,
-            orig_power,
-            orig_ls,
-        )
+            segment_results = {
+                **fit_results,
+                **interp_results,
+                "segment_name": segment_name,
+                "n_points": len(time),
+                "time_range": (time[0], time[-1]),
+                "frequency": self.frequency,
+                "power": self.power,
+            }
+
+            # Append Haar summary to segment summary if available
+            if "haar_results" in fit_results:
+                 hr = fit_results["haar_results"]
+                 beta = hr.get("beta", np.nan)
+                 haar_summary = "\n\n  [Haar Analysis]\n"
+                 haar_summary += f"  β = {beta:.2f}, H = {hr.get('H', np.nan):.2f}\n"
+                 if "segmented_results" in hr and hr["segmented_results"]:
+                     sr = hr["segmented_results"]
+                     haar_summary += f"  (Segmented Fit Detected: Breakpoints {sr['breakpoints']})\n"
+                 segment_results["summary_text"] += haar_summary
+
+        finally:
+            # Restore original data
+            self.time, self.data, self.errors = orig_time, orig_data, orig_errors
+            self.frequency, self.power, self.ls_obj = (
+                orig_freq,
+                orig_power,
+                orig_ls,
+            )
 
         return segment_results
 
@@ -1032,4 +1031,4 @@ class Analysis:
 
         # 3. Completion
         self.logger.info(f"Analysis complete. Outputs saved to '{output_dir}'.")
-        return self.results
+        return self.results.copy()

@@ -187,6 +187,8 @@ def _compute_ls_complex_coeffs(
             # Fallback to solving individually if any matrix in the batch is singular
             for i in range(n_batch):
                 try:
+                    # Solve for a single frequency
+                    # Flatten the RHS since np.linalg.solve(M[i], b[i, :, 0]) expects a 1D array
                     xi = np.linalg.solve(M[i], b[i, :, 0])
                     coeffs[start_idx + i] = xi[1] - 1j * xi[2]
                 except np.linalg.LinAlgError:
