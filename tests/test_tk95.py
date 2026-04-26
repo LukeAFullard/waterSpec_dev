@@ -2,7 +2,6 @@ import numpy as np
 import pytest
 from waterSpec.utils_sim.tk95 import resample_to_times
 
-
 def test_resample_to_times_basic():
     """Test basic interpolation behavior with exact matches and midpoints."""
     source_time = np.array([0.0, 1.0, 2.0, 3.0])
@@ -19,7 +18,6 @@ def test_resample_to_times_basic():
     result_interp = resample_to_times(source_time, source_flux, target_time_interp)
     np.testing.assert_array_almost_equal(result_interp, expected_interp)
 
-
 def test_resample_to_times_extrapolation():
     """Test extrapolation behavior.
     np.interp normally repeats edge values for values outside the source range.
@@ -33,7 +31,6 @@ def test_resample_to_times_extrapolation():
     result_extrap = resample_to_times(source_time, source_flux, target_time_extrap)
     np.testing.assert_array_almost_equal(result_extrap, expected_extrap)
 
-
 def test_resample_to_times_single_value():
     """Test interpolation to a single time point."""
     source_time = np.array([0.0, 1.0, 2.0])
@@ -44,7 +41,6 @@ def test_resample_to_times_single_value():
     result_single = resample_to_times(source_time, source_flux, target_time_single)
     np.testing.assert_array_almost_equal(result_single, expected_single)
 
-
 def test_resample_to_times_unordered_target():
     """Test interpolation with unordered target times."""
     source_time = np.array([0.0, 1.0, 2.0])
@@ -52,11 +48,8 @@ def test_resample_to_times_unordered_target():
 
     target_time_unordered = np.array([1.5, 0.5])
     expected_unordered = np.array([25.0, 15.0])
-    result_unordered = resample_to_times(
-        source_time, source_flux, target_time_unordered
-    )
+    result_unordered = resample_to_times(source_time, source_flux, target_time_unordered)
     np.testing.assert_array_almost_equal(result_unordered, expected_unordered)
-
 
 def test_resample_to_times_empty_target():
     """Test interpolation with empty target array returns empty array."""
@@ -67,7 +60,6 @@ def test_resample_to_times_empty_target():
     result_empty = resample_to_times(source_time, source_flux, target_time_empty)
     assert len(result_empty) == 0
     assert result_empty.shape == (0,)
-
 
 def test_resample_to_times_2d_raises():
     """Test that passing a 2D source_flux raises ValueError from np.interp."""

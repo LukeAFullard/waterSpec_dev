@@ -3,7 +3,6 @@ import numpy as np
 
 from .fitter import fit_standard_model, fit_segmented_spectrum
 
-
 class ModelSelector:
     """
     Encapsulates the logic for selecting the best spectral model (standard vs segmented)
@@ -59,7 +58,8 @@ class ModelSelector:
                 standard_results["n_breakpoints"] = 0
                 all_models.append(standard_results)
                 self.logger.info(
-                    f"Standard model fit complete. BIC: {standard_results['bic']:.2f}"
+                    "Standard model fit complete. "
+                    f"BIC: {standard_results['bic']:.2f}"
                 )
             else:
                 reason = standard_results.get("failure_reason", "Unknown error")
@@ -69,9 +69,7 @@ class ModelSelector:
             reason = f"A critical error occurred during standard model setup: {e!r}"
             failed_model_reasons.append(f"Standard model (0 breakpoints): {reason}")
             self.logger.error(
-                "Standard model fit crashed due to a critical error: %s",
-                e,
-                exc_info=True,
+                "Standard model fit crashed due to a critical error: %s", e, exc_info=True
             )
         except Exception as e:
             reason = f"An unexpected error occurred: {e!r}"
@@ -80,9 +78,7 @@ class ModelSelector:
 
         # Fit segmented models (1 and possibly 2 breakpoints)
         for n_breakpoints in range(1, max_breakpoints + 1):
-            self.logger.info(
-                f"Fitting segmented model with {n_breakpoints} breakpoint(s)..."
-            )
+            self.logger.info(f"Fitting segmented model with {n_breakpoints} breakpoint(s)...")
             try:
                 # Spawn a new seed for each model to ensure independent bootstrap samples.
                 model_seed = child_seeds[n_breakpoints]
@@ -105,10 +101,7 @@ class ModelSelector:
                         f"BIC: {seg_results['bic']:.2f}"
                     )
                 else:
-                    reason = seg_results.get(
-                        "failure_reason",
-                        "Model did not converge or was not significant",
-                    )
+                    reason = seg_results.get("failure_reason", "Model did not converge or was not significant")
                     failed_model_reasons.append(
                         f"Segmented model ({n_breakpoints} breakpoint(s)): {reason}"
                     )
@@ -116,9 +109,7 @@ class ModelSelector:
                         f"Segmented model ({n_breakpoints} breakpoint(s)) fit failed: {reason}"
                     )
             except (ValueError, ImportError) as e:
-                reason = (
-                    f"A critical error occurred during segmented model setup: {e!r}"
-                )
+                reason = f"A critical error occurred during segmented model setup: {e!r}"
                 failed_model_reasons.append(
                     f"Segmented model ({n_breakpoints} breakpoint(s)): {reason}"
                 )

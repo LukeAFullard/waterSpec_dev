@@ -7,7 +7,6 @@ import pytest
 
 from waterSpec.comparison import SiteComparison
 
-
 # Helper function to create test data files (adapted from test_analysis.py)
 def create_test_data_file(
     tmp_path,
@@ -31,39 +30,21 @@ def create_test_data_file(
     df.to_csv(file_path, index=False)
     return str(file_path)
 
-
 # --- Tests for the SiteComparison Class ---
-
 
 def test_site_comparison_initialization(tmp_path):
     """Test that the SiteComparison class initializes and loads data for two sites."""
     # Create two different data files
     time1 = pd.date_range("2023-01-01", periods=100, freq="D")
     series1 = np.random.rand(100)
-    file1_path = create_test_data_file(
-        tmp_path, "data1.csv", time1, series1, time_col="timestamp", data_col="value1"
-    )
+    file1_path = create_test_data_file(tmp_path, "data1.csv", time1, series1, time_col="timestamp", data_col="value1")
 
     time2 = pd.date_range("2023-01-01", periods=120, freq="D")
     series2 = np.random.rand(120)
-    file2_path = create_test_data_file(
-        tmp_path, "data2.csv", time2, series2, time_col="timestamp", data_col="value2"
-    )
+    file2_path = create_test_data_file(tmp_path, "data2.csv", time2, series2, time_col="timestamp", data_col="value2")
 
-    site1_config = {
-        "name": "SiteA",
-        "file_path": file1_path,
-        "base_dir": "",
-        "time_col": "timestamp",
-        "data_col": "value1",
-    }
-    site2_config = {
-        "name": "SiteB",
-        "file_path": file2_path,
-        "base_dir": "",
-        "time_col": "timestamp",
-        "data_col": "value2",
-    }
+    site1_config = {"name": "SiteA", "file_path": file1_path, "base_dir": "", "time_col": "timestamp", "data_col": "value1"}
+    site2_config = {"name": "SiteB", "file_path": file2_path, "base_dir": "", "time_col": "timestamp", "data_col": "value2"}
 
     comparison = SiteComparison(site1_config, site2_config)
 
@@ -72,7 +53,6 @@ def test_site_comparison_initialization(tmp_path):
     assert comparison.site2_name == "SiteB"
     assert len(comparison.site1_data["time"]) == 100
     assert len(comparison.site2_data["time"]) == 120
-
 
 @patch("waterSpec.comparison.SiteComparison._run_site_analysis")
 def test_site_comparison_run_comparison_creates_outputs(mock_run_analysis, tmp_path):
@@ -118,30 +98,14 @@ def test_site_comparison_run_comparison_creates_outputs(mock_run_analysis, tmp_p
     # Create dummy data files (still needed for initialization)
     time1 = pd.to_datetime(np.arange(50) * 86400, unit="s")
     series1 = 10 + np.random.randn(50)
-    file1_path = create_test_data_file(
-        tmp_path, "data1.csv", time1, series1, time_col="timestamp", data_col="value1"
-    )
+    file1_path = create_test_data_file(tmp_path, "data1.csv", time1, series1, time_col="timestamp", data_col="value1")
 
     time2 = pd.to_datetime(np.arange(60) * 86400, unit="s")
     series2 = 20 + np.random.randn(60)
-    file2_path = create_test_data_file(
-        tmp_path, "data2.csv", time2, series2, time_col="timestamp", data_col="value2"
-    )
+    file2_path = create_test_data_file(tmp_path, "data2.csv", time2, series2, time_col="timestamp", data_col="value2")
 
-    site1_config = {
-        "name": "SiteA",
-        "file_path": file1_path,
-        "base_dir": "",
-        "time_col": "timestamp",
-        "data_col": "value1",
-    }
-    site2_config = {
-        "name": "SiteB",
-        "file_path": file2_path,
-        "base_dir": "",
-        "time_col": "timestamp",
-        "data_col": "value2",
-    }
+    site1_config = {"name": "SiteA", "file_path": file1_path, "base_dir": "", "time_col": "timestamp", "data_col": "value1"}
+    site2_config = {"name": "SiteB", "file_path": file2_path, "base_dir": "", "time_col": "timestamp", "data_col": "value2"}
 
     output_dir = tmp_path / "comparison_results"
 
@@ -167,7 +131,6 @@ def test_site_comparison_run_comparison_creates_outputs(mock_run_analysis, tmp_p
     assert results["site1"]["site_name"] == "SiteA"
     assert results["site2"]["site_name"] == "SiteB"
 
-
 def test_site_comparison_insufficient_data_raises_error(tmp_path):
     """Test that SiteComparison raises a ValueError if one site has insufficient data."""
     # Site 1 has enough data
@@ -180,26 +143,11 @@ def test_site_comparison_insufficient_data_raises_error(tmp_path):
     series2 = np.random.rand(5)
     file2_path = create_test_data_file(tmp_path, "data2.csv", time2, series2)
 
-    site1_config = {
-        "name": "GoodSite",
-        "file_path": file1_path,
-        "base_dir": "",
-        "time_col": "time",
-        "data_col": "value",
-    }
-    site2_config = {
-        "name": "BadSite",
-        "file_path": file2_path,
-        "base_dir": "",
-        "time_col": "time",
-        "data_col": "value",
-    }
+    site1_config = {"name": "GoodSite", "file_path": file1_path, "base_dir": "", "time_col": "time", "data_col": "value"}
+    site2_config = {"name": "BadSite", "file_path": file2_path, "base_dir": "", "time_col": "time", "data_col": "value"}
 
-    with pytest.raises(
-        ValueError, match="Not enough valid data points \\(5\\) for site 'BadSite'"
-    ):
+    with pytest.raises(ValueError, match="Not enough valid data points \\(5\\) for site 'BadSite'"):
         SiteComparison(site1_config, site2_config)
-
 
 @patch("waterSpec.model_selector.fit_segmented_spectrum")
 @patch("waterSpec.model_selector.fit_standard_model")
@@ -235,61 +183,25 @@ def test_site_comparison_generates_correct_summary_and_plot_data(
     file1_path = create_test_data_file(tmp_path, "data1.csv", time, series)
     file2_path = create_test_data_file(tmp_path, "data2.csv", time, series)
 
-    site1_config = {
-        "name": "HighPersistenceSite",
-        "file_path": file1_path,
-        "base_dir": "",
-        "time_col": "time",
-        "data_col": "value",
-    }
-    site2_config = {
-        "name": "LowPersistenceSite",
-        "file_path": file2_path,
-        "base_dir": "",
-        "time_col": "time",
-        "data_col": "value",
-    }
+    site1_config = {"name": "HighPersistenceSite", "file_path": file1_path, "base_dir": "", "time_col": "time", "data_col": "value"}
+    site2_config = {"name": "LowPersistenceSite", "file_path": file2_path, "base_dir": "", "time_col": "time", "data_col": "value"}
 
     comparison = SiteComparison(site1_config, site2_config)
     # For Site 1, force only standard model. For Site 2, allow segmented.
     # This ensures our mocks are called as expected.
-    with patch.object(
-        comparison, "_run_site_analysis", wraps=comparison._run_site_analysis
-    ) as spy:
+    with patch.object(comparison, '_run_site_analysis', wraps=comparison._run_site_analysis) as spy:
         results = comparison.run_comparison(
             output_dir=tmp_path, n_bootstraps=0, max_breakpoints=0
         )
         # Manually trigger second analysis for second site with different settings
-        analysis_kwargs = {
-            "max_breakpoints": 1,
-            "n_bootstraps": 0,
-            "seed": 43,
-            "fit_method": "theil-sen",
-            "ci_method": "bootstrap",
-            "bootstrap_type": "block",
-            "samples_per_peak": 5,
-            "nyquist_factor": 1.0,
-            "max_freq": None,
-            "peak_detection_method": "fap",
-            "fap_threshold": 0.01,
-            "fap_method": "baluev",
-            "peak_fdr_level": 0.05,
-            "normalization": "standard",
-            "p_threshold": 0.05,
-        }
-        comparison.results["site2"] = comparison._run_site_analysis(
-            comparison.site2_data, "LowPersistenceSite", analysis_kwargs
-        )
-        comparison.results["summary_text"] = comparison._generate_comparison_summary(
-            comparison.results
-        )
+        analysis_kwargs = {"max_breakpoints": 1, "n_bootstraps": 0, "seed": 43, "fit_method": "theil-sen", "ci_method": "bootstrap", "bootstrap_type": "block", "samples_per_peak": 5, "nyquist_factor": 1.0, "max_freq": None, "peak_detection_method": "fap", "fap_threshold": 0.01, "fap_method": "baluev", "peak_fdr_level": 0.05, "normalization": "standard", "p_threshold": 0.05}
+        comparison.results["site2"] = comparison._run_site_analysis(comparison.site2_data, "LowPersistenceSite", analysis_kwargs)
+        comparison.results["summary_text"] = comparison._generate_comparison_summary(comparison.results)
+
 
     # Check that the summary logic is correct
     summary = comparison.results["summary_text"]
-    assert (
-        "LowPersistenceSite shows significantly LOWER persistence than HighPersistenceSite (-2.00)"
-        in summary
-    )
+    assert "LowPersistenceSite shows significantly LOWER persistence than HighPersistenceSite (-2.00)" in summary
 
     # Check that the results dictionary for site 1 has plotting keys
     site1_res = comparison.results["site1"]

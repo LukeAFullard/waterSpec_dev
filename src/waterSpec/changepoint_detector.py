@@ -15,7 +15,6 @@ try:
 except ImportError:
     rpt = None
 
-
 def detect_changepoint_pelt(
     time: np.ndarray,
     data: np.ndarray,
@@ -60,7 +59,7 @@ def detect_changepoint_pelt(
     if n < 2 * min_size:
         raise ValueError(
             f"Time series too short (n={n}) for changepoint detection with "
-            f"min_size={min_size}. Minimum required: {2 * min_size}."
+            f"min_size={min_size}. Minimum required: {2*min_size}."
         )
 
     # Reshape data for ruptures (requires 2D: samples × features)

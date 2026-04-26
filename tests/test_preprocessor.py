@@ -57,16 +57,12 @@ def test_preprocess_data_raises_error_on_non_positive_for_log():
     # Case 1: Data contains a zero from the start
     data_with_zero = pd.Series([1.0, 2.0, 0.0, 4.0, 5.0])
 
-    with pytest.raises(
-        ValueError, match="Log-transform requires all data to be positive"
-    ):
+    with pytest.raises(ValueError, match="Log-transform requires all data to be positive"):
         preprocess_data(data_with_zero, time, log_transform_data=True)
 
     # Case 2: Data becomes zero due to a censoring strategy
     data_with_censor = pd.Series(["1.0", "2.0", "<0", "4.0", "5.0"])
-    with pytest.raises(
-        ValueError, match="Log-transform requires all data to be positive"
-    ):
+    with pytest.raises(ValueError, match="Log-transform requires all data to be positive"):
         preprocess_data(
             data_with_censor,
             time,
@@ -268,7 +264,9 @@ def test_preprocess_data_error_propagation_correctness(sample_data):
     _, errors_manual = normalize(data_manual, errors_manual)
 
     # --- Compare the results ---
-    np.testing.assert_array_almost_equal(processed_errors_from_wrapper, errors_manual)
+    np.testing.assert_array_almost_equal(
+        processed_errors_from_wrapper, errors_manual
+    )
 
 
 def test_normalize_zero_std_dev():
@@ -294,8 +292,7 @@ def test_detrend_loess_with_errors_raises_error(sample_data):
 
     # Detrending with errors but without bootstrapping should raise a ValueError.
     with pytest.raises(
-        ValueError,
-        match="Error propagation for LOESS detrending requires bootstrapping",
+        ValueError, match="Error propagation for LOESS detrending requires bootstrapping"
     ):
         detrend_loess(
             time, trended_data.copy(), errors=errors.copy(), frac=0.5, n_bootstrap=0

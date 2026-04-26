@@ -1,11 +1,6 @@
 import numpy as np
 import pytest
-from waterSpec.ls_cross_spectrum import (
-    calculate_ls_cross_spectrum,
-    calculate_time_lag,
-    _compute_ls_complex_coeffs,
-)
-
+from waterSpec.ls_cross_spectrum import calculate_ls_cross_spectrum, calculate_time_lag, _compute_ls_complex_coeffs
 
 def test_calculate_ls_cross_spectrum_basic():
     # Basic shape/type validation
@@ -27,7 +22,6 @@ def test_calculate_ls_cross_spectrum_basic():
     assert out_freqs.shape == freqs.shape
     assert np.all(out_freqs == freqs)
     assert np.all(coherence == 1.0)
-
 
 def test_calculate_ls_cross_spectrum_known_phase():
     """
@@ -55,7 +49,7 @@ def test_calculate_ls_cross_spectrum_known_phase():
     f_signal = 0.25
     omega = 2 * np.pi * f_signal
 
-    true_phase_shift = np.pi / 4.0  # phi
+    true_phase_shift = np.pi / 4.0 # phi
 
     np.random.seed(42)
     time1 = np.sort(np.random.uniform(0, 50, 200))
@@ -81,7 +75,6 @@ def test_calculate_ls_cross_spectrum_known_phase():
 
     assert np.isclose(calculated_phase, expected_phase, atol=0.05)
 
-
 def test_calculate_ls_cross_spectrum_sine_vs_cosine():
     """
     y1 = cos(wt)
@@ -98,7 +91,9 @@ def test_calculate_ls_cross_spectrum_sine_vs_cosine():
 
     freqs = np.array([f_signal])
 
-    _, phase_lag, _, _ = calculate_ls_cross_spectrum(time1, data1, time2, data2, freqs)
+    _, phase_lag, _, _ = calculate_ls_cross_spectrum(
+        time1, data1, time2, data2, freqs
+    )
 
     assert np.isclose(phase_lag[0], -np.pi / 2, atol=0.01)
 
@@ -108,7 +103,7 @@ def test_calculate_time_lag():
     Test conversion from phase lag to time lag:
     time_lag = phase_lag / (2 * pi * f)
     """
-    phase_lag = np.array([np.pi, np.pi / 2, 0, -np.pi / 2])
+    phase_lag = np.array([np.pi, np.pi/2, 0, -np.pi/2])
     freqs = np.array([0.5, 1.0, 2.0, 0.25])
 
     # Expected time lags:
@@ -122,12 +117,11 @@ def test_calculate_time_lag():
 
     assert np.allclose(time_lag, expected_time_lag)
 
-
 def test_calculate_time_lag_zero_frequency():
     """
     Zero frequency should be handled without DivisionByZero warnings
     """
-    phase_lag = np.array([np.pi, np.pi / 2])
+    phase_lag = np.array([np.pi, np.pi/2])
     freqs = np.array([0.0, 1.0])
 
     # The valid elements are f > 0
@@ -167,7 +161,6 @@ def test_compute_ls_complex_coeffs_errors():
     assert np.isclose(A, 1.0, atol=0.1)
     assert np.isclose(B, 0.0, atol=0.1)
 
-
 def test_compute_ls_complex_coeffs_zero_errors():
     """
     Zero errors should not cause division by zero.
@@ -185,7 +178,6 @@ def test_compute_ls_complex_coeffs_zero_errors():
 
     assert not np.isnan(coeffs[0])
 
-
 def test_compute_ls_complex_coeffs_singular_matrix():
     """
     Test LinAlgError handling in _compute_ls_complex_coeffs.
@@ -193,7 +185,7 @@ def test_compute_ls_complex_coeffs_singular_matrix():
     We can force this by providing only 1 data point or 2 identical data points
     which is not enough to solve for 3 parameters (C, A, B).
     """
-    time = np.array([1.0, 1.0])  # Same time, so singular system
+    time = np.array([1.0, 1.0]) # Same time, so singular system
     data = np.array([2.0, 2.0])
     freqs = np.array([1.0])
 

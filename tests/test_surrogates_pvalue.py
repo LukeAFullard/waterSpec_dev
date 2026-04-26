@@ -2,12 +2,10 @@ import numpy as np
 import pytest
 from waterSpec.surrogates import calculate_significance_p_value
 
-
 def test_significance_p_value_empty():
     """Test that empty surrogate metrics return NaN."""
     p_val = calculate_significance_p_value(5.0, np.array([]))
     assert np.isnan(p_val)
-
 
 def test_significance_p_value_two_sided():
     """Test two-sided p-value calculation (checks absolute magnitude)."""
@@ -23,7 +21,6 @@ def test_significance_p_value_two_sided():
     # Obs = 0.0 (abs = 0.0). All four surrogates >= 0.0. count = 4. p = 5 / 5 = 1.0
     assert calculate_significance_p_value(0.0, surrogates, two_sided=True) == 1.0
 
-
 def test_significance_p_value_one_sided():
     """Test one-sided p-value calculation (checks raw magnitude)."""
     surrogates = np.array([1, 2, 3, 4])
@@ -37,7 +34,6 @@ def test_significance_p_value_one_sided():
     # Obs = 0.0. All four surrogates >= 0.0. count = 4. p = 5 / 5 = 1.0
     assert calculate_significance_p_value(0.0, surrogates, two_sided=False) == 1.0
 
-
 def test_significance_p_value_one_sided_negative():
     """Test one-sided p-value with negative numbers."""
     surrogates = np.array([-4, -3, -2, -1])
@@ -50,7 +46,6 @@ def test_significance_p_value_one_sided_negative():
 
     # Obs = -5.0. All four surrogates >= -5.0. count = 4. p = 5 / 5 = 1.0
     assert calculate_significance_p_value(-5.0, surrogates, two_sided=False) == 1.0
-
 
 def test_significance_p_value_exact_match():
     """Test exactly matching values."""

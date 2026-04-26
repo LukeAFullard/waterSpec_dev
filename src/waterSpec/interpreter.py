@@ -1,6 +1,5 @@
 import json
 import warnings
-
 try:
     from importlib import resources
 except ImportError:
@@ -28,10 +27,8 @@ def _get_uncertainty_warning(ci, threshold, name="value"):
 def _load_benchmarks():
     try:
         # For Python 3.9+ structure using files() or older open_text
-        if hasattr(resources, "files"):
-            content = (
-                resources.files("waterSpec").joinpath("benchmarks.json").read_text()
-            )
+        if hasattr(resources, 'files'):
+            content = resources.files("waterSpec").joinpath("benchmarks.json").read_text()
             data = json.loads(content)
         else:
             # Fallback for Python 3.8
@@ -40,7 +37,6 @@ def _load_benchmarks():
     except Exception:
         # Fallback for when running from source without package installation
         import os
-
         current_dir = os.path.dirname(__file__)
         json_path = os.path.join(current_dir, "benchmarks.json")
         with open(json_path, "r", encoding="utf-8") as f:
@@ -92,7 +88,9 @@ def get_scientific_interpretation(beta):
             "preprocessing choices."
         )
     elif 0 < beta < 1:
-        return f"0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport."
+        return (
+            f"0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport."
+        )
     elif 1 < beta < BETA_UPPER_BOUND:
         return (
             f"1 < β < {BETA_UPPER_BOUND} (fBm-like): Strong persistence, suggesting transport is "
@@ -237,12 +235,12 @@ def interpret_results(
                     betas_list = model.get("betas", [])
                     if len(betas_list) > 0:
                         beta_str = ", ".join(
-                            [f"β{i + 1}={b:.2f}" for i, b in enumerate(betas_list)]
+                            [f"β{i+1}={b:.2f}" for i, b in enumerate(betas_list)]
                         )
 
             summary_line = f"  - {name:<15} BIC = {bic_str:<8} ({beta_str})"
             if not np.isfinite(bic_val):
-                summary_line = f"  - {name:<15} BIC = {bic_str:<8} (Fit Failed)"
+                 summary_line = f"  - {name:<15} BIC = {bic_str:<8} (Fit Failed)"
 
             model_summaries.append(summary_line)
 
@@ -253,9 +251,7 @@ def interpret_results(
             for reason in failed_reasons:
                 model_summaries.append(f"    - {reason}")
 
-        chosen_model_name = (
-            fit_results.get("chosen_model", "Unknown").replace("_", " ").capitalize()
-        )
+        chosen_model_name = fit_results.get("chosen_model", "Unknown").replace("_", " ").capitalize()
         auto_summary_header = (
             f"Automatic Analysis for: {param_name}\n"
             "-----------------------------------\n"
@@ -300,7 +296,7 @@ def interpret_results(
                 else (np.nan, np.nan)
             )
 
-            bp_name = f"Breakpoint {i + 1} Period"
+            bp_name = f"Breakpoint {i+1} Period"
             bp_str = f"~{_format_period(bp_freq, time_unit=time_unit)}"
             if np.all(np.isfinite(bp_ci)):
                 # Note: A lower frequency corresponds to a higher period, so the
@@ -323,13 +319,13 @@ def interpret_results(
                         f"order of magnitude (ratio: {period_ratio:.1f}), indicating high "
                         "uncertainty in its location."
                     )
-            summary_parts.append(f"--- Breakpoint {i + 1} @ {bp_str} ---")
+            summary_parts.append(f"--- Breakpoint {i+1} @ {bp_str} ---")
 
             # Determine segment name and get its data
             name = (
                 "High-Frequency (Short-term) Fit"
                 if (i + 1) == n_breakpoints
-                else f"Mid-Frequency Segment {i + 1}"
+                else f"Mid-Frequency Segment {i+1}"
             )
             beta_next = fit_results["betas"][i + 1]
             betas_ci_list = fit_results.get("betas_ci", [])
@@ -338,7 +334,7 @@ def interpret_results(
                 if (i + 1) < len(betas_ci_list)
                 else (np.nan, np.nan)
             )
-            beta_name = f"β{i + 2}"
+            beta_name = f"β{i+2}"
 
             segment_summary, warning = _generate_segment_interpretation(
                 name,
@@ -379,7 +375,7 @@ def interpret_results(
         if "fap_level" in fit_results:
             peaks_summary += (
                 "Significant Periodicities Found "
-                f"(at {fit_results['fap_threshold'] * 100:.1f}% FAP Level):\n"
+                f"(at {fit_results['fap_threshold']*100:.1f}% FAP Level):\n"
             )
         else:
             peaks_summary += "Significant Periodicities Found:\n"
@@ -399,10 +395,12 @@ def interpret_results(
         no_peaks_msg = "\n\nNo significant periodicities were found"
         if "fap_level" in fit_results:
             no_peaks_msg += (
-                f" at the {fit_results['fap_threshold'] * 100:.1f}% FAP level."
+                f" at the {fit_results['fap_threshold']*100:.1f}% FAP level."
             )
         elif "residual_threshold" in fit_results:
-            no_peaks_msg += f" at the {fit_results.get('peak_fdr_level', 0.05) * 100:.0f}% FDR level."
+            no_peaks_msg += (
+                f" at the {fit_results.get('peak_fdr_level', 0.05)*100:.0f}% FDR level."
+            )
         else:
             no_peaks_msg += "."
         summary_text += no_peaks_msg

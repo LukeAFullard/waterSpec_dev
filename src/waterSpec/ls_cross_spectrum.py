@@ -1,6 +1,6 @@
+
 import numpy as np
 from typing import Tuple, Optional, Union
-
 
 def calculate_ls_cross_spectrum(
     time1: np.ndarray,
@@ -9,7 +9,7 @@ def calculate_ls_cross_spectrum(
     data2: np.ndarray,
     freqs: np.ndarray,
     errors1: Optional[np.ndarray] = None,
-    errors2: Optional[np.ndarray] = None,
+    errors2: Optional[np.ndarray] = None
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Calculates the Lomb-Scargle Cross-Spectrum and Phase for two unevenly sampled time series.
@@ -55,19 +55,21 @@ def calculate_ls_cross_spectrum(
     # We return a raw "spectral product" normalized by auto-powers, which is 1 pointwise.
     # Users should average this over frequency bands if they want coherence.
 
-    S11 = np.abs(Z1) ** 2
-    S22 = np.abs(Z2) ** 2
+    S11 = np.abs(Z1)**2
+    S22 = np.abs(Z2)**2
 
     # We can provide a simple bandwidth-averaged coherence
     # But let's return the "pointwise" value (1.0) or handle it downstream.
     # Ideally, we return the Cross Spectrum itself (Sxy).
 
-    coherence = np.ones_like(cross_power)  # Placeholder, requires smoothing
+    coherence = np.ones_like(cross_power) # Placeholder, requires smoothing
 
     return cross_power, phase_lag, coherence, freqs
 
-
-def calculate_time_lag(phase_lag: np.ndarray, freqs: np.ndarray) -> np.ndarray:
+def calculate_time_lag(
+    phase_lag: np.ndarray,
+    freqs: np.ndarray
+) -> np.ndarray:
     """
     Converts phase lag (radians) to time lag (time units).
 
@@ -86,12 +88,11 @@ def calculate_time_lag(phase_lag: np.ndarray, freqs: np.ndarray) -> np.ndarray:
     time_lag[valid] = phase_lag[valid] / (2 * np.pi * freqs[valid])
     return time_lag
 
-
 def _compute_ls_complex_coeffs(
     time: np.ndarray,
     data: np.ndarray,
     freqs: np.ndarray,
-    errors: Optional[np.ndarray] = None,
+    errors: Optional[np.ndarray] = None
 ) -> np.ndarray:
     """
     Computes the complex Fourier coefficients for Lomb-Scargle fit.
@@ -122,7 +123,7 @@ def _compute_ls_complex_coeffs(
     else:
         # Handle zeros in errors safely
         safe_errors = errors.copy()
-        safe_errors[safe_errors == 0] = 1e-9  # Prevent div by zero
+        safe_errors[safe_errors == 0] = 1e-9 # Prevent div by zero
         w = 1.0 / (safe_errors**2)
 
     # Pre-calculate sums

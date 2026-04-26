@@ -132,17 +132,13 @@ def fit_standard_model(
     if not 0 < ci < 100:
         raise ValueError("'ci' must be between 0 and 100.")
     if method not in ["ols", "theil-sen"]:
-        raise ValueError(
-            f"Unknown fitting method: '{method}'. Choose 'ols' or 'theil-sen'."
-        )
+        raise ValueError(f"Unknown fitting method: '{method}'. Choose 'ols' or 'theil-sen'.")
     if bootstrap_type not in ["pairs", "residuals", "block", "wild"]:
         raise ValueError(
             f"Unknown bootstrap_type: '{bootstrap_type}'. Choose 'pairs', 'residuals', 'block', or 'wild'."
         )
     if ci_method not in ["parametric", "bootstrap"]:
-        raise ValueError(
-            f"Unknown ci_method: '{ci_method}'. Choose 'parametric' or 'bootstrap'."
-        )
+        raise ValueError(f"Unknown ci_method: '{ci_method}'. Choose 'parametric' or 'bootstrap'.")
 
     # Add a small floor to power to prevent log(0) issues with very weak signals.
     power = np.maximum(power, 1e-100)
@@ -203,8 +199,8 @@ def fit_standard_model(
     # Check if we should use MannKS (for robust method)
     if method == "theil-sen":
         try:
-            mannks_block_size = "auto"
-            if bootstrap_type == "block":
+            mannks_block_size = 'auto'
+            if bootstrap_type == 'block':
                 # Use the validated/defaulted block size
                 mannks_block_size = bootstrap_block_size
 
@@ -218,9 +214,8 @@ def fit_standard_model(
 
             # MannKS.trend_test provides robust slope and CIs
             res = MannKS.trend_test(
-                log_power,
-                log_freq,
-                alpha=1 - (ci / 100),
+                log_power, log_freq,
+                alpha=1-(ci/100),
                 block_size=mannks_block_size,
                 n_bootstrap=n_bootstraps,
                 random_state=mannks_seed,
@@ -231,21 +226,19 @@ def fit_standard_model(
             slope_ci_lower = res.lower_ci
             slope_ci_upper = res.upper_ci
 
-            fit_results.update(
-                {
-                    "beta": -slope,
-                    "intercept": intercept,
-                    "beta_ci_lower": -slope_ci_upper,
-                    "beta_ci_upper": -slope_ci_lower,
-                    "slope_ci_lower": slope_ci_lower,
-                    "slope_ci_upper": slope_ci_upper,
-                    "ci_computed": True,
-                    # Add placeholders for consistency
-                    "bootstrap_success_rate": np.nan,
-                    "bootstrap_n_success": n_bootstraps,
-                    "bootstrap_error_summary": "",
-                }
-            )
+            fit_results.update({
+                "beta": -slope,
+                "intercept": intercept,
+                "beta_ci_lower": -slope_ci_upper,
+                "beta_ci_upper": -slope_ci_lower,
+                "slope_ci_lower": slope_ci_lower,
+                "slope_ci_upper": slope_ci_upper,
+                "ci_computed": True,
+                # Add placeholders for consistency
+                "bootstrap_success_rate": np.nan,
+                "bootstrap_n_success": n_bootstraps,
+                "bootstrap_error_summary": "",
+            })
 
             # Calculate fitted values for residuals
             log_power_fit = slope * log_freq + intercept
@@ -266,16 +259,14 @@ def fit_standard_model(
                 spearman_corr_log_freq, _ = stats.spearmanr(log_freq, np.abs(residuals))
                 spearman_corr_freq, _ = stats.spearmanr(10**log_freq, np.abs(residuals))
 
-            fit_results.update(
-                {
-                    "log_freq": log_freq,
-                    "log_power": log_power,
-                    "residuals": residuals,
-                    "fitted_log_power": log_power_fit,
-                    "spearman_corr_log_freq": spearman_corr_log_freq,
-                    "spearman_corr_freq": spearman_corr_freq,
-                }
-            )
+            fit_results.update({
+                "log_freq": log_freq,
+                "log_power": log_power,
+                "residuals": residuals,
+                "fitted_log_power": log_power_fit,
+                "spearman_corr_log_freq": spearman_corr_log_freq,
+                "spearman_corr_freq": spearman_corr_freq,
+            })
 
             if durbin_watson:
                 dw_stat = durbin_watson(residuals)
@@ -303,25 +294,23 @@ def fit_standard_model(
                 adj_r_squared = 1 - (1 - r_squared) * (n_points - 1) / dof
             else:
                 adj_r_squared = np.nan
-            fit_results.update(
-                {
-                    "r_squared": r_squared,
-                    "adj_r_squared": adj_r_squared,
-                    "stderr": stderr,
-                }
-            )
+            fit_results.update({
+                "r_squared": r_squared,
+                "adj_r_squared": adj_r_squared,
+                "stderr": stderr,
+            })
         elif method == "theil-sen":
             # Fallback Theil-Sen if MannKS failed
             res = stats.theilslopes(log_power, log_freq, alpha=1 - (ci / 100))
             slope, intercept, low_slope, high_slope = res
-            fit_results.update(
-                {"slope_ci_lower": low_slope, "slope_ci_upper": high_slope}
-            )
+            fit_results.update({"slope_ci_lower": low_slope, "slope_ci_upper": high_slope})
 
         fit_results.update({"beta": -slope, "intercept": intercept})
 
     except (ValueError, np.linalg.LinAlgError) as e:
-        failure_reason = f"Initial standard model fit failed with method '{method}' due to a numerical or data issue: {e}"
+        failure_reason = (
+            f"Initial standard model fit failed with method '{method}' due to a numerical or data issue: {e}"
+        )
         logger.warning(failure_reason, exc_info=True)
         result = {
             "beta": np.nan,
@@ -335,7 +324,9 @@ def fit_standard_model(
             result["traceback"] = traceback.format_exc()
         return result
     except Exception as e:
-        failure_reason = f"An unexpected error occurred during the initial standard model fit with method '{method}': {e!r}"
+        failure_reason = (
+            f"An unexpected error occurred during the initial standard model fit with method '{method}': {e!r}"
+        )
         logger.error(
             "Standard model fit crashed: %s",
             e,
@@ -412,25 +403,19 @@ def fit_standard_model(
             try:
                 # 1. Generate resampled data for all bootstraps
                 if bootstrap_type == "pairs":
-                    indices = rng.choice(
-                        np.arange(n_points), size=(n_bootstraps, n_points), replace=True
-                    )
+                    indices = rng.choice(np.arange(n_points), size=(n_bootstraps, n_points), replace=True)
                     X = log_freq[indices]
                     Y = log_power[indices]
                 elif bootstrap_type == "residuals":
                     resampled_residuals = rng.choice(
-                        residuals - np.mean(residuals),
-                        size=(n_bootstraps, n_points),
-                        replace=True,
+                        residuals - np.mean(residuals), size=(n_bootstraps, n_points), replace=True
                     )
                     Y = log_power_fit + resampled_residuals
                     X = np.broadcast_to(log_freq, (n_bootstraps, n_points))
                 elif bootstrap_type == "block":
                     indices = np.empty((n_bootstraps, n_points), dtype=int)
                     for i in range(n_bootstraps):
-                        indices[i] = _moving_block_bootstrap_indices(
-                            n_points, block_size, rng
-                        )
+                        indices[i] = _moving_block_bootstrap_indices(n_points, block_size, rng)
                     X = log_freq[indices]
                     Y = log_power[indices]
                 elif bootstrap_type == "wild":
@@ -449,7 +434,7 @@ def fit_standard_model(
 
                 # Calculate covariance and variance
                 cov_xy = np.sum((X - mean_x) * (Y - mean_y), axis=1)
-                var_x = np.sum((X - mean_x) ** 2, axis=1)
+                var_x = np.sum((X - mean_x)**2, axis=1)
 
                 # Avoid division by zero
                 valid_mask = var_x > 0
@@ -464,26 +449,19 @@ def fit_standard_model(
                 if n_invalid > 0:
                     error_counts["ZeroVarianceError"] = int(n_invalid)
                     if logger:
-                        logger.debug(
-                            f"Bootstrap iteration failed: Variance of X is zero in {n_invalid} samples."
-                        )
+                        logger.debug(f"Bootstrap iteration failed: Variance of X is zero in {n_invalid} samples.")
             except Exception as e:
                 # Fallback on the entire vectorization failure
                 error_type = type(e).__name__
                 error_counts[error_type] = n_bootstraps
                 if logger:
-                    logger.debug(
-                        f"Vectorized bootstrap failed with an unexpected error: {e}",
-                        exc_info=True,
-                    )
+                    logger.debug(f"Vectorized bootstrap failed with an unexpected error: {e}", exc_info=True)
         else:
             # Sequential loop for non-OLS methods (e.g., theil-sen)
             for _ in range(n_bootstraps):
                 try:
                     if bootstrap_type == "pairs":
-                        indices = rng.choice(
-                            np.arange(n_points), size=n_points, replace=True
-                        )
+                        indices = rng.choice(np.arange(n_points), size=n_points, replace=True)
                         resampled_log_freq = log_freq[indices]
                         resampled_log_power = log_power[indices]
                     elif bootstrap_type == "residuals":
@@ -495,9 +473,7 @@ def fit_standard_model(
                         resampled_log_power = log_power_fit + resampled_residuals
                         resampled_log_freq = log_freq  # Keep original frequencies
                     elif bootstrap_type == "block":
-                        indices = _moving_block_bootstrap_indices(
-                            n_points, block_size, rng
-                        )
+                        indices = _moving_block_bootstrap_indices(n_points, block_size, rng)
                         resampled_log_freq = log_freq[indices]
                         resampled_log_power = log_power[indices]
                     elif bootstrap_type == "wild":
@@ -509,9 +485,7 @@ def fit_standard_model(
                         w2 = (np.sqrt(5) + 1) / 2
                         # p2 = (np.sqrt(5) - 1) / (2 * np.sqrt(5)) = 1 - p1
 
-                        u = rng.choice(
-                            [w1, w2], size=n_points, replace=True, p=[p1, 1 - p1]
-                        )
+                        u = rng.choice([w1, w2], size=n_points, replace=True, p=[p1, 1 - p1])
                         centered_residuals = residuals - np.mean(residuals)
                         resampled_log_power = log_power_fit + centered_residuals * u
                         resampled_log_freq = log_freq  # Keep original frequencies
@@ -620,9 +594,7 @@ def fit_standard_model(
                         "intervals may be unreliable."
                     )
             elif len(residuals) > 5000:
-                logger.info(
-                    "Dataset too large for Shapiro-Wilk test; skipping normality check."
-                )
+                logger.info("Dataset too large for Shapiro-Wilk test; skipping normality check.")
 
             stderr = fit_results.get("stderr", np.nan)
             dof = len(log_freq) - 2
@@ -661,16 +633,14 @@ def fit_standard_model(
                 "reliable for model selection."
             )
 
-    fit_results.update(
-        {
-            "log_freq": log_freq,
-            "log_power": log_power,
-            "residuals": residuals,
-            "fitted_log_power": log_power_fit,
-            "spearman_corr_log_freq": spearman_corr_log_freq,
-            "spearman_corr_freq": spearman_corr_freq,
-        }
-    )
+    fit_results.update({
+        "log_freq": log_freq,
+        "log_power": log_power,
+        "residuals": residuals,
+        "fitted_log_power": log_power_fit,
+        "spearman_corr_log_freq": spearman_corr_log_freq,
+        "spearman_corr_freq": spearman_corr_freq,
+    })
 
     return fit_results
 
@@ -697,7 +667,6 @@ def fit_segmented_spectrum(
     """
     if logger is None:
         import logging
-
         logger = logging.getLogger(__name__)
 
     # Ensure frequency and power are sorted by frequency.
@@ -770,15 +739,14 @@ def fit_segmented_spectrum(
         # MannKS uses bagging which involves bootstrapping.
         # It also has n_bootstrap argument.
 
-        mannks_block_size = "auto"
-        if bootstrap_type == "block" and bootstrap_block_size is not None:
+        mannks_block_size = 'auto'
+        if bootstrap_type == 'block' and bootstrap_block_size is not None:
             mannks_block_size = bootstrap_block_size
 
         res = MannKS.segmented_trend_test(
-            log_power,
-            log_freq,
+            log_power, log_freq,
             n_breakpoints=n_breakpoints,
-            alpha=1 - (ci / 100),
+            alpha=1-(ci/100),
             n_bootstrap=n_bootstraps,
             block_size=mannks_block_size,
             random_state=mannks_seed,
@@ -794,16 +762,16 @@ def fit_segmented_spectrum(
         # Segments DataFrame
         segments_df = res.segments
 
-        slopes = segments_df["slope"].values
-        intercepts = segments_df["intercept"].values
+        slopes = segments_df['slope'].values
+        intercepts = segments_df['intercept'].values
 
         # Betas are negative slopes
         betas = -slopes
 
         # CIs
         # Slope CIs are in segments_df
-        lower_cis = segments_df["lower_ci"].values
-        upper_cis = segments_df["upper_ci"].values
+        lower_cis = segments_df['lower_ci'].values
+        upper_cis = segments_df['upper_ci'].values
 
         # Beta CIs (inverted slope CIs)
         betas_ci = list(zip(-upper_cis, -lower_cis))
@@ -836,10 +804,10 @@ def fit_segmented_spectrum(
         bounds = np.concatenate([[-np.inf], sorted_bp, [np.inf]])
 
         for i in range(len(slopes)):
-            mask = (log_freq > bounds[i]) & (log_freq <= bounds[i + 1])
+            mask = (log_freq > bounds[i]) & (log_freq <= bounds[i+1])
             # Handle first point inclusively if needed, or strictly
             if i == 0:
-                mask = (log_freq >= bounds[i]) & (log_freq <= bounds[i + 1])
+                mask = (log_freq >= bounds[i]) & (log_freq <= bounds[i+1])
 
             fitted_log_power[mask] = slopes[i] * log_freq[mask] + intercepts[i]
 
@@ -871,7 +839,7 @@ def fit_segmented_spectrum(
         results["spearman_corr_freq"] = spearman_corr_freq
 
         if durbin_watson:
-            results["durbin_watson_stat"] = durbin_watson(residuals)
+             results["durbin_watson_stat"] = durbin_watson(residuals)
 
         return results
 

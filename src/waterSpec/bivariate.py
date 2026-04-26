@@ -1,3 +1,4 @@
+
 import numpy as np
 import pandas as pd
 from typing import Tuple, Optional, Dict
@@ -6,12 +7,8 @@ import warnings
 from scipy import stats, interpolate
 
 from .haar_analysis import calculate_haar_fluctuations, _compute_statistic
-from .surrogates import (
-    generate_phase_randomized_surrogates,
-    calculate_significance_p_value,
-)
+from .surrogates import generate_phase_randomized_surrogates, calculate_significance_p_value
 from .ls_cross_spectrum import calculate_ls_cross_spectrum, calculate_time_lag
-
 
 class BivariateAnalysis:
     """
@@ -19,16 +16,10 @@ class BivariateAnalysis:
     Supports Cross-Haar Correlation, Lagged Response Analysis, and Cross-Spectral Analysis.
     """
 
-    def __init__(
-        self,
-        time1: np.ndarray,
-        data1: np.ndarray,
-        name1: str,
-        time2: np.ndarray,
-        data2: np.ndarray,
-        name2: str,
-        time_unit: str = "seconds",
-    ):
+    def __init__(self,
+                 time1: np.ndarray, data1: np.ndarray, name1: str,
+                 time2: np.ndarray, data2: np.ndarray, name2: str,
+                 time_unit: str = "seconds"):
         self.time1 = time1
         self.data1 = data1
         self.name1 = name1
@@ -41,7 +32,7 @@ class BivariateAnalysis:
         self.aligned_data = None
         self.logger = logging.getLogger(__name__)
 
-    def align_data(self, tolerance: float, method: str = "nearest") -> pd.DataFrame:
+    def align_data(self, tolerance: float, method: str = 'nearest') -> pd.DataFrame:
         """
         Aligns the two time series to a common timeline.
 
@@ -51,15 +42,13 @@ class BivariateAnalysis:
                 'nearest': Finds nearest neighbor within tolerance.
                 'interpolate_2_to_1': Interpolates series 2 to match series 1 times.
         """
-        df1 = pd.DataFrame({"time": self.time1, self.name1: self.data1})
-        df2 = pd.DataFrame({"time": self.time2, self.name2: self.data2})
+        df1 = pd.DataFrame({'time': self.time1, self.name1: self.data1})
+        df2 = pd.DataFrame({'time': self.time2, self.name2: self.data2})
 
-        if method == "interpolate_2_to_1":
+        if method == 'interpolate_2_to_1':
             # Interpolate data2 onto time1
             # Assuming strictly increasing time
-            interp_vals = np.interp(
-                self.time1, self.time2, self.data2, left=np.nan, right=np.nan
-            )
+            interp_vals = np.interp(self.time1, self.time2, self.data2, left=np.nan, right=np.nan)
 
             # Create aligned DF
             aligned = df1.copy()
@@ -67,35 +56,32 @@ class BivariateAnalysis:
 
             # Mask out points where nearest neighbor in time2 is too far
             idx = np.searchsorted(self.time2, self.time1)
-            idx = np.clip(idx, 0, len(self.time2) - 1)
+            idx = np.clip(idx, 0, len(self.time2)-1)
             dist_right = np.abs(self.time2[idx] - self.time1)
-            dist_left = np.abs(
-                self.time2[np.clip(idx - 1, 0, len(self.time2) - 1)] - self.time1
-            )
+            dist_left = np.abs(self.time2[np.clip(idx-1, 0, len(self.time2)-1)] - self.time1)
             min_dist = np.minimum(dist_left, dist_right)
 
             aligned.loc[min_dist > tolerance, self.name2] = np.nan
 
             self.aligned_data = aligned.dropna()
 
-        elif method == "nearest":
+        elif method == 'nearest':
             # Use pandas merge_asof
-            df1 = df1.sort_values("time")
-            df2 = df2.sort_values("time")
+            df1 = df1.sort_values('time')
+            df2 = df2.sort_values('time')
 
             # Handle tolerance based on column types
             # If time is numeric (float/int), tolerance is numeric.
             # If time is datetime, tolerance should be Timedelta.
 
             tol = tolerance
-            if (
-                pd.api.types.is_datetime64_any_dtype(df1["time"])
-                and self.time_unit == "seconds"
-            ):
-                tol = pd.Timedelta(seconds=tolerance)
+            if pd.api.types.is_datetime64_any_dtype(df1['time']) and self.time_unit == 'seconds':
+                 tol = pd.Timedelta(seconds=tolerance)
 
             aligned = pd.merge_asof(
-                df1, df2, on="time", tolerance=tol, direction="nearest"
+                df1, df2, on='time',
+                tolerance=tol,
+                direction='nearest'
             )
             self.aligned_data = aligned.dropna()
 
@@ -117,14 +103,14 @@ class BivariateAnalysis:
         percentile_method1: str = "hazen",
         statistic2: str = "mean",
         percentile2: Optional[float] = None,
-        percentile_method2: str = "hazen",
+        percentile_method2: str = "hazen"
     ) -> Dict:
         """Helper to calculate Cross-Haar Correlation."""
         results = {
-            "lags": [],
-            "correlation": [],
-            "n_pairs": [],
-            "slope_alpha": [],  # sensitivity
+            'lags': [],
+            'correlation': [],
+            'n_pairs': [],
+            'slope_alpha': [] # sensitivity
         }
 
         # Pre-calculate time range
@@ -145,8 +131,7 @@ class BivariateAnalysis:
                     curr_t += step_size
                 else:
                     curr_t += tau
-                    if curr_t >= t_max:
-                        break
+                    if curr_t >= t_max: break
 
             if t_starts_list:
                 t_starts = np.array(t_starts_list)
@@ -154,9 +139,9 @@ class BivariateAnalysis:
                 t_ends = t_starts + tau
 
                 # Vectorized searchsorted for all windows at this lag
-                idx_starts = np.searchsorted(time, t_starts, side="left")
-                idx_mids = np.searchsorted(time, t_mids, side="left")
-                idx_ends = np.searchsorted(time, t_ends, side="left")
+                idx_starts = np.searchsorted(time, t_starts, side='left')
+                idx_mids = np.searchsorted(time, t_mids, side='left')
+                idx_ends = np.searchsorted(time, t_ends, side='left')
 
                 for i in range(len(t_starts)):
                     idx_start = idx_starts[i]
@@ -171,27 +156,14 @@ class BivariateAnalysis:
                     v2_right = val2[idx_mid:idx_end]
 
                     # Require data in both halves for BOTH variables
-                    if (
-                        len(v1_left) > 0
-                        and len(v1_right) > 0
-                        and len(v2_left) > 0
-                        and len(v2_right) > 0
-                    ):
+                    if len(v1_left) > 0 and len(v1_right) > 0 and len(v2_left) > 0 and len(v2_right) > 0:
                         # Use helper for flexible stats
-                        stat1_r = _compute_statistic(
-                            v1_right, statistic1, percentile1, percentile_method1
-                        )
-                        stat1_l = _compute_statistic(
-                            v1_left, statistic1, percentile1, percentile_method1
-                        )
+                        stat1_r = _compute_statistic(v1_right, statistic1, percentile1, percentile_method1)
+                        stat1_l = _compute_statistic(v1_left, statistic1, percentile1, percentile_method1)
                         d1 = stat1_r - stat1_l
 
-                        stat2_r = _compute_statistic(
-                            v2_right, statistic2, percentile2, percentile_method2
-                        )
-                        stat2_l = _compute_statistic(
-                            v2_left, statistic2, percentile2, percentile_method2
-                        )
+                        stat2_r = _compute_statistic(v2_right, statistic2, percentile2, percentile_method2)
+                        stat2_l = _compute_statistic(v2_left, statistic2, percentile2, percentile_method2)
                         d2 = stat2_r - stat2_l
 
                         fluc1.append(d1)
@@ -204,16 +176,16 @@ class BivariateAnalysis:
                 # dC = alpha * dQ + eps
                 slope, _, _, _, _ = stats.linregress(fluc2, fluc1)
 
-                results["lags"].append(tau)
-                results["correlation"].append(corr)
-                results["n_pairs"].append(len(fluc1))
-                results["slope_alpha"].append(slope)
+                results['lags'].append(tau)
+                results['correlation'].append(corr)
+                results['n_pairs'].append(len(fluc1))
+                results['slope_alpha'].append(slope)
             else:
                 # Still append result for this lag, but NaNs
-                results["lags"].append(tau)
-                results["correlation"].append(np.nan)
-                results["n_pairs"].append(len(fluc1))
-                results["slope_alpha"].append(np.nan)
+                results['lags'].append(tau)
+                results['correlation'].append(np.nan)
+                results['n_pairs'].append(len(fluc1))
+                results['slope_alpha'].append(np.nan)
 
         return results
 
@@ -227,7 +199,7 @@ class BivariateAnalysis:
         percentile_method1: str = "hazen",
         statistic2: str = "mean",
         percentile2: Optional[float] = None,
-        percentile_method2: str = "hazen",
+        percentile_method2: str = "hazen"
     ) -> Dict:
         """
         Calculates Cross-Haar Correlation at specified lags.
@@ -235,23 +207,14 @@ class BivariateAnalysis:
         if self.aligned_data is None:
             raise ValueError("Data must be aligned first using `align_data`.")
 
-        time = self.aligned_data["time"].values
+        time = self.aligned_data['time'].values
         val1 = self.aligned_data[self.name1].values
         val2 = self.aligned_data[self.name2].values
 
         return self._calculate_cross_haar(
-            time,
-            val1,
-            val2,
-            lags,
-            overlap,
-            overlap_step_fraction,
-            statistic1,
-            percentile1,
-            percentile_method1,
-            statistic2,
-            percentile2,
-            percentile_method2,
+            time, val1, val2, lags, overlap, overlap_step_fraction,
+            statistic1, percentile1, percentile_method1,
+            statistic2, percentile2, percentile_method2
         )
 
     def calculate_significance(
@@ -267,7 +230,7 @@ class BivariateAnalysis:
         percentile_method1: str = "hazen",
         statistic2: str = "mean",
         percentile2: Optional[float] = None,
-        percentile_method2: str = "hazen",
+        percentile_method2: str = "hazen"
     ) -> Dict:
         """
         Calculates significance of Cross-Haar Correlation using phase-randomized surrogates.
@@ -281,32 +244,23 @@ class BivariateAnalysis:
                 "Using phase-randomized surrogates with non-mean statistics (e.g. percentiles) "
                 "may be statistically invalid if the process is non-Gaussian, as phase randomization "
                 "imposes a Gaussian distribution on the surrogates. Use with caution.",
-                UserWarning,
+                UserWarning
             )
 
-        time = self.aligned_data["time"].values
-        val1 = self.aligned_data[self.name1].values  # Keep var1 fixed
+        time = self.aligned_data['time'].values
+        val1 = self.aligned_data[self.name1].values # Keep var1 fixed
         val2 = self.aligned_data[self.name2].values
 
         if len(val2) < 10:
-            return {"error": "Insufficient data for surrogates"}
+             return {'error': 'Insufficient data for surrogates'}
 
         # Run observed analysis
         obs_results = self._calculate_cross_haar(
-            time,
-            val1,
-            val2,
-            lags,
-            overlap,
-            overlap_step_fraction,
-            statistic1,
-            percentile1,
-            percentile_method1,
-            statistic2,
-            percentile2,
-            percentile_method2,
+            time, val1, val2, lags, overlap, overlap_step_fraction,
+            statistic1, percentile1, percentile_method1,
+            statistic2, percentile2, percentile_method2
         )
-        obs_corrs = np.array(obs_results["correlation"])
+        obs_corrs = np.array(obs_results['correlation'])
 
         # --- Handle Irregular Sampling for Surrogates ---
         # 1. Create a regular time grid covering the range of the data
@@ -320,9 +274,9 @@ class BivariateAnalysis:
 
         warning_flags = []
         if np.max(dt) > max_gap:
-            msg = f"Large data gap ({np.max(dt):.2f}) detected in surrogate generation."
-            warnings.warn(msg + " Interpolation may introduce artifacts.", UserWarning)
-            warning_flags.append(msg)
+             msg = f"Large data gap ({np.max(dt):.2f}) detected in surrogate generation."
+             warnings.warn(msg + " Interpolation may introduce artifacts.", UserWarning)
+             warning_flags.append(msg)
 
         reg_time = np.arange(time[0], time[-1] + median_dt, median_dt)
 
@@ -344,20 +298,11 @@ class BivariateAnalysis:
             surr_on_orig_time = np.interp(time, reg_time, reg_surrs[i])
 
             res = self._calculate_cross_haar(
-                time,
-                val1,
-                surr_on_orig_time,
-                lags,
-                overlap,
-                overlap_step_fraction,
-                statistic1,
-                percentile1,
-                percentile_method1,
-                statistic2,
-                percentile2,
-                percentile_method2,
+                time, val1, surr_on_orig_time, lags, overlap, overlap_step_fraction,
+                statistic1, percentile1, percentile_method1,
+                statistic2, percentile2, percentile_method2
             )
-            surr_corrs[i, :] = res["correlation"]
+            surr_corrs[i, :] = res['correlation']
 
         # Calculate p-values per lag
         p_values = []
@@ -371,11 +316,11 @@ class BivariateAnalysis:
                 p_values.append(p_val)
 
         return {
-            "lags": lags,
-            "observed_correlation": obs_corrs,
-            "p_values": np.array(p_values),
-            "surrogate_correlations": surr_corrs,
-            "warning_flags": warning_flags,
+            'lags': lags,
+            'observed_correlation': obs_corrs,
+            'p_values': np.array(p_values),
+            'surrogate_correlations': surr_corrs,
+            'warning_flags': warning_flags
         }
 
     def run_lagged_cross_haar(
@@ -389,7 +334,7 @@ class BivariateAnalysis:
         percentile_method1: str = "hazen",
         statistic2: str = "mean",
         percentile2: Optional[float] = None,
-        percentile_method2: str = "hazen",
+        percentile_method2: str = "hazen"
     ) -> Dict:
         """
         Calculates Lagged Cross-Haar Correlation for a FIXED scale tau,
@@ -398,11 +343,11 @@ class BivariateAnalysis:
         rho(tau, ell) = corr( Delta C(t, tau), Delta Q(t - ell, tau) )
         """
         if self.aligned_data is None:
-            raise ValueError("Data must be aligned first.")
+             raise ValueError("Data must be aligned first.")
 
-        time = self.aligned_data["time"].values
-        val1 = self.aligned_data[self.name1].values  # C
-        val2 = self.aligned_data[self.name2].values  # Q
+        time = self.aligned_data['time'].values
+        val1 = self.aligned_data[self.name1].values # C
+        val2 = self.aligned_data[self.name2].values # Q
 
         correlations = []
 
@@ -422,17 +367,16 @@ class BivariateAnalysis:
                 curr_t += step_size
             else:
                 curr_t += tau
-                if curr_t >= time[-1]:
-                    break
+                if curr_t >= time[-1]: break
 
         if t_starts_list:
             t_starts = np.array(t_starts_list)
             t_mids = t_starts + tau / 2
             t_ends = t_starts + tau
 
-            idx_starts = np.searchsorted(time, t_starts, side="left")
-            idx_mids = np.searchsorted(time, t_mids, side="left")
-            idx_ends = np.searchsorted(time, t_ends, side="left")
+            idx_starts = np.searchsorted(time, t_starts, side='left')
+            idx_mids = np.searchsorted(time, t_mids, side='left')
+            idx_ends = np.searchsorted(time, t_ends, side='left')
 
             for i in range(len(t_starts)):
                 idx_start = idx_starts[i]
@@ -443,22 +387,18 @@ class BivariateAnalysis:
                 v1_right = val1[idx_mid:idx_end]
 
                 if len(v1_left) > 0 and len(v1_right) > 0:
-                    s1_r = _compute_statistic(
-                        v1_right, statistic1, percentile1, percentile_method1
-                    )
-                    s1_l = _compute_statistic(
-                        v1_left, statistic1, percentile1, percentile_method1
-                    )
+                    s1_r = _compute_statistic(v1_right, statistic1, percentile1, percentile_method1)
+                    s1_l = _compute_statistic(v1_left, statistic1, percentile1, percentile_method1)
                     d1 = s1_r - s1_l
 
-                    t_centers.append(t_mids[i])  # Use mid point as reference
+                    t_centers.append(t_mids[i]) # Use mid point as reference
                     fluc1_vals.append(d1)
 
         fluc1_vals = np.array(fluc1_vals)
         t_centers = np.array(t_centers)
 
         if len(fluc1_vals) < 5:
-            return {"lags": lag_offsets, "correlation": [np.nan] * len(lag_offsets)}
+            return {'lags': lag_offsets, 'correlation': [np.nan]*len(lag_offsets)}
 
         # Now for each lag offset, compute Q fluctuations
         for ell in lag_offsets:
@@ -466,16 +406,16 @@ class BivariateAnalysis:
             # Window is [t_center - ell - tau/2, t_center - ell + tau/2]
 
             fluc2_vals = []
-            valid_indices = []  # Indices in fluc1_vals that have a matching Q pair
+            valid_indices = [] # Indices in fluc1_vals that have a matching Q pair
 
             t_q_mids = t_centers - ell
-            t_q_starts = t_q_mids - tau / 2
-            t_q_ends = t_q_mids + tau / 2
+            t_q_starts = t_q_mids - tau/2
+            t_q_ends = t_q_mids + tau/2
 
             # Vectorized searchsorted for this lag offset
-            idx_q_starts = np.searchsorted(time, t_q_starts, side="left")
-            idx_q_mids = np.searchsorted(time, t_q_mids, side="left")
-            idx_q_ends = np.searchsorted(time, t_q_ends, side="left")
+            idx_q_starts = np.searchsorted(time, t_q_starts, side='left')
+            idx_q_mids = np.searchsorted(time, t_q_mids, side='left')
+            idx_q_ends = np.searchsorted(time, t_q_ends, side='left')
 
             for i in range(len(t_centers)):
                 # Check bounds
@@ -490,12 +430,8 @@ class BivariateAnalysis:
                 v2_right = val2[idx_q_mid:idx_q_end]
 
                 if len(v2_left) > 0 and len(v2_right) > 0:
-                    s2_r = _compute_statistic(
-                        v2_right, statistic2, percentile2, percentile_method2
-                    )
-                    s2_l = _compute_statistic(
-                        v2_left, statistic2, percentile2, percentile_method2
-                    )
+                    s2_r = _compute_statistic(v2_right, statistic2, percentile2, percentile_method2)
+                    s2_l = _compute_statistic(v2_left, statistic2, percentile2, percentile_method2)
                     d2 = s2_r - s2_l
 
                     fluc2_vals.append(d2)
@@ -510,7 +446,11 @@ class BivariateAnalysis:
             else:
                 correlations.append(np.nan)
 
-        return {"tau": tau, "lag_offsets": lag_offsets, "correlation": correlations}
+        return {
+            'tau': tau,
+            'lag_offsets': lag_offsets,
+            'correlation': correlations
+        }
 
     def calculate_hysteresis_metrics(
         self,
@@ -522,7 +462,7 @@ class BivariateAnalysis:
         percentile_method1: str = "hazen",
         statistic2: str = "mean",
         percentile2: Optional[float] = None,
-        percentile_method2: str = "hazen",
+        percentile_method2: str = "hazen"
     ) -> Dict:
         """
         Calculates the Hysteresis Loop Area between fluctuations of the two variables at scale tau.
@@ -537,12 +477,12 @@ class BivariateAnalysis:
         if self.aligned_data is None:
             raise ValueError("Data must be aligned first.")
 
-        time = self.aligned_data["time"].values
+        time = self.aligned_data['time'].values
         val1 = self.aligned_data[self.name1].values
         val2 = self.aligned_data[self.name2].values
 
-        fluc1 = []  # x coordinate (usually C)
-        fluc2 = []  # y coordinate (usually Q)
+        fluc1 = [] # x coordinate (usually C)
+        fluc2 = [] # y coordinate (usually Q)
 
         step_size = tau * overlap_step_fraction if overlap else tau
 
@@ -554,8 +494,7 @@ class BivariateAnalysis:
                 curr_t += step_size
             else:
                 curr_t += tau
-                if curr_t >= time[-1]:
-                    break
+                if curr_t >= time[-1]: break
 
         if t_starts_list:
             t_starts = np.array(t_starts_list)
@@ -563,9 +502,9 @@ class BivariateAnalysis:
             t_ends = t_starts + tau
 
             # Vectorized searchsorted for all windows at this scale
-            idx_starts = np.searchsorted(time, t_starts, side="left")
-            idx_mids = np.searchsorted(time, t_mids, side="left")
-            idx_ends = np.searchsorted(time, t_ends, side="left")
+            idx_starts = np.searchsorted(time, t_starts, side='left')
+            idx_mids = np.searchsorted(time, t_mids, side='left')
+            idx_ends = np.searchsorted(time, t_ends, side='left')
 
             for i in range(len(t_starts)):
                 idx_start = idx_starts[i]
@@ -577,37 +516,20 @@ class BivariateAnalysis:
                 v2_left = val2[idx_start:idx_mid]
                 v2_right = val2[idx_mid:idx_end]
 
-                if (
-                    len(v1_left) > 0
-                    and len(v1_right) > 0
-                    and len(v2_left) > 0
-                    and len(v2_right) > 0
-                ):
-                    s1_r = _compute_statistic(
-                        v1_right, statistic1, percentile1, percentile_method1
-                    )
-                    s1_l = _compute_statistic(
-                        v1_left, statistic1, percentile1, percentile_method1
-                    )
+                if len(v1_left) > 0 and len(v1_right) > 0 and len(v2_left) > 0 and len(v2_right) > 0:
+                    s1_r = _compute_statistic(v1_right, statistic1, percentile1, percentile_method1)
+                    s1_l = _compute_statistic(v1_left, statistic1, percentile1, percentile_method1)
                     d1 = s1_r - s1_l
 
-                    s2_r = _compute_statistic(
-                        v2_right, statistic2, percentile2, percentile_method2
-                    )
-                    s2_l = _compute_statistic(
-                        v2_left, statistic2, percentile2, percentile_method2
-                    )
+                    s2_r = _compute_statistic(v2_right, statistic2, percentile2, percentile_method2)
+                    s2_l = _compute_statistic(v2_left, statistic2, percentile2, percentile_method2)
                     d2 = s2_r - s2_l
 
                     fluc1.append(d1)
                     fluc2.append(d2)
 
         if len(fluc1) < 3:
-            return {
-                "area": np.nan,
-                "normalized_area": np.nan,
-                "direction": "insufficient_data",
-            }
+            return {'area': np.nan, 'normalized_area': np.nan, 'direction': 'insufficient_data'}
 
         # Shoelace formula for signed area
         # A = 0.5 * sum(x_i * y_{i+1} - x_{i+1} * y_i)
@@ -627,20 +549,15 @@ class BivariateAnalysis:
             normalized_area = np.nan
 
         direction = "Counter-Clockwise" if area > 0 else "Clockwise"
-        if np.isclose(area, 0):
-            direction = "None"
+        if np.isclose(area, 0): direction = "None"
 
-        return {
-            "area": area,
-            "normalized_area": normalized_area,
-            "direction": direction,
-        }
+        return {'area': area, 'normalized_area': normalized_area, 'direction': direction}
 
     def run_ls_cross_analysis(
         self,
         freqs: np.ndarray,
         errors1: Optional[np.ndarray] = None,
-        errors2: Optional[np.ndarray] = None,
+        errors2: Optional[np.ndarray] = None
     ) -> Dict:
         """
         Calculates Lomb-Scargle Cross-Spectrum and Phase directly on irregular data.
@@ -657,23 +574,25 @@ class BivariateAnalysis:
         # No alignment needed! Using original timestamps.
 
         cross_power, phase_lag, _, _ = calculate_ls_cross_spectrum(
-            self.time1, self.data1, self.time2, self.data2, freqs, errors1, errors2
+            self.time1, self.data1,
+            self.time2, self.data2,
+            freqs, errors1, errors2
         )
 
         time_lag = calculate_time_lag(phase_lag, freqs)
 
         return {
-            "freqs": freqs,
-            "cross_power": cross_power,
-            "phase_lag": phase_lag,
-            "time_lag": time_lag,
+            'freqs': freqs,
+            'cross_power': cross_power,
+            'phase_lag': phase_lag,
+            'time_lag': time_lag
         }
 
     def calculate_spectral_coherence(
         self,
         min_freq: Optional[float] = None,
         max_freq: Optional[float] = None,
-        samples_per_peak: int = 5,
+        samples_per_peak: int = 5
     ) -> Dict:
         """
         Calculates Magnitude-Squared Coherence (MSC) using interpolation and Welch's method.
@@ -697,7 +616,7 @@ class BivariateAnalysis:
         if self.aligned_data is None:
             raise ValueError("Data must be aligned first.")
 
-        time = self.aligned_data["time"].values
+        time = self.aligned_data['time'].values
         val1 = self.aligned_data[self.name1].values
         val2 = self.aligned_data[self.name2].values
 
@@ -709,13 +628,9 @@ class BivariateAnalysis:
         max_gap = 5.0 * median_dt
         warning_flags = []
         if np.max(dt) > max_gap:
-            msg = f"Large data gap ({np.max(dt):.2f}) detected."
-            warnings.warn(
-                msg
-                + " Interpolation may introduce artifacts in coherence. Consider using `run_wwz_coherence_analysis`.",
-                UserWarning,
-            )
-            warning_flags.append(msg)
+             msg = f"Large data gap ({np.max(dt):.2f}) detected."
+             warnings.warn(msg + " Interpolation may introduce artifacts in coherence. Consider using `run_wwz_coherence_analysis`.", UserWarning)
+             warning_flags.append(msg)
 
         reg_time = np.arange(time[0], time[-1], median_dt)
 
@@ -728,9 +643,7 @@ class BivariateAnalysis:
         # fs = 1 / median_dt
         fs = 1.0 / median_dt if median_dt > 0 else 1.0
 
-        f, Cxy = coherence(
-            reg_val1, reg_val2, fs=fs, nperseg=min(len(reg_val1) // 2, 256)
-        )
+        f, Cxy = coherence(reg_val1, reg_val2, fs=fs, nperseg=min(len(reg_val1)//2, 256))
 
         # Filter range
         if min_freq is not None:
@@ -742,4 +655,8 @@ class BivariateAnalysis:
             f = f[mask]
             Cxy = Cxy[mask]
 
-        return {"frequency": f, "coherence": Cxy, "warning_flags": warning_flags}
+        return {
+            'frequency': f,
+            'coherence': Cxy,
+            'warning_flags': warning_flags
+        }

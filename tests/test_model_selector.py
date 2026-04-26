@@ -78,9 +78,7 @@ def test_select_best_model_segmented_wins(dummy_data, model_selector, mocker):
     assert result["bic"] == 15.0
 
 
-def test_select_best_model_standard_fails_gracefully(
-    dummy_data, model_selector, mocker
-):
+def test_select_best_model_standard_fails_gracefully(dummy_data, model_selector, mocker):
     freq, power = dummy_data
 
     # Standard model fails by returning infinite BIC and a failure reason
@@ -105,10 +103,7 @@ def test_select_best_model_standard_fails_gracefully(
     )
 
     assert result["chosen_model_type"] == "segmented"
-    assert (
-        "Standard model (0 breakpoints): Not enough data"
-        in result["failed_model_reasons"]
-    )
+    assert "Standard model (0 breakpoints): Not enough data" in result["failed_model_reasons"]
 
 
 def test_select_best_model_all_fail(dummy_data, model_selector, mocker):
@@ -123,9 +118,7 @@ def test_select_best_model_all_fail(dummy_data, model_selector, mocker):
         return_value={"bic": np.nan, "failure_reason": "Failed segmented"},
     )
 
-    with pytest.raises(
-        RuntimeError, match="All models failed; no valid BIC values found."
-    ) as exc_info:
+    with pytest.raises(RuntimeError, match="All models failed; no valid BIC values found.") as exc_info:
         model_selector.select_best_model(
             frequency=freq,
             power=power,
@@ -141,9 +134,7 @@ def test_select_best_model_all_fail(dummy_data, model_selector, mocker):
     assert "Failed segmented" in str(exc_info.value)
 
 
-def test_select_best_model_standard_raises_exception(
-    dummy_data, model_selector, mocker
-):
+def test_select_best_model_standard_raises_exception(dummy_data, model_selector, mocker):
     freq, power = dummy_data
 
     # Standard model raises an exception
@@ -168,14 +159,10 @@ def test_select_best_model_standard_raises_exception(
     )
 
     assert result["chosen_model_type"] == "segmented"
-    assert any(
-        "Critical failure" in reason for reason in result["failed_model_reasons"]
-    )
+    assert any("Critical failure" in reason for reason in result["failed_model_reasons"])
 
 
-def test_select_best_model_segmented_raises_exception(
-    dummy_data, model_selector, mocker
-):
+def test_select_best_model_segmented_raises_exception(dummy_data, model_selector, mocker):
     freq, power = dummy_data
 
     mocker.patch(
@@ -200,9 +187,7 @@ def test_select_best_model_segmented_raises_exception(
     )
 
     assert result["chosen_model_type"] == "standard"
-    assert any(
-        "Unexpected crash" in reason for reason in result["failed_model_reasons"]
-    )
+    assert any("Unexpected crash" in reason for reason in result["failed_model_reasons"])
 
 
 def test_select_best_model_multiple_breakpoints(dummy_data, model_selector, mocker):

@@ -1,7 +1,7 @@
+
 import numpy as np
 import pytest
 from waterSpec.spatial import SpatialHaarAnalysis
-
 
 def test_spatial_haar_slope():
     """
@@ -17,10 +17,9 @@ def test_spatial_haar_slope():
     spatial = SpatialHaarAnalysis(dist, data, "Elevation")
     res = spatial.run_spatial_analysis(num_scales=10, n_bootstraps=10)
 
-    beta = res["beta"]
+    beta = res['beta']
     # Allow some variance
     assert 1.5 < beta < 2.5
-
 
 def test_hotspot_detection():
     # Increase density of points so window size 5 catches enough points
@@ -40,6 +39,6 @@ def test_hotspot_detection():
     res = spatial.detect_spatial_hotspots(scale=5.0, threshold_factor=2.0)
 
     # Check if we got any results
-    assert len(res["locations"]) > 0
+    assert len(res['locations']) > 0
     # Should detect around 50
-    assert np.any(np.abs(res["locations"] - 50) < 5)
+    assert np.any(np.abs(res['locations'] - 50) < 5)

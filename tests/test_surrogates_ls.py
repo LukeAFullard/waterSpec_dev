@@ -1,7 +1,7 @@
+
 import numpy as np
 import pytest
 from waterSpec.surrogates import generate_power_law_surrogates
-
 
 def test_power_law_surrogates():
     """
@@ -44,7 +44,6 @@ def test_power_law_surrogates():
     # White noise has high freq energy -> rapid changes -> large diffs.
 
     assert diff_brown < diff_white
-
 
 def test_single_surrogate_seed():
     """Test reproducibility."""

@@ -283,7 +283,9 @@ def find_peaks_via_residuals(
     all_peak_indices, _ = find_peaks(residuals)
 
     # Filter to keep only those peaks that are statistically significant
-    significant_peak_indices = [idx for idx in all_peak_indices if is_significant[idx]]
+    significant_peak_indices = [
+        idx for idx in all_peak_indices if is_significant[idx]
+    ]
 
     if not significant_peak_indices:
         return [], np.inf
@@ -354,9 +356,7 @@ def detect_peaks(
                 "parameter is ignored."
             )
         peaks, level = find_significant_peaks(
-            ls_obj,
-            frequency,
-            power,
+            ls_obj, frequency, power,
             fap_threshold=fap_threshold,
             fap_method=fap_method,
         )

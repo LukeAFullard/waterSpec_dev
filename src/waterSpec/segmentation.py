@@ -2,7 +2,6 @@ import numpy as np
 from typing import List, Tuple, Dict, Optional
 from waterSpec.haar_analysis import calculate_sliding_haar
 
-
 class SegmentedRegimeAnalysis:
     """
     Tools for segmenting time series based on Haar fluctuation volatility
@@ -18,7 +17,7 @@ class SegmentedRegimeAnalysis:
         min_event_duration: Optional[float] = None,
         statistic: str = "mean",
         percentile: Optional[float] = None,
-        percentile_method: str = "hazen",
+        percentile_method: str = "hazen"
     ) -> Dict[str, List[Tuple[float, float]]]:
         """
         Segments the time series into 'event' and 'background' regimes based on
@@ -44,17 +43,12 @@ class SegmentedRegimeAnalysis:
         # 1. Compute Sliding Haar Fluctuations
         # We use a step size smaller than scale for resolution
         t_centers, fluctuations = calculate_sliding_haar(
-            time,
-            data,
-            window_size=scale,
-            step_size=scale / 5.0,
-            statistic=statistic,
-            percentile=percentile,
-            percentile_method=percentile_method,
+            time, data, window_size=scale, step_size=scale/5.0,
+            statistic=statistic, percentile=percentile, percentile_method=percentile_method
         )
 
         if len(fluctuations) == 0:
-            return {"events": [], "background": [(time[0], time[-1])]}
+            return {'events': [], 'background': [(time[0], time[-1])]}
 
         # 2. Determine Threshold
         # Use Median Absolute Deviation (MAD) as robust estimator of background noise
@@ -78,13 +72,13 @@ class SegmentedRegimeAnalysis:
 
         for t_c, flag in zip(t_centers, is_event):
             if flag:
-                t_start_win = t_c - scale / 2
-                t_end_win = t_c + scale / 2
+                t_start_win = t_c - scale/2
+                t_end_win = t_c + scale/2
 
                 # Find indices in original time array
                 # Use searchsorted
-                idx_start = np.searchsorted(time, t_start_win, side="left")
-                idx_end = np.searchsorted(time, t_end_win, side="right")
+                idx_start = np.searchsorted(time, t_start_win, side='left')
+                idx_end = np.searchsorted(time, t_end_win, side='right')
 
                 event_mask[idx_start:idx_end] = True
 
@@ -105,7 +99,7 @@ class SegmentedRegimeAnalysis:
             # Map to time values
             # Handle e=len(time) case
             t_s = time[s]
-            t_e = time[e - 1] if e <= len(time) else time[-1]
+            t_e = time[e-1] if e <= len(time) else time[-1]
 
             duration = t_e - t_s
             if duration >= min_event_duration:
@@ -123,16 +117,18 @@ class SegmentedRegimeAnalysis:
             background.append((current_t, time[-1]))
 
         return {
-            "events": events,
-            "background": background,
-            "threshold": threshold,
-            "fluctuations": fluctuations,
-            "t_centers": t_centers,
+            'events': events,
+            'background': background,
+            'threshold': threshold,
+            'fluctuations': fluctuations,
+            't_centers': t_centers
         }
 
     @staticmethod
     def extract_segments(
-        time: np.ndarray, data: np.ndarray, segments: List[Tuple[float, float]]
+        time: np.ndarray,
+        data: np.ndarray,
+        segments: List[Tuple[float, float]]
     ) -> List[Tuple[np.ndarray, np.ndarray]]:
         """
         Extracts data corresponding to the time segments.

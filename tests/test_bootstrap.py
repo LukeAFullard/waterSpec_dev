@@ -14,7 +14,7 @@ POWER_STD = FREQUENCY_STD ** (-BETA_STD) * (1 + rng.normal(0, 0.1, size=50))
 f1 = np.logspace(np.log10(1e-4), np.log10(1e-2), 25, endpoint=False)
 p1 = f1 ** (-1.0)
 f2 = np.logspace(np.log10(1e-2), np.log10(1e-1), 25)
-p2 = (f2 ** (-2.5)) * (p1[-1] / (f2[0] ** (-2.5)))  # Scale to connect smoothly
+p2 = (f2 ** (-2.5)) * (p1[-1] / (f2[0] ** (-2.5))) # Scale to connect smoothly
 FREQUENCY_SEG = np.concatenate((f1, f2))
 POWER_SEG = np.concatenate((p1, p2)) * (1 + rng.normal(0, 0.1, size=50))
 
@@ -38,7 +38,6 @@ def test_residual_bootstrap_standard_model(mocker):
     assert np.isfinite(results["beta_ci_lower"])
     assert np.isfinite(results["beta_ci_upper"])
     assert results["beta_ci_lower"] < results["beta_ci_upper"]
-
 
 def test_wild_bootstrap_models(mocker):
     """
@@ -70,9 +69,7 @@ def test_wild_bootstrap_models(mocker):
         n_bootstraps=10,
         seed=42,
     )
-    assert "betas_ci" in results_seg, (
-        f"Test failed because fit was not successful: {results_seg.get('model_summary')}"
-    )
+    assert "betas_ci" in results_seg, f"Test failed because fit was not successful: {results_seg.get('model_summary')}"
     assert len(results_seg["betas_ci"]) == 2
     for lower, upper in results_seg["betas_ci"]:
         assert np.isfinite(lower)
@@ -112,9 +109,7 @@ def test_block_bootstrap_models(mocker):
         n_bootstraps=10,
         seed=42,
     )
-    assert "betas_ci" in results_seg, (
-        f"Test failed because fit was not successful: {results_seg.get('model_summary')}"
-    )
+    assert "betas_ci" in results_seg, f"Test failed because fit was not successful: {results_seg.get('model_summary')}"
     assert len(results_seg["betas_ci"]) == 2
     for lower, upper in results_seg["betas_ci"]:
         assert np.isfinite(lower)
@@ -136,15 +131,12 @@ def test_residual_bootstrap_segmented_model(mocker):
         n_bootstraps=10,
         seed=42,
     )
-    assert "betas_ci" in results, (
-        f"Test failed because fit was not successful: {results.get('model_summary')}"
-    )
+    assert "betas_ci" in results, f"Test failed because fit was not successful: {results.get('model_summary')}"
     assert len(results["betas_ci"]) == 2
     for lower, upper in results["betas_ci"]:
         assert np.isfinite(lower)
         assert np.isfinite(upper)
         assert lower < upper
-
 
 def test_failed_bootstrap_returns_nan(mocker):
     """
@@ -160,13 +152,13 @@ def test_failed_bootstrap_returns_nan(mocker):
     # identical x-values, which will cause theilslopes to fail.
     # We will return an array of all zeros for the indices.
     # This means every bootstrap sample will be the first point repeated 10 times.
-    mock_rng = mocker.patch("numpy.random.default_rng")
+    mock_rng = mocker.patch('numpy.random.default_rng')
     mock_rng.return_value.choice.return_value = np.zeros(10, dtype=int)
 
     results = fit_standard_model(
         freq,
         power,
-        method="ols",  # Force OLS to bypass MannKS and test internal bootstrap logic
+        method="ols", # Force OLS to bypass MannKS and test internal bootstrap logic
         ci_method="bootstrap",
         bootstrap_type="pairs",  # Force pairs bootstrap for this test
         n_bootstraps=10,
@@ -204,7 +196,7 @@ def test_ci_coverage(mocker):
             ci_method="bootstrap",
             n_bootstraps=n_bootstraps,
             ci=ci_level,
-            seed=i,  # Use different seed for each simulation
+            seed=i, # Use different seed for each simulation
         )
         lower_ci = results.get("beta_ci_lower", np.nan)
         upper_ci = results.get("beta_ci_upper", np.nan)
@@ -214,21 +206,16 @@ def test_ci_coverage(mocker):
             if lower_ci <= true_beta <= upper_ci:
                 successes += 1
 
-    assert valid_intervals > n_simulations * 0.8, (
-        "Too many simulations failed to produce a valid CI."
-    )
+    assert valid_intervals > n_simulations * 0.8, "Too many simulations failed to produce a valid CI."
 
     coverage = (successes / valid_intervals) * 100
     # We expect the coverage to be close to 95%.
     # Allow for a wider margin due to the small number of simulations.
-    assert ci_level - 45 < coverage < ci_level + 5, (
-        f"CI coverage ({coverage}%) is outside the expected range."
-    )
+    assert ci_level - 45 < coverage < ci_level + 5, f"CI coverage ({coverage}%) is outside the expected range."
 
 
 def test_spawned_rngs_are_independent():
     from waterSpec.utils import spawn_generators
-
     rng1, rng2 = spawn_generators(42, 2)
     # same master seed, but should produce different first draws
     assert rng1.integers(0, 100000) != rng2.integers(0, 100000)

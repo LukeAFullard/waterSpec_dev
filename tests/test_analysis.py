@@ -54,9 +54,7 @@ def test_analysis_class_initialization(tmp_path):
     time, series = generate_synthetic_series()
     file_path = create_test_data_file(tmp_path, time, series)
 
-    analyzer = Analysis(
-        file_path=file_path, base_dir="", time_col="time", data_col="value"
-    )
+    analyzer = Analysis(file_path=file_path, base_dir="", time_col="time", data_col="value")
 
     assert analyzer is not None
 
@@ -65,13 +63,7 @@ def test_analysis_class_initialization(tmp_path):
     "changepoint_mode, min_valid_data, cp_opts, expected_min_size, warn_msg_part",
     [
         # Scenario 1: min_size is too small, should be increased and warn
-        (
-            "auto",
-            30,
-            {"min_size": 20},
-            30,
-            "Increasing changepoint min_size from 20 to 30",
-        ),
+        ("auto", 30, {"min_size": 20}, 30, "Increasing changepoint min_size from 20 to 30"),
         # Scenario 2: min_size is not provided, should be set and not warn
         ("auto", 30, {}, 30, None),
         # Scenario 3: min_size is sufficient, should not be changed
@@ -81,21 +73,9 @@ def test_analysis_class_initialization(tmp_path):
         # Scenario 5: min_size is None, should be set to the required minimum
         ("auto", 25, {"min_size": None}, 25, None),
         # Scenario 6: min_size is an invalid string, should be set and warn
-        (
-            "auto",
-            35,
-            {"min_size": "invalid"},
-            35,
-            "Invalid 'min_size' value 'invalid' provided",
-        ),
+        ("auto", 35, {"min_size": "invalid"}, 35, "Invalid 'min_size' value 'invalid' provided"),
         # Scenario 7: min_size is a float, gets truncated and then increased, with a warning
-        (
-            "auto",
-            35,
-            {"min_size": 12.5},
-            35,
-            "Increasing changepoint min_size from 12 to 35",
-        ),
+        ("auto", 35, {"min_size": 12.5}, 35, "Increasing changepoint min_size from 12 to 35"),
     ],
 )
 def test_analysis_adjusts_changepoint_min_size(
@@ -196,11 +176,7 @@ def test_analysis_with_known_beta(tmp_path, known_beta, tolerance, mocker):
     file_path = create_test_data_file(tmp_path, time, series)
 
     analyzer = Analysis(
-        file_path=file_path,
-        base_dir="",
-        time_col="time",
-        data_col="value",
-        detrend_method=None,
+        file_path=file_path, base_dir="", time_col="time", data_col="value", detrend_method=None
     )
 
     # Force a standard model fit to reliably test beta estimation
@@ -249,9 +225,7 @@ def test_analysis_auto_chooses_segmented_with_mock(
     )
     output_dir = tmp_path / "results"
 
-    analyzer = Analysis(
-        file_path=file_path, base_dir="", time_col="time", data_col="value"
-    )
+    analyzer = Analysis(file_path=file_path, base_dir="", time_col="time", data_col="value")
     results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=10)
 
     assert results["chosen_model"] == "segmented_1bp"
@@ -281,11 +255,10 @@ def test_analysis_insufficient_data(tmp_path):
         "preprocessing. Minimum required: 10.",
     ):
         Analysis(
-            file_path=file_path,
-            base_dir="",
+            file_path=file_path, base_dir="",
             time_col="time",
             data_col="value",
-            min_valid_data_points=10,
+            min_valid_data_points=10
         )
 
 
@@ -301,8 +274,7 @@ def test_analysis_min_valid_data_points_configurable(tmp_path):
 
     # This should pass with a custom threshold of 8
     analyzer = Analysis(
-        file_path=file_path,
-        base_dir="",
+        file_path=file_path, base_dir="",
         time_col="time",
         data_col="value",
         min_valid_data_points=8,
@@ -320,8 +292,7 @@ def test_analysis_min_valid_data_points_invalid(tmp_path, invalid_value):
         ValueError, match="`min_valid_data_points` must be a positive integer."
     ):
         Analysis(
-            file_path=file_path,
-            base_dir="",
+            file_path=file_path, base_dir="",
             time_col="time",
             data_col="value",
             min_valid_data_points=invalid_value,
@@ -338,8 +309,7 @@ def test_analysis_zero_variance_data(tmp_path):
     # With normalize=True, this should fail early.
     with pytest.raises(ValueError, match="has zero variance and cannot be normalized"):
         Analysis(
-            file_path=file_path,
-            base_dir="",
+            file_path=file_path, base_dir="",
             time_col="time",
             data_col="value",
             normalize_data=True,
@@ -350,8 +320,7 @@ def test_analysis_zero_variance_data(tmp_path):
         ValueError, match="processed data for 'value' has zero variance"
     ):
         Analysis(
-            file_path=file_path,
-            base_dir="",
+            file_path=file_path, base_dir="",
             time_col="time",
             data_col="value",
             normalize_data=False,
@@ -395,11 +364,7 @@ def test_analysis_residual_method_finds_peak(tmp_path):
     output_dir = tmp_path / "results_residual"
 
     analyzer = Analysis(
-        file_path=file_path,
-        base_dir="",
-        time_col="time",
-        data_col="value",
-        detrend_method=None,
+        file_path=file_path, base_dir="", time_col="time", data_col="value", detrend_method=None
     )
     results = analyzer.run_full_analysis(
         output_dir=str(output_dir),
@@ -427,12 +392,11 @@ def test_analysis_with_censored_data(tmp_path):
     # Run the analysis with a strategy to handle censored data
     # Need to lower min_valid_data_points because censored_data.csv is small (~20 rows)
     analyzer = Analysis(
-        file_path=file_path,
-        base_dir="",
+        file_path=file_path, base_dir="",
         time_col="date",
         data_col="concentration",
         censor_strategy="use_detection_limit",
-        min_valid_data_points=10,
+        min_valid_data_points=10
     )
     results = analyzer.run_full_analysis(output_dir=str(output_dir), n_bootstraps=10)
 
@@ -476,7 +440,9 @@ def test_analysis_max_breakpoints_selects_best_model(
     }
 
     # Mock the segmented fits (1 and 2 breakpoints) to return different BICs
-    def segmented_side_effect(frequency, power, n_breakpoints, **kwargs):
+    def segmented_side_effect(
+            frequency, power, n_breakpoints, **kwargs
+        ):
         """
         A side effect function for the mock that mimics the behavior of
         `fit_segmented_spectrum`, accepting the new bootstrap arguments.
@@ -506,9 +472,7 @@ def test_analysis_max_breakpoints_selects_best_model(
         tmp_path, pd.date_range("2023", periods=100), np.random.rand(100)
     )
     output_dir = tmp_path / "results"
-    analyzer = Analysis(
-        file_path=file_path, base_dir="", time_col="time", data_col="value"
-    )
+    analyzer = Analysis(file_path=file_path, base_dir="", time_col="time", data_col="value")
     results = analyzer.run_full_analysis(
         output_dir=str(output_dir), max_breakpoints=2, n_bootstraps=10
     )
@@ -560,9 +524,7 @@ def test_analysis_parametric_ci_is_propagated(tmp_path):
     time, series = generate_synthetic_series(n_points=100, beta=1.0)
     file_path = create_test_data_file(tmp_path, time, series)
 
-    analyzer = Analysis(
-        file_path=file_path, base_dir="", time_col="time", data_col="value"
-    )
+    analyzer = Analysis(file_path=file_path, base_dir="", time_col="time", data_col="value")
     results = analyzer.run_full_analysis(
         output_dir=tmp_path, ci_method="parametric", n_bootstraps=10
     )
@@ -589,6 +551,7 @@ def test_analysis_parametric_ci_is_propagated(tmp_path):
         ),
         ("peak_detection_method", "invalid", "must be 'residual', 'fap', or None."),
         ("peak_fdr_level", 1.1, "`peak_fdr_level` must be a float between 0 and 1."),
+
         ("max_breakpoints", 3, "`max_breakpoints` must be an integer (0, 1, or 2)."),
     ],
 )
@@ -596,9 +559,7 @@ def test_run_full_analysis_invalid_parameters(tmp_path, param, value, message):
     """Test that run_full_analysis raises errors for invalid parameters."""
     time, series = generate_synthetic_series(n_points=100)
     file_path = create_test_data_file(tmp_path, time, series)
-    analyzer = Analysis(
-        file_path=file_path, base_dir="", time_col="time", data_col="value"
-    )
+    analyzer = Analysis(file_path=file_path, base_dir="", time_col="time", data_col="value")
 
     kwargs = {"output_dir": str(tmp_path)}
     kwargs[param] = value
@@ -631,9 +592,7 @@ def test_analysis_handles_total_model_failure(
         tmp_path, pd.date_range("2023", periods=100), np.random.rand(100)
     )
     output_dir = tmp_path / "results"
-    analyzer = Analysis(
-        file_path=file_path, base_dir="", time_col="time", data_col="value"
-    )
+    analyzer = Analysis(file_path=file_path, base_dir="", time_col="time", data_col="value")
     results = analyzer.run_full_analysis(
         output_dir=str(output_dir), max_breakpoints=1, n_bootstraps=10
     )
@@ -641,13 +600,8 @@ def test_analysis_handles_total_model_failure(
     # --- Assertions ---
     assert results["chosen_model_type"] == "failure"
     assert "Analysis failed: All models failed" in results["summary_text"]
-    assert (
-        "Standard model (0 breakpoints): Standard failed." in results["failure_reason"]
-    )
-    assert (
-        "Segmented model (1 breakpoint(s)): Segmented failed."
-        in results["failure_reason"]
-    )
+    assert "Standard model (0 breakpoints): Standard failed." in results["failure_reason"]
+    assert "Segmented model (1 breakpoint(s)): Segmented failed." in results["failure_reason"]
 
     # Check that the output file reflects the failure
     summary_path = output_dir / "value_summary.txt"
@@ -684,9 +638,7 @@ def test_analysis_retains_failure_reasons_on_partial_success(
     file_path = create_test_data_file(
         tmp_path, pd.date_range("2023", periods=100), np.random.rand(100)
     )
-    analyzer = Analysis(
-        file_path=file_path, base_dir="", time_col="time", data_col="value"
-    )
+    analyzer = Analysis(file_path=file_path, base_dir="", time_col="time", data_col="value")
     results = analyzer.run_full_analysis(output_dir=tmp_path, n_bootstraps=10)
 
     # The successful model should be chosen
@@ -694,10 +646,7 @@ def test_analysis_retains_failure_reasons_on_partial_success(
     # The failure reason for the other model should be in the results
     assert "failed_model_reasons" in results
     assert len(results["failed_model_reasons"]) == 1
-    assert (
-        "Standard model (0 breakpoints): Standard model failed."
-        in results["failed_model_reasons"]
-    )
+    assert "Standard model (0 breakpoints): Standard model failed." in results["failed_model_reasons"]
 
 
 def test_analysis_warns_on_ignored_peak_fdr_level(tmp_path, mocker):
@@ -708,8 +657,7 @@ def test_analysis_warns_on_ignored_peak_fdr_level(tmp_path, mocker):
     time, series = generate_synthetic_series()
     file_path = create_test_data_file(tmp_path, time, series)
     analyzer = Analysis(
-        file_path=file_path,
-        base_dir="",
+        file_path=file_path, base_dir="",
         time_col="time",
         data_col="value",
     )
@@ -740,8 +688,7 @@ def test_peak_detection_ignored_parameter_warning(tmp_path, mocker):
     time, series = generate_synthetic_series()
     file_path = create_test_data_file(tmp_path, time, series)
     analyzer = Analysis(
-        file_path=file_path,
-        base_dir="",
+        file_path=file_path, base_dir="",
         time_col="time",
         data_col="value",
     )
@@ -836,8 +783,7 @@ def test_analysis_raises_error_on_mixed_inputs(tmp_path):
 
     with pytest.raises(ValueError, match="Please provide only one data source"):
         Analysis(
-            file_path=file_path,
-            base_dir="",
+            file_path=file_path, base_dir="",
             time_array=time_array,
             data_array=data_array,
             time_col="t",
@@ -941,13 +887,15 @@ def test_analysis_run_failure_handling(mocker):
         data_col="value",
         time_array=time,
         data_array=series,
-        input_time_unit="seconds",
+        input_time_unit="seconds"
     )
 
     # Mock _perform_model_selection to raise RuntimeError
     error_message = "Simulated fitting failure"
     mocker.patch.object(
-        analysis, "_perform_model_selection", side_effect=RuntimeError(error_message)
+        analysis,
+        "_perform_model_selection",
+        side_effect=RuntimeError(error_message)
     )
 
     # Also need to ensure _calculate_periodogram doesn't fail

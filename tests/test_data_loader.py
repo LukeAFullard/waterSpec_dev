@@ -46,7 +46,7 @@ def test_load_data_from_json(create_test_json):
         create_test_json,
         time_col="time",
         data_col="value",
-        base_dir=os.path.dirname(create_test_json),
+        base_dir=os.path.dirname(create_test_json)
     )
     assert len(time) == 2
     assert value.iloc[1] == 2.0
@@ -58,7 +58,7 @@ def test_load_data_from_excel(create_test_excel):
         create_test_excel,
         time_col="time",
         data_col="value",
-        base_dir=os.path.dirname(create_test_excel),
+        base_dir=os.path.dirname(create_test_excel)
     )
     assert len(time) == 2
     assert value.iloc[1] == 2.0
@@ -72,7 +72,7 @@ def test_load_data_from_csv(create_test_csv):
         create_test_csv,
         time_col="timestamp",
         data_col="concentration",
-        base_dir=os.path.dirname(create_test_csv),
+        base_dir=os.path.dirname(create_test_csv)
     )
 
     assert isinstance(time, np.ndarray)
@@ -95,7 +95,7 @@ def test_load_data_with_nans(tmp_path):
             file_path,
             time_col="timestamp",
             data_col="concentration",
-            base_dir=str(tmp_path),
+            base_dir=str(tmp_path)
         )
     # The loader should drop the row with the NaN value
     assert len(time) == 2
@@ -112,7 +112,7 @@ def test_load_data_empty_file(tmp_path):
             file_path,
             time_col="timestamp",
             data_col="concentration",
-            base_dir=str(tmp_path),
+            base_dir=str(tmp_path)
         )
 
 
@@ -123,7 +123,7 @@ def test_load_data_missing_column(create_test_csv):
             create_test_csv,
             time_col="timestamp",
             data_col="bad_col",
-            base_dir=os.path.dirname(create_test_csv),
+            base_dir=os.path.dirname(create_test_csv)
         )
 
 
@@ -139,10 +139,14 @@ def test_load_data_unparseable_time(tmp_path):
     # We match "value(s)" to be flexible, or just update to 1 if we are sure.
     # In this environment, "Jan 1" is parsed, so we get 1 failure.
     with pytest.raises(
-        ValueError,
-        match=r"\d+ value\(s\) in the time column 'time' could not be parsed",
+        ValueError, match=r"\d+ value\(s\) in the time column 'time' could not be parsed"
     ):
-        load_data(file_path, time_col="time", data_col="value", base_dir=str(tmp_path))
+        load_data(
+            file_path,
+            time_col="time",
+            data_col="value",
+            base_dir=str(tmp_path)
+        )
 
 
 def test_load_data_raises_on_duplicate_timestamps(tmp_path):
@@ -167,7 +171,7 @@ def test_load_data_raises_on_duplicate_timestamps(tmp_path):
             file_path,
             time_col="timestamp",
             data_col="concentration",
-            base_dir=str(tmp_path),
+            base_dir=str(tmp_path)
         )
 
 
@@ -191,7 +195,7 @@ def test_load_data_raises_on_duplicate_numeric_timestamps(tmp_path):
             time_col="time_hours",
             data_col="value",
             input_time_unit="hours",
-            base_dir=str(tmp_path),
+            base_dir=str(tmp_path)
         )
 
 
@@ -229,7 +233,7 @@ def test_load_data_with_time_format(tmp_path):
         time_col="day",
         data_col="value",
         time_format="%d/%m/%Y",
-        base_dir=str(tmp_path),
+        base_dir=str(tmp_path)
     )
     assert len(time) == 2
     # The first timestamp should be 0.0 seconds (relative time)
@@ -248,7 +252,7 @@ def test_load_data_with_incorrect_time_format(tmp_path):
             time_col="day",
             data_col="value",
             time_format="%d-%m-%Y",
-            base_dir=str(tmp_path),
+            base_dir=str(tmp_path)
         )
 
 
@@ -257,7 +261,12 @@ def test_load_data_unsupported_format(tmp_path):
     file_path = tmp_path / "test.txt"
     file_path.write_text("data")
     with pytest.raises(IOError, match="Failed to read the file"):
-        load_data(file_path, time_col="time", data_col="value", base_dir=str(tmp_path))
+        load_data(
+            file_path,
+            time_col="time",
+            data_col="value",
+            base_dir=str(tmp_path)
+        )
 
 
 def test_load_data_missing_error_column(create_test_csv):
@@ -268,7 +277,7 @@ def test_load_data_missing_error_column(create_test_csv):
             time_col="timestamp",
             data_col="concentration",
             error_col="bad_error_col",
-            base_dir=os.path.dirname(create_test_csv),
+            base_dir=os.path.dirname(create_test_csv)
         )
 
 
@@ -282,7 +291,7 @@ def test_load_data_bad_error_column(tmp_path):
             time_col="time",
             data_col="value",
             error_col="error",
-            base_dir=str(tmp_path),
+            base_dir=str(tmp_path)
         )
 
 
@@ -296,7 +305,7 @@ def test_load_data_negative_error_column(tmp_path):
             time_col="time",
             data_col="value",
             error_col="error",
-            base_dir=str(tmp_path),
+            base_dir=str(tmp_path)
         )
 
 
@@ -318,7 +327,10 @@ def test_load_high_frequency_data(tmp_path):
     # conversion of time would treat all timestamps as the same second.
     # The function should now run without raising an error.
     time_numeric, data, _ = load_data(
-        file_path, time_col="timestamp", data_col="value", base_dir=str(tmp_path)
+        file_path,
+        time_col="timestamp",
+        data_col="value",
+        base_dir=str(tmp_path)
     )
 
     assert len(time_numeric) == 3
@@ -341,20 +353,24 @@ def test_load_data_ambiguous_columns(tmp_path):
         ValueError, match="Duplicate column names found \\(case-insensitive\\)"
     ):
         load_data(
-            file_path, time_col="timestamp", data_col="Value", base_dir=str(tmp_path)
+            file_path,
+            time_col="timestamp",
+            data_col="Value",
+            base_dir=str(tmp_path)
         )
 
 
 def test_load_data_time_unit_conversion(tmp_path):
     """Test time unit conversion for the output time array."""
     file_path = tmp_path / "time_conversion.csv"
-    file_path.write_text(
-        "timestamp,value\n2023-01-01T00:00:00Z,1\n2023-01-02T00:00:00Z,2"
-    )
+    file_path.write_text("timestamp,value\n2023-01-01T00:00:00Z,1\n2023-01-02T00:00:00Z,2")
 
     # Default is seconds
     time_sec, _, _ = load_data(
-        file_path, time_col="timestamp", data_col="value", base_dir=str(tmp_path)
+        file_path,
+        time_col="timestamp",
+        data_col="value",
+        base_dir=str(tmp_path)
     )
     assert np.isclose(time_sec[1], 86400.0)
 
@@ -364,7 +380,7 @@ def test_load_data_time_unit_conversion(tmp_path):
         time_col="timestamp",
         data_col="value",
         output_time_unit="days",
-        base_dir=str(tmp_path),
+        base_dir=str(tmp_path)
     )
     assert np.isclose(time_days[1], 1.0)
 
@@ -374,7 +390,7 @@ def test_load_data_time_unit_conversion(tmp_path):
         time_col="timestamp",
         data_col="value",
         output_time_unit="hours",
-        base_dir=str(tmp_path),
+        base_dir=str(tmp_path)
     )
     assert np.isclose(time_hours[1], 24.0)
 
@@ -385,7 +401,7 @@ def test_load_data_time_unit_conversion(tmp_path):
             time_col="timestamp",
             data_col="value",
             output_time_unit="weeks",
-            base_dir=str(tmp_path),
+            base_dir=str(tmp_path)
         )
 
 
@@ -400,7 +416,7 @@ def test_load_data_with_numeric_time_input(tmp_path):
         time_col="time_days",
         data_col="value",
         input_time_unit="days",
-        base_dir=str(tmp_path),
+        base_dir=str(tmp_path)
     )
     assert data.iloc[0] == 10
     assert np.allclose(time_sec, [0, 86400, 172800])
@@ -412,7 +428,7 @@ def test_load_data_with_numeric_time_input(tmp_path):
         data_col="value",
         input_time_unit="days",
         output_time_unit="hours",
-        base_dir=str(tmp_path),
+        base_dir=str(tmp_path)
     )
     assert np.allclose(time_hours, [0, 24, 48])
 
@@ -423,7 +439,7 @@ def test_load_data_with_numeric_time_input(tmp_path):
             time_col="time_days",
             data_col="value",
             input_time_unit="years",
-            base_dir=str(tmp_path),
+            base_dir=str(tmp_path)
         )
 
 
@@ -439,7 +455,12 @@ def test_load_data_numeric_time_without_unit_raises_error(tmp_path):
         ValueError,
         match="The time column 'time' is numeric, but `input_time_unit` was not provided.",
     ):
-        load_data(file_path, time_col="time", data_col="value", base_dir=str(tmp_path))
+        load_data(
+            file_path,
+            time_col="time",
+            data_col="value",
+            base_dir=str(tmp_path)
+        )
 
 
 def test_load_data_security_violation(tmp_path):
@@ -455,9 +476,7 @@ def test_load_data_security_violation(tmp_path):
 
     # Try to access secret file from safe_dir context using relative path
     rel_path = "../secret.csv"
-    full_path_via_safe = (
-        safe_dir / rel_path
-    )  # conceptually this resolves to secret_file
+    full_path_via_safe = safe_dir / rel_path # conceptually this resolves to secret_file
 
     # If we pass base_dir=safe_dir, it should block access to ../secret.csv
     # Note: load_data takes file_path as a string.
@@ -465,7 +484,6 @@ def test_load_data_security_violation(tmp_path):
     # If we pass absolute path of secret_file, it should also fail if base_dir is safe_dir.
 
     import unittest.mock as mock
-
     with pytest.raises(ValueError, match="Security Error: Access to file"):
         with mock.patch("waterSpec.data_loader.os.path.realpath") as mock_realpath:
             # Mock realpath to return a path outside the mocked base_dir
@@ -475,15 +493,13 @@ def test_load_data_security_violation(tmp_path):
                 if p == str(safe_dir):
                     return "/safe"
                 return str(os.path.abspath(p))
-
             mock_realpath.side_effect = fake_realpath
             load_data(
                 str(secret_file),
                 time_col="time",
                 data_col="value",
-                base_dir=str(safe_dir),
+                base_dir=str(safe_dir)
             )
-
 
 def test_load_data_security_bypass_explicit(tmp_path):
     """
@@ -494,7 +510,10 @@ def test_load_data_security_bypass_explicit(tmp_path):
 
     # Should succeed with warning (though we aren't testing for warning here, just success)
     time, value, _ = load_data(
-        str(secret_file), time_col="time", data_col="value", base_dir=""
+        str(secret_file),
+        time_col="time",
+        data_col="value",
+        base_dir=""
     )
     assert len(time) == 2
 
@@ -513,21 +532,18 @@ def test_load_data_security_symlink_bypass(tmp_path):
     os.symlink(str(secret_file), str(symlink_path))
 
     import unittest.mock as mock
-
     with pytest.raises(ValueError, match="Security Error: Access to file"):
         with mock.patch("waterSpec.data_loader.os.path.realpath") as mock_realpath:
-
             def fake_realpath(p):
                 if p == str(symlink_path):
                     return "/outside/secret.csv"
                 if p == str(safe_dir):
                     return "/safe"
                 return str(os.path.abspath(p))
-
             mock_realpath.side_effect = fake_realpath
             load_data(
                 str(symlink_path),
                 time_col="time",
                 data_col="value",
-                base_dir=str(safe_dir),
+                base_dir=str(safe_dir)
             )

@@ -1,7 +1,7 @@
+
 import numpy as np
 from typing import Dict, List, Optional
 from .haar_analysis import _compute_statistic
-
 
 def calculate_multivariate_fluctuations(
     time: np.ndarray,
@@ -12,7 +12,7 @@ def calculate_multivariate_fluctuations(
     min_samples_per_window: int = 5,
     statistic: str = "mean",
     percentile: Optional[float] = None,
-    percentile_method: str = "hazen",
+    percentile_method: str = "hazen"
 ) -> Dict[float, List[np.ndarray]]:
     """
     Calculates Haar fluctuations for multiple aligned time series on the exact same windows.
@@ -37,9 +37,7 @@ def calculate_multivariate_fluctuations(
     # Validate input lengths
     for i, d in enumerate(datasets):
         if len(d) != len(time):
-            raise ValueError(
-                f"Dataset {i} length ({len(d)}) does not match time array length ({len(time)})."
-            )
+            raise ValueError(f"Dataset {i} length ({len(d)}) does not match time array length ({len(time)}).")
 
     # Sort by time just in case (though we assume alignment)
     sort_idx = np.argsort(time)
@@ -58,14 +56,13 @@ def calculate_multivariate_fluctuations(
         t_starts = []
         t_start = t_min
 
-        while t_start + tau <= time[-1]:  # Use time[-1] instead of t_max for precision
+        while t_start + tau <= time[-1]: # Use time[-1] instead of t_max for precision
             t_starts.append(t_start)
             if overlap:
                 t_start += step_size
             else:
                 t_start += tau
-                if t_start >= time[-1]:
-                    break
+                if t_start >= time[-1]: break
 
         if not t_starts:
             results[tau] = [np.array([]) for _ in range(n_vars)]
@@ -76,9 +73,9 @@ def calculate_multivariate_fluctuations(
         t_ends = t_starts + tau
 
         # Indices in the ALIGNED arrays
-        idx_starts = np.searchsorted(time, t_starts, side="left")
-        idx_mids = np.searchsorted(time, t_mids, side="left")
-        idx_ends = np.searchsorted(time, t_ends, side="left")
+        idx_starts = np.searchsorted(time, t_starts, side='left')
+        idx_mids = np.searchsorted(time, t_mids, side='left')
+        idx_ends = np.searchsorted(time, t_ends, side='left')
 
         for j in range(len(t_starts)):
             idx_start = idx_starts[j]
@@ -93,22 +90,15 @@ def calculate_multivariate_fluctuations(
                 v_left = data[idx_start:idx_mid]
                 v_right = data[idx_mid:idx_end]
 
-                if (
-                    len(v_left) < min_samples_per_window
-                    or len(v_right) < min_samples_per_window
-                ):
+                if len(v_left) < min_samples_per_window or len(v_right) < min_samples_per_window:
                     valid_window = False
                     break
 
                 # We want absolute fluctuation?
                 # No, for correlation we want signed fluctuation.
 
-                val_right = _compute_statistic(
-                    v_right, statistic, percentile, percentile_method
-                )
-                val_left = _compute_statistic(
-                    v_left, statistic, percentile, percentile_method
-                )
+                val_right = _compute_statistic(v_right, statistic, percentile, percentile_method)
+                val_left = _compute_statistic(v_left, statistic, percentile, percentile_method)
                 d = val_right - val_left
 
                 diffs.append(d)
@@ -122,7 +112,6 @@ def calculate_multivariate_fluctuations(
 
     return results
 
-
 def calculate_partial_cross_haar(
     time: np.ndarray,
     data_x: np.ndarray,
@@ -134,7 +123,7 @@ def calculate_partial_cross_haar(
     min_samples_per_window: int = 5,
     statistic: str = "mean",
     percentile: Optional[float] = None,
-    percentile_method: str = "hazen",
+    percentile_method: str = "hazen"
 ) -> Dict:
     """
     Calculates Partial Cross-Haar Correlation between X and Y controlling for Z.
@@ -159,33 +148,25 @@ def calculate_partial_cross_haar(
         Dict containing arrays for lags, rho_xy, rho_xz, rho_yz, partial_corr, n_pairs.
     """
     import warnings
-
     warnings.warn(
         "calculate_partial_cross_haar is experimental and its statistical validity "
         "for Haar fluctuations has not been fully established. Interpret results with caution.",
-        UserWarning,
+        UserWarning
     )
 
     # Calculate fluctuations
     fluc_dict = calculate_multivariate_fluctuations(
-        time,
-        [data_x, data_y, data_z],
-        lags,
-        overlap,
-        overlap_step_fraction,
-        min_samples_per_window,
-        statistic,
-        percentile,
-        percentile_method,
+        time, [data_x, data_y, data_z], lags, overlap, overlap_step_fraction, min_samples_per_window,
+        statistic, percentile, percentile_method
     )
 
     results = {
-        "lags": [],
-        "rho_xy": [],
-        "rho_xz": [],
-        "rho_yz": [],
-        "partial_corr": [],
-        "n_pairs": [],
+        'lags': [],
+        'rho_xy': [],
+        'rho_xz': [],
+        'rho_yz': [],
+        'partial_corr': [],
+        'n_pairs': []
     }
 
     for tau in lags:
@@ -194,12 +175,12 @@ def calculate_partial_cross_haar(
 
         n = len(fx)
         if n < 3:
-            results["lags"].append(tau)
-            results["rho_xy"].append(np.nan)
-            results["rho_xz"].append(np.nan)
-            results["rho_yz"].append(np.nan)
-            results["partial_corr"].append(np.nan)
-            results["n_pairs"].append(n)
+            results['lags'].append(tau)
+            results['rho_xy'].append(np.nan)
+            results['rho_xz'].append(np.nan)
+            results['rho_yz'].append(np.nan)
+            results['partial_corr'].append(np.nan)
+            results['n_pairs'].append(n)
             continue
 
         # Pearson correlations
@@ -209,12 +190,12 @@ def calculate_partial_cross_haar(
 
         # Handle NaNs from constant arrays
         if np.isnan(r_xy) or np.isnan(r_xz) or np.isnan(r_yz):
-            results["lags"].append(tau)
-            results["rho_xy"].append(r_xy)
-            results["rho_xz"].append(r_xz)
-            results["rho_yz"].append(r_yz)
-            results["partial_corr"].append(np.nan)
-            results["n_pairs"].append(n)
+            results['lags'].append(tau)
+            results['rho_xy'].append(r_xy)
+            results['rho_xz'].append(r_xz)
+            results['rho_yz'].append(r_yz)
+            results['partial_corr'].append(np.nan)
+            results['n_pairs'].append(n)
             continue
 
         # Partial correlation
@@ -227,12 +208,12 @@ def calculate_partial_cross_haar(
             denom = np.sqrt(denom_sq)
             p_corr = (r_xy - r_xz * r_yz) / denom
 
-        results["lags"].append(tau)
-        results["rho_xy"].append(r_xy)
-        results["rho_xz"].append(r_xz)
-        results["rho_yz"].append(r_yz)
-        results["partial_corr"].append(p_corr)
-        results["n_pairs"].append(n)
+        results['lags'].append(tau)
+        results['rho_xy'].append(r_xy)
+        results['rho_xz'].append(r_xz)
+        results['rho_yz'].append(r_yz)
+        results['partial_corr'].append(p_corr)
+        results['n_pairs'].append(n)
 
     # Convert lists to arrays
     for key in results:
