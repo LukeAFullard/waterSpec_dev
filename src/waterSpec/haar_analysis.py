@@ -162,14 +162,14 @@ def calculate_haar_fluctuations(
         t_start = time[0]
 
         # Generate window boundaries
-        while t_start + delta_t <= time[-1]:
+        while t_start + delta_t <= time[-1] + 1e-9:
             t_starts.append(t_start)
             # Move window
             if overlap:
                 t_start += step_size
             else:
                 t_start += delta_t
-                if t_start >= time[-1]:
+                if t_start >= time[-1] + 1e-9:
                     break
 
         if not t_starts:
@@ -303,7 +303,8 @@ def fit_haar_slope(
     lags: np.ndarray,
     s1: np.ndarray,
     ci: float = 95,
-    n_bootstraps: int = 100
+    n_bootstraps: int = 100,
+    seed: Optional[int] = None
 ) -> Dict:
     """
     Fits a power law to the structure function: S_1(dt) ~ dt^H.
@@ -322,16 +323,16 @@ def fit_haar_slope(
         log_s1,
         log_lags,
         alpha=1 - (ci / 100),
-        n_bootstrap=n_bootstraps
+        n_bootstrap=n_bootstraps,
+        random_state=seed
     )
 
     H = res.slope
     intercept = res.intercept
     beta = 1 + 2 * H
 
-    # Calculate R2
-    slope_ols, intercept_ols = np.polyfit(log_lags, log_s1, 1)
-    predicted = slope_ols * log_lags + intercept_ols
+    # Calculate R2 using the robust fit parameters
+    predicted = H * log_lags + intercept
     ss_res = np.sum((log_s1 - predicted) ** 2)
     ss_tot = np.sum((log_s1 - np.mean(log_s1)) ** 2)
     r2 = 1 - (ss_res / ss_tot)
@@ -353,7 +354,8 @@ def fit_segmented_haar(
     n_breakpoints: int = 1,
     ci: float = 95,
     n_bootstraps: int = 100,
-    min_segment_length: int = 4
+    min_segment_length: int = 4,
+    seed: Optional[int] = None
 ) -> Dict:
     """
     Fits a segmented power law to the structure function: S_1(dt) ~ dt^H.
@@ -375,7 +377,8 @@ def fit_segmented_haar(
             log_lags,
             n_breakpoints=n_breakpoints,
             alpha=1-(ci/100),
-            n_bootstrap=n_bootstraps
+            n_bootstrap=n_bootstraps,
+            random_state=seed
         )
 
         segments_df = res.segments
@@ -584,7 +587,7 @@ class HaarAnalysis:
         initial_bootstraps = n_bootstraps if bootstrap_method == "standard" else 0
 
         fit_results = fit_haar_slope(
-            self.lags, self.s1, n_bootstraps=initial_bootstraps
+            self.lags, self.s1, n_bootstraps=initial_bootstraps, seed=seed
         )
 
         self.H = fit_results.get("H", np.nan)
@@ -615,7 +618,7 @@ class HaarAnalysis:
                 )
 
                 # Fit slope (no bootstrap needed here, just the slope)
-                res_b = fit_haar_slope(lags_b, s1_b, n_bootstraps=0)
+                res_b = fit_haar_slope(lags_b, s1_b, n_bootstraps=0, seed=seed)
 
                 if not np.isnan(res_b['beta']):
                     betas_boot.append(res_b['beta'])
@@ -660,7 +663,7 @@ class HaarAnalysis:
             for nb in range(1, max_breakpoints + 1):
                 # Note: Segmented fit still uses standard MannKS bootstrap for now.
                 # Monte Carlo for segmented fit is very expensive and complex (finding breakpoints in surrogates).
-                res = fit_segmented_haar(self.lags, self.s1, n_breakpoints=nb, n_bootstraps=n_bootstraps)
+                res = fit_segmented_haar(self.lags, self.s1, n_breakpoints=nb, n_bootstraps=n_bootstraps, seed=seed)
                 if res.get("bic", np.inf) < best_bic:
                     best_bic = res["bic"]
                     best_results = res

@@ -56,13 +56,13 @@ def calculate_multivariate_fluctuations(
         t_starts = []
         t_start = t_min
 
-        while t_start + tau <= time[-1]: # Use time[-1] instead of t_max for precision
+        while t_start + tau <= time[-1] + 1e-9: # Use time[-1] instead of t_max for precision
             t_starts.append(t_start)
             if overlap:
                 t_start += step_size
             else:
                 t_start += tau
-                if t_start >= time[-1]: break
+                if t_start >= time[-1] + 1e-9: break
 
         if not t_starts:
             results[tau] = [np.array([]) for _ in range(n_vars)]
