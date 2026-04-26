@@ -361,13 +361,13 @@ class BivariateAnalysis:
 
         t_starts_list = []
         curr_t = time[0]
-        while curr_t + tau <= time[-1]:
+        while curr_t + tau <= time[-1] + 1e-9:
             t_starts_list.append(curr_t)
             if overlap:
                 curr_t += step_size
             else:
                 curr_t += tau
-                if curr_t >= time[-1]: break
+                if curr_t >= time[-1] + 1e-9: break
 
         if t_starts_list:
             t_starts = np.array(t_starts_list)
@@ -488,13 +488,13 @@ class BivariateAnalysis:
 
         t_starts_list = []
         curr_t = time[0]
-        while curr_t + tau <= time[-1]:
+        while curr_t + tau <= time[-1] + 1e-9:
             t_starts_list.append(curr_t)
             if overlap:
                 curr_t += step_size
             else:
                 curr_t += tau
-                if curr_t >= time[-1]: break
+                if curr_t >= time[-1] + 1e-9: break
 
         if t_starts_list:
             t_starts = np.array(t_starts_list)

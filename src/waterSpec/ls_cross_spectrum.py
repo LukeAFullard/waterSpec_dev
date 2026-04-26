@@ -182,13 +182,13 @@ def _compute_ls_complex_coeffs(
         try:
             # Solve M x = b for all frequencies in batch simultaneously
             x = np.linalg.solve(M, b)
-            coeffs[start_idx:end_idx] = x[:, 1, 0] + 1j * x[:, 2, 0]
+            coeffs[start_idx:end_idx] = x[:, 1, 0] - 1j * x[:, 2, 0]
         except np.linalg.LinAlgError:
             # Fallback to solving individually if any matrix in the batch is singular
             for i in range(n_batch):
                 try:
                     xi = np.linalg.solve(M[i], b[i, :, 0])
-                    coeffs[start_idx + i] = xi[1] + 1j * xi[2]
+                    coeffs[start_idx + i] = xi[1] - 1j * xi[2]
                 except np.linalg.LinAlgError:
                     coeffs[start_idx + i] = np.nan
 
