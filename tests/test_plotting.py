@@ -5,9 +5,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
-from waterSpec.plotting import plot_spectrum, plot_changepoint_analysis, plot_site_comparison
+from waterSpec.plotting import (
+    plot_spectrum,
+    plot_changepoint_analysis,
+    plot_site_comparison,
+)
 from waterSpec.haar_analysis import plot_haar_analysis
-
 
 
 @pytest.fixture
@@ -61,9 +64,7 @@ def test_plot_spectrum_saves_file(spectrum_data, tmp_path):
     assert os.path.exists(output_file)
 
 
-def test_plot_changepoint_analysis_combined_style(
-    changepoint_results_data, tmp_path
-):
+def test_plot_changepoint_analysis_combined_style(changepoint_results_data, tmp_path):
     """
     Test that `plot_changepoint_analysis` with `plot_style='combined'`
     creates a single combined plot.
@@ -90,6 +91,7 @@ def test_plot_spectrum_handles_failed_fit(mock_subplots, spectrum_data, tmp_path
     """
     # Arrange: Create mock figure and axes, and have subplots return them.
     from unittest.mock import MagicMock
+
     mock_fig = MagicMock()
     mock_ax = MagicMock()
     mock_subplots.return_value = (mock_fig, mock_ax)
@@ -134,11 +136,11 @@ def test_plot_spectrum_with_ci_and_peaks(tmp_path):
     output_file = tmp_path / "test_plot_with_ci_and_peaks.png"
 
     plot_spectrum(
-            frequency,
-            power,
-            fit_results=fit_results,
-            output_path=str(output_file),
-        )
+        frequency,
+        power,
+        fit_results=fit_results,
+        output_path=str(output_file),
+    )
 
     assert os.path.exists(output_file)
 
@@ -184,11 +186,11 @@ def test_plot_spectrum_segmented(spectrum_data, tmp_path):
     }
 
     plot_spectrum(
-            frequency,
-            power,
-            fit_results=segmented_fit_results,
-            output_path=str(output_file),
-        )
+        frequency,
+        power,
+        fit_results=segmented_fit_results,
+        output_path=str(output_file),
+    )
 
     assert os.path.exists(output_file)
 
@@ -219,13 +221,14 @@ def test_plot_spectrum_multi_breakpoint(spectrum_data, tmp_path):
     }
 
     plot_spectrum(
-            frequency,
-            power,
-            fit_results=multi_segmented_fit_results,
-            output_path=str(output_file),
-        )
+        frequency,
+        power,
+        fit_results=multi_segmented_fit_results,
+        output_path=str(output_file),
+    )
 
     assert os.path.exists(output_file)
+
 
 @pytest.fixture
 def haar_data():
@@ -246,12 +249,7 @@ def test_plot_haar_analysis_saves_file(haar_data, tmp_path):
     output_file = tmp_path / "test_haar_plot.png"
 
     plot_haar_analysis(
-        lags,
-        s1,
-        H,
-        beta,
-        intercept=intercept,
-        output_path=str(output_file)
+        lags, s1, H, beta, intercept=intercept, output_path=str(output_file)
     )
 
     assert os.path.exists(output_file)
@@ -267,14 +265,7 @@ def test_plot_haar_analysis_runs_without_path(haar_data):
     original_backend = plt.get_backend()
     plt.switch_backend("Agg")
 
-    plot_haar_analysis(
-            lags,
-            s1,
-            H,
-            beta,
-            intercept=intercept,
-            output_path=None
-        )
+    plot_haar_analysis(lags, s1, H, beta, intercept=intercept, output_path=None)
     # Restore the original backend
     plt.switch_backend(original_backend)
 
@@ -289,7 +280,7 @@ def test_plot_haar_analysis_segmented(haar_data, tmp_path):
     segmented_results = {
         "Hs": [0.2, 0.8],
         "intercepts": [-0.5, -2.0],
-        "breakpoints": [10.0]
+        "breakpoints": [10.0],
     }
 
     # H and beta for standard fit typically given even if segmented results exist
@@ -299,14 +290,14 @@ def test_plot_haar_analysis_segmented(haar_data, tmp_path):
     output_file = tmp_path / "test_haar_plot_segmented.png"
 
     plot_haar_analysis(
-            lags,
-            s1,
-            H_std,
-            beta_std,
-            intercept=None,
-            output_path=str(output_file),
-            segmented_results=segmented_results
-        )
+        lags,
+        s1,
+        H_std,
+        beta_std,
+        intercept=None,
+        output_path=str(output_file),
+        segmented_results=segmented_results,
+    )
 
     assert os.path.exists(output_file)
 
@@ -318,16 +309,10 @@ def test_plot_haar_analysis_no_intercept(haar_data, tmp_path):
     lags, s1, H, beta, _ = haar_data
     output_file = tmp_path / "test_haar_plot_no_intercept.png"
 
-    plot_haar_analysis(
-            lags,
-            s1,
-            H,
-            beta,
-            intercept=None,
-            output_path=str(output_file)
-        )
+    plot_haar_analysis(lags, s1, H, beta, intercept=None, output_path=str(output_file))
 
     assert os.path.exists(output_file)
+
 
 @pytest.fixture
 def site_comparison_results_data():
@@ -404,7 +389,9 @@ def test_plot_site_comparison_invalid_style(site_comparison_results_data, tmp_pa
     output_dir = tmp_path / "site_comparison_invalid"
     os.makedirs(output_dir)
 
-    with pytest.raises(ValueError, match="plot_style must be 'separate' or 'overlaid'."):
+    with pytest.raises(
+        ValueError, match="plot_style must be 'separate' or 'overlaid'."
+    ):
         plot_site_comparison(
             site_comparison_results_data,
             str(output_dir),

@@ -233,9 +233,7 @@ def _convert_and_sort_time(
             clean_df["time"].astype("datetime64[ns]").to_numpy().view(np.int64)
         )
 
-        _check_monotonicity_and_duplicates(
-            time_numeric_ns, time_col_name, clean_df
-        )
+        _check_monotonicity_and_duplicates(time_numeric_ns, time_col_name, clean_df)
 
         # Make time relative *before* converting to float to preserve precision
         time_numeric_ns_relative = time_numeric_ns - time_numeric_ns[0]
@@ -335,9 +333,7 @@ def process_dataframe(
     time_series = _process_time_column(
         df, time_col_orig, time_col, time_format, input_time_unit
     )
-    data_series = _process_data_column(
-        df, data_col_orig, data_col, coerce_to_numeric
-    )
+    data_series = _process_data_column(df, data_col_orig, data_col, coerce_to_numeric)
     error_series = _process_error_column(df, error_col_orig, error_col)
 
     # Create a new, clean DataFrame from the validated series
@@ -435,7 +431,9 @@ def load_data(
 
         # Check if the file path is within the base directory
         if not real_path.startswith(os.path.join(abs_base, "")):
-             if not (real_path == abs_base): # Allow loading the base dir itself if it was a file? No, usually base_dir is a dir.
+            if not (
+                real_path == abs_base
+            ):  # Allow loading the base dir itself if it was a file? No, usually base_dir is a dir.
                 raise ValueError(
                     f"Security Error: Access to file '{file_path}' is denied. "
                     f"File must be within the base directory '{abs_base}'. "
@@ -458,9 +456,7 @@ def load_data(
         else:
             raise ValueError(f"Unsupported file format: {file_extension}")
     except Exception as e:
-        raise IOError(
-            f"Failed to read the file at {file_path}. Reason: {e}"
-        ) from e
+        raise IOError(f"Failed to read the file at {file_path}. Reason: {e}") from e
 
     # 3. Process the loaded DataFrame
     return process_dataframe(

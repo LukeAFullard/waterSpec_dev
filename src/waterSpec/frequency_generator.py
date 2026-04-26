@@ -64,7 +64,9 @@ def generate_frequency_grid(
         raise ValueError("num_points must be an integer greater than 1.")
     if not isinstance(nyquist_factor, (int, float)) or nyquist_factor <= 0:
         raise ValueError("nyquist_factor must be a positive number.")
-    if max_freq is not None and (not isinstance(max_freq, (int, float)) or max_freq <= 0):
+    if max_freq is not None and (
+        not isinstance(max_freq, (int, float)) or max_freq <= 0
+    ):
         raise ValueError("max_freq, if provided, must be a positive number.")
     if time_numeric.size < 2:
         raise ValueError(

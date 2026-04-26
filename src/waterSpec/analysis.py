@@ -16,7 +16,11 @@ from .data_loader import load_data, process_dataframe
 from .fitter import fit_segmented_spectrum, fit_standard_model
 from .model_selector import ModelSelector
 from .frequency_generator import generate_frequency_grid
-from .interpreter import interpret_results, get_scientific_interpretation, get_persistence_traffic_light
+from .interpreter import (
+    interpret_results,
+    get_scientific_interpretation,
+    get_persistence_traffic_light,
+)
 from .plotting import plot_changepoint_analysis, plot_spectrum
 from .preprocessor import preprocess_data
 from .spectral_analyzer import (
@@ -237,7 +241,9 @@ class Analysis:
 
         # Ensure changepoint detector respects spectral analysis minimums
         if self.changepoint_mode == "auto":
-            self.changepoint_options = dict(self.changepoint_options or {}) # Ensure it's a mutable dict
+            self.changepoint_options = dict(
+                self.changepoint_options or {}
+            )  # Ensure it's a mutable dict
             required_min = int(self.min_valid_data_points)
             current_min_size_raw = self.changepoint_options.get("min_size")
             current_min_size = None
@@ -246,11 +252,11 @@ class Analysis:
                 try:
                     current_min_size = int(current_min_size_raw)
                 except (ValueError, TypeError):
-                     self.logger.warning(
+                    self.logger.warning(
                         f"Invalid 'min_size' value '{current_min_size_raw}' provided. "
                         f"Ignoring and setting to {required_min}."
                     )
-                     current_min_size = None
+                    current_min_size = None
 
             if current_min_size is None or current_min_size < required_min:
                 if current_min_size is not None:
@@ -352,7 +358,7 @@ class Analysis:
         max_breakpoints: int = 0,
         statistic: str = "mean",
         percentile: Optional[float] = None,
-        percentile_method: str = "hazen"
+        percentile_method: str = "hazen",
     ):
         """Performs Haar Wavelet Analysis."""
         self.logger.info("Performing Haar Wavelet Analysis...")
@@ -363,7 +369,7 @@ class Analysis:
             max_breakpoints=max_breakpoints,
             statistic=statistic,
             percentile=percentile,
-            percentile_method=percentile_method
+            percentile_method=percentile_method,
         )
         self.logger.info(
             f"Haar Analysis complete. Beta: {haar_results.get('beta', np.nan):.2f}, "
@@ -380,7 +386,9 @@ class Analysis:
         fap_method,
     ):
         """Detects significant peaks based on the chosen method."""
-        self.logger.info(f"Detecting significant peaks using '{peak_detection_method}' method...")
+        self.logger.info(
+            f"Detecting significant peaks using '{peak_detection_method}' method..."
+        )
         fit_results = detect_peaks(
             fit_results,
             self.ls_obj,
@@ -418,7 +426,7 @@ class Analysis:
         haar_summary = ""
         if "haar_results" in results:
             haar_plot_path = os.path.join(output_dir, f"{sanitized_name}_haar_plot.png")
-            haar_obj = results["haar_obj"] # Retrieve object to plot
+            haar_obj = results["haar_obj"]  # Retrieve object to plot
             haar_obj.plot(output_path=haar_plot_path)
             self.logger.info(f"Haar plot saved to {haar_plot_path}")
 
@@ -432,10 +440,12 @@ class Analysis:
             haar_summary += f"  R² = {hr.get('r2', np.nan):.2f}\n"
 
             # Add Effective Sample Size info
-            n_eff_vals = hr.get('n_effective', None)
+            n_eff_vals = hr.get("n_effective", None)
             if n_eff_vals is not None and len(n_eff_vals) > 0:
                 mean_neff = np.nanmean(n_eff_vals)
-                haar_summary += f"  Mean N_eff: {mean_neff:.1f} (of N={len(self.time)})\n"
+                haar_summary += (
+                    f"  Mean N_eff: {mean_neff:.1f} (of N={len(self.time)})\n"
+                )
 
             haar_summary += f"  Persistence: {get_persistence_traffic_light(beta)}\n"
             haar_summary += f"  Interpretation: {get_scientific_interpretation(beta)}\n"
@@ -473,12 +483,8 @@ class Analysis:
             plot_style=plot_style,
         )
 
-        plot_filename = (
-            f"{sanitized_name}_changepoint_{plot_style}.png"
-        )
-        plot_path = os.path.join(
-            output_dir, plot_filename
-        )
+        plot_filename = f"{sanitized_name}_changepoint_{plot_style}.png"
+        plot_path = os.path.join(output_dir, plot_filename)
 
         # Handle Haar Analysis for segments if available
         # Note: We don't automatically plot Haar for changepoint analysis segments here to avoid complexity
@@ -547,11 +553,7 @@ class Analysis:
         )
 
     def _run_changepoint_analysis_steps(
-        self,
-        seg_before: Dict,
-        seg_after: Dict,
-        cp_time_str: str,
-        analysis_kwargs: Dict
+        self, seg_before: Dict, seg_after: Dict, cp_time_str: str, analysis_kwargs: Dict
     ) -> Tuple[Dict, Dict]:
         """
         Handles seeding and runs analysis for both segments.
@@ -601,9 +603,7 @@ class Analysis:
         """
         seg_before, seg_after = self._prepare_changepoint_segments(changepoint_idx)
 
-        cp_time_str = get_changepoint_time(
-            changepoint_idx, self.time, self.time_unit
-        )
+        cp_time_str = get_changepoint_time(changepoint_idx, self.time, self.time_unit)
 
         results_before, results_after = self._run_changepoint_analysis_steps(
             seg_before, seg_after, cp_time_str, analysis_kwargs
@@ -671,11 +671,15 @@ class Analysis:
         if analysis_kwargs.get("run_haar", False):
             haar_obj, haar_res = self._perform_haar_analysis(
                 overlap=analysis_kwargs.get("haar_overlap", True),
-                overlap_step_fraction=analysis_kwargs.get("haar_overlap_step_fraction", 0.1),
+                overlap_step_fraction=analysis_kwargs.get(
+                    "haar_overlap_step_fraction", 0.1
+                ),
                 max_breakpoints=analysis_kwargs.get("haar_max_breakpoints", 0),
                 statistic=analysis_kwargs.get("haar_statistic", "mean"),
                 percentile=analysis_kwargs.get("haar_percentile"),
-                percentile_method=analysis_kwargs.get("haar_percentile_method", "hazen"),
+                percentile_method=analysis_kwargs.get(
+                    "haar_percentile_method", "hazen"
+                ),
             )
             fit_results["haar_results"] = haar_res
             # We don't store haar_obj here for segments to avoid clutter/serialization issues if any,
@@ -710,14 +714,16 @@ class Analysis:
 
         # Append Haar summary to segment summary if available
         if "haar_results" in fit_results:
-             hr = fit_results["haar_results"]
-             beta = hr.get("beta", np.nan)
-             haar_summary = "\n\n  [Haar Analysis]\n"
-             haar_summary += f"  β = {beta:.2f}, H = {hr.get('H', np.nan):.2f}\n"
-             if "segmented_results" in hr and hr["segmented_results"]:
-                 sr = hr["segmented_results"]
-                 haar_summary += f"  (Segmented Fit Detected: Breakpoints {sr['breakpoints']})\n"
-             segment_results["summary_text"] += haar_summary
+            hr = fit_results["haar_results"]
+            beta = hr.get("beta", np.nan)
+            haar_summary = "\n\n  [Haar Analysis]\n"
+            haar_summary += f"  β = {beta:.2f}, H = {hr.get('H', np.nan):.2f}\n"
+            if "segmented_results" in hr and hr["segmented_results"]:
+                sr = hr["segmented_results"]
+                haar_summary += (
+                    f"  (Segmented Fit Detected: Breakpoints {sr['breakpoints']})\n"
+                )
+            segment_results["summary_text"] += haar_summary
 
         # Restore original data
         self.time, self.data, self.errors = orig_time, orig_data, orig_errors
@@ -756,22 +762,20 @@ class Analysis:
 
         # Build comparison section
         comparison = "REGIME COMPARISON:\n"
-        comparison += (
-            f"  Before: β ≈ {beta_before:.2f} ({get_persistence_traffic_light(beta_before)})\n"
-        )
-        comparison += (
-            f"  After:  β ≈ {beta_after:.2f} ({get_persistence_traffic_light(beta_after)})\n\n"
-        )
+        comparison += f"  Before: β ≈ {beta_before:.2f} ({get_persistence_traffic_light(beta_before)})\n"
+        comparison += f"  After:  β ≈ {beta_after:.2f} ({get_persistence_traffic_light(beta_after)})\n\n"
 
         delta_beta = beta_after - beta_before
         if abs(delta_beta) > 0.3:  # Threshold for significant change
             if delta_beta > 0:
-                comparison += f"  * Significant INCREASE in persistence (+{delta_beta:.2f})\n"
                 comparison += (
-                    "    System may have shifted toward more storage-dominated pathways.\n"
+                    f"  * Significant INCREASE in persistence (+{delta_beta:.2f})\n"
                 )
+                comparison += "    System may have shifted toward more storage-dominated pathways.\n"
             else:
-                comparison += f"  * Significant DECREASE in persistence ({delta_beta:.2f})\n"
+                comparison += (
+                    f"  * Significant DECREASE in persistence ({delta_beta:.2f})\n"
+                )
                 comparison += (
                     "    System may have shifted toward more event-driven pathways.\n"
                 )
@@ -784,7 +788,15 @@ class Analysis:
         summary_before = before["summary_text"]
         summary_after = after["summary_text"]
 
-        full_summary = header + comparison + summary_before + "\n\n" + "=" * 60 + "\n\n" + summary_after
+        full_summary = (
+            header
+            + comparison
+            + summary_before
+            + "\n\n"
+            + "=" * 60
+            + "\n\n"
+            + summary_after
+        )
         return full_summary
 
     def _setup_analysis(self, **analysis_kwargs):
@@ -811,7 +823,9 @@ class Analysis:
             max_freq=analysis_kwargs.get("max_freq"),
             haar_statistic=analysis_kwargs.get("haar_statistic", "mean"),
             haar_percentile=analysis_kwargs.get("haar_percentile"),
-            haar_percentile_method=analysis_kwargs.get("haar_percentile_method", "hazen"),
+            haar_percentile_method=analysis_kwargs.get(
+                "haar_percentile_method", "hazen"
+            ),
         )
 
         # Determine changepoint

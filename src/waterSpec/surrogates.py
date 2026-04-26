@@ -1,13 +1,11 @@
-
 import numpy as np
 import warnings
 from typing import Optional
 from waterSpec.utils_sim import simulate_tk95, resample_to_times, power_law
 
+
 def generate_phase_randomized_surrogates(
-    data: np.ndarray,
-    n_surrogates: int = 100,
-    seed: Optional[int] = None
+    data: np.ndarray, n_surrogates: int = 100, seed: Optional[int] = None
 ) -> np.ndarray:
     """
     Generates surrogates by randomizing the Fourier phases while preserving the
@@ -42,7 +40,7 @@ def generate_phase_randomized_surrogates(
         warnings.warn(
             "Input data contains NaNs. FFT will propagate these, resulting in garbage surrogates. "
             "Please fill or interpolate NaNs before generating phase-randomized surrogates.",
-            UserWarning
+            UserWarning,
         )
 
     # FFT
@@ -79,11 +77,12 @@ def generate_phase_randomized_surrogates(
 
     return surrogates
 
+
 def generate_block_shuffled_surrogates(
     data: np.ndarray,
     block_size: int,
     n_surrogates: int = 100,
-    seed: Optional[int] = None
+    seed: Optional[int] = None,
 ) -> np.ndarray:
     """
     Generates surrogates by shuffling blocks of data.
@@ -121,10 +120,9 @@ def generate_block_shuffled_surrogates(
 
     return np.array(surrogates)
 
+
 def calculate_significance_p_value(
-    observed_metric: float,
-    surrogate_metrics: np.ndarray,
-    two_sided: bool = True
+    observed_metric: float, surrogate_metrics: np.ndarray, two_sided: bool = True
 ) -> float:
     """
     Calculates empirical p-value.
@@ -135,21 +133,32 @@ def calculate_significance_p_value(
     if n_surr == 0:
         return np.nan
 
+    if np.isnan(observed_metric):
+        return np.nan
+
+    # Ignore NaNs in surrogate metrics
+    valid_surrogates = surrogate_metrics[~np.isnan(surrogate_metrics)]
+    n_surr = len(valid_surrogates)
+
+    if n_surr == 0:
+        return np.nan
+
     if two_sided:
         # Check absolute magnitude
-        count = np.sum(np.abs(surrogate_metrics) >= np.abs(observed_metric))
+        count = np.sum(np.abs(valid_surrogates) >= np.abs(observed_metric))
     else:
         # One-sided (obs > surr)
-        count = np.sum(surrogate_metrics >= observed_metric)
+        count = np.sum(valid_surrogates >= observed_metric)
 
     return (count + 1) / (n_surr + 1)
+
 
 def generate_power_law_surrogates(
     time: np.ndarray,
     beta: float,
     n_surrogates: int = 100,
     seed: Optional[int] = None,
-    oversample: int = 5
+    oversample: int = 5,
 ) -> np.ndarray:
     """
     Generates surrogates with a specific power-law spectral slope (1/f^beta)
@@ -189,7 +198,7 @@ def generate_power_law_surrogates(
         N=N_sim,
         dt=dt_sim,
         seed=seed,
-        n_simulations=n_surrogates
+        n_simulations=n_surrogates,
     )
 
     surrogates = []

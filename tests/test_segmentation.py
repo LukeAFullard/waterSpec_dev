@@ -1,7 +1,7 @@
-
 import numpy as np
 import pytest
 from waterSpec.segmentation import SegmentedRegimeAnalysis
+
 
 def test_segmentation_bursty_data():
     """
@@ -15,7 +15,7 @@ def test_segmentation_bursty_data():
 
     # Event: high noise (burst) in the middle
     # t=80 to t=120
-    data[80:120] += np.random.normal(0, 2.0, 40) # Add large fluctuations
+    data[80:120] += np.random.normal(0, 2.0, 40)  # Add large fluctuations
 
     # Scale to detect: window size 10
     scale = 10.0
@@ -24,8 +24,8 @@ def test_segmentation_bursty_data():
         time, data, scale, threshold_factor=3.0
     )
 
-    events = results['events']
-    background = results['background']
+    events = results["events"]
+    background = results["background"]
 
     # We expect at least one event covering roughly 80-120
     # Note: sliding window smearing might make it start earlier/end later by scale/2
@@ -43,9 +43,10 @@ def test_segmentation_bursty_data():
     # Background should handle the rest
     assert len(background) >= 1
 
+
 def test_extract_segments():
     time = np.arange(100)
-    data = np.arange(100) # data = time
+    data = np.arange(100)  # data = time
 
     segments = [(10, 20), (50, 60)]
 
@@ -64,6 +65,7 @@ def test_extract_segments():
     assert t2[0] == 50
     assert t2[-1] == 60
 
+
 def test_no_events():
     """Test with uniform low noise."""
     np.random.seed(42)
@@ -75,6 +77,6 @@ def test_no_events():
         time, data, scale=5.0, threshold_factor=100.0
     )
 
-    assert len(results['events']) == 0
-    assert len(results['background']) == 1
-    assert results['background'][0] == (0, 99)
+    assert len(results["events"]) == 0
+    assert len(results["background"]) == 1
+    assert results["background"][0] == (0, 99)

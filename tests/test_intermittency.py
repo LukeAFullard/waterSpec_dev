@@ -1,7 +1,7 @@
-
 import numpy as np
 import pytest
 from waterSpec.haar_analysis import HaarAnalysis, calculate_haar_fluctuations
+
 
 def test_intermittency_calculation():
     # 1. Monofractal Case (White Noise)
@@ -21,8 +21,9 @@ def test_intermittency_calculation():
 
     assert "K2" in res
     assert "beta_multifractal" in res
-    assert np.isclose(res["K2"], 0.0, atol=0.2) # Allow some statistical fluctuation
+    assert np.isclose(res["K2"], 0.0, atol=0.2)  # Allow some statistical fluctuation
     assert np.isclose(res["beta_multifractal"], 0.0, atol=0.2)
+
 
 def test_intermittency_manual_call():
     # Test calling calculate_intermittency manually

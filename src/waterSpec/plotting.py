@@ -54,7 +54,16 @@ def _plot_standard_model(ax, fit_results, color, label_prefix, plot_ci, log_freq
             )
 
 
-def _plot_segmented_model(ax, fit_results, color, label_prefix, plot_ci, log_freq, plot_breakpoints, use_segment_colors):
+def _plot_segmented_model(
+    ax,
+    fit_results,
+    color,
+    label_prefix,
+    plot_ci,
+    log_freq,
+    plot_breakpoints,
+    use_segment_colors,
+):
     """Helper to plot the segmented model fit."""
     n_breakpoints = fit_results.get("n_breakpoints", 0)
     log_power_fit = fit_results.get("fitted_log_power")
@@ -85,10 +94,10 @@ def _plot_segmented_model(ax, fit_results, color, label_prefix, plot_ci, log_fre
                 label = f"Low-Freq (β1≈{fit_results['betas'][0]:.2f})"
             elif i == n_breakpoints:
                 mask = log_freq > log_bps[i - 1]
-                label = f"High-Freq (β{i+1}≈{fit_results['betas'][i]:.2f})"
+                label = f"High-Freq (β{i + 1}≈{fit_results['betas'][i]:.2f})"
             else:
                 mask = (log_freq > log_bps[i - 1]) & (log_freq <= log_bps[i])
-                label = f"Mid-Freq (β{i+1}≈{fit_results['betas'][i]:.2f})"
+                label = f"Mid-Freq (β{i + 1}≈{fit_results['betas'][i]:.2f})"
 
             ax.loglog(
                 10 ** log_freq[mask],
@@ -101,7 +110,7 @@ def _plot_segmented_model(ax, fit_results, color, label_prefix, plot_ci, log_fre
     else:
         # Simple plotting
         betas = fit_results.get("betas", [])
-        beta_str = ", ".join([f"β{i+1}≈{b:.2f}" for i, b in enumerate(betas)])
+        beta_str = ", ".join([f"β{i + 1}≈{b:.2f}" for i, b in enumerate(betas)])
         label = f"{label_prefix} Fit ({beta_str})".strip()
 
         ax.loglog(
@@ -122,7 +131,7 @@ def _plot_segmented_model(ax, fit_results, color, label_prefix, plot_ci, log_fre
                 color="k",
                 linestyle=linestyles[i % len(linestyles)],
                 alpha=0.8,
-                label=f"BP {i+1} ≈ {_format_period(bp_freq)}",
+                label=f"BP {i + 1} ≈ {_format_period(bp_freq)}",
             )
 
 
@@ -145,7 +154,16 @@ def _plot_fit_line(
     if analysis_type == "standard":
         _plot_standard_model(ax, fit_results, color, label_prefix, plot_ci, log_freq)
     elif analysis_type == "segmented":
-        _plot_segmented_model(ax, fit_results, color, label_prefix, plot_ci, log_freq, plot_breakpoints, use_segment_colors)
+        _plot_segmented_model(
+            ax,
+            fit_results,
+            color,
+            label_prefix,
+            plot_ci,
+            log_freq,
+            plot_breakpoints,
+            use_segment_colors,
+        )
 
 
 def _plot_single_spectrum(ax, frequency, power, fit_results, title=""):
@@ -303,9 +321,7 @@ def plot_changepoint_analysis(
     return fig
 
 
-def plot_site_comparison(
-    results: Dict, output_dir: str, plot_style: str = "separate"
-):
+def plot_site_comparison(results: Dict, output_dir: str, plot_style: str = "separate"):
     """
     Creates a comparison plot for a two-site analysis.
 

@@ -1,7 +1,10 @@
-
 import numpy as np
 import pytest
-from waterSpec.multivariate import calculate_partial_cross_haar, calculate_multivariate_fluctuations
+from waterSpec.multivariate import (
+    calculate_partial_cross_haar,
+    calculate_multivariate_fluctuations,
+)
+
 
 def generate_spurious_correlation(n=1000):
     np.random.seed(42)
@@ -16,6 +19,7 @@ def generate_spurious_correlation(n=1000):
 
     return time, X, Y, Z
 
+
 def generate_direct_correlation(n=1000):
     np.random.seed(42)
     time = np.arange(n)
@@ -29,18 +33,17 @@ def generate_direct_correlation(n=1000):
 
     return time, X, Y, Z
 
+
 def test_partial_cross_haar_spurious():
     time, X, Y, Z = generate_spurious_correlation()
 
     lags = np.array([10, 25, 50])
 
-    results = calculate_partial_cross_haar(
-        time, X, Y, Z, lags, overlap=True
-    )
+    results = calculate_partial_cross_haar(time, X, Y, Z, lags, overlap=True)
 
     # Check correlations
-    rho_xy = results['rho_xy']
-    partial = results['partial_corr']
+    rho_xy = results["rho_xy"]
+    partial = results["partial_corr"]
 
     print(f"Spurious - Rho_XY: {rho_xy}, Partial: {partial}")
 
@@ -52,17 +55,16 @@ def test_partial_cross_haar_spurious():
     assert np.all(np.abs(partial) < 0.3)
     assert np.all(np.abs(partial) < np.abs(rho_xy))
 
+
 def test_partial_cross_haar_direct():
     time, X, Y, Z = generate_direct_correlation()
 
     lags = np.array([10, 25, 50])
 
-    results = calculate_partial_cross_haar(
-        time, X, Y, Z, lags, overlap=True
-    )
+    results = calculate_partial_cross_haar(time, X, Y, Z, lags, overlap=True)
 
-    rho_xy = results['rho_xy']
-    partial = results['partial_corr']
+    rho_xy = results["rho_xy"]
+    partial = results["partial_corr"]
 
     print(f"Direct - Rho_XY: {rho_xy}, Partial: {partial}")
 
@@ -74,6 +76,7 @@ def test_partial_cross_haar_direct():
     # Should be close to original correlation
     assert np.all(np.abs(partial - rho_xy) < 0.2)
 
+
 def test_multivariate_fluctuations_structure():
     # Smoke test for structure
     time = np.arange(100)
@@ -84,8 +87,9 @@ def test_multivariate_fluctuations_structure():
     lags = np.array([10])
     results = calculate_partial_cross_haar(time, d1, d2, d3, lags)
 
-    assert len(results['lags']) == 1
-    assert 'rho_xy' in results
+    assert len(results["lags"]) == 1
+    assert "rho_xy" in results
+
 
 def test_multivariate_fluctuations_basic():
     time = np.arange(20)
@@ -108,14 +112,19 @@ def test_multivariate_fluctuations_basic():
     # d2 is linear y=x. mean of [2, 3] - mean of [0, 1] = 2.5 - 0.5 = 2.0 = tau/2
     assert np.allclose(flucs[1], 2.0)
 
+
 def test_multivariate_fluctuations_mismatched_lengths():
     time = np.arange(10)
     d1 = np.arange(10)
-    d2 = np.arange(11) # Mismatched length
+    d2 = np.arange(11)  # Mismatched length
     lags = np.array([4])
 
-    with pytest.raises(ValueError, match="Dataset 1 length \\(11\\) does not match time array length \\(10\\)."):
+    with pytest.raises(
+        ValueError,
+        match="Dataset 1 length \\(11\\) does not match time array length \\(10\\).",
+    ):
         calculate_multivariate_fluctuations(time, [d1, d2], lags)
+
 
 def test_multivariate_fluctuations_no_valid_windows():
     time = np.arange(10)
@@ -130,6 +139,7 @@ def test_multivariate_fluctuations_no_valid_windows():
     assert 20 in results
     # Should return an empty array for the dataset
     assert len(results[20][0]) == 0
+
 
 def test_multivariate_fluctuations_non_overlapping():
     time = np.arange(10)
@@ -150,6 +160,7 @@ def test_multivariate_fluctuations_non_overlapping():
     assert len(results[4][0]) == 2
     # Fluctuation for linear data should be tau/2 = 2.0
     assert np.allclose(results[4][0], 2.0)
+
 
 def test_multivariate_fluctuations_statistics():
     time = np.arange(10)

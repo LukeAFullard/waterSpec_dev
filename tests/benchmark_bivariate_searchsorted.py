@@ -2,6 +2,7 @@ import numpy as np
 import time
 from waterSpec.bivariate import BivariateAnalysis
 
+
 def benchmark_bivariate():
     n = 10000
     np.random.seed(42)
@@ -32,6 +33,7 @@ def benchmark_bivariate():
     biv.calculate_hysteresis_metrics(tau=10.0)
     end = time.time()
     print(f"calculate_hysteresis_metrics: {end - start:.4f}s")
+
 
 if __name__ == "__main__":
     benchmark_bivariate()

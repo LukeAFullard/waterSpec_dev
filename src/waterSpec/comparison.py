@@ -108,8 +108,9 @@ class SiteComparison:
         return {
             "time": time_numeric[valid_indices],
             "data": processed_data[valid_indices],
-            "errors":
-                processed_errors[valid_indices] if processed_errors is not None else None,
+            "errors": processed_errors[valid_indices]
+            if processed_errors is not None
+            else None,
             "diagnostics": diagnostics,
             "param_name": config.get("param_name", config["data_col"]),
             "time_unit": config.get("time_unit", "seconds"),
@@ -156,12 +157,18 @@ class SiteComparison:
 
         # Explicitly create a dictionary of analysis parameters
         analysis_kwargs = {
-            "fit_method": fit_method, "ci_method": ci_method,
-            "bootstrap_type": bootstrap_type, "n_bootstraps": n_bootstraps,
-            "samples_per_peak": samples_per_peak, "nyquist_factor": nyquist_factor,
-            "max_freq": max_freq, "peak_detection_method": peak_detection_method,
-            "fap_threshold": fap_threshold, "fap_method": fap_method,
-            "peak_fdr_level": peak_fdr_level, "normalization": normalization,
+            "fit_method": fit_method,
+            "ci_method": ci_method,
+            "bootstrap_type": bootstrap_type,
+            "n_bootstraps": n_bootstraps,
+            "samples_per_peak": samples_per_peak,
+            "nyquist_factor": nyquist_factor,
+            "max_freq": max_freq,
+            "peak_detection_method": peak_detection_method,
+            "fap_threshold": fap_threshold,
+            "fap_method": fap_method,
+            "peak_fdr_level": peak_fdr_level,
+            "normalization": normalization,
             "max_breakpoints": max_breakpoints,
             "seed": seed,
         }
@@ -205,7 +212,9 @@ class SiteComparison:
             self.results, output_dir, plot_style=comparison_plot_style
         )
 
-        self.logger.info(f"Comparison analysis complete. Outputs will be saved to '{output_dir}'.")
+        self.logger.info(
+            f"Comparison analysis complete. Outputs will be saved to '{output_dir}'."
+        )
         return self.results
 
     def _run_site_analysis(
@@ -220,7 +229,9 @@ class SiteComparison:
 
         # 1. Calculate Periodogram
         frequency, power, ls_obj = calculate_periodogram(
-            time, data, dy=errors,
+            time,
+            data,
+            dy=errors,
             normalization=analysis_kwargs["normalization"],
             nyquist_factor=analysis_kwargs["nyquist_factor"],
             samples_per_peak=analysis_kwargs["samples_per_peak"],
@@ -229,7 +240,8 @@ class SiteComparison:
 
         # 2. Fit Spectrum and Select Best Model
         fit_results = self._perform_model_selection(
-            frequency, power,
+            frequency,
+            power,
             fit_method=analysis_kwargs["fit_method"],
             ci_method=analysis_kwargs["ci_method"],
             bootstrap_type=analysis_kwargs["bootstrap_type"],
@@ -240,7 +252,10 @@ class SiteComparison:
 
         # 3. Detect Significant Peaks
         fit_results = self._detect_significant_peaks(
-            fit_results, ls_obj, frequency, power,
+            fit_results,
+            ls_obj,
+            frequency,
+            power,
             peak_detection_method=analysis_kwargs["peak_detection_method"],
             peak_fdr_level=analysis_kwargs["peak_fdr_level"],
             fap_threshold=analysis_kwargs["fap_threshold"],
@@ -253,7 +268,8 @@ class SiteComparison:
         )
 
         return {
-            **fit_results, **interp_results,
+            **fit_results,
+            **interp_results,
             "site_name": site_name,
             "n_points": len(time),
             "time_range": (time[0], time[-1]),
@@ -286,12 +302,8 @@ class SiteComparison:
 
         # Build comparison section
         comparison = "SITE COMPARISON:\n"
-        comparison += (
-            f"  {site1_name}: β ≈ {beta1:.2f} ({get_persistence_traffic_light(beta1)})\n"
-        )
-        comparison += (
-            f"  {site2_name}: β ≈ {beta2:.2f} ({get_persistence_traffic_light(beta2)})\n\n"
-        )
+        comparison += f"  {site1_name}: β ≈ {beta1:.2f} ({get_persistence_traffic_light(beta1)})\n"
+        comparison += f"  {site2_name}: β ≈ {beta2:.2f} ({get_persistence_traffic_light(beta2)})\n\n"
 
         delta_beta = beta2 - beta1
         if abs(delta_beta) > 0.3:  # Threshold for significant change
@@ -308,7 +320,9 @@ class SiteComparison:
         summary1 = site1["summary_text"]
         summary2 = site2["summary_text"]
 
-        full_summary = header + comparison + summary1 + "\n\n" + "=" * 60 + "\n\n" + summary2
+        full_summary = (
+            header + comparison + summary1 + "\n\n" + "=" * 60 + "\n\n" + summary2
+        )
         return full_summary
 
     def _generate_comparison_outputs(self, results, output_dir, plot_style="separate"):
@@ -336,8 +350,15 @@ class SiteComparison:
         self.logger.info(f"Comparison summary saved to {summary_path}")
 
     def _perform_model_selection(
-        self, frequency, power, fit_method, ci_method, bootstrap_type,
-        n_bootstraps, max_breakpoints, seed
+        self,
+        frequency,
+        power,
+        fit_method,
+        ci_method,
+        bootstrap_type,
+        n_bootstraps,
+        max_breakpoints,
+        seed,
     ):
         """Performs fits and selects the best model using BIC."""
         selector = ModelSelector(logger=self.logger)
@@ -353,8 +374,15 @@ class SiteComparison:
         )
 
     def _detect_significant_peaks(
-        self, fit_results, ls_obj, frequency, power, peak_detection_method,
-        peak_fdr_level, fap_threshold, fap_method
+        self,
+        fit_results,
+        ls_obj,
+        frequency,
+        power,
+        peak_detection_method,
+        peak_fdr_level,
+        fap_threshold,
+        fap_method,
     ):
         """Detects significant peaks."""
         return detect_peaks(

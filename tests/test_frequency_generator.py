@@ -110,10 +110,13 @@ def test_time_unit_in_warning_message():
 
     # Check that the specific UserWarning we expect was issued, ignoring others.
     found_warning = any(
-        issubclass(r.category, UserWarning) and "The output frequency units are 1/days" in str(r.message)
+        issubclass(r.category, UserWarning)
+        and "The output frequency units are 1/days" in str(r.message)
         for r in record
     )
-    assert found_warning, "The expected UserWarning about frequency units was not issued."
+    assert found_warning, (
+        "The expected UserWarning about frequency units was not issued."
+    )
 
 
 def test_invalid_inputs(sample_time_array):
@@ -124,8 +127,12 @@ def test_invalid_inputs(sample_time_array):
     with pytest.raises(ValueError, match="nyquist_factor must be a positive number"):
         generate_frequency_grid(sample_time_array, nyquist_factor=-1.0)
 
-    with pytest.raises(ValueError, match="max_freq, if provided, must be a positive number"):
+    with pytest.raises(
+        ValueError, match="max_freq, if provided, must be a positive number"
+    ):
         generate_frequency_grid(sample_time_array, max_freq=0)
 
-    with pytest.raises(ValueError, match="max_freq, if provided, must be a positive number"):
+    with pytest.raises(
+        ValueError, match="max_freq, if provided, must be a positive number"
+    ):
         generate_frequency_grid(sample_time_array, max_freq=-10.0)

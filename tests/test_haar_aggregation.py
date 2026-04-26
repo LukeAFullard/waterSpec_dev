@@ -1,7 +1,7 @@
-
 import pytest
 import numpy as np
 from waterSpec.haar_analysis import calculate_haar_fluctuations, _small_sample_std
+
 
 def test_small_sample_std_correction():
     # Test correction for N=2
@@ -13,8 +13,9 @@ def test_small_sample_std_correction():
     s = np.std(data, ddof=1)
     corrected_s = _small_sample_std(data)
 
-    expected = s * np.sqrt(np.pi / 2) # approx 1.77245
+    expected = s * np.sqrt(np.pi / 2)  # approx 1.77245
     assert np.isclose(corrected_s, expected)
+
 
 def test_aggregation_methods():
     # Test data: simple alternating 1, -1
@@ -27,7 +28,13 @@ def test_aggregation_methods():
     # Calculate with lag=1
     # Need min_samples_per_window=1 for lag=1 test
     lags, s1, counts, neff = calculate_haar_fluctuations(
-        time, data, lag_times=np.array([2.0]), min_samples_per_window=1, statistic="mean", aggregation="mean", overlap=False
+        time,
+        data,
+        lag_times=np.array([2.0]),
+        min_samples_per_window=1,
+        statistic="mean",
+        aggregation="mean",
+        overlap=False,
     )
     # Lag=2. Half window=1. Each half has 1 sample.
     # Data: 1, -1, 1, -1...
@@ -38,7 +45,13 @@ def test_aggregation_methods():
 
     # Calculate with aggregation="rms"
     lags, s1_rms, _, _ = calculate_haar_fluctuations(
-        time, data, lag_times=np.array([2.0]), min_samples_per_window=1, statistic="mean", aggregation="rms", overlap=False
+        time,
+        data,
+        lag_times=np.array([2.0]),
+        min_samples_per_window=1,
+        statistic="mean",
+        aggregation="rms",
+        overlap=False,
     )
     # RMS(delta) = Sqrt(Mean(delta^2)) = Sqrt(Mean(4)) = 2
     assert np.isclose(s1_rms[0], 2.0)
@@ -57,7 +70,13 @@ def test_aggregation_methods():
     # Result should be approx 1.6.
 
     lags, s1_std, _, _ = calculate_haar_fluctuations(
-        time, data, lag_times=np.array([2.0]), min_samples_per_window=1, statistic="mean", aggregation="std_corrected", overlap=False
+        time,
+        data,
+        lag_times=np.array([2.0]),
+        min_samples_per_window=1,
+        statistic="mean",
+        aggregation="std_corrected",
+        overlap=False,
     )
 
     # Let's verify exact math for lag=2
@@ -80,6 +99,7 @@ def test_aggregation_methods():
     assert s1_std[0] < 2.0
     assert s1_std[0] > 1.6
 
+
 def test_gaussian_noise_equivalence():
     # For large Gaussian noise, mean, rms, and std_corrected should be related
     rng = np.random.default_rng(42)
@@ -88,11 +108,23 @@ def test_gaussian_noise_equivalence():
 
     # Use lag=2, min_samples=1
     lags, s1_mean, _, _ = calculate_haar_fluctuations(
-        time, data, lag_times=np.array([2.0]), min_samples_per_window=1, statistic="mean", aggregation="mean", overlap=False
+        time,
+        data,
+        lag_times=np.array([2.0]),
+        min_samples_per_window=1,
+        statistic="mean",
+        aggregation="mean",
+        overlap=False,
     )
 
     lags, s1_std, _, _ = calculate_haar_fluctuations(
-        time, data, lag_times=np.array([2.0]), min_samples_per_window=1, statistic="mean", aggregation="std_corrected", overlap=False
+        time,
+        data,
+        lag_times=np.array([2.0]),
+        min_samples_per_window=1,
+        statistic="mean",
+        aggregation="std_corrected",
+        overlap=False,
     )
 
     # For Gaussian, Mean(|x|) approx sigma * sqrt(2/pi)

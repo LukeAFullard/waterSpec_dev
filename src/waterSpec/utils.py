@@ -42,6 +42,7 @@ def make_rng(seed=None):
 def spawn_generators(master_seed, n_children):
     import numpy as np
     from numpy.random import SeedSequence
+
     if isinstance(master_seed, SeedSequence):
         ss = master_seed
     else:
@@ -136,18 +137,24 @@ def validate_run_parameters(
             raise ValueError("`nyquist_factor` must be a positive number.")
 
     if max_freq is not _NOT_PROVIDED:
-        if max_freq is not None and (not isinstance(max_freq, (int, float)) or max_freq <= 0):
+        if max_freq is not None and (
+            not isinstance(max_freq, (int, float)) or max_freq <= 0
+        ):
             raise ValueError("`max_freq`, if provided, must be a positive number.")
 
     # Haar specific checks
     if haar_statistic is not _NOT_PROVIDED:
         if haar_statistic not in ["mean", "median", "percentile"]:
-            raise ValueError("`haar_statistic` must be 'mean', 'median', or 'percentile'.")
+            raise ValueError(
+                "`haar_statistic` must be 'mean', 'median', or 'percentile'."
+            )
 
         if haar_statistic == "percentile":
             if haar_percentile is _NOT_PROVIDED or haar_percentile is None:
-                raise ValueError("`haar_percentile` must be provided if `haar_statistic` is 'percentile'.")
+                raise ValueError(
+                    "`haar_percentile` must be provided if `haar_statistic` is 'percentile'."
+                )
 
     if haar_percentile is not _NOT_PROVIDED and haar_percentile is not None:
-         if not (0 <= haar_percentile <= 100):
-             raise ValueError("`haar_percentile` must be between 0 and 100.")
+        if not (0 <= haar_percentile <= 100):
+            raise ValueError("`haar_percentile` must be between 0 and 100.")

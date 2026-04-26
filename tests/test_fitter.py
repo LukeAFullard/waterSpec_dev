@@ -67,7 +67,9 @@ def test_fit_standard_model_theil_sen(synthetic_spectrum):
     frequency, power, known_beta = synthetic_spectrum
 
     # Fit the spectrum using the Theil-Sen estimator (now via MannKS)
-    fit_results = fit_standard_model(frequency, power, method="theil-sen", n_bootstraps=10)
+    fit_results = fit_standard_model(
+        frequency, power, method="theil-sen", n_bootstraps=10
+    )
 
     # Check that the returned beta is close to the known beta
     assert "beta" in fit_results
@@ -97,20 +99,25 @@ def test_beta_sign_convention(mocker):
 
     # 2. Test segmented model (MannKS)
     SegmentedTrendResult = namedtuple(
-        'SegmentedTrendResult',
-        ['breakpoints', 'segments', 'bic', 'aic', 'n_breakpoints', 'breakpoint_cis']
+        "SegmentedTrendResult",
+        ["breakpoints", "segments", "bic", "aic", "n_breakpoints", "breakpoint_cis"],
     )
     # Mock segments dataframe
     import pandas as pd
-    segments_df = pd.DataFrame({
-        'slope': [-0.5, -1.8],
-        'intercept': [1.0, 2.0],
-        'lower_ci': [-0.6, -1.9],
-        'upper_ci': [-0.4, -1.7]
-    })
+
+    segments_df = pd.DataFrame(
+        {
+            "slope": [-0.5, -1.8],
+            "intercept": [1.0, 2.0],
+            "lower_ci": [-0.6, -1.9],
+            "upper_ci": [-0.4, -1.7],
+        }
+    )
 
     mock_res = SegmentedTrendResult(
-        breakpoints=np.array([-1.0]), # log scale breakpoint? No, MannKS usually returns log if input was log?
+        breakpoints=np.array(
+            [-1.0]
+        ),  # log scale breakpoint? No, MannKS usually returns log if input was log?
         # My implementation converts result.breakpoints to linear.
         # MannKS.segmented_trend_test returns breakpoints in 't' domain.
         # Here t is log_freq. So breakpoint at 0.1 freq => log_freq = -1.0.
@@ -118,12 +125,10 @@ def test_beta_sign_convention(mocker):
         bic=100,
         aic=90,
         n_breakpoints=1,
-        breakpoint_cis=[(-1.1, -0.9)]
+        breakpoint_cis=[(-1.1, -0.9)],
     )
 
-    mocker.patch(
-        "waterSpec.fitter.MannKS.segmented_trend_test", return_value=mock_res
-    )
+    mocker.patch("waterSpec.fitter.MannKS.segmented_trend_test", return_value=mock_res)
 
     # Run the segmented fit
     results_segmented = fit_segmented_spectrum(
@@ -145,9 +150,7 @@ def test_fit_standard_model_with_bootstrap_ci(synthetic_spectrum, mocker):
 
     # Fit the spectrum with bootstrap
     # This uses MannKS for Theil-Sen
-    fit_results = fit_standard_model(
-        frequency, power, n_bootstraps=10, seed=42
-    )
+    fit_results = fit_standard_model(frequency, power, n_bootstraps=10, seed=42)
 
     # Check that the results dictionary contains the required keys
     assert "beta" in fit_results
@@ -261,12 +264,8 @@ def test_fit_standard_model_is_reproducible(synthetic_spectrum):
     frequency, power, _ = synthetic_spectrum
 
     # Fit twice with the same seed
-    results1 = fit_standard_model(
-        frequency, power, n_bootstraps=10, seed=123
-    )
-    results2 = fit_standard_model(
-        frequency, power, n_bootstraps=10, seed=123
-    )
+    results1 = fit_standard_model(frequency, power, n_bootstraps=10, seed=123)
+    results2 = fit_standard_model(frequency, power, n_bootstraps=10, seed=123)
 
     assert results1["beta"] == results2["beta"]
     assert results1["beta_ci_lower"] == results2["beta_ci_lower"]
@@ -297,9 +296,7 @@ def test_fit_segmented_spectrum_handles_exceptions(
 def test_fit_standard_model_with_parametric_ci_ols(synthetic_spectrum):
     """Test parametric CI calculation for the OLS method."""
     frequency, power, known_beta = synthetic_spectrum
-    results = fit_standard_model(
-        frequency, power, method="ols", ci_method="parametric"
-    )
+    results = fit_standard_model(frequency, power, method="ols", ci_method="parametric")
 
     assert "beta_ci_lower" in results and "beta_ci_upper" in results
     assert np.isfinite(results["beta_ci_lower"])
@@ -315,6 +312,7 @@ def test_fit_standard_model_graceful_failure(synthetic_spectrum, mocker, caplog)
     function raises an unexpected exception.
     """
     import logging
+
     frequency, power, _ = synthetic_spectrum
 
     # Mock the underlying fitting function to raise an error
@@ -343,7 +341,9 @@ def test_calculate_bic_edge_cases():
     # Test with a perfect fit (RSS is zero), should return np.inf and raise a warning
     y_true = np.array([1, 2, 3, 4])
     y_pred = np.array([1, 2, 3, 4])
-    with pytest.warns(UserWarning, match="RSS extremely small; excluding from BIC comparison."):
+    with pytest.warns(
+        UserWarning, match="RSS extremely small; excluding from BIC comparison."
+    ):
         assert _calculate_bic(y_true, y_pred, n_params=2) == np.inf
 
 
@@ -381,8 +381,6 @@ def test_fit_segmented_spectrum_invalid_numeric_args(multifractal_spectrum):
     with pytest.raises(ValueError, match="'n_breakpoints' must be a positive integer"):
         fit_segmented_spectrum(frequency, power, n_breakpoints=0)
 
-
-
     with pytest.raises(ValueError, match="'n_bootstraps' must be non-negative"):
         fit_segmented_spectrum(frequency, power, n_bootstraps=-1)
 
@@ -396,6 +394,7 @@ def test_fit_standard_model_mannks_fallback(synthetic_spectrum, mocker, caplog):
     when MannKS.trend_test fails.
     """
     import logging
+
     frequency, power, known_beta = synthetic_spectrum
 
     # Mock MannKS.trend_test to raise an exception
@@ -407,10 +406,15 @@ def test_fit_standard_model_mannks_fallback(synthetic_spectrum, mocker, caplog):
     caplog.set_level(logging.WARNING)
 
     # Call fit_standard_model with method="theil-sen"
-    results = fit_standard_model(frequency, power, method="theil-sen", ci_method="parametric")
+    results = fit_standard_model(
+        frequency, power, method="theil-sen", ci_method="parametric"
+    )
 
     # Check that a warning was logged
-    assert any("MannKS fit failed: MannKS failed. Falling back" in record.message for record in caplog.records)
+    assert any(
+        "MannKS fit failed: MannKS failed. Falling back" in record.message
+        for record in caplog.records
+    )
 
     # Check that it returned a valid result (fallback succeeded)
     assert "beta" in results

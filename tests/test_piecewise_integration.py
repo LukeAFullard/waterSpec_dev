@@ -37,9 +37,7 @@ def test_fit_segmented_spectrum_against_known_data():
 
     # 2. Fit the data using our segmented spectrum fitter
     # We set n_bootstraps=0 because we are only interested in the core estimates
-    results = fit_segmented_spectrum(
-        frequency, power, n_breakpoints=1, n_bootstraps=0
-    )
+    results = fit_segmented_spectrum(frequency, power, n_breakpoints=1, n_bootstraps=0)
 
     # 3. Assert that the results match the known parameters
     # The known slopes (alpha) need to be converted to our beta convention (-slope)
@@ -69,7 +67,8 @@ def test_fit_segmented_spectrum_against_muggeo_data():
     """
     # 1. Load the data using the same method as the reference library's tests
     from importlib.machinery import SourceFileLoader
-    data_loader = SourceFileLoader('data', 'tests/data/data.txt')
+
+    data_loader = SourceFileLoader("data", "tests/data/data.txt")
     data = data_loader.load_module()
 
     log_freq = np.array(data.MUGGEO_2_XX)
@@ -80,9 +79,7 @@ def test_fit_segmented_spectrum_against_muggeo_data():
     power = np.exp(log_power)
 
     # 2. Fit the data with our function
-    results = fit_segmented_spectrum(
-        frequency, power, n_breakpoints=1, n_bootstraps=0
-    )
+    results = fit_segmented_spectrum(frequency, power, n_breakpoints=1, n_bootstraps=0)
 
     # 3. Define the expected results from the reference test `test_fit.py`
     # The reference test asserts the following values (rounded):

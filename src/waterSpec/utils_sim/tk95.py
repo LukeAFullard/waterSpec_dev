@@ -1,6 +1,6 @@
-
 import numpy as np
 from typing import Callable, Tuple, Union
+
 
 def simulate_tk95(
     psd_func: Callable = None,
@@ -9,7 +9,7 @@ def simulate_tk95(
     dt: float = None,
     seed: int = None,
     n_simulations: int = None,
-    precomputed_scale: np.ndarray = None
+    precomputed_scale: np.ndarray = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Simulate time series with a given PSD using the Timmer & Koenig (1995) method.
@@ -38,7 +38,9 @@ def simulate_tk95(
         scale = precomputed_scale
     else:
         if psd_func is None or params is None:
-            raise ValueError("psd_func and params must be provided if precomputed_scale is None.")
+            raise ValueError(
+                "psd_func and params must be provided if precomputed_scale is None."
+            )
         freqs = np.fft.rfftfreq(N, d=dt)
         psd = np.zeros_like(freqs)
         mask = freqs > 0
@@ -70,10 +72,9 @@ def simulate_tk95(
 
     return time, flux
 
+
 def resample_to_times(
-    source_time: np.ndarray,
-    source_flux: np.ndarray,
-    target_time: np.ndarray
+    source_time: np.ndarray, source_flux: np.ndarray, target_time: np.ndarray
 ) -> np.ndarray:
     """
     Resample the simulated time series to the observed time stamps using linear interpolation.

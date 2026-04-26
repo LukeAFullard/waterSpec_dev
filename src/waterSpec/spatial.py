@@ -1,8 +1,12 @@
-
 import numpy as np
 import logging
 from typing import Dict, Tuple, Optional
-from .haar_analysis import calculate_haar_fluctuations, fit_haar_slope, calculate_sliding_haar
+from .haar_analysis import (
+    calculate_haar_fluctuations,
+    fit_haar_slope,
+    calculate_sliding_haar,
+)
+
 
 class SpatialHaarAnalysis:
     """
@@ -10,7 +14,13 @@ class SpatialHaarAnalysis:
     Instead of 'Time' and 'Lag Time', we analyze 'Distance' and 'Spatial Scale' (Wavenumber).
     """
 
-    def __init__(self, distance: np.ndarray, data: np.ndarray, variable_name: str, distance_unit: str = "km"):
+    def __init__(
+        self,
+        distance: np.ndarray,
+        data: np.ndarray,
+        variable_name: str,
+        distance_unit: str = "km",
+    ):
         self.distance = distance
         self.data = data
         self.variable_name = variable_name
@@ -25,7 +35,7 @@ class SpatialHaarAnalysis:
         num_scales: int = 20,
         log_spacing: bool = True,
         overlap: bool = True,
-        n_bootstraps: int = 100
+        n_bootstraps: int = 100,
     ) -> Dict:
         """
         Runs the Haar analysis on spatial data.
@@ -47,7 +57,7 @@ class SpatialHaarAnalysis:
             max_lag=max_scale,
             num_lags=num_scales,
             log_spacing=log_spacing,
-            overlap=overlap
+            overlap=overlap,
         )
 
         # Fit slope
@@ -63,15 +73,13 @@ class SpatialHaarAnalysis:
             "r2": fit_res.get("r2", np.nan),
             "intercept": fit_res.get("intercept", np.nan),
             "beta_ci_lower": fit_res.get("beta_ci_lower"),
-            "beta_ci_upper": fit_res.get("beta_ci_upper")
+            "beta_ci_upper": fit_res.get("beta_ci_upper"),
         }
 
         return self.results
 
     def detect_spatial_hotspots(
-        self,
-        scale: float,
-        threshold_factor: float = 3.0
+        self, scale: float, threshold_factor: float = 3.0
     ) -> Dict:
         """
         Identifies spatial 'hotspots' or anomalies at a specific spatial scale.
@@ -83,14 +91,14 @@ class SpatialHaarAnalysis:
 
         # If fluctuation array is empty, return empty result
         if len(fluctuations) == 0:
-             return {
+            return {
                 "scale": scale,
                 "threshold": np.nan,
                 "locations": np.array([]),
                 "magnitudes": np.array([]),
                 "all_centers": np.array([]),
-                "all_fluctuations": np.array([])
-             }
+                "all_fluctuations": np.array([]),
+            }
 
         median_fluc = np.median(np.abs(fluctuations))
         threshold = threshold_factor * median_fluc
@@ -106,5 +114,5 @@ class SpatialHaarAnalysis:
             "locations": hotspot_locs,
             "magnitudes": hotspot_mags,
             "all_centers": centers,
-            "all_fluctuations": fluctuations
+            "all_fluctuations": fluctuations,
         }

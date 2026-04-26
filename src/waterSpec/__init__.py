@@ -38,10 +38,12 @@ except PackageNotFoundError:
     # Fallback version if the package is not installed.
     __version__ = "0.0.0"
 
+
 # ---- Lazy import helper ----
 def _lazy_import(func_name, module_name, dep_message=None, is_class=False):
     """Return a wrapper that imports the target function or class on first call."""
     if is_class:
+
         class LazyClassProxy:
             def __init__(self, *args, **kwargs):
                 try:
@@ -61,8 +63,10 @@ def _lazy_import(func_name, module_name, dep_message=None, is_class=False):
                 except ImportError as e:
                     msg = dep_message or str(e)
                     raise ImportError(msg) from e
+
         return LazyClassProxy()
     else:
+
         def _wrapper(*args, **kwargs):
             try:
                 module = import_module(f"waterSpec.{module_name}")
@@ -71,45 +75,49 @@ def _lazy_import(func_name, module_name, dep_message=None, is_class=False):
                 raise ImportError(msg) from e
             func = getattr(module, func_name)
             return func(*args, **kwargs)
+
         _wrapper.__name__ = func_name
         return _wrapper
+
 
 # ---- Public API (lazy wrappers) ----
 
 load_data = _lazy_import(
-    "load_data", "data_loader",
+    "load_data",
+    "data_loader",
 )
 
 preprocess_data = _lazy_import(
-    "preprocess_data", "preprocessor",
-    dep_message="statsmodels is required for data preprocessing. Install with `pip install statsmodels`."
+    "preprocess_data",
+    "preprocessor",
+    dep_message="statsmodels is required for data preprocessing. Install with `pip install statsmodels`.",
 )
 
 calculate_periodogram = _lazy_import(
-    "calculate_periodogram", "spectral_analyzer",
-    dep_message="astropy is required for periodogram calculation. Install with `pip install astropy`."
+    "calculate_periodogram",
+    "spectral_analyzer",
+    dep_message="astropy is required for periodogram calculation. Install with `pip install astropy`.",
 )
 
-generate_frequency_grid = _lazy_import(
-    "generate_frequency_grid", "frequency_generator"
-)
+generate_frequency_grid = _lazy_import("generate_frequency_grid", "frequency_generator")
 
 fit_standard_model = _lazy_import(
-    "fit_standard_model", "fitter",
+    "fit_standard_model",
+    "fitter",
 )
 
 fit_segmented_spectrum = _lazy_import(
-    "fit_segmented_spectrum", "fitter",
-    dep_message="piecewise_regression is required for segmented spectrum fitting. Install with `pip install piecewise-regression`."
+    "fit_segmented_spectrum",
+    "fitter",
+    dep_message="piecewise_regression is required for segmented spectrum fitting. Install with `pip install piecewise-regression`.",
 )
 
-interpret_results = _lazy_import(
-    "interpret_results", "interpreter"
-)
+interpret_results = _lazy_import("interpret_results", "interpreter")
 
 plot_spectrum = _lazy_import(
-    "plot_spectrum", "plotting",
-    dep_message="matplotlib is required for plotting. Install with `pip install matplotlib`."
+    "plot_spectrum",
+    "plotting",
+    dep_message="matplotlib is required for plotting. Install with `pip install matplotlib`.",
 )
 
 calculate_partial_cross_haar = _lazy_import(
@@ -120,15 +128,19 @@ calculate_ls_cross_spectrum = _lazy_import(
     "calculate_ls_cross_spectrum", "ls_cross_spectrum"
 )
 
+
 # SegmentedRegimeAnalysis is a class with static methods, so we need special handling
 # or just import it directly for simplicity given the lazy loader complexity
 # Let's revert the complex lazy loader and just implement a simple proxy for the class
 class _SegmentedRegimeAnalysisProxy:
     def __getattr__(self, name):
         from waterSpec.segmentation import SegmentedRegimeAnalysis
+
         return getattr(SegmentedRegimeAnalysis, name)
 
+
 SegmentedRegimeAnalysis = _SegmentedRegimeAnalysisProxy()
+
 
 def Analysis(*args, **kwargs):
     """Lazy load Analysis class."""

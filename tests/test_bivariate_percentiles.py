@@ -1,8 +1,8 @@
-
 import numpy as np
 import pandas as pd
 import pytest
 from waterSpec.bivariate import BivariateAnalysis
+
 
 def test_bivariate_percentiles_integration():
     """Test that BivariateAnalysis runs with percentile arguments without crashing."""
@@ -21,30 +21,32 @@ def test_bivariate_percentiles_integration():
     # Test Cross-Haar
     res = biv.run_cross_haar_analysis(
         lags,
-        statistic1="percentile", percentile1=90,
-        statistic2="percentile", percentile2=10
+        statistic1="percentile",
+        percentile1=90,
+        statistic2="percentile",
+        percentile2=10,
     )
 
-    assert len(res['correlation']) == len(lags)
-    assert not np.all(np.isnan(res['correlation']))
+    assert len(res["correlation"]) == len(lags)
+    assert not np.all(np.isnan(res["correlation"]))
 
     # Test Lagged Cross-Haar
     res_lagged = biv.run_lagged_cross_haar(
-        tau=4,
-        lag_offsets=np.array([-1, 0, 1]),
-        statistic1="median",
-        statistic2="mean"
+        tau=4, lag_offsets=np.array([-1, 0, 1]), statistic1="median", statistic2="mean"
     )
-    assert len(res_lagged['correlation']) == 3
+    assert len(res_lagged["correlation"]) == 3
 
     # Test Hysteresis
     res_hyst = biv.calculate_hysteresis_metrics(
         tau=4,
-        statistic1="percentile", percentile1=95,
-        statistic2="percentile", percentile2=95
+        statistic1="percentile",
+        percentile1=95,
+        statistic2="percentile",
+        percentile2=95,
     )
-    assert 'area' in res_hyst
-    assert 'direction' in res_hyst
+    assert "area" in res_hyst
+    assert "direction" in res_hyst
+
 
 def test_bivariate_exact_values():
     """Test exact values for a small manual case."""
@@ -88,10 +90,18 @@ def test_bivariate_exact_values():
     biv.align_data(tolerance=0.1)
 
     res_max = biv.run_cross_haar_analysis(
-        lags, statistic1="percentile", percentile1=100, statistic2="percentile", percentile2=100
+        lags,
+        statistic1="percentile",
+        percentile1=100,
+        statistic2="percentile",
+        percentile2=100,
     )
     res_min = biv.run_cross_haar_analysis(
-        lags, statistic1="percentile", percentile1=0, statistic2="percentile", percentile2=0
+        lags,
+        statistic1="percentile",
+        percentile1=0,
+        statistic2="percentile",
+        percentile2=0,
     )
 
     # For linearly increasing data, max fluctuation != min fluctuation?
@@ -112,12 +122,20 @@ def test_bivariate_exact_values():
     biv.align_data(0.1)
 
     # One window of size 4.
-    res_max = biv.run_cross_haar_analysis(np.array([4]), statistic1="percentile", percentile1=100, statistic2="percentile", percentile2=100, overlap=False)
+    res_max = biv.run_cross_haar_analysis(
+        np.array([4]),
+        statistic1="percentile",
+        percentile1=100,
+        statistic2="percentile",
+        percentile2=100,
+        overlap=False,
+    )
     # But run_cross_haar calculates correlation, which will be NaN for 1 point.
     # We can inspect the internal method if we exposed it, or just trust the integration test works.
 
     # Let's rely on the fact that the parameters are passed through.
     pass
+
 
 def test_significance_warning():
     """Test that calculating significance with percentiles warns about Gaussianity."""
@@ -133,7 +151,5 @@ def test_significance_warning():
     # Note: escape special regex chars if needed, but here simple string matching is safer if exact match failed
     with pytest.warns(UserWarning, match="non-mean statistics"):
         biv.calculate_significance(
-            np.array([4]),
-            n_surrogates=5,
-            statistic1="percentile", percentile1=90
+            np.array([4]), n_surrogates=5, statistic1="percentile", percentile1=90
         )

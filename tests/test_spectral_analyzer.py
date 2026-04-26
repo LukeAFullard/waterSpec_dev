@@ -93,9 +93,7 @@ def test_calculate_periodogram_allows_jitter():
         calculate_periodogram(time, y)
         # Filter for our specific warning
         relevant_warnings = [
-            x
-            for x in w
-            if "Data appears to be unevenly sampled" in str(x.message)
+            x for x in w if "Data appears to be unevenly sampled" in str(x.message)
         ]
         assert len(relevant_warnings) == 0
 
@@ -154,10 +152,17 @@ def test_find_significant_peaks_bootstrap_warnings():
         warning_messages = [str(x.message) for x in w]
 
         # 1. First warning about using bootstrap method
-        assert any("Using the 'bootstrap' method for FAP calculation" in msg for msg in warning_messages)
+        assert any(
+            "Using the 'bootstrap' method for FAP calculation" in msg
+            for msg in warning_messages
+        )
 
         # 2. Second warning about using bootstrap with multiple peaks (> 5)
-        assert any("Calculating the individual FAP for 6 peaks using the 'bootstrap' method may be very slow" in msg for msg in warning_messages)
+        assert any(
+            "Calculating the individual FAP for 6 peaks using the 'bootstrap' method may be very slow"
+            in msg
+            for msg in warning_messages
+        )
 
     # Verify that the correct methods on the mock were called
     mock_ls.false_alarm_level.assert_called_once()

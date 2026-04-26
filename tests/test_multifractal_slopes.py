@@ -8,11 +8,13 @@ from waterSpec.haar_analysis import HaarAnalysis
 
 # --- Helper Functions ---
 
+
 def power_law(f, beta, amp=1.0):
     """
     Power law PSD: P(f) = amp * f^(-beta)
     """
-    return amp * (f**(-beta))
+    return amp * (f ** (-beta))
+
 
 def broken_power_law(f, beta1, beta2, f_break, amp=1.0):
     """
@@ -28,12 +30,13 @@ def broken_power_law(f, beta1, beta2, f_break, amp=1.0):
     mask1 = f <= f_break
     mask2 = f > f_break
 
-    psd[mask1] = amp * f[mask1]**(-beta1)
+    psd[mask1] = amp * f[mask1] ** (-beta1)
 
-    amp2 = amp * f_break**(beta2 - beta1)
-    psd[mask2] = amp2 * f[mask2]**(-beta2)
+    amp2 = amp * f_break ** (beta2 - beta1)
+    psd[mask2] = amp2 * f[mask2] ** (-beta2)
 
     return psd
+
 
 def generate_series(psd_func, params, n_points=1000, dt=1.0, seed=None):
     if seed is not None:
@@ -41,6 +44,7 @@ def generate_series(psd_func, params, n_points=1000, dt=1.0, seed=None):
 
     time, flux = simulate_tk95(psd_func, params, n_points, dt)
     return time, flux
+
 
 def create_data_file(tmp_path, time, series, filename="test_data.csv"):
     file_path = tmp_path / filename
@@ -53,7 +57,9 @@ def create_data_file(tmp_path, time, series, filename="test_data.csv"):
     df.to_csv(file_path, index=False)
     return str(file_path)
 
+
 # --- Tests ---
+
 
 @pytest.mark.parametrize("beta", [0.5, 1.5, 2.5])
 def test_known_single_slope(tmp_path, beta):
@@ -62,21 +68,29 @@ def test_known_single_slope(tmp_path, beta):
     for a simple power-law time series.
     """
     n_points = 500
-    dt = 1.0 # 1 day
+    dt = 1.0  # 1 day
 
     # Generate series
-    time, series = generate_series(power_law, (beta,), n_points=n_points, dt=dt, seed=42)
+    time, series = generate_series(
+        power_law, (beta,), n_points=n_points, dt=dt, seed=42
+    )
 
     file_path = create_data_file(tmp_path, time, series)
 
     # Analyze
-    analyzer = Analysis(file_path=file_path, base_dir="", time_col="time", data_col="value", detrend_method=None)
+    analyzer = Analysis(
+        file_path=file_path,
+        base_dir="",
+        time_col="time",
+        data_col="value",
+        detrend_method=None,
+    )
     # Force standard model (0 breakpoints) to check beta estimation
     results = analyzer.run_full_analysis(
         output_dir=str(tmp_path),
         max_breakpoints=0,
         n_bootstraps=10,
-        ci_method="parametric", # Faster for test
+        ci_method="parametric",  # Faster for test
     )
 
     estimated_beta = results["beta"]
@@ -104,14 +118,23 @@ def test_broken_power_law_slope(tmp_path):
     # f_min = 1/N, f_max = 0.5/dt = 0.5
     f_min = 1.0 / (n_points * dt)
     f_max = 0.5 / dt
-    f_break = np.sqrt(f_min * f_max) # Geometric mean
+    f_break = np.sqrt(f_min * f_max)  # Geometric mean
 
-    time, series = generate_series(broken_power_law, (beta1, beta2, f_break), n_points=n_points, dt=dt, seed=123)
+    time, series = generate_series(
+        broken_power_law, (beta1, beta2, f_break), n_points=n_points, dt=dt, seed=123
+    )
 
     file_path = create_data_file(tmp_path, time, series)
 
     # Note: Use time_array and data_array instead of file_path to bypass security checks
-    analyzer = Analysis(time_col="time", data_col="value", time_array=time, data_array=series, detrend_method=None, input_time_unit="seconds")
+    analyzer = Analysis(
+        time_col="time",
+        data_col="value",
+        time_array=time,
+        data_array=series,
+        detrend_method=None,
+        input_time_unit="seconds",
+    )
 
     # Run analysis allowing up to 1 breakpoint
     results = analyzer.run_full_analysis(
@@ -144,8 +167,10 @@ def test_broken_power_law_slope(tmp_path):
         # when using parametric CI (as in this test) for the penalty to outweigh the fit improvement.
         # This is a stochastic test. We warn rather than fail to avoid flakiness,
         # provided the standard beta is at least somewhat reasonable (between the two extremes).
-        print("Standard model was chosen over segmented. This can happen stochastically.")
-        beta_est = results.get('beta', 0)
+        print(
+            "Standard model was chosen over segmented. This can happen stochastically."
+        )
+        beta_est = results.get("beta", 0)
         # Should be between 0.5 and 2.0 roughly
         assert 0.3 < beta_est < 2.2, f"Standard model beta {beta_est} is wild."
 
@@ -161,16 +186,26 @@ def test_noise_levels(tmp_path, noise_std):
     true_beta = 2.0
 
     # Generate pure signal
-    time, signal = generate_series(power_law, (true_beta,), n_points=n_points, dt=dt, seed=999)
+    time, signal = generate_series(
+        power_law, (true_beta,), n_points=n_points, dt=dt, seed=999
+    )
 
     # Add white noise
-    rng = np.random.default_rng(42 + int(noise_std*10))
+    rng = np.random.default_rng(42 + int(noise_std * 10))
     noise = rng.normal(0, noise_std, size=len(signal))
     series = signal + noise
 
-    file_path = create_data_file(tmp_path, time, series, filename=f"noise_{noise_std}.csv")
+    file_path = create_data_file(
+        tmp_path, time, series, filename=f"noise_{noise_std}.csv"
+    )
 
-    analyzer = Analysis(file_path=file_path, base_dir="", time_col="time", data_col="value", detrend_method=None)
+    analyzer = Analysis(
+        file_path=file_path,
+        base_dir="",
+        time_col="time",
+        data_col="value",
+        detrend_method=None,
+    )
 
     results = analyzer.run_full_analysis(
         output_dir=str(tmp_path),
@@ -196,7 +231,7 @@ def test_noise_levels(tmp_path, noise_std):
         # Only assert strictly if noise is high enough to dominate high freqs clearly
         if noise_std >= 5.0:
             assert betas[1] < betas[0]
-            assert betas[1] < 1.5 # Should be significantly less than 2.0
+            assert betas[1] < 1.5  # Should be significantly less than 2.0
 
     else:
         # If standard model chosen
@@ -219,21 +254,31 @@ def test_uneven_sampling(tmp_path, missing_fraction):
     beta = 1.5  # Pink/Red noise
 
     # Generate full uniform series
-    time, series = generate_series(power_law, (beta,), n_points=n_points, dt=dt, seed=555)
+    time, series = generate_series(
+        power_law, (beta,), n_points=n_points, dt=dt, seed=555
+    )
 
     # Randomly select a subset of indices to keep
     n_keep = int(n_points * (1 - missing_fraction))
-    rng = np.random.default_rng(42 + int(missing_fraction*10))
+    rng = np.random.default_rng(42 + int(missing_fraction * 10))
     keep_indices = np.sort(rng.choice(np.arange(n_points), size=n_keep, replace=False))
 
     uneven_time = time[keep_indices]
     uneven_series = series[keep_indices]
 
     # Create file with uneven timestamps
-    file_path = create_data_file(tmp_path, uneven_time, uneven_series, filename=f"uneven_{missing_fraction}.csv")
+    file_path = create_data_file(
+        tmp_path, uneven_time, uneven_series, filename=f"uneven_{missing_fraction}.csv"
+    )
 
     # Analyze
-    analyzer = Analysis(file_path=file_path, base_dir="", time_col="time", data_col="value", detrend_method=None)
+    analyzer = Analysis(
+        file_path=file_path,
+        base_dir="",
+        time_col="time",
+        data_col="value",
+        detrend_method=None,
+    )
 
     # Force standard model
     results = analyzer.run_full_analysis(
@@ -244,7 +289,9 @@ def test_uneven_sampling(tmp_path, missing_fraction):
     )
 
     estimated_beta = results["beta"]
-    print(f"Missing: {missing_fraction*100}%, True beta: {beta}, Estimated beta: {estimated_beta}")
+    print(
+        f"Missing: {missing_fraction * 100}%, True beta: {beta}, Estimated beta: {estimated_beta}"
+    )
 
     # Lomb-Scargle is robust to uneven sampling, but for red noise (beta > 1),
     # uneven sampling can introduce spectral leakage that flattens the spectrum
@@ -271,11 +318,19 @@ def test_haar_comparison(tmp_path):
     beta = 1.5
 
     # Generate series
-    time, series = generate_series(power_law, (beta,), n_points=n_points, dt=dt, seed=777)
+    time, series = generate_series(
+        power_law, (beta,), n_points=n_points, dt=dt, seed=777
+    )
 
     # 1. Run Lomb-Scargle (Standard)
     file_path = create_data_file(tmp_path, time, series, filename="haar_compare.csv")
-    analyzer = Analysis(file_path=file_path, base_dir="", time_col="time", data_col="value", detrend_method=None)
+    analyzer = Analysis(
+        file_path=file_path,
+        base_dir="",
+        time_col="time",
+        data_col="value",
+        detrend_method=None,
+    )
 
     ls_results = analyzer.run_full_analysis(
         output_dir=str(tmp_path / "ls_results"),
@@ -287,7 +342,7 @@ def test_haar_comparison(tmp_path):
 
     # 2. Run Haar Analysis directly
     haar = HaarAnalysis(time, series)
-    haar_results = haar.run(min_lag=dt, max_lag=n_points*dt/4)
+    haar_results = haar.run(min_lag=dt, max_lag=n_points * dt / 4)
     haar_beta = haar_results["beta"]
     haar_H = haar_results["H"]
 
@@ -327,13 +382,17 @@ def test_haar_mannks_segmentation(tmp_path):
     # Breakpoint at f = 0.05.
     # T = 2000. f_min = 0.0005. f_max = 0.5.
     f_break = 0.05
-    time, series = generate_series(broken_power_law, (beta1, beta2, f_break), n_points=n_points, dt=dt, seed=321)
+    time, series = generate_series(
+        broken_power_law, (beta1, beta2, f_break), n_points=n_points, dt=dt, seed=321
+    )
 
     # Run Haar
     haar = HaarAnalysis(time, series)
     # Use many lags to capture the shape well
     # Reduce min_samples_per_window to 1 to capture short lags (High Freq)
-    haar_results = haar.run(min_lag=dt, max_lag=n_points*dt/2, num_lags=50, min_samples_per_window=1)
+    haar_results = haar.run(
+        min_lag=dt, max_lag=n_points * dt / 2, num_lags=50, min_samples_per_window=1
+    )
     lags = haar_results["lags"]
     s1 = haar_results["s1"]
 
@@ -350,8 +409,8 @@ def test_haar_mannks_segmentation(tmp_path):
         lags,
         s1,
         n_breakpoints=1,
-        n_bootstraps=10, # low for speed
-        ci_method="bootstrap"
+        n_bootstraps=10,  # low for speed
+        ci_method="bootstrap",
     )
 
     # Check if fit succeeded
@@ -407,12 +466,14 @@ def test_haar_ls_uneven_multifractal(tmp_path):
 
     n_points = 2000
     dt = 1.0
-    beta1 = 2.0 # Low freq
-    beta2 = 0.5 # High freq
+    beta1 = 2.0  # Low freq
+    beta2 = 0.5  # High freq
     f_break = 0.05
 
     # Generate data
-    time, series = generate_series(broken_power_law, (beta1, beta2, f_break), n_points=n_points, dt=dt, seed=999)
+    time, series = generate_series(
+        broken_power_law, (beta1, beta2, f_break), n_points=n_points, dt=dt, seed=999
+    )
 
     # Drop 50% data
     missing_fraction = 0.5
@@ -425,14 +486,22 @@ def test_haar_ls_uneven_multifractal(tmp_path):
 
     # --- 1. Lomb-Scargle Analysis ---
     print("\n--- Lomb-Scargle Analysis ---")
-    file_path = create_data_file(tmp_path, uneven_time, uneven_series, filename="uneven_multi.csv")
-    analyzer = Analysis(file_path=file_path, base_dir="", time_col="time", data_col="value", detrend_method=None)
+    file_path = create_data_file(
+        tmp_path, uneven_time, uneven_series, filename="uneven_multi.csv"
+    )
+    analyzer = Analysis(
+        file_path=file_path,
+        base_dir="",
+        time_col="time",
+        data_col="value",
+        detrend_method=None,
+    )
 
     ls_results = analyzer.run_full_analysis(
         output_dir=str(tmp_path / "ls_uneven_multi"),
         max_breakpoints=1,
         n_bootstraps=10,
-        ci_method="parametric"
+        ci_method="parametric",
     )
 
     ls_betas = ls_results.get("betas", [np.nan])
@@ -443,19 +512,17 @@ def test_haar_ls_uneven_multifractal(tmp_path):
     # --- 2. Haar Analysis ---
     print("\n--- Haar Analysis ---")
     haar = HaarAnalysis(uneven_time, uneven_series)
-    haar_results = haar.run(min_lag=dt, max_lag=n_points*dt/2, num_lags=50, min_samples_per_window=1)
+    haar_results = haar.run(
+        min_lag=dt, max_lag=n_points * dt / 2, num_lags=50, min_samples_per_window=1
+    )
     lags = haar_results["lags"]
     s1 = haar_results["s1"]
 
     haar_fit = fit_segmented_spectrum(
-        lags,
-        s1,
-        n_breakpoints=1,
-        n_bootstraps=10,
-        ci_method="bootstrap"
+        lags, s1, n_breakpoints=1, n_bootstraps=10, ci_method="bootstrap"
     )
 
-    haar_betas = 1 + 2 * (-haar_fit["betas"]) # Convert -H back to beta
+    haar_betas = 1 + 2 * (-haar_fit["betas"])  # Convert -H back to beta
     print(f"Haar Betas: {haar_betas}")
 
     # --- Comparison ---
@@ -482,7 +549,7 @@ def test_haar_ls_uneven_multifractal(tmp_path):
         ls_beta_high = np.nan
         print("LS failed to choose segmented model.")
 
-    haar_beta_high = haar_betas[0] # Short lag
+    haar_beta_high = haar_betas[0]  # Short lag
     haar_beta_low = haar_betas[1]  # Long lag
 
     print(f"Truth: Low={beta1}, High={beta2}")
@@ -512,19 +579,32 @@ def test_haar_ls_uneven_comparison(tmp_path, missing_fraction):
     true_beta = 1.5
 
     # Generate full uniform series
-    time, series = generate_series(power_law, (true_beta,), n_points=n_points, dt=dt, seed=888)
+    time, series = generate_series(
+        power_law, (true_beta,), n_points=n_points, dt=dt, seed=888
+    )
 
     # Drop data
     n_keep = int(n_points * (1 - missing_fraction))
-    rng = np.random.default_rng(42 + int(missing_fraction*100))
+    rng = np.random.default_rng(42 + int(missing_fraction * 100))
     keep_indices = np.sort(rng.choice(np.arange(n_points), size=n_keep, replace=False))
 
     uneven_time = time[keep_indices]
     uneven_series = series[keep_indices]
 
     # 1. Lomb-Scargle
-    file_path = create_data_file(tmp_path, uneven_time, uneven_series, filename=f"comp_uneven_{missing_fraction}.csv")
-    analyzer = Analysis(file_path=file_path, base_dir="", time_col="time", data_col="value", detrend_method=None)
+    file_path = create_data_file(
+        tmp_path,
+        uneven_time,
+        uneven_series,
+        filename=f"comp_uneven_{missing_fraction}.csv",
+    )
+    analyzer = Analysis(
+        file_path=file_path,
+        base_dir="",
+        time_col="time",
+        data_col="value",
+        detrend_method=None,
+    )
     ls_results = analyzer.run_full_analysis(
         output_dir=str(tmp_path / f"ls_uneven_{missing_fraction}"),
         max_breakpoints=0,
@@ -537,7 +617,7 @@ def test_haar_ls_uneven_comparison(tmp_path, missing_fraction):
     # 2. Haar
     haar = HaarAnalysis(uneven_time, uneven_series)
     # Note: Haar analysis naturally handles uneven spacing by using lag windows
-    haar_results = haar.run(min_lag=dt, max_lag=n_points*dt/4)
+    haar_results = haar.run(min_lag=dt, max_lag=n_points * dt / 4)
     haar_beta = haar_results["beta"]
     haar_error = haar_beta - true_beta
 
