@@ -34,16 +34,18 @@ def test_power_law_surrogates():
         time, beta=0.0, n_surrogates=n_surr, seed=42
     )
 
-    # Mean absolute diff should be smaller for brown noise (smoother)
-    diff_brown = np.mean(np.abs(np.diff(surrogates, axis=1)))
-    diff_white = np.mean(np.abs(np.diff(surrogates_white, axis=1)))
+    # Because surrogates now preserve the true un-standardized variance defined by beta
+    # to avoid statistical bias, brown noise absolute differences will naturally be larger
+    # simply because brown noise accumulates massive amplitude variance over time.
+    # To compare strictly smoothness/shape, we must standardize the variance here.
+    sb_norm = surrogates / np.std(surrogates, axis=1, keepdims=True)
+    sw_norm = surrogates_white / np.std(surrogates_white, axis=1, keepdims=True)
 
-    # Since we normalized variance, smoothness (small diffs) distinguishes them.
-    # Actually, standardizing variance means total energy is same.
-    # Brown noise concentrates energy at low freq -> slow changes -> small diffs.
-    # White noise has high freq energy -> rapid changes -> large diffs.
+    # Mean absolute diff should be smaller for brown noise (smoother shape)
+    diff_brown_norm = np.mean(np.abs(np.diff(sb_norm, axis=1)))
+    diff_white_norm = np.mean(np.abs(np.diff(sw_norm, axis=1)))
 
-    assert diff_brown < diff_white
+    assert diff_brown_norm < diff_white_norm
 
 def test_single_surrogate_seed():
     """Test reproducibility."""

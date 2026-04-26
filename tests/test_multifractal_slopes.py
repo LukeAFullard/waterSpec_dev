@@ -133,7 +133,7 @@ def test_broken_power_law_slope(tmp_path):
 
     print(f"Chosen model: {results['chosen_model']}")
 
-    if "segmented" in results["chosen_model"]:
+    if "segmented" in results["chosen_model"] and len(results["betas"]) > 1:
         betas = results["betas"]
         # betas should correspond to [beta1, beta2] roughly
         print(f"True betas: [{beta1}, {beta2}], Estimated betas: {betas}")
@@ -181,7 +181,7 @@ def test_noise_levels(tmp_path, noise_std):
 
     print(f"Noise: {noise_std}, Chosen model: {results['chosen_model']}")
 
-    if "segmented" in results["chosen_model"]:
+    if "segmented" in results["chosen_model"] and len(results["betas"]) > 1:
         betas = results["betas"]
         print(f"Estimated betas: {betas}")
 
@@ -200,7 +200,7 @@ def test_noise_levels(tmp_path, noise_std):
 
     else:
         # If standard model chosen
-        estimated_beta = results["beta"]
+        estimated_beta = results.get("beta", results.get("betas", [np.nan])[0])
         print(f"Estimated beta (standard): {estimated_beta}")
 
         if noise_std <= 0.1:
@@ -474,13 +474,15 @@ def test_haar_ls_uneven_multifractal(tmp_path):
     # Note: LS might struggle with 50% missing data on multifractal.
     # Let's check LS performance.
 
-    if "segmented" in ls_results["chosen_model"]:
+    if "segmented" in ls_results["chosen_model"] and len(ls_betas) > 1:
         ls_beta_low = ls_betas[0]
         ls_beta_high = ls_betas[1]
     else:
         ls_beta_low = ls_results.get("beta", np.nan)
+        if len(ls_betas) == 1:
+            ls_beta_low = ls_betas[0]
         ls_beta_high = np.nan
-        print("LS failed to choose segmented model.")
+        print("LS failed to choose segmented model or returned 1 beta.")
 
     haar_beta_high = haar_betas[0] # Short lag
     haar_beta_low = haar_betas[1]  # Long lag

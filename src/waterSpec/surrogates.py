@@ -3,6 +3,7 @@ import numpy as np
 import warnings
 from typing import Optional
 from waterSpec.utils_sim import simulate_tk95, resample_to_times, power_law
+import scipy.signal
 
 def generate_phase_randomized_surrogates(
     data: np.ndarray,
@@ -207,13 +208,26 @@ def generate_power_law_surrogates(
     for i in range(n_surrogates):
         x_sim = x_sims[i]
 
-        # 2. Resample to observed times
+        # 2. Apply anti-aliasing low-pass filter before decimation
+        # Nyquist frequency of the target average sampling grid
+        f_nyquist = 0.5 / dt_avg
+        # Nyquist frequency of the high-res simulation grid
+        f_nyquist_sim = 0.5 / dt_sim
+
+        # Design a Butterworth low-pass filter to prevent aliasing
+        # Cutoff at 0.8 * f_nyquist to be safe
+        cutoff = 0.8 * f_nyquist
+        if cutoff < f_nyquist_sim:
+            b, a = scipy.signal.butter(4, cutoff / f_nyquist_sim, btype='low')
+            x_sim = scipy.signal.filtfilt(b, a, x_sim)
+
+        # 3. Resample to observed times
         x_resampled = resample_to_times(t_sim, x_sim, t_relative)
 
-        # 3. Normalize to zero mean, unit variance (standard practice for shape comparison)
-        # Or match original variance? Let's standardize.
-        if np.std(x_resampled) > 0:
-            x_resampled = (x_resampled - np.mean(x_resampled)) / np.std(x_resampled)
+        # 4. Mean-center ONLY
+        # DO NOT standardize variance to 1, as doing so destroys the true
+        # power-law amplitude scaling defined by beta, breaking spectral analysis.
+        x_resampled = x_resampled - np.mean(x_resampled)
 
         surrogates.append(x_resampled)
 
