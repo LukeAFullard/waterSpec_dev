@@ -273,26 +273,21 @@ def find_peaks_via_residuals(
     z_scores = (residuals - residual_median) / residual_mad_std
     p_values = 1 - stats.norm.cdf(z_scores)
 
-    # Find all peaks in the residual series first to identify independent candidate frequencies
+    # Apply Benjamini-Yekutieli FDR correction across all hypotheses first.
+    # Selecting local maxima BEFORE FDR correction introduces a severe selection bias
+    # because the distribution of p-values for local maxima under the null is heavily
+    # skewed, violating the assumptions of the FDR procedure.
+    is_significant, _ = fdrcorrection(p_values, alpha=fdr_level, method="negcorr")
+
+    # Find all peaks in the residual series
     all_peak_indices, _ = find_peaks(residuals)
 
     if not len(all_peak_indices):
         return [], np.inf
 
-    # Extract p-values only for the peaks
-    peak_p_values = p_values[all_peak_indices]
-
-    # Apply Benjamini-Yekutieli FDR correction only to the peak hypotheses
-    # This correctly controls FDR across the actual number of independent candidate peaks,
-    # rather than heavily over-penalizing across the entire dependent frequency grid.
-    is_significant_peaks, _ = fdrcorrection(peak_p_values, alpha=fdr_level, method="negcorr")
-
-    if not np.any(is_significant_peaks):
-        return [], np.inf
-
     # Filter to keep only those peaks that are statistically significant
     significant_peak_indices = [
-        all_peak_indices[i] for i in range(len(all_peak_indices)) if is_significant_peaks[i]
+        idx for idx in all_peak_indices if is_significant[idx]
     ]
 
     if not significant_peak_indices:

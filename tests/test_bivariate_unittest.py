@@ -38,7 +38,7 @@ class TestBivariate(unittest.TestCase):
         d2 = np.cos(t)
         biv = BivariateAnalysis(t, d1, "V1", t, d2, "V2")
         biv.align_data(tolerance=0.1)
-        hyst = biv.calculate_hysteresis_metrics(tau=0.1)
+        hyst = biv.calculate_hysteresis_metrics(tau=1.0)
         self.assertFalse(np.isnan(hyst['area']))
         self.assertIn(hyst['direction'], ["Clockwise", "Counter-Clockwise"])
 
