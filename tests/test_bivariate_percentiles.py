@@ -16,7 +16,7 @@ def test_bivariate_percentiles_integration():
     biv = BivariateAnalysis(time, data1, "var1", time, data2, "var2")
     biv.align_data(tolerance=0.1)
 
-    lags = np.array([2, 4, 8])
+    lags = np.array([12, 14, 18])
 
     # Test Cross-Haar
     res = biv.run_cross_haar_analysis(

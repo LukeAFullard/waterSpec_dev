@@ -217,7 +217,7 @@ def calculate_haar_fluctuations(
                 # on the true sample size N (not 2N, which destroys the Gamma correction scaling).
                 n_flucs = len(flucs_arr)
                 if n_flucs < 101 and n_flucs > 1:
-                    factor = np.exp(gammaln((n_flucs - 1) / 2) - gammaln(n_flucs / 2)) * np.sqrt((n_flucs - 1) / 2)
+                    factor = np.exp(gammaln(n_flucs / 2) - gammaln((n_flucs + 1) / 2)) * np.sqrt(n_flucs / 2)
                     sigma_est = rms * factor
                 else:
                     sigma_est = rms

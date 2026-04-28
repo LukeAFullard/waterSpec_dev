@@ -98,6 +98,7 @@ class BivariateAnalysis:
         lags: np.ndarray,
         overlap: bool = True,
         overlap_step_fraction: float = 0.1,
+        min_samples_per_window: int = 5,
         statistic1: str = "mean",
         percentile1: Optional[float] = None,
         percentile_method1: str = "hazen",
@@ -155,8 +156,9 @@ class BivariateAnalysis:
                     v2_left = val2[idx_start:idx_mid]
                     v2_right = val2[idx_mid:idx_end]
 
-                    # Require data in both halves for BOTH variables
-                    if len(v1_left) > 0 and len(v1_right) > 0 and len(v2_left) > 0 and len(v2_right) > 0:
+                    # Require sufficient data in both halves for BOTH variables
+                    if (len(v1_left) >= min_samples_per_window and len(v1_right) >= min_samples_per_window and
+                        len(v2_left) >= min_samples_per_window and len(v2_right) >= min_samples_per_window):
                         # Use helper for flexible stats
                         stat1_r = _compute_statistic(v1_right, statistic1, percentile1, percentile_method1)
                         stat1_l = _compute_statistic(v1_left, statistic1, percentile1, percentile_method1)
@@ -194,6 +196,7 @@ class BivariateAnalysis:
         lags: np.ndarray,
         overlap: bool = True,
         overlap_step_fraction: float = 0.1,
+        min_samples_per_window: int = 5,
         statistic1: str = "mean",
         percentile1: Optional[float] = None,
         percentile_method1: str = "hazen",
@@ -212,7 +215,7 @@ class BivariateAnalysis:
         val2 = self.aligned_data[self.name2].values
 
         return self._calculate_cross_haar(
-            time, val1, val2, lags, overlap, overlap_step_fraction,
+            time, val1, val2, lags, overlap, overlap_step_fraction, min_samples_per_window,
             statistic1, percentile1, percentile_method1,
             statistic2, percentile2, percentile_method2
         )
@@ -223,6 +226,7 @@ class BivariateAnalysis:
         n_surrogates: int = 100,
         overlap: bool = True,
         overlap_step_fraction: float = 0.1,
+        min_samples_per_window: int = 5,
         seed: Optional[int] = None,
         max_gap: Optional[float] = None,
         statistic1: str = "mean",
@@ -256,7 +260,7 @@ class BivariateAnalysis:
 
         # Run observed analysis
         obs_results = self._calculate_cross_haar(
-            time, val1, val2, lags, overlap, overlap_step_fraction,
+            time, val1, val2, lags, overlap, overlap_step_fraction, min_samples_per_window,
             statistic1, percentile1, percentile_method1,
             statistic2, percentile2, percentile_method2
         )
@@ -298,7 +302,7 @@ class BivariateAnalysis:
             surr_on_orig_time = np.interp(time, reg_time, reg_surrs[i])
 
             res = self._calculate_cross_haar(
-                time, val1, surr_on_orig_time, lags, overlap, overlap_step_fraction,
+                time, val1, surr_on_orig_time, lags, overlap, overlap_step_fraction, min_samples_per_window,
                 statistic1, percentile1, percentile_method1,
                 statistic2, percentile2, percentile_method2
             )
@@ -329,6 +333,7 @@ class BivariateAnalysis:
         lag_offsets: np.ndarray,
         overlap: bool = True,
         overlap_step_fraction: float = 0.1,
+        min_samples_per_window: int = 5,
         statistic1: str = "mean",
         percentile1: Optional[float] = None,
         percentile_method1: str = "hazen",
@@ -386,7 +391,7 @@ class BivariateAnalysis:
                 v1_left = val1[idx_start:idx_mid]
                 v1_right = val1[idx_mid:idx_end]
 
-                if len(v1_left) > 0 and len(v1_right) > 0:
+                if len(v1_left) >= min_samples_per_window and len(v1_right) >= min_samples_per_window:
                     s1_r = _compute_statistic(v1_right, statistic1, percentile1, percentile_method1)
                     s1_l = _compute_statistic(v1_left, statistic1, percentile1, percentile_method1)
                     d1 = s1_r - s1_l
@@ -429,7 +434,7 @@ class BivariateAnalysis:
                 v2_left = val2[idx_q_start:idx_q_mid]
                 v2_right = val2[idx_q_mid:idx_q_end]
 
-                if len(v2_left) > 0 and len(v2_right) > 0:
+                if len(v2_left) >= min_samples_per_window and len(v2_right) >= min_samples_per_window:
                     s2_r = _compute_statistic(v2_right, statistic2, percentile2, percentile_method2)
                     s2_l = _compute_statistic(v2_left, statistic2, percentile2, percentile_method2)
                     d2 = s2_r - s2_l
@@ -457,6 +462,7 @@ class BivariateAnalysis:
         tau: float,
         overlap: bool = True,
         overlap_step_fraction: float = 0.1,
+        min_samples_per_window: int = 5,
         statistic1: str = "mean",
         percentile1: Optional[float] = None,
         percentile_method1: str = "hazen",
@@ -516,7 +522,8 @@ class BivariateAnalysis:
                 v2_left = val2[idx_start:idx_mid]
                 v2_right = val2[idx_mid:idx_end]
 
-                if len(v1_left) > 0 and len(v1_right) > 0 and len(v2_left) > 0 and len(v2_right) > 0:
+                if (len(v1_left) >= min_samples_per_window and len(v1_right) >= min_samples_per_window and
+                    len(v2_left) >= min_samples_per_window and len(v2_right) >= min_samples_per_window):
                     s1_r = _compute_statistic(v1_right, statistic1, percentile1, percentile_method1)
                     s1_l = _compute_statistic(v1_left, statistic1, percentile1, percentile_method1)
                     d1 = s1_r - s1_l

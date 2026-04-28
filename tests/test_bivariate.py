@@ -78,7 +78,7 @@ def test_hysteresis_metrics():
     biv = BivariateAnalysis(t, d1, "V1", t, d2, "V2")
     biv.align_data(tolerance=0.1)
 
-    hyst = biv.calculate_hysteresis_metrics(tau=0.1)
+    hyst = biv.calculate_hysteresis_metrics(tau=1.0)
 
     assert hyst['area'] != 0
     assert hyst['direction'] in ["Clockwise", "Counter-Clockwise"]

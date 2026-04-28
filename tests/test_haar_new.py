@@ -120,7 +120,7 @@ class TestBivariateAnalysis(unittest.TestCase):
         biv = BivariateAnalysis(t, c, "C", t, q, "Q", time_unit="numeric")
         biv.align_data(tolerance=0.1)
 
-        res = biv.calculate_hysteresis_metrics(tau=0.1, overlap=True)
+        res = biv.calculate_hysteresis_metrics(tau=1.0, overlap=True)
 
         self.assertEqual(res['direction'], "Counter-Clockwise")
         self.assertTrue(res['area'] > 0)

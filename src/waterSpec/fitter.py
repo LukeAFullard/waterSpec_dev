@@ -419,7 +419,10 @@ def fit_standard_model(
                     X = log_freq[indices]
                     Y = log_power[indices]
                 elif bootstrap_type == "wild":
-                    u = rng.choice([-1, 1], size=(n_bootstraps, n_points), replace=True)
+                    w1 = -(np.sqrt(5) - 1) / 2
+                    p1 = (np.sqrt(5) + 1) / (2 * np.sqrt(5))
+                    w2 = (np.sqrt(5) + 1) / 2
+                    u = rng.choice([w1, w2], size=(n_bootstraps, n_points), replace=True, p=[p1, 1 - p1])
                     centered_residuals = residuals - np.mean(residuals)
                     Y = log_power_fit + centered_residuals * u
                     X = np.broadcast_to(log_freq, (n_bootstraps, n_points))
@@ -813,9 +816,15 @@ def fit_segmented_spectrum(
 
         residuals = log_power - fitted_log_power
 
+        # Explicitly recalculate BIC and AIC with k = 3 * n_breakpoints + 2
+        # for a fully discontinuous broken power-law model.
+        k_params = 3 * n_breakpoints + 2
+        calculated_bic = _calculate_bic(log_power, fitted_log_power, k_params)
+        calculated_aic = _calculate_aic(log_power, fitted_log_power, k_params)
+
         results = {
-            "bic": res.bic,
-            "aic": res.aic,
+            "bic": calculated_bic,
+            "aic": calculated_aic,
             "n_breakpoints": res.n_breakpoints,
             "breakpoints": linear_breakpoints,
             "betas": betas,
