@@ -269,17 +269,17 @@ def find_peaks_via_residuals(
     if residual_mad_std < 1e-12:
         return [], np.inf  # No variance in residuals
 
-    # Calculate one-tailed p-values for positive residuals (potential peaks)
+    # Calculate one-tailed p-values for ALL residuals
     z_scores = (residuals - residual_median) / residual_mad_std
     p_values = 1 - stats.norm.cdf(z_scores)
 
-    # Apply Benjamini-Yekutieli FDR correction across all hypotheses first.
+    # Apply Benjamini-Yekutieli FDR correction across ALL hypotheses (points).
     # Selecting local maxima BEFORE FDR correction introduces a severe selection bias
     # because the distribution of p-values for local maxima under the null is heavily
     # skewed, violating the assumptions of the FDR procedure.
     is_significant, _ = fdrcorrection(p_values, alpha=fdr_level, method="negcorr")
 
-    # Find all peaks in the residual series
+    # Find all peaks (local maxima) in the residual series
     all_peak_indices, _ = find_peaks(residuals)
 
     if not len(all_peak_indices):
