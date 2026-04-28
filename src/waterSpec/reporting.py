@@ -32,7 +32,6 @@ class ReportGenerator:
         class NpEncoder(json.JSONEncoder):
             def default(self, obj):
                 import numpy as np
-                import pandas as pd
 
                 if isinstance(obj, np.integer):
                     return int(obj)
@@ -40,16 +39,23 @@ class ReportGenerator:
                     return float(obj)
                 if isinstance(obj, np.ndarray):
                     return obj.tolist()
-                if isinstance(obj, pd.DataFrame):
-                    return obj.to_dict(orient="records")
-                if isinstance(obj, pd.Series):
-                    return obj.tolist()
+
+                try:
+                    import pandas as pd
+
+                    if isinstance(obj, pd.DataFrame):
+                        return obj.to_dict(orient="records")
+                    if isinstance(obj, pd.Series):
+                        return obj.tolist()
+                except ImportError:
+                    pass
+
                 # Safe fallback for non-serializable objects (like class instances)
                 if hasattr(obj, "__dict__"):
                     return str(type(obj))
-                return super(NpEncoder, self).default(obj)
+                return super().default(obj)
 
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(
                 {"metadata": self.metadata, "results": self.results},
                 f,
@@ -78,139 +84,162 @@ class ReportGenerator:
                     haar["segmented_results"].get("breakpoints", [])
                 )
 
-        # Check for LS results
-        if "spectral_results" in self.results:
-            spec = self.results["spectral_results"]
-            # Auto model might nest the chosen model
-            if "chosen_model" in spec:
-                chosen = spec.get(spec["chosen_model"], spec)
-            else:
-                chosen = spec
+        # Check for LS results (may be nested under spectral_results or at root)
+        spec = self.results.get("spectral_results", self.results)
+        if "chosen_model" in spec:
+            spec = spec.get(spec["chosen_model"], spec)
 
-            row["LS_Beta"] = chosen.get(
-                "beta", chosen.get("betas", [""])[0] if "betas" in chosen else ""
+        if "beta" in spec or "betas" in spec:
+            row["LS_Beta"] = spec.get(
+                "beta", spec.get("betas", [""])[0] if "betas" in spec else ""
             )
 
         # Check for Bivariate/Hysteresis results
-        if "hysteresis_results" in self.results:
-            hyst = self.results["hysteresis_results"]
+        hyst = self.results.get("hysteresis_results", self.results)
+        if "area" in hyst:
             row["Hysteresis_Area"] = hyst.get("area", "")
             row["Hysteresis_Direction"] = hyst.get("direction", "")
 
-        with open(output_path, "w", newline="") as f:
+        with open(output_path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=row.keys())
             writer.writeheader()
             writer.writerow(row)
 
-    def to_html(self, output_path):
-        """
-        Generate a standalone HTML report with embedded base64 plots.
-        """
-        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+    def _prepare_html_context(self):
+        """Prepare variables needed to render the HTML template."""
+        context = {
+            "metadata": self.metadata,
+            "interpretation": None,
+            "metrics": {},
+            "plots": [],
+            "plot_errors": [],
+        }
 
-        html_parts = [
-            "<!DOCTYPE html>",
-            "<html>",
-            "<head>",
-            "<title>waterSpec Analysis Report</title>",
-            "<style>",
-            "body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; color: #333; }",
-            "h1, h2, h3 { color: #0056b3; }",
-            "table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }",
-            "th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }",
-            "th { background-color: #f2f2f2; }",
-            ".plot-container { margin: 20px 0; text-align: center; border: 1px solid #ccc; padding: 10px; background: #fafafa; }",
-            "img { max-width: 100%; height: auto; }",
-            "</style>",
-            "</head>",
-            "<body>",
-            "<h1>waterSpec Analysis Report</h1>",
-        ]
-
-        # Metadata Section
-        html_parts.append("<h2>Metadata</h2>")
-        html_parts.append("<ul>")
-        for k, v in self.metadata.items():
-            html_parts.append(f"<li><strong>{k}:</strong> {v}</li>")
-        html_parts.append("</ul>")
-
-        # Interpretation Section
-        if "interpretation" in self.results:
-            html_parts.append("<h2>Interpretation Summary</h2>")
-            html_parts.append(
-                f"<pre style='background:#f4f4f4; padding:10px; border-left:4px solid #0056b3;'>{self.results['interpretation'].get('summary_text', '')}</pre>"
-            )
-
-            warnings = self.results["interpretation"].get("uncertainty_warnings", [])
-            if warnings:
-                html_parts.append(
-                    "<div style='color:red; margin-top:10px;'><strong>Warnings:</strong><ul>"
-                )
-                for w in warnings:
-                    html_parts.append(f"<li>{w}</li>")
-                html_parts.append("</ul></div>")
+        # 1. Interpretation
+        interp = self.results.get("interpretation", self.results)
+        if "summary_text" in interp:
+            context["interpretation"] = {
+                "summary_text": interp.get("summary_text", ""),
+                "uncertainty_warnings": interp.get("uncertainty_warnings", []),
+            }
         else:
-            # We can use the interpreter directly if spectral_results are available but not yet interpreted
             from waterSpec.interpreter import interpret_results
 
-            if "spectral_results" in self.results:
-                interpretation = interpret_results(
-                    self.results["spectral_results"],
+            spec = self.results.get("spectral_results", self.results)
+            if "beta" in spec or "betas" in spec:
+                auto_interp = interpret_results(
+                    spec,
                     param_name=self.metadata.get("variable", "Parameter"),
                 )
-                html_parts.append("<h2>Interpretation Summary</h2>")
-                html_parts.append(
-                    f"<pre style='background:#f4f4f4; padding:10px; border-left:4px solid #0056b3;'>{interpretation.get('summary_text', '')}</pre>"
-                )
-                warnings = interpretation.get("uncertainty_warnings", [])
-                if warnings:
-                    html_parts.append(
-                        "<div style='color:red; margin-top:10px;'><strong>Warnings:</strong><ul>"
-                    )
-                    for w in warnings:
-                        html_parts.append(f"<li>{w}</li>")
-                    html_parts.append("</ul></div>")
+                context["interpretation"] = {
+                    "summary_text": auto_interp.get("summary_text", ""),
+                    "uncertainty_warnings": auto_interp.get("uncertainty_warnings", []),
+                }
 
-        # Results Summary Table
-        html_parts.append("<h2>Key Metrics</h2>")
-        html_parts.append("<table>")
-        html_parts.append("<tr><th>Metric</th><th>Value</th></tr>")
-
+        # 2. Metrics
         if "haar_results" in self.results:
             haar = self.results["haar_results"]
             beta = haar.get("beta", "N/A")
             if isinstance(beta, float):
                 beta = f"{beta:.2f}"
-            html_parts.append(f"<tr><td>Haar Beta</td><td>{beta}</td></tr>")
+            context["metrics"]["haar_beta"] = beta
 
-        if "spectral_results" in self.results:
-            spec = self.results["spectral_results"]
-            if "chosen_model" in spec:
-                chosen = spec.get(spec["chosen_model"], spec)
-            else:
-                chosen = spec
+        spec = self.results.get("spectral_results", self.results)
+        if "chosen_model" in spec:
+            spec = spec.get(spec["chosen_model"], spec)
 
-            beta = chosen.get(
-                "beta", chosen.get("betas", ["N/A"])[0] if "betas" in chosen else "N/A"
+        if "beta" in spec or "betas" in spec:
+            beta = spec.get(
+                "beta", spec.get("betas", ["N/A"])[0] if "betas" in spec else "N/A"
             )
             if isinstance(beta, float):
                 beta = f"{beta:.2f}"
-            html_parts.append(f"<tr><td>LS Beta</td><td>{beta}</td></tr>")
+            context["metrics"]["ls_beta"] = beta
 
-        if "hysteresis_results" in self.results:
-            hyst = self.results["hysteresis_results"]
+        hyst = self.results.get("hysteresis_results", self.results)
+        if "area" in hyst:
             area = hyst.get("area", "N/A")
             if isinstance(area, float):
                 area = f"{area:.4f}"
-            html_parts.append(f"<tr><td>Hysteresis Area</td><td>{area}</td></tr>")
-            html_parts.append(
-                f"<tr><td>Hysteresis Direction</td><td>{hyst.get('direction', 'N/A')}</td></tr>"
-            )
+            context["metrics"]["hysteresis_area"] = area
+            context["metrics"]["hysteresis_direction"] = hyst.get("direction", "N/A")
 
-        html_parts.append("</table>")
+        # 3. Plots
+        raw_plots = []
+        for k, v in self.results.items():
+            if k.endswith("_plot_path") and isinstance(v, str) and os.path.exists(v):
+                raw_plots.append(
+                    (k.replace("_plot_path", "").replace("_", " ").title(), v)
+                )
 
-        html_parts.append("</body>")
-        html_parts.append("</html>")
+        if "haar_results" in self.results and isinstance(
+            self.results["haar_results"], dict
+        ):
+            haar = self.results["haar_results"]
+            for k, v in haar.items():
+                if (
+                    k.endswith("_plot_path")
+                    and isinstance(v, str)
+                    and os.path.exists(v)
+                ):
+                    raw_plots.append(
+                        (k.replace("_plot_path", "").replace("_", " ").title(), v)
+                    )
 
-        with open(output_path, "w") as f:
-            f.write("\n".join(html_parts))
+        if "plot_paths" in self.metadata and isinstance(
+            self.metadata["plot_paths"], dict
+        ):
+            for title, path in self.metadata["plot_paths"].items():
+                if os.path.exists(path):
+                    raw_plots.append((title, path))
+
+        import base64
+
+        for title, path in raw_plots:
+            try:
+                with open(path, "rb") as img_file:
+                    b64_string = base64.b64encode(img_file.read()).decode("utf-8")
+                ext = os.path.splitext(path)[1][1:].lower()
+                if ext == "jpg":
+                    ext = "jpeg"
+                elif ext == "svg":
+                    ext = "svg+xml"
+                mime_type = (
+                    f"image/{ext}"
+                    if ext in ["png", "jpeg", "gif", "svg+xml"]
+                    else "image/png"
+                )
+
+                context["plots"].append(
+                    {"title": title, "mime_type": mime_type, "b64_string": b64_string}
+                )
+            except Exception as e:
+                context["plot_errors"].append(f"Error loading plot {title}: {str(e)}")
+
+        return context
+
+    def to_html(self, output_path):
+        """
+        Generate a standalone HTML report with embedded base64 plots using Jinja2.
+        """
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+
+        try:
+            from jinja2 import Environment, PackageLoader, select_autoescape
+        except ImportError as e:
+            raise ImportError(
+                "The jinja2 package is required to generate HTML reports. "
+                "Install it with `pip install jinja2`."
+            ) from e
+
+        env = Environment(
+            loader=PackageLoader("waterSpec", "templates"),
+            autoescape=select_autoescape(["html", "xml"]),
+        )
+        template = env.get_template("report_template.html")
+
+        context = self._prepare_html_context()
+        html_content = template.render(**context)
+
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(html_content)

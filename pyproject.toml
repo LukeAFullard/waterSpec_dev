@@ -24,6 +24,7 @@ dependencies = [
     "mannks>=0.5.0",
     "statsmodels>=0.14.0",
     "ruptures>=1.1.7",
+    "jinja2>=3.0.0",
 ]
 
 [project.optional-dependencies]
@@ -47,7 +48,7 @@ dev = [
 "Bug Tracker" = "https://github.com/example/waterSpec/issues"
 
 [tool.setuptools.package-data]
-waterSpec = ["*.json"]
+waterSpec = ["*.json", "templates/*.html"]
 
 [tool.pytest.ini_options]
 pythonpath = [

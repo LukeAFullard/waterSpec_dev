@@ -1,7 +1,9 @@
-import os
-import json
 import csv
+import json
+import os
+
 import numpy as np
+
 from waterSpec.reporting import ReportGenerator
 
 
@@ -75,4 +77,6 @@ def test_report_generator_html(tmp_path):
     assert "Discharge" in html
     assert "1.50" in html  # Haar Beta formatting
     assert "1.40" in html  # LS Beta formatting
-    assert "Interpretation Summary" in html  # Triggered by the presence of spectral_results
+    assert (
+        "Interpretation Summary" in html
+    )  # Triggered by the presence of spectral_results
