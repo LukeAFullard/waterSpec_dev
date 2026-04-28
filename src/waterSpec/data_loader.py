@@ -240,9 +240,11 @@ def _convert_and_sort_time(
             time_numeric_ns, time_col_name, clean_df
         )
 
-        # Make time relative *before* converting to float to preserve precision
-        time_numeric_ns_relative = time_numeric_ns - time_numeric_ns[0]
-        time_numeric_sec = time_numeric_ns_relative.astype(np.float64) / 1e9
+        # Cast to float64 *before* subtraction to prevent int64 overflow
+        # for datasets spanning > ~292 years
+        time_float = time_numeric_ns.astype(np.float64)
+        time_numeric_ns_relative = time_float - time_float[0]
+        time_numeric_sec = time_numeric_ns_relative / 1e9
     else:
         # Time is already numeric
         time_numeric = clean_df["time"].to_numpy().astype(np.float64)

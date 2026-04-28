@@ -157,25 +157,17 @@ def calculate_haar_fluctuations(
         else:
             step_size = delta_t
 
-        # We will iterate by sliding a window start time
-        t_starts = []
-        t_start = time[0]
-
-        # Generate window boundaries
-        while t_start + delta_t <= time[-1] + 1e-9:
-            t_starts.append(t_start)
-            # Move window
-            if overlap:
-                t_start += step_size
-            else:
-                t_start += delta_t
-                if t_start >= time[-1] + 1e-9:
-                    break
-
-        if not t_starts:
+        # Generate window boundaries to avoid floating point stagnation
+        n_windows_max = int(np.floor((time[-1] - time[0] - delta_t) / step_size)) + 1
+        if n_windows_max <= 0:
             continue
 
-        t_starts = np.array(t_starts)
+        t_starts = time[0] + np.arange(n_windows_max) * step_size
+        tol = delta_t * 1e-9
+        t_starts = t_starts[t_starts + delta_t <= time[-1] + tol]
+
+        if len(t_starts) == 0:
+            continue
         t_mids = t_starts + delta_t / 2
         t_ends = t_starts + delta_t
 
@@ -271,7 +263,8 @@ def calculate_sliding_haar(
     # Pre-calculate window boundaries to avoid iterative searchsorted calls
     t_starts = np.arange(time[0], time[-1] - window_size + step_size, step_size)
     # Ensure we don't exceed time[-1] due to floating point issues
-    t_starts = t_starts[t_starts + window_size <= time[-1] + 1e-9]
+    tol = window_size * 1e-9
+    t_starts = t_starts[t_starts + window_size <= time[-1] + tol]
 
     if len(t_starts) == 0:
         return np.array([]), np.array([])
@@ -529,6 +522,10 @@ class HaarAnalysis:
         if self.H is None:
             raise ValueError("Run standard analysis first to get H (zeta1).")
 
+        initial_overlap = self.full_results.get("_overlap", True)
+        initial_step = self.full_results.get("_overlap_step_fraction", 0.1)
+        initial_min_samples = self.full_results.get("_min_samples_per_window", 5)
+
         # Run secondary analysis with RMS aggregation
         # Re-use most parameters from self.full_results if available, or defaults
         lags_rms, s_rms, _, _ = calculate_haar_fluctuations(
@@ -537,7 +534,9 @@ class HaarAnalysis:
             statistic=self.full_results.get("statistic", "mean"),
             percentile=kwargs.get("percentile"), # Should match
             aggregation="rms",
-            overlap=True # Generally better for higher moments
+            overlap=initial_overlap,
+            overlap_step_fraction=initial_step,
+            min_samples_per_window=initial_min_samples
         )
 
         # Fit scaling for RMS (zeta2/2)
@@ -684,8 +683,19 @@ class HaarAnalysis:
             "counts": self.counts,
             "n_effective": self.n_effective,
             "segmented_results": self.segmented_results,
-            "statistic": statistic
+            "statistic": statistic,
+            "_overlap": overlap,
+            "_overlap_step_fraction": overlap_step_fraction,
+            "_min_samples_per_window": min_samples_per_window
         }
+
+        if overlap and np.any(self.n_effective < 5):
+            warnings.warn(
+                f"Minimum effective sample size is {np.min(self.n_effective):.1f}. "
+                "Confidence intervals may be underestimated because n_effective is not "
+                "used to weight the regression. Consider overlap=False for independent estimates.",
+                UserWarning
+            )
 
         if calc_intermittency:
             self.calculate_intermittency(percentile=percentile)

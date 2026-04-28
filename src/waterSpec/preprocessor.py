@@ -149,10 +149,10 @@ def normalize(data, errors=None, name: Optional[str] = "series"):
     normalized_data = np.copy(data)
     normalized_errors = np.copy(errors) if errors is not None else None
 
-    valid_indices = ~np.isnan(normalized_data)
+    valid_indices = np.isfinite(normalized_data)
     valid_data = normalized_data[valid_indices]
     if len(valid_data) == 0:
-        return normalized_data, normalized_errors
+        raise ValueError(f"Series '{name}' contains no finite values; cannot normalize.")
 
     # Use sample standard deviation (ddof=1) as it is generally a more
     # appropriate estimator when working with a sample of data.
