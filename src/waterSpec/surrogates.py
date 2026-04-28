@@ -118,6 +118,10 @@ def generate_block_shuffled_surrogates(
             # Appending original tail might preserve local correlation at end.
             shuffled = np.concatenate([shuffled, data[n_trunc:]])
 
+        # Apply random cyclic shift to prevent static zero-variance anchor points
+        shift = rng.integers(0, n)
+        shuffled = np.roll(shuffled, shift)
+
         surrogates.append(shuffled)
 
     return np.array(surrogates)

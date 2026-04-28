@@ -126,13 +126,13 @@ class BivariateAnalysis:
             # Generate window boundaries
             t_starts_list = []
             curr_t = t_min
-            while curr_t + tau <= t_max:
+            while curr_t + tau <= t_max + 1e-9:
                 t_starts_list.append(curr_t)
                 if overlap:
                     curr_t += step_size
                 else:
                     curr_t += tau
-                    if curr_t >= t_max: break
+                    if curr_t >= t_max + 1e-9: break
 
             if t_starts_list:
                 t_starts = np.array(t_starts_list)
@@ -424,7 +424,7 @@ class BivariateAnalysis:
 
             for i in range(len(t_centers)):
                 # Check bounds
-                if t_q_starts[i] < time[0] or t_q_ends[i] > time[-1]:
+                if t_q_starts[i] < time[0] - 1e-9 or t_q_ends[i] > time[-1] + 1e-9:
                     continue
 
                 idx_q_start = idx_q_starts[i]
@@ -545,7 +545,11 @@ class BivariateAnalysis:
         x = np.array(fluc2)
         y = np.array(fluc1)
 
-        area = 0.5 * np.sum(x[:-1] * y[1:] - x[1:] * y[:-1])
+        # Close the loop
+        x_closed = np.append(x, x[0])
+        y_closed = np.append(y, y[0])
+
+        area = 0.5 * np.sum(x_closed[:-1] * y_closed[1:] - x_closed[1:] * y_closed[:-1])
 
         # Zuecco et al. (2016) normalized hysteresis index
         std_x = np.std(x)
