@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>waterSpec Analysis Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; color: #333; }
+        h1, h2, h3 { color: #0056b3; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .plot-container { margin: 20px 0; text-align: center; border: 1px solid #ccc; padding: 10px; background: #fafafa; }
+        img { max-width: 100%; height: auto; }
+        .warnings { color: red; margin-top: 10px; }
+        .interpretation-box { background: #f4f4f4; padding: 10px; border-left: 4px solid #0056b3; white-space: pre-wrap; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>waterSpec Analysis Report</h1>
+
+    {% if metadata %}
+    <h2>Metadata</h2>
+    <ul>
+        {% for k, v in metadata.items() %}
+        <li><strong>{{ k }}:</strong> {{ v }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if interpretation %}
+    <h2>Interpretation Summary</h2>
+    <div class="interpretation-box">{{ interpretation.summary_text }}</div>
+
+    {% if interpretation.uncertainty_warnings %}
+    <div class="warnings">
+        <strong>Warnings:</strong>
+        <ul>
+            {% for w in interpretation.uncertainty_warnings %}
+            <li>{{ w }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <h2>Key Metrics</h2>
+    <table>
+        <tr><th>Metric</th><th>Value</th></tr>
+
+        {% if metrics.haar_beta %}
+        <tr><td>Haar Beta</td><td>{{ metrics.haar_beta }}</td></tr>
+        {% endif %}
+
+        {% if metrics.ls_beta %}
+        <tr><td>LS Beta</td><td>{{ metrics.ls_beta }}</td></tr>
+        {% endif %}
+
+        {% if metrics.hysteresis_area %}
+        <tr><td>Hysteresis Area</td><td>{{ metrics.hysteresis_area }}</td></tr>
+        <tr><td>Hysteresis Direction</td><td>{{ metrics.hysteresis_direction }}</td></tr>
+        {% endif %}
+    </table>
+
+    {% if plots %}
+    <h2>Visualizations</h2>
+    {% for plot in plots %}
+    <div class="plot-container">
+        <h3>{{ plot.title }}</h3>
+        <img src="data:{{ plot.mime_type }};base64,{{ plot.b64_string }}" alt="{{ plot.title }} Plot">
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if plot_errors %}
+    <div class="warnings">
+        {% for error in plot_errors %}
+        <p><em>{{ error }}</em></p>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+</body>
+</html>

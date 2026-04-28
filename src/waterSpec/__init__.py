@@ -29,6 +29,7 @@ __all__ = [
     "calculate_partial_cross_haar",
     "SegmentedRegimeAnalysis",
     "calculate_ls_cross_spectrum",
+    "ReportGenerator",
 ]
 
 # ---- Metadata ----
@@ -120,23 +121,15 @@ calculate_ls_cross_spectrum = _lazy_import(
     "calculate_ls_cross_spectrum", "ls_cross_spectrum"
 )
 
-# SegmentedRegimeAnalysis is a class with static methods, so we need special handling
-# or just import it directly for simplicity given the lazy loader complexity
-# Let's revert the complex lazy loader and just implement a simple proxy for the class
-class _SegmentedRegimeAnalysisProxy:
-    def __getattr__(self, name):
+# Implement module-level PEP 562 lazy loading for classes to preserve class identity
+def __getattr__(name):
+    if name == "ReportGenerator":
+        from waterSpec.reporting import ReportGenerator
+        return ReportGenerator
+    if name == "SegmentedRegimeAnalysis":
         from waterSpec.segmentation import SegmentedRegimeAnalysis
-        return getattr(SegmentedRegimeAnalysis, name)
-
-SegmentedRegimeAnalysis = _SegmentedRegimeAnalysisProxy()
-
-def Analysis(*args, **kwargs):
-    """Lazy load Analysis class."""
-    try:
-        module = import_module("waterSpec.analysis")
-    except ImportError as e:
-        raise ImportError(
-            "Failed to import Analysis class. Check that all required dependencies are installed."
-        ) from e
-    cls = getattr(module, "Analysis")
-    return cls(*args, **kwargs)
+        return SegmentedRegimeAnalysis
+    if name == "Analysis":
+        from waterSpec.analysis import Analysis
+        return Analysis
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
