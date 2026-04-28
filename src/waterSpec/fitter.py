@@ -61,7 +61,7 @@ def fit_standard_model(
     bootstrap_type: str = "block",
     bootstrap_block_size: Optional[int] = None,
     n_bootstraps: int = 2000,
-    ci: int = 95,
+    ci: float = 95.0,
     seed: Optional[np.random.SeedSequence] = None,
     logger: Optional[logging.Logger] = None,
 ) -> Dict:
@@ -661,7 +661,7 @@ def fit_segmented_spectrum(
     bootstrap_type: str = "block",
     bootstrap_block_size: Optional[int] = None,
     n_bootstraps: int = 2000,
-    ci: int = 95,
+    ci: float = 95.0,
     seed: Optional[np.random.SeedSequence] = None,
     logger: Optional[logging.Logger] = None,
 ) -> Dict:
