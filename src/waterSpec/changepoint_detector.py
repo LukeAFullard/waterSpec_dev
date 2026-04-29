@@ -53,9 +53,16 @@ def detect_changepoint_pelt(
         min_size = max(20, n // 10)  # At least 20 points or 10% of series
 
     if penalty is None:
-        COST_PARAMS = {"l2": 1, "normal": 2, "rbf": 2, "ar": 2}
+        COST_PARAMS = {"l2": 1, "l1": 1, "normal": 2, "rbf": 2, "ar": 2}
         k = COST_PARAMS.get(model, 2)
         penalty = k * np.log(n)  # BIC-like penalty
+
+        # L1 and L2 costs in ruptures are not normalized by scale, so the penalty
+        # must be scaled by the data variance/MAD to remain scale-invariant.
+        if model == "l2":
+            penalty *= np.var(data)
+        elif model == "l1":
+            penalty *= np.median(np.abs(data - np.median(data)))
 
         # Warn when persistence makes i.i.d. BIC penalty unreliable
         if model in ("rbf", "l2", "normal"):
