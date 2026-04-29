@@ -429,7 +429,7 @@ print(f"Beta (95th):   {results_95['haar_results']['beta']:.2f}")
 
 ## Notes
 
-*   **Data Requirements:** Percentile estimation requires sufficient data points within each window. The default `min_samples_per_window` is 5, but for high percentiles (e.g., 95th, 99th), you may need larger windows to get stable estimates. The code will automatically skip windows with insufficient data.
+*   **Data Requirements:** Percentile estimation requires sufficient data points within each window. The default `min_samples_per_window` is 3, but for high percentiles (e.g., 95th, 99th), you may need larger windows to get stable estimates. The code will automatically skip windows with insufficient data.
 *   **Computational Cost:** Calculating percentiles is computationally more expensive than calculating means. For very large datasets, this analysis may take longer.
 
 ## Case Study: Stochastic Volatility

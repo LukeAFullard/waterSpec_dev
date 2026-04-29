@@ -1,0 +1,36 @@
+Automatic Analysis for: data
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -257.82  (β = 0.10)
+  - Segmented (1 BP) BIC = -258.67  (β1=-0.78, β2=0.67)
+
+==> Chosen Model: Segmented 1bp
+-----------------------------------
+
+Details for Chosen (Segmented 1bp) Model:
+Segmented Analysis for: data
+Low-Frequency (Long-term) Fit:
+  β1 = -0.78 (95% CI: -1.38–-0.27 (bootstrap))
+  Interpretation: β < 0 (Anti-persistent): Indicates a mean-reverting process where high values tend to be followed by low values. While this can be a physical phenomenon (e.g., in turbulent flows), it can also indicate over-detrending or aliasing artifacts. Review preprocessing choices.
+  Persistence: Low (Event-driven)
+--- Breakpoint 1 @ ~7.5 days (95% CI: 4.5 days–12.4 days (bootstrap)) ---
+High-Frequency (Short-term) Fit:
+  β2 = 0.67 (95% CI: 0.26–1.10 (bootstrap))
+  Interpretation: 0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport.
+  Persistence: Medium (Mixed)
+
+No significant periodicities were found at the 1.0% FAP level.
+
+-----------------------------------
+Uncertainty Report:
+  - Warning: The 95% CI for β1 is wide (1.11 > 0.5), suggesting high uncertainty.
+  - Warning: The 95% CI for β2 is wide (0.84 > 0.5), suggesting high uncertainty.
+
+-----------------------------------
+Haar Wavelet Analysis:
+  β = -0.03
+  m = -0.52
+  R² = 0.16
+  Mean N_eff: 5.8 (of N=100)
+  Persistence: Low (Event-driven)
+  Interpretation: β ≈ 0 (White Noise): Uncorrelated, random process.
