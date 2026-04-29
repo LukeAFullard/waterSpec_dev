@@ -332,11 +332,14 @@ def fit_haar_slope(
     log_s1 = np.log10(s1[valid])
 
     if n_effective is not None:
-        from scipy import stats as sp_stats
         w = np.maximum(n_effective[valid], 1.0)
-        sw = np.sqrt(w)
-        wls = sp_stats.linregress(sw * log_lags, sw * log_s1)
-        H_point = wls.slope
+        # polyfit uses the weights w directly (they are applied as w * (y - y_fit)^2)
+        # but historically np.polyfit expects the square root of the weights for its internal
+        # linear algebra design (which applies weight * y).
+        # In modern numpy (>=1.5), `w` are applied to the equations directly, so w represents 1/sigma.
+        # Since n_effective represents inverse variance (1/sigma^2), we pass sqrt(w) to represent 1/sigma.
+        coeffs = np.polyfit(log_lags, log_s1, deg=1, w=np.sqrt(w))
+        H_point = coeffs[0]
     else:
         H_point = None
 
