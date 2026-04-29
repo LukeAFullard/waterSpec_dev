@@ -66,11 +66,11 @@ def calculate_haar_fluctuations(
     lag_times: Optional[np.ndarray] = None,
     min_lag: Optional[float] = None,
     max_lag: Optional[float] = None,
-    num_lags: int = 20,
+    num_lags: int = 30,
     log_spacing: bool = True,
     overlap: bool = True,
     overlap_step_fraction: float = 0.1,
-    min_samples_per_window: int = 5,
+    min_samples_per_window: int = 2,
     statistic: str = "mean",
     percentile: Optional[float] = None,
     percentile_method: str = "hazen",
@@ -238,7 +238,7 @@ def calculate_sliding_haar(
     data: np.ndarray,
     window_size: float,
     step_size: Optional[float] = None,
-    min_samples_per_window: int = 5,
+    min_samples_per_window: int = 2,
     statistic: str = "mean",
     percentile: Optional[float] = None,
     percentile_method: str = "hazen"
@@ -524,7 +524,7 @@ class HaarAnalysis:
 
         initial_overlap = self.full_results.get("_overlap", True)
         initial_step = self.full_results.get("_overlap_step_fraction", 0.1)
-        initial_min_samples = self.full_results.get("_min_samples_per_window", 5)
+        initial_min_samples = self.full_results.get("_min_samples_per_window", 2)
 
         # Run secondary analysis with RMS aggregation
         # Re-use most parameters from self.full_results if available, or defaults
@@ -563,7 +563,7 @@ class HaarAnalysis:
 
         return self.K2
 
-    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=5, bootstrap_method="standard", seed=None, statistic="mean", percentile=None, percentile_method="hazen", aggregation="mean", calc_intermittency=False):
+    def run(self, min_lag=None, max_lag=None, num_lags=30, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=2, bootstrap_method="standard", seed=None, statistic="mean", percentile=None, percentile_method="hazen", aggregation="mean", calc_intermittency=False):
         """
         Runs the Haar analysis.
 
