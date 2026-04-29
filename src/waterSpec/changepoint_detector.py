@@ -53,7 +53,9 @@ def detect_changepoint_pelt(
         min_size = max(20, n // 10)  # At least 20 points or 10% of series
 
     if penalty is None:
-        penalty = 2 * np.log(n)  # BIC-like penalty
+        COST_PARAMS = {"l2": 1, "normal": 2, "rbf": 2, "ar": 2}
+        k = COST_PARAMS.get(model, 2)
+        penalty = k * np.log(n)  # BIC-like penalty
 
         # Warn when persistence makes i.i.d. BIC penalty unreliable
         if model in ("rbf", "l2", "normal"):

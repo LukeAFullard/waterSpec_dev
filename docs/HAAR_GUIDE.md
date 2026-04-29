@@ -14,7 +14,7 @@ You can select the method using the `aggregation` parameter:
 
 ```python
 ha = HaarAnalysis(time, data)
-ha.run(aggregation="mean") # Default
+ha.run(aggregation="mean", ci_level=95.0) # Default
 ```
 
 | Method | Description | Use Case |
@@ -66,7 +66,7 @@ Enable the calculation by setting `calc_intermittency=True` in the `run` method:
 
 ```python
 ha = HaarAnalysis(time, data)
-results = ha.run(calc_intermittency=True)
+results = ha.run(calc_intermittency=True, ci_level=95.0)
 
 print(f"Monofractal Beta: {results['beta']}")
 print(f"Multifractal Beta: {results['beta_multifractal']}")
@@ -171,7 +171,7 @@ The function `fit_haar_slope` performs a robust linear regression on $\log_{10}(
 from waterSpec.haar_analysis import HaarAnalysis
 
 haar = HaarAnalysis(time, data, time_unit="days")
-results = haar.run(num_lags=30)
+results = haar.run(num_lags=30, ci_level=95.0)
 print(f"Beta: {results['beta']}")
 haar.plot(output_path="haar_plot.png")
 ```
@@ -199,7 +199,7 @@ res = haar.run()
 
 # Fit a segmented model to the structure function
 # fit_segmented_spectrum also uses robust regression internally
-segmented_fit = fit_segmented_spectrum(res['lags'], res['s1'], n_breakpoints=1)
+segmented_fit = fit_segmented_spectrum(res['lags'], res['s1'], n_breakpoints=1, ci=95.0)
 ```
 \n\n## From haar_method_description.md
 

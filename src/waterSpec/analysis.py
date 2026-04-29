@@ -352,7 +352,8 @@ class Analysis:
         max_breakpoints: int = 0,
         statistic: str = "mean",
         percentile: Optional[float] = None,
-        percentile_method: str = "hazen"
+        percentile_method: str = "hazen",
+        ci_level: float = 95
     ):
         """Performs Haar Wavelet Analysis."""
         self.logger.info("Performing Haar Wavelet Analysis...")
@@ -363,7 +364,8 @@ class Analysis:
             max_breakpoints=max_breakpoints,
             statistic=statistic,
             percentile=percentile,
-            percentile_method=percentile_method
+            percentile_method=percentile_method,
+            ci_level=ci_level
         )
         self.logger.info(
             f"Haar Analysis complete. Beta: {haar_results.get('beta', np.nan):.2f}, "
@@ -898,6 +900,7 @@ class Analysis:
         ci_method="bootstrap",
         bootstrap_type="block",
         n_bootstraps=2000,
+        ci_level=95,
         samples_per_peak=5,
         nyquist_factor=1.0,
         max_freq=None,

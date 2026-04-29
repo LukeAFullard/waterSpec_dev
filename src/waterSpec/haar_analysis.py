@@ -10,6 +10,7 @@ from scipy.special import gammaln
 import MannKS
 
 from .surrogates import generate_power_law_surrogates
+from .fitter import _calculate_bic
 
 def _small_sample_std(data: np.ndarray) -> float:
     """
@@ -118,6 +119,13 @@ def calculate_haar_fluctuations(
     time = time[sort_idx]
     data = data[sort_idx]
 
+    # After sorting, warn early if NaNs are present:
+    if np.any(np.isnan(data)):
+        warnings.warn(
+            f"Input contains {np.sum(np.isnan(data))} NaN values. "
+            "Affected windows will be skipped.", UserWarning
+        )
+
     # Determine lag times if not provided
     total_duration = time[-1] - time[0]
 
@@ -184,12 +192,16 @@ def calculate_haar_fluctuations(
             vals1 = data[idx_start:idx_mid]
             vals2 = data[idx_mid:idx_end]
 
-            # Only calculate if we have sufficient data in both halves
-            if len(vals1) >= min_samples_per_window and len(vals2) >= min_samples_per_window:
+            # Only calculate if we have sufficient data in both halves and no NaNs
+            if (len(vals1) >= min_samples_per_window
+                    and len(vals2) >= min_samples_per_window
+                    and not np.any(np.isnan(vals1))
+                    and not np.any(np.isnan(vals2))):
                 val1 = _compute_statistic(vals1, statistic, percentile, percentile_method)
                 val2 = _compute_statistic(vals2, statistic, percentile, percentile_method)
                 delta_f = (val2 - val1)
-                fluctuations.append(delta_f)
+                if np.isfinite(delta_f):
+                    fluctuations.append(delta_f)
 
         count = len(fluctuations)
         if count > 0:
@@ -260,9 +272,12 @@ def calculate_sliding_haar(
 
     fluctuations = []
 
-    # Pre-calculate window boundaries to avoid iterative searchsorted calls
-    t_starts = np.arange(time[0], time[-1] - window_size + step_size, step_size)
-    # Ensure we don't exceed time[-1] due to floating point issues
+    # Pre-calculate window boundaries using integer multiplication to avoid float accumulation
+    n_windows = int(np.floor((time[-1] - time[0] - window_size) / step_size)) + 1
+    if n_windows <= 0:
+        return np.array([]), np.array([])
+
+    t_starts = time[0] + np.arange(n_windows) * step_size
     tol = window_size * 1e-9
     t_starts = t_starts[t_starts + window_size <= time[-1] + tol]
 
@@ -299,6 +314,7 @@ def calculate_sliding_haar(
 def fit_haar_slope(
     lags: np.ndarray,
     s1: np.ndarray,
+    n_effective: Optional[np.ndarray] = None,
     ci: float = 95,
     n_bootstraps: int = 100,
     seed: Optional[int] = None
@@ -315,7 +331,19 @@ def fit_haar_slope(
     log_lags = np.log10(lags[valid])
     log_s1 = np.log10(s1[valid])
 
-    # Robust fit using MannKS
+    if n_effective is not None:
+        w = np.maximum(n_effective[valid], 1.0)
+        # polyfit uses the weights w directly (they are applied as w * (y - y_fit)^2)
+        # but historically np.polyfit expects the square root of the weights for its internal
+        # linear algebra design (which applies weight * y).
+        # In modern numpy (>=1.5), `w` are applied to the equations directly, so w represents 1/sigma.
+        # Since n_effective represents inverse variance (1/sigma^2), we pass sqrt(w) to represent 1/sigma.
+        coeffs = np.polyfit(log_lags, log_s1, deg=1, w=np.sqrt(w))
+        H_point = coeffs[0]
+    else:
+        H_point = None
+
+    # Robust fit using MannKS for CI and intercept
     res = MannKS.trend_test(
         log_s1,
         log_lags,
@@ -324,7 +352,7 @@ def fit_haar_slope(
         random_state=seed
     )
 
-    H = res.slope
+    H = H_point if H_point is not None else res.slope
     intercept = res.intercept
     beta = 1 + 2 * H
 
@@ -563,11 +591,12 @@ class HaarAnalysis:
 
         return self.K2
 
-    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=5, bootstrap_method="standard", seed=None, statistic="mean", percentile=None, percentile_method="hazen", aggregation="mean", calc_intermittency=False):
+    def run(self, min_lag=None, max_lag=None, num_lags=20, log_spacing=True, n_bootstraps=100, ci_level=95, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=5, bootstrap_method="standard", seed=None, statistic="mean", percentile=None, percentile_method="hazen", aggregation="mean", calc_intermittency=False):
         """
         Runs the Haar analysis.
 
         Args:
+            ci_level (float): Confidence interval level for parameter estimates (default: 95).
             bootstrap_method (str): "standard" (MannKS fit bootstrap) or "monte_carlo" (Parametric bootstrap on time series).
                                     "monte_carlo" is recommended for irregular data to rigorously estimate spectral uncertainty.
             seed (int): Random seed for bootstrap.
@@ -592,7 +621,7 @@ class HaarAnalysis:
         initial_bootstraps = n_bootstraps if bootstrap_method == "standard" else 0
 
         fit_results = fit_haar_slope(
-            self.lags, self.s1, n_bootstraps=initial_bootstraps, seed=seed
+            self.lags, self.s1, n_effective=self.n_effective, ci=ci_level, n_bootstraps=initial_bootstraps, seed=seed
         )
 
         self.H = fit_results.get("H", np.nan)
@@ -633,21 +662,21 @@ class HaarAnalysis:
             Hs_boot = np.array(Hs_boot)
 
             if len(betas_boot) > 10:
-                std_beta = np.std(betas_boot)
-                std_H = np.std(Hs_boot)
+                # Use empirical percentiles instead of symmetric normal approximation
+                # to handle right-skewed bootstrap distributions appropriately.
+                p_lo = (100.0 - ci_level) / 2.0
+                p_hi = 100.0 - p_lo
 
-                # Update CIs using 1.96 * std (approx 95%)
-                # Center around the OBSERVED estimate
-                fit_results['beta_ci_lower'] = self.beta - 1.96 * std_beta
-                fit_results['beta_ci_upper'] = self.beta + 1.96 * std_beta
+                fit_results['beta_ci_lower'] = float(np.percentile(betas_boot, p_lo))
+                fit_results['beta_ci_upper'] = float(np.percentile(betas_boot, p_hi))
 
-                fit_results['slope_ci_lower'] = self.H - 1.96 * std_H
-                fit_results['slope_ci_upper'] = self.H + 1.96 * std_H
+                fit_results['slope_ci_lower'] = float(np.percentile(Hs_boot, p_lo))
+                fit_results['slope_ci_upper'] = float(np.percentile(Hs_boot, p_hi))
 
                 # Store full distribution for advanced users
                 fit_results['boot_betas'] = betas_boot
                 fit_results['boot_Hs'] = Hs_boot
-                fit_results['bootstrap_method'] = 'monte_carlo'
+                fit_results['bootstrap_method'] = 'monte_carlo_percentile'
 
         # Run segmented fit if requested
         if max_breakpoints > 0:
@@ -660,15 +689,13 @@ class HaarAnalysis:
                 log_lags = np.log10(self.lags[valid])
                 log_s1 = np.log10(self.s1[valid])
                 predicted = self.H * log_lags + self.intercept
-                rss = np.sum((log_s1 - predicted) ** 2)
-                n = len(log_s1)
-                bic_0 = n * np.log(rss / n) + 2 * np.log(n)
+                bic_0 = _calculate_bic(log_s1, predicted, n_params=2)
                 best_bic = bic_0
 
             for nb in range(1, max_breakpoints + 1):
                 # Note: Segmented fit still uses standard MannKS bootstrap for now.
                 # Monte Carlo for segmented fit is very expensive and complex (finding breakpoints in surrogates).
-                res = fit_segmented_haar(self.lags, self.s1, n_breakpoints=nb, n_bootstraps=n_bootstraps, seed=seed)
+                res = fit_segmented_haar(self.lags, self.s1, n_breakpoints=nb, ci=ci_level, n_bootstraps=n_bootstraps, seed=seed)
                 if res.get("bic", np.inf) < best_bic:
                     best_bic = res["bic"]
                     best_results = res

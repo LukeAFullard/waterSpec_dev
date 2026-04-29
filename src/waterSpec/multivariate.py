@@ -52,23 +52,19 @@ def calculate_multivariate_fluctuations(
 
         step_size = tau * overlap_step_fraction if overlap else tau
 
-        # We will iterate by sliding a window start time
-        t_starts = []
-        t_start = t_min
+        # Vectorized generation of window starts
+        n_max = int(np.floor((time[-1] - t_min - tau) / step_size)) + 1
 
-        while t_start + tau <= time[-1] + 1e-9: # Use time[-1] instead of t_max for precision
-            t_starts.append(t_start)
-            if overlap:
-                t_start += step_size
-            else:
-                t_start += tau
-                if t_start >= time[-1] + 1e-9: break
+        if n_max > 0:
+            t_starts = t_min + np.arange(n_max) * step_size
+            tol = tau * 1e-9
+            t_starts = t_starts[t_starts + tau <= time[-1] + tol]
+        else:
+            t_starts = np.array([])
 
-        if not t_starts:
+        if len(t_starts) == 0:
             results[tau] = [np.array([]) for _ in range(n_vars)]
             continue
-
-        t_starts = np.array(t_starts)
         t_mids = t_starts + tau / 2
         t_ends = t_starts + tau
 

@@ -231,7 +231,8 @@ analyzer = Analysis(file_path="data.csv", time_col="time", data_col="value")
 results = analyzer.run_full_analysis(
     output_dir="output",
     validate_model=True,
-    n_bootstraps=1000
+    n_bootstraps=1000,
+    ci_level=95.0
 )
 
 # 3. Check Success Fraction

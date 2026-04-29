@@ -295,9 +295,21 @@ class BivariateAnalysis:
             )
 
             # Restore original variance and mean
-            surrogates_val2 = (surrogates_val2 / surrogates_val2.std(axis=1, keepdims=True) * np.std(val2)) + np.mean(val2)
+            stds = surrogates_val2.std(axis=1, keepdims=True)
+            zero_mask = stds.ravel() < 1e-12
+            if np.any(zero_mask):
+                warnings.warn(f"{zero_mask.sum()} degenerate surrogates (zero variance) dropped.", UserWarning)
+                surrogates_val2 = surrogates_val2[~zero_mask]
+                stds = stds[~zero_mask]
 
-            for i in range(n_surrogates):
+            target_std = np.std(val2, ddof=1)
+            surrogates_val2 = (surrogates_val2 / stds) * target_std + np.mean(val2)
+
+            # Update n_surrogates in case some were dropped
+            n_surrogates_valid = surrogates_val2.shape[0]
+            surr_corrs = np.zeros((n_surrogates_valid, len(lags)))
+
+            for i in range(n_surrogates_valid):
                 res = self._calculate_cross_haar(
                     time, val1, surrogates_val2[i], lags, overlap, overlap_step_fraction, min_samples_per_window,
                     statistic1, percentile1, percentile_method1,
@@ -309,7 +321,17 @@ class BivariateAnalysis:
             surrogates_val2 = generate_iaaft_surrogates(
                 val2, n_surrogates=n_surrogates, seed=seed
             )
-            for i in range(n_surrogates):
+
+            stds = surrogates_val2.std(axis=1, keepdims=True)
+            zero_mask = stds.ravel() < 1e-12
+            if np.any(zero_mask):
+                warnings.warn(f"{zero_mask.sum()} degenerate surrogates (zero variance) dropped.", UserWarning)
+                surrogates_val2 = surrogates_val2[~zero_mask]
+
+            n_surrogates_valid = surrogates_val2.shape[0]
+            surr_corrs = np.zeros((n_surrogates_valid, len(lags)))
+
+            for i in range(n_surrogates_valid):
                 res = self._calculate_cross_haar(
                     time, val1, surrogates_val2[i], lags, overlap, overlap_step_fraction, min_samples_per_window,
                     statistic1, percentile1, percentile_method1,
