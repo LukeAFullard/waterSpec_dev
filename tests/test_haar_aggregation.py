@@ -1,20 +1,7 @@
 
 import pytest
 import numpy as np
-from waterSpec.haar_analysis import calculate_haar_fluctuations, _small_sample_std
-
-def test_small_sample_std_correction():
-    # Test correction for N=2
-    # Standard deviation of [1, -1] is sqrt(2). Sample std (ddof=1) is sqrt(2).
-    # Correction factor for N=2 is sqrt(pi/2) approx 1.253
-    # Result should be sqrt(2) * sqrt(pi/2) = sqrt(pi) approx 1.772
-
-    data = np.array([1.0, -1.0])
-    s = np.std(data, ddof=1)
-    corrected_s = _small_sample_std(data)
-
-    expected = s * np.sqrt(np.pi / 2) # approx 1.77245
-    assert np.isclose(corrected_s, expected)
+from waterSpec.haar_analysis import calculate_haar_fluctuations
 
 def test_aggregation_methods():
     # Test data: simple alternating 1, -1

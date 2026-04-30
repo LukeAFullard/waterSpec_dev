@@ -301,7 +301,8 @@ def fit_standard_model(
             })
         elif method == "theil-sen":
             # Fallback Theil-Sen if MannKS failed
-            res = stats.theilslopes(log_power, log_freq, alpha=1 - (ci / 100))
+            # scipy.theilslopes uses confidence-level convention (alpha=0.95 -> 95% CI)
+            res = stats.theilslopes(log_power, log_freq, alpha=ci / 100.0)
             slope, intercept, low_slope, high_slope = res
             fit_results.update({"slope_ci_lower": low_slope, "slope_ci_upper": high_slope})
 
@@ -816,9 +817,9 @@ def fit_segmented_spectrum(
 
         residuals = log_power - fitted_log_power
 
-        # Explicitly recalculate BIC and AIC with k = 3 * n_breakpoints + 2
-        # for a fully discontinuous broken power-law model.
-        k_params = 3 * n_breakpoints + 2
+        # For a CONTINUOUS (connected) piecewise model, which MannKS fits:
+        # free params = (k+1) slopes + k breakpoints + 1 global intercept = 2k+2
+        k_params = 2 * n_breakpoints + 2
         calculated_bic = _calculate_bic(log_power, fitted_log_power, k_params)
         calculated_aic = _calculate_aic(log_power, fitted_log_power, k_params)
 

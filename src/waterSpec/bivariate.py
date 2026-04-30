@@ -170,6 +170,14 @@ class BivariateAnalysis:
 
             # Need at least 2 points for correlation
             if len(fluc1) >= 2:
+                if np.std(fluc1, ddof=1) < 1e-12 or np.std(fluc2, ddof=1) < 1e-12:
+                    # At least one variable is constant at this scale — correlation undefined
+                    results['lags'].append(tau)
+                    results['correlation'].append(np.nan)
+                    results['n_pairs'].append(len(fluc1))
+                    results['slope_alpha'].append(np.nan)
+                    continue
+
                 corr = np.corrcoef(fluc1, fluc2)[0, 1]
                 # Alpha (sensitivity): slope of regression dC ~ dQ
                 # dC = alpha * dQ + eps
@@ -300,10 +308,15 @@ class BivariateAnalysis:
             if np.any(zero_mask):
                 warnings.warn(f"{zero_mask.sum()} degenerate surrogates (zero variance) dropped.", UserWarning)
                 surrogates_val2 = surrogates_val2[~zero_mask]
-                stds = stds[~zero_mask]
 
             target_std = np.std(val2, ddof=1)
-            surrogates_val2 = (surrogates_val2 / stds) * target_std + np.mean(val2)
+            # Rescale all surrogates ONCE using a single scale factor.
+            # Using the grand mean of surrogate stds (not per-surrogate) preserves
+            # the relative amplitude structure within the null distribution.
+            grand_std = np.mean([s.std(ddof=1) for s in surrogates_val2])
+            if grand_std > 1e-12:
+                scale = target_std / grand_std
+                surrogates_val2 = surrogates_val2 * scale + np.mean(val2)
 
             # Update n_surrogates in case some were dropped
             n_surrogates_valid = surrogates_val2.shape[0]
@@ -452,7 +465,8 @@ class BivariateAnalysis:
 
             for i in range(len(t_centers)):
                 # Check bounds
-                if t_q_starts[i] < time[0] - 1e-9 or t_q_ends[i] > time[-1] + 1e-9:
+                eps = np.finfo(float).eps * (time[-1] - time[0]) * 10
+                if t_q_starts[i] < time[0] - eps or t_q_ends[i] > time[-1] + eps:
                     continue
 
                 idx_q_start = idx_q_starts[i]

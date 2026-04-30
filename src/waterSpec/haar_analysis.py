@@ -12,28 +12,6 @@ import MannKS
 from .surrogates import generate_power_law_surrogates
 from .fitter import _calculate_bic
 
-def _small_sample_std(data: np.ndarray) -> float:
-    """
-    Computes the standard deviation with a correction for small sample bias,
-    assuming the data is drawn from a Gaussian distribution.
-    This effectively provides an unbiased estimator for the population sigma.
-    """
-    n = len(data)
-    if n < 2:
-        return np.nan
-
-    # Sample standard deviation (ddof=1)
-    s = np.std(data, ddof=1)
-
-    # Correction for small N
-    if n < 101:
-        # Correction factor derived from Gamma functions
-        # This factor converts the biased estimator s to an unbiased estimator of sigma
-        factor = np.exp(gammaln((n - 1) / 2) - gammaln(n / 2)) * np.sqrt((n - 1) / 2)
-        return s * factor
-    else:
-        return s
-
 def _compute_statistic(
     data: np.ndarray,
     statistic: str = "mean",
@@ -214,21 +192,29 @@ def calculate_haar_fluctuations(
             elif aggregation == "rms":
                 s1 = np.sqrt(np.mean(flucs_arr**2))
             elif aggregation == "std_corrected":
-                # Compute RMS directly which enforces a strict zero-mean assumption for fluctuations
-                rms = np.sqrt(np.mean(flucs_arr**2))
+                # Symmetrise to enforce zero-mean, matching GapWaveSpectra.
+                # Note: symmetrisation does NOT change RMS ((-x)²=x²), but it sets the
+                # correct effective N for the small-sample bias correction.
+                n_sym = 2 * len(flucs_arr)           # symmetric sample size
 
-                # Apply the small-sample bias correction for standard deviation strictly based
-                # on the true sample size N (not 2N, which destroys the Gamma correction scaling).
-                n_flucs = len(flucs_arr)
-                if n_flucs < 101 and n_flucs > 1:
-                    factor = np.exp(gammaln(n_flucs / 2) - gammaln((n_flucs + 1) / 2)) * np.sqrt(n_flucs / 2)
-                    sigma_est = rms * factor
+                # RMS of original sample (= RMS of symmetric sample since (-x)²=x²)
+                rms = np.sqrt(np.mean(flucs_arr ** 2))
+
+                # c4(n_sym) bias correction:
+                # sigma_hat = rms / c4(n_sym),  c4(n) = sqrt(2/(n-1)) * Gamma(n/2) / Gamma((n-1)/2)
+                # => sigma_hat = rms * Gamma((n-1)/2) / (Gamma(n/2) * sqrt(2/(n-1)))
+                # => sigma_hat = rms * exp(gammaln((n-1)/2) - gammaln(n/2)) * sqrt((n-1)/2)
+                if 2 < n_sym < 201:
+                    log_c4_inv = (gammaln((n_sym - 1) / 2)
+                                  - gammaln(n_sym / 2)
+                                  + 0.5 * np.log((n_sym - 1) / 2))
+                    sigma_est = rms * np.exp(log_c4_inv)
                 else:
-                    sigma_est = rms
+                    sigma_est = rms   # c4 -> 1 as N -> infinity
 
                 # Convert sigma to expected absolute deviation assuming Gaussianity
                 # E[|X|] = sigma * sqrt(2/pi)
-                s1 = sigma_est * np.sqrt(2 / np.pi)
+                s1 = sigma_est * np.sqrt(2.0 / np.pi)
 
             s1_values.append(s1)
             counts.append(count)
@@ -238,8 +224,9 @@ def calculate_haar_fluctuations(
             if overlap:
                 # Approximate n_eff based on redundancy
                 n_eff = count * (step_size / delta_t)
-                # n_eff should not be less than 1 if we have valid windows
-                n_effective_values.append(max(1.0, n_eff))
+                # Do NOT clamp to 1 — let the WLS naturally downweight low-EDOF scales.
+                # The floor of 0.5 prevents division-by-zero in sqrt without hiding the signal.
+                n_effective_values.append(max(0.5, n_eff))
             else:
                 n_effective_values.append(count)
 
@@ -329,48 +316,97 @@ def fit_haar_slope(
         return {"beta": np.nan, "H": np.nan, "r2": np.nan, "intercept": np.nan}
 
     log_lags = np.log10(lags[valid])
-    log_s1 = np.log10(s1[valid])
+    log_s1   = np.log10(s1[valid])
 
+    mannks_seed = None
+    if isinstance(seed, (int, np.integer)):
+        mannks_seed = int(seed)
+    elif isinstance(seed, np.random.SeedSequence):
+        mannks_seed = int(seed.generate_state(1)[0])
+    elif isinstance(seed, np.random.Generator):
+        mannks_seed = int(seed.integers(0, 2**31 - 1))
+
+    # --- Determine weights from effective sample sizes ---
     if n_effective is not None:
-        w = np.maximum(n_effective[valid], 1.0)
-        # polyfit uses the weights w directly (they are applied as w * (y - y_fit)^2)
-        # but historically np.polyfit expects the square root of the weights for its internal
-        # linear algebra design (which applies weight * y).
-        # In modern numpy (>=1.5), `w` are applied to the equations directly, so w represents 1/sigma.
-        # Since n_effective represents inverse variance (1/sigma^2), we pass sqrt(w) to represent 1/sigma.
-        coeffs = np.polyfit(log_lags, log_s1, deg=1, w=np.sqrt(w))
-        H_point = coeffs[0]
+        # np.polyfit uses w such that it minimises sum(w*(y-f(x))**2),
+        # i.e. the effective WLS weight is w².  To get n_eff as the weight,
+        # pass sqrt(n_eff).
+        w = np.maximum(n_effective[valid], 0.5)
+        sqrt_w = np.sqrt(w)
+
+        # Weighted means (required for WLS intercept)
+        w_sum   = np.sum(w)
+        x_wbar  = np.sum(w * log_lags) / w_sum
+        y_wbar  = np.sum(w * log_s1)   / w_sum
+
+        # WLS slope (numerically equivalent to polyfit with sqrt_w)
+        cov_xy  = np.sum(w * (log_lags - x_wbar) * (log_s1 - y_wbar))
+        var_x   = np.sum(w * (log_lags - x_wbar) ** 2)
+        H = cov_xy / var_x if var_x > 1e-15 else np.nan
+
+        # WLS intercept consistent with WLS slope
+        intercept = y_wbar - H * x_wbar
     else:
-        H_point = None
+        # Fall back to MannKS for both slope and intercept
+        res       = MannKS.trend_test(log_s1, log_lags, alpha=1-(ci/100),
+                                      n_bootstrap=n_bootstraps,
+                                      random_state=mannks_seed)
+        H         = res.slope
+        intercept = res.intercept
 
-    # Robust fit using MannKS for CI and intercept
-    res = MannKS.trend_test(
-        log_s1,
-        log_lags,
-        alpha=1 - (ci / 100),
-        n_bootstrap=n_bootstraps,
-        random_state=seed
-    )
+    # --- CIs always from MannKS (on same data, same x-variable) ---
+    res = MannKS.trend_test(log_s1, log_lags, alpha=1-(ci/100),
+                            n_bootstrap=n_bootstraps,
+                            random_state=mannks_seed)
 
-    H = H_point if H_point is not None else res.slope
-    intercept = res.intercept
-    beta = 1 + 2 * H
-
-    # Calculate R2 using the robust fit parameters
+    # R² using the self-consistent predictor
     predicted = H * log_lags + intercept
     ss_res = np.sum((log_s1 - predicted) ** 2)
     ss_tot = np.sum((log_s1 - np.mean(log_s1)) ** 2)
-    r2 = 1 - (ss_res / ss_tot)
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 1e-15 else np.nan
+
+    beta = 1.0 + 2.0 * H
+
+    # CI: use MannKS slope CI only when H == res.slope; otherwise
+    # compute bootstrap CI directly using the WLS estimator.
+    if n_effective is not None:
+        # Parametric bootstrap CI for WLS H using block bootstrap on residuals
+        residuals = log_s1 - predicted
+        rng       = np.random.default_rng(mannks_seed)
+        block_sz  = max(3, int(np.ceil(len(log_lags) ** (1 / 3))))
+        H_boot    = []
+        from .preprocessor import _moving_block_bootstrap_indices
+        for _ in range(n_bootstraps):
+            idx = _moving_block_bootstrap_indices(len(log_lags), block_sz, rng)
+            y_b  = predicted[idx] + residuals[idx]
+            x_b  = log_lags[idx]
+            w_b  = w[idx]
+            xb_w = np.sum(w_b * x_b) / np.sum(w_b)
+            yb_w = np.sum(w_b * y_b) / np.sum(w_b)
+            cov  = np.sum(w_b * (x_b - xb_w) * (y_b - yb_w))
+            var  = np.sum(w_b * (x_b - xb_w) ** 2)
+            if var > 1e-15:
+                H_boot.append(cov / var)
+
+        if len(H_boot) >= 50:
+            p_lo = (100 - ci) / 2
+            H_lo = float(np.percentile(H_boot, p_lo))
+            H_hi = float(np.percentile(H_boot, 100 - p_lo))
+        else:
+            H_lo = H_hi = np.nan
+    else:
+        H_lo = res.lower_ci
+        H_hi = res.upper_ci
 
     return {
-        "H": H,
-        "beta": beta,
-        "r2": r2,
-        "intercept": intercept,
-        "slope_ci_lower": res.lower_ci, # This is H_lower
-        "slope_ci_upper": res.upper_ci, # This is H_upper
-        "beta_ci_lower": 1 + 2 * res.lower_ci,
-        "beta_ci_upper": 1 + 2 * res.upper_ci
+        "H":             H,
+        "beta":          beta,
+        "r2":            r2,
+        "intercept":     intercept,
+        "slope_ci_lower":  H_lo,
+        "slope_ci_upper":  H_hi,
+        "beta_ci_lower": 1.0 + 2.0 * H_lo,
+        "beta_ci_upper": 1.0 + 2.0 * H_hi,
     }
 
 def fit_segmented_haar(
@@ -719,8 +755,8 @@ class HaarAnalysis:
         if overlap and np.any(self.n_effective < 5):
             warnings.warn(
                 f"Minimum effective sample size is {np.min(self.n_effective):.1f}. "
-                "Confidence intervals may be underestimated because n_effective is not "
-                "used to weight the regression. Consider overlap=False for independent estimates.",
+                "Confidence intervals from standard OLS may be underestimated, but "
+                "the WLS slope correctly downweights these unreliable scales.",
                 UserWarning
             )
 

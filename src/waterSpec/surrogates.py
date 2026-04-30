@@ -230,7 +230,7 @@ def generate_power_law_surrogates(
 
 def generate_iaaft_surrogates(
     data: np.ndarray, n_surrogates: int = 100,
-    n_iter: int = 100, seed=None
+    n_iter: int = 1000, tol: float = 1e-4, seed=None
 ) -> np.ndarray:
     """
     Generates surrogates using Iterative Amplitude Adjusted Fourier Transform (IAAFT).
@@ -240,10 +240,12 @@ def generate_iaaft_surrogates(
     target_amplitudes = np.abs(np.fft.rfft(data))
     sorted_data = np.sort(data)
     surrogates = np.empty((n_surrogates, len(data)))
+    n_converged = 0
 
     for i in range(n_surrogates):
         current = rng.permutation(data)
-        for _ in range(n_iter):
+        prev_err = np.inf
+        for it in range(n_iter):
             # Match spectrum
             fft_cur = np.fft.rfft(current)
             fft_phased = target_amplitudes * np.exp(1j * np.angle(fft_cur))
@@ -251,6 +253,22 @@ def generate_iaaft_surrogates(
             # Match amplitude distribution by rank-ordering
             rank = np.argsort(np.argsort(current))
             current = sorted_data[rank]
+
+            # Convergence check: relative change in spectral amplitude error
+            amp_err = np.mean(np.abs(np.abs(np.fft.rfft(current)) - target_amplitudes))
+            if not np.isinf(prev_err) and abs(prev_err - amp_err) / (prev_err + 1e-15) < tol:
+                n_converged += 1
+                break
+            prev_err = amp_err
         surrogates[i] = current
+
+    if n_converged < n_surrogates:
+        import warnings
+        warnings.warn(
+            f"IAAFT: only {n_converged}/{n_surrogates} surrogates converged within "
+            f"{n_iter} iterations (tol={tol}). Consider increasing n_iter or "
+            "using generate_power_law_surrogates for highly non-Gaussian data.",
+            UserWarning
+        )
 
     return surrogates
