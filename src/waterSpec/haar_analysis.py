@@ -200,14 +200,15 @@ def calculate_haar_fluctuations(
                 # RMS of original sample (= RMS of symmetric sample since (-x)²=x²)
                 rms = np.sqrt(np.mean(flucs_arr ** 2))
 
-                # c4(n_sym) bias correction:
-                # sigma_hat = rms / c4(n_sym),  c4(n) = sqrt(2/(n-1)) * Gamma(n/2) / Gamma((n-1)/2)
-                # => sigma_hat = rms * Gamma((n-1)/2) / (Gamma(n/2) * sqrt(2/(n-1)))
-                # => sigma_hat = rms * exp(gammaln((n-1)/2) - gammaln(n/2)) * sqrt((n-1)/2)
+                # Bias correction converting RMS directly to unbiased normal std S via c4:
+                # S = rms * sqrt(N/(N-1))
+                # sigma_hat = S / c4(N),  c4(N) = sqrt(2/(N-1)) * Gamma(N/2) / Gamma((N-1)/2)
+                # => sigma_hat = rms * sqrt(N/2) * Gamma((N-1)/2) / Gamma(N/2)
+                # => sigma_hat = rms * exp(gammaln((N-1)/2) - gammaln(N/2) + 0.5 * log(N/2))
                 if 2 < n_sym < 201:
                     log_c4_inv = (gammaln((n_sym - 1) / 2)
                                   - gammaln(n_sym / 2)
-                                  + 0.5 * np.log((n_sym - 1) / 2))
+                                  + 0.5 * np.log(n_sym / 2))
                     sigma_est = rms * np.exp(log_c4_inv)
                 else:
                     sigma_est = rms   # c4 -> 1 as N -> infinity

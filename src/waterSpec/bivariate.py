@@ -488,8 +488,11 @@ class BivariateAnalysis:
                 # Correlate matched pairs
                 c1 = fluc1_vals[valid_indices]
                 c2 = np.array(fluc2_vals)
-                corr = np.corrcoef(c1, c2)[0, 1]
-                correlations.append(corr)
+                if np.std(c1) < 1e-12 or np.std(c2) < 1e-12:
+                    correlations.append(np.nan)
+                else:
+                    corr = np.corrcoef(c1, c2)[0, 1]
+                    correlations.append(corr)
             else:
                 correlations.append(np.nan)
 
