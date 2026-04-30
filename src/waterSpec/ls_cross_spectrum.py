@@ -44,9 +44,9 @@ def calculate_ls_cross_spectrum(
     Z1 = _compute_ls_complex_coeffs(time1, data1, freqs, errors1)
     Z2 = _compute_ls_complex_coeffs(time2, data2, freqs, errors2)
 
-    # Cross Spectrum Sxy = Z1.conj() * Z2
+    # Cross Spectrum Sxy = Z1 * Z2.conj()
     # This aligns with the convention where positive phase means series 1 leads
-    Sxy = np.conj(Z1) * Z2
+    Sxy = Z1 * np.conj(Z2)
 
     cross_power = np.abs(Sxy)
     phase_lag = np.angle(Sxy)

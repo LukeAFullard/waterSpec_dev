@@ -74,9 +74,9 @@ def test_calculate_ls_cross_spectrum_known_phase():
     # y2 = cos(wt - phi) = cos(wt)cos(phi) + sin(wt)sin(phi)
     # => A = cos(phi), B = sin(phi)
     # => Z2 = cos(phi) - i sin(phi) = e^{-i phi}
-    # Sxy = conj(Z1) * Z2 = 1.0 * e^{-i phi} = e^{-i phi}
-    # phase_lag = angle(Sxy) = -phi
-    expected_phase = -true_phase_shift
+    # Sxy = Z1 * conj(Z2) = 1.0 * e^{i phi} = e^{i phi}
+    # phase_lag = angle(Sxy) = phi
+    expected_phase = true_phase_shift
 
     assert np.isclose(calculated_phase, expected_phase, atol=0.05)
 
@@ -102,8 +102,8 @@ def test_calculate_ls_cross_spectrum_sine_vs_cosine():
 
     # y1 = cos(wt) => Z1 = 1
     # y2 = sin(wt) = cos(wt - pi/2) => Z2 = e^{-i pi/2}
-    # Sxy = conj(Z1) * Z2 = e^{-i pi/2}
-    assert np.isclose(phase_lag[0], -np.pi / 2, atol=0.01)
+    # Sxy = Z1 * conj(Z2) = e^{i pi/2}
+    assert np.isclose(phase_lag[0], np.pi / 2, atol=0.01)
 
 
 def test_calculate_time_lag():

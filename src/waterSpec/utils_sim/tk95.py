@@ -43,7 +43,7 @@ def simulate_tk95(
         psd = np.zeros_like(freqs)
         mask = freqs > 0
         psd[mask] = psd_func(freqs[mask], *params)
-        scale = np.sqrt(psd * N / (2 * dt))
+        scale = np.sqrt(psd * N / (4 * dt))
 
     if n_simulations is None:
         real_part = rng.standard_normal(size=len(scale)) * scale

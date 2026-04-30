@@ -179,12 +179,26 @@ def calculate_partial_cross_haar(
             results['n_pairs'].append(n)
             continue
 
+        # Prevent division by zero warnings from constant arrays
+        std_x = np.std(fx)
+        std_y = np.std(fy)
+        std_z = np.std(fz)
+
+        if std_x < 1e-12 or std_y < 1e-12 or std_z < 1e-12:
+            results['lags'].append(tau)
+            results['rho_xy'].append(np.nan)
+            results['rho_xz'].append(np.nan)
+            results['rho_yz'].append(np.nan)
+            results['partial_corr'].append(np.nan)
+            results['n_pairs'].append(n)
+            continue
+
         # Pearson correlations
         r_xy = np.corrcoef(fx, fy)[0, 1]
         r_xz = np.corrcoef(fx, fz)[0, 1]
         r_yz = np.corrcoef(fy, fz)[0, 1]
 
-        # Handle NaNs from constant arrays
+        # Handle NaNs from remaining edge cases
         if np.isnan(r_xy) or np.isnan(r_xz) or np.isnan(r_yz):
             results['lags'].append(tau)
             results['rho_xy'].append(r_xy)

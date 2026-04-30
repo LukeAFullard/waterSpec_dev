@@ -57,10 +57,14 @@ def generate_phase_randomized_surrogates(
     # Shape: (n_surrogates, n_freqs)
     phases = rng.uniform(-np.pi, np.pi, size=(n_surrogates, n_freqs))
 
-    # Keep DC component (idx 0) phase as 0 (real)
-    phases[:, 0] = 0
+    # Keep DC component (idx 0) phase same as original to preserve sign of mean
+    phases[:, 0] = np.angle(fft_data[0])
 
-    # If n is even, Nyquist component (last) must also be real
+    # If n is even, Nyquist component (last) must also be real.
+    # Preserve original Nyquist phase or randomly flip?
+    # To strictly preserve the original amplitude distribution and scale, we should
+    # randomly flip the sign of the real Nyquist component (0 or pi) OR keep it.
+    # Actually, randomizing Nyquist phase to 0 or pi is standard.
     if n % 2 == 0:
         phases[:, -1] = rng.choice([0, np.pi], size=n_surrogates)
 
