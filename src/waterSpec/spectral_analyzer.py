@@ -275,8 +275,20 @@ def find_peaks_via_residuals(
     # Gumbel distributed, not Normal.
     from scipy.stats import gumbel_l
 
-    # Use MLE fit for robust standardization to non-standard normalization.
-    loc, scale = gumbel_l.fit(residuals)
+    def _fit_background_gumbel(residuals: np.ndarray, n_iter: int = 5, sigma_clip: float = 3.0):
+        """Fit Gumbel to background residuals, excluding iterative outliers."""
+        mask = np.ones(len(residuals), dtype=bool)
+        loc, scale = gumbel_l.fit(residuals)
+        for _ in range(n_iter):
+            z = (residuals - loc) / scale
+            mask = z < sigma_clip          # keep only background points
+            if mask.sum() < 10:
+                break
+            loc, scale = gumbel_l.fit(residuals[mask])
+        return loc, scale
+
+    # Use iterative sigma-clipping MLE fit for robust background estimation
+    loc, scale = _fit_background_gumbel(residuals, n_iter=5, sigma_clip=3.0)
     p_values = gumbel_l.sf(residuals, loc=loc, scale=scale)
 
     # Apply Benjamini-Yekutieli FDR correction across ALL hypotheses (points).

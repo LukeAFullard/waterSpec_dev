@@ -60,9 +60,20 @@ def detect_changepoint_pelt(
         # L1 and L2 costs in ruptures are not normalized by scale, so the penalty
         # must be scaled by the data variance/MAD to remain scale-invariant.
         if model == "l2":
-            penalty *= np.var(data)
+            # Estimate within-segment noise via first differences.
+            # For a piecewise-constant process with Gaussian noise:
+            #   E[var(diff(x)/sqrt(2))] = sigma^2
+            # This is robust to level shifts because diff removes them.
+            diffs = np.diff(data)
+            sigma2_est = np.var(diffs) / 2.0
+            # Guard against near-zero (perfectly smooth) series
+            sigma2_est = max(sigma2_est, 1e-10 * np.var(data))
+            penalty *= sigma2_est
         elif model == "l1":
-            penalty *= np.median(np.abs(data - np.median(data)))
+            diffs = np.diff(data)
+            mad_est = np.median(np.abs(diffs - np.median(diffs))) / np.sqrt(2)
+            mad_est = max(mad_est, 1e-10 * np.median(np.abs(data - np.median(data))))
+            penalty *= mad_est
 
         # Warn when persistence makes i.i.d. BIC penalty unreliable
         if model in ("rbf", "l2", "normal"):
