@@ -10,7 +10,7 @@ from scipy.special import gammaln
 import MannKS
 
 from .surrogates import generate_power_law_surrogates
-from .fitter import _calculate_bic
+from .fitter import _calculate_bic, _calculate_aic
 
 def _compute_statistic(
     data: np.ndarray,
@@ -463,9 +463,24 @@ def fit_segmented_haar(
         else:
             bp_cis = [(np.nan, np.nan)] * n_breakpoints
 
+        # Reconstruct fitted line to calculate BIC and AIC using the standard _calculate_bic formula
+        fitted_log_s1 = np.zeros_like(log_s1)
+        sorted_bp = np.sort(breakpoints) if breakpoints is not None else []
+        bounds = np.concatenate([[-np.inf], sorted_bp, [np.inf]])
+
+        for i in range(len(Hs)):
+            mask = (log_lags > bounds[i]) & (log_lags <= bounds[i+1])
+            if i == 0:
+                mask = (log_lags >= bounds[i]) & (log_lags <= bounds[i+1])
+            fitted_log_s1[mask] = Hs[i] * log_lags[mask] + intercepts[i]
+
+        k_params = 2 * n_breakpoints + 2
+        calculated_bic = _calculate_bic(log_s1, fitted_log_s1, k_params)
+        calculated_aic = _calculate_aic(log_s1, fitted_log_s1, k_params)
+
         results = {
-            "bic": res.bic,
-            "aic": res.aic,
+            "bic": calculated_bic,
+            "aic": calculated_aic,
             "n_breakpoints": res.n_breakpoints,
             "breakpoints": linear_breakpoints,
             "Hs": Hs,
@@ -678,7 +693,7 @@ class HaarAnalysis:
 
             for surr in surrogates:
                 # Calculate S1 for surrogate
-                lags_b, s1_b, _, _ = calculate_haar_fluctuations(
+                lags_b, s1_b, _, n_eff_b = calculate_haar_fluctuations(
                     self.time, surr,
                     lag_times=self.lags, # Use same lags
                     overlap=overlap,
@@ -689,7 +704,7 @@ class HaarAnalysis:
                 )
 
                 # Fit slope (no bootstrap needed here, just the slope)
-                res_b = fit_haar_slope(lags_b, s1_b, n_bootstraps=0, seed=seed)
+                res_b = fit_haar_slope(lags_b, s1_b, n_effective=n_eff_b, n_bootstraps=0, seed=seed)
 
                 if not np.isnan(res_b['beta']):
                     betas_boot.append(res_b['beta'])
