@@ -312,18 +312,17 @@ class BivariateAnalysis:
                 warnings.warn(f"{zero_mask.sum()} degenerate surrogates (zero variance) dropped.", UserWarning)
                 surrogates_val2 = surrogates_val2[~zero_mask]
 
-            target_std = np.std(val2, ddof=1)
-            # Rescale all surrogates ONCE using a single scale factor.
-            # Using the root mean of surrogate variances (not per-surrogate)
-            # preserves the relative amplitude structure within the null distribution
-            # while mathematically ensuring the expected variance matches the target.
-            grand_var = np.mean([s.var(ddof=1) for s in surrogates_val2])
-            if grand_var > 1e-24:
-                scale = target_std / np.sqrt(grand_var)
-                surrogates_val2 = surrogates_val2 * scale + np.mean(val2)
-
-            # Update n_surrogates in case some were dropped
             n_surrogates_valid = surrogates_val2.shape[0]
+            if n_surrogates_valid > 0:
+                target_std = np.std(val2, ddof=1)
+                # Rescale all surrogates ONCE using a single scale factor.
+                # Using the root mean of surrogate variances (not per-surrogate)
+                # preserves the relative amplitude structure within the null distribution
+                # while mathematically ensuring the expected variance matches the target.
+                grand_var = np.mean([s.var(ddof=1) for s in surrogates_val2])
+                if grand_var > 1e-24:
+                    scale = target_std / np.sqrt(grand_var)
+                    surrogates_val2 = surrogates_val2 * scale + np.mean(val2)
             surr_corrs = np.zeros((n_surrogates_valid, len(lags)))
 
             for i in range(n_surrogates_valid):
