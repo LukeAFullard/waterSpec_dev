@@ -189,9 +189,10 @@ def test_compute_ls_complex_coeffs_zero_errors():
 def test_compute_ls_complex_coeffs_singular_matrix():
     """
     Test LinAlgError handling in _compute_ls_complex_coeffs.
-    If the system is singular, it should return np.nan.
-    We can force this by providing only 1 data point or 2 identical data points
-    which is not enough to solve for 3 parameters (C, A, B).
+    If the system is singular, it used to return np.nan. Now, it uses lstsq
+    to find a minimum norm solution without crashing, allowing highly correlated
+    or flat series to proceed safely.
+    We can force a singular system by providing identical data points.
     """
     time = np.array([1.0, 1.0]) # Same time, so singular system
     data = np.array([2.0, 2.0])
@@ -199,4 +200,6 @@ def test_compute_ls_complex_coeffs_singular_matrix():
 
     coeffs = _compute_ls_complex_coeffs(time, data, freqs)
 
-    assert np.isnan(coeffs[0])
+    # With lstsq, it will find a valid float solution rather than nan.
+    assert not np.isnan(coeffs[0])
+    assert np.isfinite(coeffs[0])

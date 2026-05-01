@@ -601,7 +601,13 @@ class BivariateAnalysis:
         std_x = np.std(x)
         std_y = np.std(y)
         if std_x > 0 and std_y > 0:
-            normalized_area = area / (std_x * std_y)
+            # The total time span evaluated for this tau
+            t_span = time[-1] - time[0]
+            # Estimate the number of full cycles observed across the entire time series.
+            # Zuecco normalization is defined per-event loop. To normalize a continuously
+            # accumulating multi-event area, we must divide by the number of phase cycles.
+            estimated_cycles = max(1.0, t_span / tau)
+            normalized_area = area / (std_x * std_y * estimated_cycles)
         else:
             normalized_area = np.nan
 
