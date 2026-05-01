@@ -193,10 +193,10 @@ def calculate_partial_cross_haar(
             results['n_pairs'].append(n)
             continue
 
-        # Pearson correlations
-        r_xy = np.corrcoef(fx, fy)[0, 1]
-        r_xz = np.corrcoef(fx, fz)[0, 1]
-        r_yz = np.corrcoef(fy, fz)[0, 1]
+        # Pearson correlations (clip to mathematically valid [-1, 1] bounds to prevent float imprecision propagation)
+        r_xy = np.clip(np.corrcoef(fx, fy)[0, 1], -1.0, 1.0)
+        r_xz = np.clip(np.corrcoef(fx, fz)[0, 1], -1.0, 1.0)
+        r_yz = np.clip(np.corrcoef(fy, fz)[0, 1], -1.0, 1.0)
 
         # Handle NaNs from remaining edge cases
         if np.isnan(r_xy) or np.isnan(r_xz) or np.isnan(r_yz):
@@ -209,10 +209,12 @@ def calculate_partial_cross_haar(
             continue
 
         # Partial correlation
-        denom_sq = (1 - r_xz**2) * (1 - r_yz**2)
+        # Clamp denom_sq to prevent sqrt(negative) due to catastrophic cancellation of floats near 1.0
+        denom_sq = max(0.0, (1 - r_xz**2) * (1 - r_yz**2))
 
-        if denom_sq <= 0:
-            # Should not happen theoretically unless r=1, but float errors
+        if denom_sq < 1e-15:
+            # Undefined partial correlation when control variables are perfectly correlated
+            # We use < 1e-15 instead of == 0.0 to catch float imprecision near perfect correlation
             p_corr = np.nan
         else:
             denom = np.sqrt(denom_sq)

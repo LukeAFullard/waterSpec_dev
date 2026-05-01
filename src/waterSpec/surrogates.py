@@ -259,6 +259,13 @@ def generate_iaaft_surrogates(
             # Match spectrum
             fft_cur = np.fft.rfft(current)
             fft_phased = target_amplitudes * np.exp(1j * np.angle(fft_cur))
+
+            # Explicitly enforce real-valued DC and Nyquist (if even) bounds to prevent
+            # floating point imaginary component contamination during irfft
+            fft_phased[0] = np.real(fft_phased[0])
+            if len(data) % 2 == 0:
+                fft_phased[-1] = np.real(fft_phased[-1])
+
             current = np.fft.irfft(fft_phased, n=len(data))
             # Match amplitude distribution by rank-ordering
             rank = np.argsort(np.argsort(current))

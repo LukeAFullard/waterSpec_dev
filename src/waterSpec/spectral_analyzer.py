@@ -278,7 +278,13 @@ def find_peaks_via_residuals(
     def _fit_background_gumbel(residuals: np.ndarray, n_iter: int = 5, sigma_clip: float = 3.0):
         """Fit Gumbel to background residuals, excluding iterative outliers."""
         mask = np.ones(len(residuals), dtype=bool)
-        loc, scale = gumbel_l.fit(residuals)
+        # Use robust statistics for initial parameter estimates to prevent massive
+        # right-tail outliers (signal peaks) from inflating the initial ML scale
+        # and completely breaking the sigma clipping logic.
+        loc = np.median(residuals)
+        # The IQR/MAD of Gumbel is proportional to its scale. 0.76 is a robust estimator.
+        scale = max(1e-9, np.median(np.abs(residuals - loc)) / 0.76)
+
         for _ in range(n_iter):
             z = (residuals - loc) / scale
             # We want to exclude right-tail outliers (significant peaks)
