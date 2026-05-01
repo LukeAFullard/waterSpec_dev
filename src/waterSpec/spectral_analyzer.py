@@ -271,25 +271,26 @@ def find_peaks_via_residuals(
 
     # Calculate one-tailed p-values for ALL residuals
     # Under H0, the Lomb-Scargle power P follows an exponential distribution, so log(P)
-    # follows a Gumbel distribution. Therefore, residuals from the log-log fit are
-    # Gumbel distributed, not Normal.
-    from scipy.stats import gumbel_r
+    # follows a left-skewed Gumbel distribution (gumbel_l). Therefore, residuals from
+    # the log-log fit are Gumbel-L distributed, not Normal.
+    from scipy.stats import gumbel_l
 
     def _fit_background_gumbel(residuals: np.ndarray, n_iter: int = 5, sigma_clip: float = 3.0):
         """Fit Gumbel to background residuals, excluding iterative outliers."""
         mask = np.ones(len(residuals), dtype=bool)
-        loc, scale = gumbel_r.fit(residuals)
+        loc, scale = gumbel_l.fit(residuals)
         for _ in range(n_iter):
             z = (residuals - loc) / scale
-            mask = z < sigma_clip          # keep only background points
+            # We want to exclude right-tail outliers (significant peaks)
+            mask = z < sigma_clip
             if mask.sum() < 10:
                 break
-            loc, scale = gumbel_r.fit(residuals[mask])
+            loc, scale = gumbel_l.fit(residuals[mask])
         return loc, scale
 
     # Use iterative sigma-clipping MLE fit for robust background estimation
     loc, scale = _fit_background_gumbel(residuals, n_iter=5, sigma_clip=3.0)
-    p_values = gumbel_r.sf(residuals, loc=loc, scale=scale)
+    p_values = gumbel_l.sf(residuals, loc=loc, scale=scale)
 
     # Apply Benjamini-Yekutieli FDR correction across ALL hypotheses (points).
     # Selecting local maxima BEFORE FDR correction introduces a severe selection bias

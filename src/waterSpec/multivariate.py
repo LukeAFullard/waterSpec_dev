@@ -217,6 +217,8 @@ def calculate_partial_cross_haar(
         else:
             denom = np.sqrt(denom_sq)
             p_corr = (r_xy - r_xz * r_yz) / denom
+            # Due to floating point imprecision, p_corr might marginally exceed [-1, 1] bounds
+            p_corr = np.clip(p_corr, -1.0, 1.0)
 
         results['lags'].append(tau)
         results['rho_xy'].append(r_xy)
