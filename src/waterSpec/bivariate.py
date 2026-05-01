@@ -314,11 +314,12 @@ class BivariateAnalysis:
 
             target_std = np.std(val2, ddof=1)
             # Rescale all surrogates ONCE using a single scale factor.
-            # Using the grand mean of surrogate stds (not per-surrogate) preserves
-            # the relative amplitude structure within the null distribution.
-            grand_std = np.mean([s.std(ddof=1) for s in surrogates_val2])
-            if grand_std > 1e-12:
-                scale = target_std / grand_std
+            # Using the root mean of surrogate variances (not per-surrogate)
+            # preserves the relative amplitude structure within the null distribution
+            # while mathematically ensuring the expected variance matches the target.
+            grand_var = np.mean([s.var(ddof=1) for s in surrogates_val2])
+            if grand_var > 1e-24:
+                scale = target_std / np.sqrt(grand_var)
                 surrogates_val2 = surrogates_val2 * scale + np.mean(val2)
 
             # Update n_surrogates in case some were dropped
