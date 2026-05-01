@@ -273,7 +273,10 @@ class BivariateAnalysis:
 
         # --- Handle Sampling for Surrogates ---
         dt = np.diff(time)
-        median_dt = np.median(dt[dt > 0])
+        valid_dt = dt[dt > 0]
+        if len(valid_dt) == 0:
+             return {'error': 'Insufficient time variation for surrogates'}
+        median_dt = np.median(valid_dt)
 
         if max_gap is None:
             max_gap = 5.0 * median_dt
@@ -675,7 +678,14 @@ class BivariateAnalysis:
 
         # Interpolate to regular grid
         dt = np.diff(time)
-        median_dt = np.median(dt[dt > 0])
+        valid_dt = dt[dt > 0]
+        if len(valid_dt) == 0:
+            return {
+                'frequency': np.array([]),
+                'coherence': np.array([]),
+                'warning_flags': ["Time array is constant or has length < 2; cannot calculate coherence."]
+            }
+        median_dt = np.median(valid_dt)
 
         # Check for large gaps
         max_gap = 5.0 * median_dt
@@ -687,16 +697,25 @@ class BivariateAnalysis:
 
         reg_time = np.arange(time[0], time[-1], median_dt)
 
+        if len(reg_time) < 2:
+            return {
+                'frequency': np.array([]),
+                'coherence': np.array([]),
+                'warning_flags': warning_flags + ["Interpolated regular grid has fewer than 2 points; cannot calculate coherence."]
+            }
+
         reg_val1 = np.interp(reg_time, time, val1)
         reg_val2 = np.interp(reg_time, time, val2)
 
         from scipy.signal import coherence
 
         # Calculate coherence using Welch's method
-        # fs = 1 / median_dt
         fs = 1.0 / median_dt if median_dt > 0 else 1.0
+        nperseg = min(len(reg_val1) // 2, 256)
+        if nperseg < 1:
+            nperseg = 1  # Minimum window length is 1
 
-        f, Cxy = coherence(reg_val1, reg_val2, fs=fs, nperseg=min(len(reg_val1)//2, 256))
+        f, Cxy = coherence(reg_val1, reg_val2, fs=fs, nperseg=nperseg)
 
         # Filter range
         if min_freq is not None:

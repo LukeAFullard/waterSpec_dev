@@ -41,8 +41,10 @@ def calculate_ls_cross_spectrum(
     # Actually, standard DFT definition: X(f) = sum x(t) e^{-iwt} = sum x(cos - i sin)
     # So Real part is related to Cosine coeff, Imag part to Sine coeff.
 
-    Z1 = _compute_ls_complex_coeffs(time1, data1, freqs, errors1)
-    Z2 = _compute_ls_complex_coeffs(time2, data2, freqs, errors2)
+    t_ref = np.min([np.min(time1), np.min(time2)])
+
+    Z1 = _compute_ls_complex_coeffs(time1, data1, freqs, errors1, t_ref)
+    Z2 = _compute_ls_complex_coeffs(time2, data2, freqs, errors2, t_ref)
 
     # Cross Spectrum Sxy = Z1 * Z2.conj()
     # This aligns with the convention where positive phase means series 1 leads
@@ -93,7 +95,8 @@ def _compute_ls_complex_coeffs(
     time: np.ndarray,
     data: np.ndarray,
     freqs: np.ndarray,
-    errors: Optional[np.ndarray] = None
+    errors: Optional[np.ndarray] = None,
+    t_ref: float = 0.0
 ) -> np.ndarray:
     """
     Computes the complex Fourier coefficients for Lomb-Scargle fit.
@@ -148,7 +151,7 @@ def _compute_ls_complex_coeffs(
         n_batch = len(f_batch)
 
         omega = 2 * np.pi * f_batch[:, np.newaxis]
-        wt = omega * time
+        wt = omega * (time - t_ref)
 
         cos_wt = np.cos(wt)
         sin_wt = np.sin(wt)

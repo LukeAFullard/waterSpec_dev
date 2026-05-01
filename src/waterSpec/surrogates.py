@@ -66,11 +66,17 @@ def generate_phase_randomized_surrogates(
     # randomly flip the sign of the real Nyquist component (0 or pi) OR keep it.
     # Actually, randomizing Nyquist phase to 0 or pi is standard.
     if n % 2 == 0:
+        # Nyquist must be exactly 0 or pi to have 0 imaginary part.
         phases[:, -1] = rng.choice([0, np.pi], size=n_surrogates)
 
     # Construct new complex spectrum using broadcasting
-    # amplitudes shape: (n_freqs,) -> broadcasts to (n_surrogates, n_freqs)
     new_fft = amplitudes * np.exp(1j * phases)
+
+    # Explicitly enforce real-valued DC and (if even) Nyquist components
+    # to avoid propagation of tiny floating point imaginary errors during irfft.
+    new_fft[:, 0] = np.real(new_fft[:, 0])
+    if n % 2 == 0:
+        new_fft[:, -1] = np.real(new_fft[:, -1])
 
     # Inverse FFT along the last axis
     # returns shape: (n_surrogates, n)
@@ -140,28 +146,28 @@ def calculate_significance_p_value(
 
     p = (1 + count(surr >= obs)) / (N + 1)
     """
-    n_surr = len(surrogate_metrics)
-    if n_surr == 0:
+    n_surr_total = len(surrogate_metrics)
+    if n_surr_total == 0:
         return np.nan
 
     if np.isnan(observed_metric):
         return np.nan
 
-    # Ignore NaNs in surrogate metrics
     valid_surrogates = surrogate_metrics[~np.isnan(surrogate_metrics)]
-    n_surr = len(valid_surrogates)
+    n_surr_valid = len(valid_surrogates)
 
-    if n_surr == 0:
+    if n_surr_valid == 0:
         return np.nan
 
     if two_sided:
-        # Check absolute magnitude
         count = np.sum(np.abs(valid_surrogates) >= np.abs(observed_metric))
     else:
-        # One-sided (obs > surr)
         count = np.sum(valid_surrogates >= observed_metric)
 
-    return (count + 1) / (n_surr + 1)
+    # To maintain conservative test properties, NaN surrogates are treated as extreme
+    # or the denominator is kept as total requested surrogates.
+    n_nan = n_surr_total - n_surr_valid
+    return (count + n_nan + 1) / (n_surr_total + 1)
 
 def generate_power_law_surrogates(
     time: np.ndarray,
