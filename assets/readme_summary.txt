@@ -1,26 +1,21 @@
 Automatic Analysis for: readme_example
 -----------------------------------
 Model Comparison (Lower BIC is better):
-  - Standard Fit:   BIC = 90.05 (β = -0.37)
-  - Segmented Fit:  BIC = 47.73 (β1 = 0.36, β2 = -1.52)
-==> Chosen Model: Segmented
+  - Standard        BIC = -20.36   (β = 1.60)
+  - Segmented (1 BP) BIC = -5.78    (β1=1.73, β2=-5.12)
+
+==> Chosen Model: Standard
 -----------------------------------
 
-Details for Chosen (Segmented) Model:
-Segmented Analysis for: readme_example
-Breakpoint Period ≈ 10.3 days
------------------------------------
-Low-Frequency (Long-term) Fit:
-  β1 = 0.36
-  Interpretation: -0.5 < β < 1 (fGn-like): Weak persistence or anti-persistence, suggesting event-driven transport.
-  Persistence: 🔴 Event-driven
------------------------------------
-High-Frequency (Short-term) Fit:
-  β2 = -1.52
-  Interpretation: Warning: Beta value is significantly negative, which is physically unrealistic.
-  Persistence: 🔴 Event-driven
+Details for Chosen (Standard) Model:
+Standard Analysis for: readme_example
+Value: β = 1.60 (95% CI: 1.33–1.86 (bootstrap))
+Persistence Level: High (Storage-dominated)
+Scientific Meaning: 1 < β < 3.0 (fBm-like): Strong persistence, suggesting transport is damped by storage.
+Contextual Comparison: Similar to Chloride (Subsurface-dominated).
+
+No significant periodicities were found at the 1.0% FAP level.
 
 -----------------------------------
-Significant Periodicities Found:
-  - Period: 3.0 days (Fit Residual: 4.29)
-  - Period: 5.9 days (Fit Residual: 2.51)
+Uncertainty Report:
+  - Warning: The 95% CI for β is wide (0.53 > 0.5), suggesting high uncertainty.

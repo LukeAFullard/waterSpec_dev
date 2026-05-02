@@ -1,0 +1,77 @@
+Changepoint Analysis (Auto Detection)
+============================================================
+
+Changepoint Located: 5.2 months
+  Segment BEFORE: n=165
+  Segment AFTER:  n=335
+
+------------------------------------------------------------
+
+REGIME COMPARISON:
+  Before: β ≈ 0.30 (Low (Event-driven))
+  After:  β ≈ 1.41 (High (Storage-dominated))
+
+  * Significant INCREASE in persistence (+1.11)
+    System may have shifted toward more storage-dominated pathways.
+
+============================================================
+
+Automatic Analysis for: Synthetic Segmented Signal (Before 5.2 months)
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -773.56  (β = -0.03)
+  - Segmented (1 BP) BIC = -816.72  (β1=0.30, β2=-2.87)
+
+==> Chosen Model: Segmented 1bp
+-----------------------------------
+
+Details for Chosen (Segmented 1bp) Model:
+Segmented Analysis for: Synthetic Segmented Signal (Before 5.2 months)
+Low-Frequency (Long-term) Fit:
+  β1 = 0.30 (95% CI: 0.15–0.45 (bootstrap))
+  Interpretation: 0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport.
+  Persistence: Low (Event-driven)
+--- Breakpoint 1 @ ~1.6 days (95% CI: 1.4 days–1.8 days (bootstrap)) ---
+High-Frequency (Short-term) Fit:
+  β2 = -2.87 (95% CI: -4.24–-1.52 (bootstrap))
+  Interpretation: β < 0 (Anti-persistent): Indicates a mean-reverting process where high values tend to be followed by low values. While this can be a physical phenomenon (e.g., in turbulent flows), it can also indicate over-detrending or aliasing artifacts. Review preprocessing choices.
+  Persistence: Low (Event-driven)
+
+-----------------------------------
+Significant Periodicities Found (at 1.0% FAP Level):
+  - Period: 2.4 months
+
+-----------------------------------
+Uncertainty Report:
+  - Warning: The 95% CI for β2 is wide (2.71 > 0.5), suggesting high uncertainty.
+
+============================================================
+
+Automatic Analysis for: Synthetic Segmented Signal (After 5.2 months)
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -1445.76 (β = 0.01)
+  - Segmented (1 BP) BIC = -1503.24 (β1=1.41, β2=-0.12)
+
+==> Chosen Model: Segmented 1bp
+-----------------------------------
+
+Details for Chosen (Segmented 1bp) Model:
+Segmented Analysis for: Synthetic Segmented Signal (After 5.2 months)
+Low-Frequency (Long-term) Fit:
+  β1 = 1.41 (95% CI: 0.99–1.82 (bootstrap))
+  Interpretation: 1 < β < 3.0 (fBm-like): Strong persistence, suggesting transport is damped by storage.
+  Persistence: High (Storage-dominated)
+--- Breakpoint 1 @ ~23.1 days (95% CI: 17.0 days–31.4 days (bootstrap)) ---
+High-Frequency (Short-term) Fit:
+  β2 = -0.12 (95% CI: -0.22–-0.01 (bootstrap))
+  Interpretation: β ≈ 0 (White Noise): Uncorrelated, random process.
+  Persistence: Low (Event-driven)
+
+-----------------------------------
+Significant Periodicities Found (at 1.0% FAP Level):
+  - Period: 7.9 months
+
+-----------------------------------
+Uncertainty Report:
+  - Warning: The 95% CI for β1 is wide (0.83 > 0.5), suggesting high uncertainty.

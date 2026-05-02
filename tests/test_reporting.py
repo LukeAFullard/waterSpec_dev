@@ -78,5 +78,5 @@ def test_report_generator_html(tmp_path):
     assert "1.50" in html  # Haar Beta formatting
     assert "1.40" in html  # LS Beta formatting
     assert (
-        "Interpretation Summary" in html
+        "Spectral Fits" in html
     )  # Triggered by the presence of spectral_results

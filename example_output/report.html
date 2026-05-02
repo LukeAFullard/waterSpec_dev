@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>waterSpec Analysis Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; color: #333; }
+        h1, h2, h3 { color: #0056b3; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .plot-container { margin: 20px 0; text-align: center; border: 1px solid #ccc; padding: 10px; background: #fafafa; }
+        img { max-width: 100%; height: auto; }
+        .warnings { color: red; margin-top: 10px; }
+        .interpretation-box { background: #f4f4f4; padding: 10px; border-left: 4px solid #0056b3; white-space: pre-wrap; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>waterSpec Analysis Report</h1>
+
+
+    <h2>Metadata</h2>
+    <ul>
+
+        <li><strong>site:</strong> Site A</li>
+
+        <li><strong>variable:</strong> Nitrate</li>
+
+    </ul>
+
+
+
+    <h2>Data Characteristics</h2>
+    <ul>
+
+        <li>Regularly Sampled: True</li>
+
+    </ul>
+
+
+    <h2>Key Metrics</h2>
+    <table>
+        <tr><th>Metric</th><th>Value</th></tr>
+
+
+
+
+        <tr><td>LS Beta</td><td>1.60</td></tr>
+
+
+
+    </table>
+
+
+    <h2>Spectral Fits</h2>
+    <div class="interpretation-box">Automatic Analysis for: Nitrate Concentration at Site A
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -20.36   (β = 1.60)
+  - Segmented (1 BP) BIC = -5.78    (β1=1.73, β2=-5.12)
+
+==&gt; Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: Nitrate Concentration at Site A
+Value: β = 1.60 (95% CI: 1.33–1.86 (bootstrap))
+Persistence Level: High (Storage-dominated)
+Scientific Meaning: 1 &lt; β &lt; 3.0 (fBm-like): Strong persistence, suggesting transport is damped by storage.
+Contextual Comparison: Similar to Chloride (Subsurface-dominated).
+
+No significant periodicities were found at the 1.0% FAP level.
+
+-----------------------------------
+Uncertainty Report:
+  - Warning: The 95% CI for β is wide (0.53 &gt; 0.5), suggesting high uncertainty.</div>
+
+
+    <h2>Bootstrapped Uncertainty</h2>
+    <div class="warnings">
+        <strong>Warnings:</strong>
+        <ul>
+
+            <li>Warning: The 95% CI for β is wide (0.53 &gt; 0.5), suggesting high uncertainty.</li>
+
+        </ul>
+    </div>
+
+
+
+
+
+
+
+
+
+</body>
+</html>

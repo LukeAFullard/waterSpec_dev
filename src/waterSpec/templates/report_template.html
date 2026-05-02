@@ -26,20 +26,13 @@
     </ul>
     {% endif %}
 
-    {% if interpretation %}
-    <h2>Interpretation Summary</h2>
-    <div class="interpretation-box">{{ interpretation.summary_text }}</div>
-
-    {% if interpretation.uncertainty_warnings %}
-    <div class="warnings">
-        <strong>Warnings:</strong>
-        <ul>
-            {% for w in interpretation.uncertainty_warnings %}
-            <li>{{ w }}</li>
-            {% endfor %}
-        </ul>
-    </div>
-    {% endif %}
+    {% if data_characteristics %}
+    <h2>Data Characteristics</h2>
+    <ul>
+        {% for char in data_characteristics %}
+        <li>{{ char }}</li>
+        {% endfor %}
+    </ul>
     {% endif %}
 
     <h2>Key Metrics</h2>
@@ -59,6 +52,34 @@
         <tr><td>Hysteresis Direction</td><td>{{ metrics.hysteresis_direction }}</td></tr>
         {% endif %}
     </table>
+
+    {% if interpretation %}
+    <h2>Spectral Fits</h2>
+    <div class="interpretation-box">{{ interpretation.summary_text }}</div>
+
+    {% if interpretation.uncertainty_warnings %}
+    <h2>Bootstrapped Uncertainty</h2>
+    <div class="warnings">
+        <strong>Warnings:</strong>
+        <ul>
+            {% for w in interpretation.uncertainty_warnings %}
+            <li>{{ w }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% if methodological_caveats %}
+    <h2>Methodological Caveats</h2>
+    <div class="warnings">
+        <ul>
+            {% for caveat in methodological_caveats %}
+            <li>{{ caveat }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
 
     {% if plots %}
     <h2>Visualizations</h2>

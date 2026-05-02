@@ -1,0 +1,17 @@
+Automatic Analysis for: Test Uneven
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -354.20  (β = -0.04)
+  - Segmented (1 BP) BIC = -352.11  (β1=0.42, β2=-0.11)
+
+==> Chosen Model: Standard
+-----------------------------------
+
+Details for Chosen (Standard) Model:
+Standard Analysis for: Test Uneven
+Value: β = -0.04 (95% CI: -0.20–0.12 (bootstrap))
+Persistence Level: Low (Event-driven)
+Scientific Meaning: β ≈ 0 (White Noise): Uncorrelated, random process.
+Contextual Comparison: Closest to E. coli (Surface runoff-dominated).
+
+No significant periodicities were found at the 1.0% FAP level.
