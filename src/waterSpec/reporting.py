@@ -115,6 +115,57 @@ class ReportGenerator:
             "plot_errors": [],
         }
 
+        # 0. Data Characteristics & Methodological Caveats
+        context["data_characteristics"] = []
+        context["methodological_caveats"] = []
+
+        diag = self.results.get("preprocessing_diagnostics", {})
+        is_regular = diag.get("is_regular", True)
+
+        if diag:
+            context["data_characteristics"].append(f"Regularly Sampled: {is_regular}")
+            if "stats" in diag:
+                stats = diag["stats"]
+                if "dt_median" in stats:
+                    context["data_characteristics"].append(f"Median Sampling Interval: {stats['dt_median']:.2f}")
+                if "gaps_filled" in stats:
+                    context["data_characteristics"].append(f"Missing Values/Gaps Filled: {stats['gaps_filled']}")
+
+        if not is_regular:
+            context["methodological_caveats"].append(
+                "Data is unevenly sampled. Lomb-Scargle spectral slope (β) estimation "
+                "on irregular data can introduce biases at high frequencies. "
+                "Haar Wavelet Analysis is mathematically robust for uneven structures and is recommended."
+            )
+
+        # Check for Welch Coherence
+        if "coherence_results" in self.results:
+            method = self.results["coherence_results"].get("method", "")
+            if "welch" in method.lower() and not is_regular:
+                 context["methodological_caveats"].append(
+                    "Interpolation Artifacts Warning: Welch's Coherence interpolates data to a regular grid. "
+                    "For strictly irregular data, this can introduce spectral artifacts."
+                )
+
+        # Document null model assumptions
+        spec = self.results.get("spectral_results", self.results)
+        chosen_spec = spec
+        if "chosen_model" in chosen_spec:
+            chosen_spec = chosen_spec.get(chosen_spec["chosen_model"], chosen_spec)
+
+        surrogate_method = chosen_spec.get("surrogate_method", "")
+        if surrogate_method == "phase_randomization":
+            context["methodological_caveats"].append(
+                "Null Model Assumption (Phase Randomization): Preserves the global amplitude distribution "
+                "but assumes linearity. Extreme non-Gaussianity or large gaps may challenge this assumption."
+            )
+        elif surrogate_method == "power_law":
+            context["methodological_caveats"].append(
+                "Null Model Assumption (Power Law): Generated via Timmer & Koenig method. Assumes "
+                "the background noise is strictly defined by a singular scale-invariant process."
+            )
+
+
         # 1. Interpretation
         interp = self.results.get("interpretation", self.results)
         if "summary_text" in interp:
@@ -125,7 +176,6 @@ class ReportGenerator:
         else:
             from waterSpec.interpreter import interpret_results
 
-            spec = self.results.get("spectral_results", self.results)
             if "beta" in spec or "betas" in spec:
                 auto_interp = interpret_results(
                     spec,

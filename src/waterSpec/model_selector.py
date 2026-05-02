@@ -34,8 +34,10 @@ class ModelSelector:
         # Create a master SeedSequence from `seed`, then spawn child seeds.
         # We use SeedSequence.spawn(...) so each child seed is independent.
         if seed is not None:
-            # np.random.SeedSequence accepts None or an int; passing an int ensures reproducibility.
-            master_ss = np.random.SeedSequence(seed)
+            if isinstance(seed, np.random.SeedSequence):
+                master_ss = seed
+            else:
+                master_ss = np.random.SeedSequence(seed)
             child_seeds = master_ss.spawn(max_breakpoints + 1)
         else:
             child_seeds = [None] * (max_breakpoints + 1)

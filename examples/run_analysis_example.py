@@ -42,7 +42,6 @@ def main():
             time_col="timestamp",
             data_col="value",
             param_name=param_name,
-            verbose=True,
             changepoint_mode="auto",
         )
     except (FileNotFoundError, ValueError) as e:

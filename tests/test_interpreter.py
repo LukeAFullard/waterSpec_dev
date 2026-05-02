@@ -210,7 +210,7 @@ def test_interpret_results_auto_mode_with_failures():
     assert "Chosen Model: Standard" in summary
 
     # Check that the failed model reason is also included in the summary
-    assert "Models that failed to fit:" in summary
+    assert "Models that were mathematically unjustified or failed to converge:" in summary
     assert "Segmented model (1 bp): No significant breakpoint found" in summary
 
 

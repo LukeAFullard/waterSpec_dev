@@ -240,16 +240,22 @@ def interpret_results(
 
             summary_line = f"  - {name:<15} BIC = {bic_str:<8} ({beta_str})"
             if not np.isfinite(bic_val):
-                 summary_line = f"  - {name:<15} BIC = {bic_str:<8} (Fit Failed)"
+                 summary_line = f"  - {name:<15} BIC = {bic_str:<8} (Mathematically Unjustified/Failed Convergence)"
 
             model_summaries.append(summary_line)
 
         # Add reasons for failed models, if any, for diagnostic purposes
         failed_reasons = fit_results.get("failed_model_reasons", [])
         if failed_reasons:
-            model_summaries.append("\n  Models that failed to fit:")
+            model_summaries.append("\n  Models that were mathematically unjustified or failed to converge:")
             for reason in failed_reasons:
-                model_summaries.append(f"    - {reason}")
+                # Provide a more academic explanation for common failures
+                explained_reason = reason
+                if "degrees of freedom" in reason.lower() or "dof" in reason.lower():
+                    explained_reason = f"{reason} (Insufficient effective degrees of freedom (N_eff) to robustly constrain the model parameters without overfitting.)"
+                elif "convergence" in reason.lower():
+                    explained_reason = f"{reason} (The optimization algorithm failed to find a stable global minimum, likely due to a flat likelihood surface or highly collinear parameters.)"
+                model_summaries.append(f"    - {explained_reason}")
 
         chosen_model_name = fit_results.get("chosen_model", "Unknown").replace("_", " ").capitalize()
         auto_summary_header = (
@@ -267,9 +273,13 @@ def interpret_results(
     ci_method = fit_results.get("ci_method", "bootstrap")
     ci_method_str = f" ({ci_method})"
 
+    # Add Degrees of Freedom context
+    n_eff = fit_results.get("n_eff", fit_results.get("n_effective", None))
+    n_eff_str = f" (N_eff ≈ {n_eff:.1f})" if n_eff is not None else ""
+
     if n_breakpoints > 0:
         # --- Segmented Model Summary ---
-        summary_parts = [f"Segmented Analysis for: {param_name}"]
+        summary_parts = [f"Segmented Analysis for: {param_name}{n_eff_str}"]
 
         # --- Handle the first segment (Low-Frequency) ---
         beta1 = fit_results["betas"][0]
@@ -362,7 +372,7 @@ def interpret_results(
 
             summary_text = "\n".join(
                 [
-                    f"Standard Analysis for: {param_name}",
+                    f"Standard Analysis for: {param_name}{n_eff_str}",
                     f"Value: {beta_str}",
                     f"Persistence Level: {get_persistence_traffic_light(beta)}",
                     f"Scientific Meaning: {get_scientific_interpretation(beta)}",

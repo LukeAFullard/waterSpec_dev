@@ -33,7 +33,8 @@ def main():
         analyzer.run_full_analysis(output_dir=temp_dir)
 
         # 2. Define source and destination paths
-        sanitized_name = analyzer._sanitize_filename(param_name)
+        from waterSpec.utils import sanitize_filename
+        sanitized_name = sanitize_filename(param_name)
 
         source_plot_path = os.path.join(temp_dir, f"{sanitized_name}_spectrum_plot.png")
         dest_plot_path = os.path.join(asset_dir, 'readme_spec_plot.png')
