@@ -80,3 +80,39 @@ def test_report_generator_html(tmp_path):
     assert (
         "Spectral Fits" in html
     )  # Triggered by the presence of spectral_results
+
+def test_report_generator_markdown(tmp_path):
+    import matplotlib.pyplot as plt
+    # Create a dummy plot to test image saving
+    plot_path = tmp_path / "dummy_plot.png"
+    plt.figure()
+    plt.plot([1, 2, 3], [1, 4, 9])
+    plt.savefig(plot_path)
+    plt.close()
+
+    results = {
+        "haar_results": {"beta": 1.5},
+        "spectral_results": {"beta": 1.4, "n_breakpoints": 0},
+        "dummy_plot_path": str(plot_path),
+    }
+    metadata = {"site": "TestSite", "variable": "Discharge"}
+
+    reporter = ReportGenerator(results, metadata)
+    output_path = tmp_path / "test_report.md"
+    reporter.to_markdown(output_path)
+
+    assert os.path.exists(output_path)
+    with open(output_path) as f:
+        md = f.read()
+
+    assert "# waterSpec Analysis Report" in md
+    assert "TestSite" in md
+    assert "Discharge" in md
+    assert "1.50" in md  # Haar Beta formatting
+    assert "1.40" in md  # LS Beta formatting
+
+    # Check if plot was saved next to the report
+    saved_plot_path = tmp_path / "plot_0.png"
+    assert os.path.exists(saved_plot_path)
+    assert "![Dummy Plot](" in md
+    assert "plot_0.png" in md
