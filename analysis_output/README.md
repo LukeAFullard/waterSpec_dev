@@ -42,7 +42,10 @@ Significant periodic cycles were robustly identified using Lomb-Scargle spectral
 
 ## Generated Plots
 
-Plots showing the Haar fluctuation slopes and the Lomb-Scargle spectrum (annotated with significance peaks) can be found in the `analysis_output/` directory:
+Below are the visual outputs from the analysis:
 
-- `Water_Temperature_haar_plot.png`: Displays the chosen segmented fits on the Haar log-log fluctuation spectrum.
-- `Water_Temperature_spectrum_plot.png`: Displays the Lomb-Scargle periodogram and significant identified peaks.
+### Haar Wavelet Fluctuation Spectrum
+![Haar Spectrum](Water_Temperature_haar_plot.png)
+
+### Lomb-Scargle Periodogram
+![Lomb-Scargle Spectrum](Water_Temperature_spectrum_plot.png)
