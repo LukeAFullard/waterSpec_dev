@@ -31,7 +31,8 @@ The spectral slope (β) is a powerful proxy for understanding how a system filte
 
 *   **White noise (β ≈ 0):** This represents a completely uncorrelated, memoryless system. Every event is independent of the last, much like flipping a coin. In hydrology, rainfall intensity often resembles white noise, lacking long-term persistence. The spectrum is flat because all frequencies are present in equal amounts.
 *   **Pink noise / Flicker noise (β ≈ 1):** This indicates fractal scaling and long-term memory. The system exhibits a balance between short-term fluctuations and long-term trends, a common characteristic of complex natural systems like river flows and global temperatures. The system "remembers" its past, but remains highly dynamic.
-*   **Brown noise / Red noise (β ≈ 2):** This points to a highly persistent, heavily damped system. Successive states are strongly correlated. A deep groundwater storage system, which smooths out the flashy input of rain into a slow, sustained discharge, perfectly exemplifies brown noise. Here, the low frequencies (long-term trends) dominate the signal.
+*   **Red noise (β > 0):** This is a general term for any signal where low frequencies dominate, representing natural persistence and memory in an environmental system. Both pink and brown noise are specific types of red noise.
+*   **Brown noise (β ≈ 2):** This points to a specific type of highly persistent, heavily damped system representing a random walk. Successive states are strongly correlated. A deep groundwater storage system, which smooths out the flashy input of rain into a slow, sustained discharge, perfectly exemplifies brown noise.
 
 ### Memory and Persistence: fGn vs. fBm
 
@@ -41,6 +42,8 @@ When discussing system memory, we categorize fluctuations into two broad familie
 *   **Fractional Brownian Motion (fBm):** These are non-stationary processes (they wander without a fixed mean) acting as the accumulated sum of fGn. Think of a particle performing a random walk, or the total volume of water stored in a massive reservoir over decades. Because they represent accumulated memory, they are highly persistent and visually smoother. (Typical β ranges from 1 to 3).
 
 Understanding whether your data represents an fGn or fBm process is crucial for selecting the correct statistical tools and interpreting the spectral slope accurately.
+
+> **Pre-Analysis Check:** Before running spectral analysis, always visually inspect your time series to assess stationarity. If the data appears to wander without returning to a stable baseline (drifting mean), it is likely non-stationary (fBm-type, $\beta > 1$). If it fluctuates continuously around a steady, horizontal baseline, it is likely stationary (fGn-type, $\beta < 1$).
 
 ## 1.3 The Challenge of Environmental Data
 

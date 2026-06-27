@@ -33,9 +33,19 @@ Understanding how the Haar fluctuation relates to the power spectrum is straight
 The direct mathematical relationship translating this fluctuation slope to the power spectrum exponent ($\beta$) is:
 $$\beta = 2m + 1$$
 
+> **Warning:** This mathematical relationship is rigorously bounded and strictly valid only for $-1 < m < 1$ (corresponding to $-1 < \beta < 3$). Outside this range, the structure function no longer maintains a simple power-law relationship with the spectral exponent.
+
 By analyzing the scaling of variances at different window sizes $\tau$, you can accurately estimate $\beta$ without the variance inflation traps of periodograms.
 
-## 4.3 Decision Matrix
+## 4.3 Data Length and the K(2) Intermittency Correction
+
+Regardless of whether you choose Lomb-Scargle or Haar Wavelets, reliable estimation of the spectral slope ($\beta$) requires sufficient data length. As a general rule of thumb, your dataset should contain enough points to cover *multiple decades* of temporal scale (e.g., spanning from hours to months, or days to decades). Short time series provide highly unstable slope estimates.
+
+For advanced Haar Wavelet applications, **waterSpec** allows you to apply a multifractal intermittency correction, $K(2)$, which accounts for extreme burst-like variance common in turbulent or episodic environmental data.
+
+> **Data Size Warning:** Applying the $K(2)$ intermittency correction is highly sensitive to statistical noise. It requires extremely large datasets to yield mathematically stable estimates. You should strictly only apply this correction if your dataset contains at least $N > 10^4$ data points. Applying it to smaller datasets will likely inject more artificial variance into your $\beta$ estimate than the bias it attempts to remove.
+
+## 4.4 Decision Matrix
 
 To ensure you choose the mathematically appropriate technique for your analysis, refer to the following decision matrix. Match your scientific goal and data characteristics to find the recommended approach in **waterSpec**:
 
