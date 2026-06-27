@@ -25,8 +25,8 @@ To install the package directly from GitHub, follow these step-by-step instructi
 Run the following commands to perform a standard installation:
 
 ```bash
-git clone https://github.com/yourusername/waterSpec.git
-cd waterSpec
+git clone https://github.com/LukeAFullard/waterSpec_dev.git
+cd waterSpec_dev
 pip install -e .
 ```
 

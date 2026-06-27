@@ -22,9 +22,19 @@ Natural systems rarely follow a single power law across all possible timescales.
 
 To capture these complex dynamics, **waterSpec** allows you to test for structural breaks in the scaling behavior. If you set `max_breakpoints=1` (or up to 2), the package employs the robust `MannKS` algorithm to automatically detect "kinks" or regime shifts within the log-log spectrum.
 
-When evaluating these structural breaks, **waterSpec** inherently protects you from overfitting. The pipeline automatically fits both the standard single-slope model and the segmented model, automatically selecting the "best" representation by calculating the Bayesian Information Criterion (BIC). To prevent overfitting (finding false breakpoints), the BIC heavily penalizes the segmented model for extra degrees of freedom, specifically, evaluating it as $3k+2$ parameters (where $k$ is the number of breakpoints). This strict penalty safeguards against identifying false breakpoints driven merely by random variance in the spectral estimates.
+When evaluating these structural breaks, **waterSpec** inherently protects you from overfitting. The pipeline automatically fits both the standard single-slope model and the segmented model, automatically selecting the "best" representation by calculating the Bayesian Information Criterion (BIC). To prevent overfitting (finding false breakpoints), the BIC heavily penalizes the segmented model for extra degrees of freedom, specifically, evaluating it as $2k+2$ parameters (where $k$ is the number of breakpoints). This strict penalty safeguards against identifying false breakpoints driven merely by random variance in the spectral estimates.
 
-## 5.3 Peak Detection & Significance
+> **Warning: PELT False Positives in Red Noise**
+> When detecting structural mean or variance shifts in the time domain, applying standard changepoint algorithms (like PELT) directly to highly autocorrelated "red noise" data ($\beta > 0$) will drastically inflate the false positive rate. Red noise naturally generates low-frequency, prolonged excursions that algorithms mathematically misidentify as deterministic structural shifts. To mitigate this, you must strictly pre-whiten your data (e.g., using an AR(p) model with order selected by AIC) and run changepoint detection exclusively on the fitted model residuals.
+
+## 5.3 Understanding the Valid Frequency Range
+
+When interpreting Lomb-Scargle periodograms, it is crucial to understand the physically meaningful frequency bounds of your analysis to avoid interpreting mathematical artifacts as real signals:
+
+*   **Minimum Frequency ($f_{min}$):** The lowest resolvable frequency is approximately $1/T$, where $T$ is the total record length of your dataset. Frequencies below this bound represent signals longer than your entire dataset and cannot be reliably measured.
+*   **Maximum Frequency ($f_{max}$):** The highest resolvable frequency is bounded by the pseudo-Nyquist frequency, approximately $1 / (2 \cdot \Delta t_{min})$, where $\Delta t_{min}$ is the minimum sampling interval. Spectral peaks or behavior beyond this frequency are highly susceptible to aliasing and should generally be ignored.
+
+## 5.4 Peak Detection & Significance
 
 Beyond the overall fractal slope ($\beta$), users often want to find specific, repeating cycles—such as diurnal fluctuations from evapotranspiration or annual snowmelt cycles.
 

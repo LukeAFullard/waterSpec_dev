@@ -40,6 +40,8 @@ In hydrology and biogeochemistry, the relationship between two variables—like 
 **How waterSpec calculates it:**
 The `calculate_hysteresis_metrics(tau)` function in **waterSpec** quantifies both the Loop Area and the Direction of the hysteresis (i.e., whether the loop is Clockwise or Counter-Clockwise), giving you a precise numerical classification of the C-Q dynamics.
 
+> **Axis Convention:** The direction of the loop is strictly dependent on the order in which you supply the variables to the `BivariateAnalysis` class. The **first variable** (`data1`) is placed on the **x-axis** (traditionally Discharge, Q), and the **second variable** (`data2`) is placed on the **y-axis** (traditionally Concentration, C). A positive area indicates a Counter-Clockwise loop, while a negative area indicates a Clockwise loop. The physical interpretation of the loop direction is only correct if you know this axis ordering.
+
 - *Crucial Mathematical Detail:* To accurately calculate the signed polygon area of the hysteresis loop, **waterSpec** uses the explicitly closed "Shoelace formula." This ensures that the geometric area is computed with exact mathematical closure, accurately capturing the net direction of the loop.
 
 > **Note:**

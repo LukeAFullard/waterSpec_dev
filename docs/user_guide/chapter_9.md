@@ -13,7 +13,7 @@ To bridge the gap between abstract mathematics and physical hydrology, the **`sr
 A key feature of the interpreter is how it maps the calculated Spectral Exponent ($\beta$) to physical interpretations of the system's memory and behavior:
 
 *   **$\beta \approx 0$ (White Noise):** The system has no memory; inputs (like rain) pass through immediately. This indicates a completely random, uncorrelated process.
-*   **$0 < \beta < 1$ (Fractional Gaussian Noise):** These are event-driven processes. They are common in systems governed by surface runoff or episodic contaminant flushing.
+*   **$-1 < \beta < 1$ (Fractional Gaussian Noise):** These are event-driven processes. They are common in systems governed by surface runoff or episodic contaminant flushing.
 *   **$\beta \approx 1$ (Pink Noise):** Represents balanced persistence. The system has long-term memory, which is typical of large, well-mixed hydrological catchments.
 *   **$1 < \beta < 3$ (Fractional Brownian Motion):** These indicate storage-dominated processes. The system is heavily damped and highly persistent, functioning much like deep groundwater reservoirs.
 

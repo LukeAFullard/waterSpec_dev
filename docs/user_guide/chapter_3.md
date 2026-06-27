@@ -17,9 +17,13 @@ analyzer = Analysis(
     file_path='data/my_river_data.csv',
     time_col='timestamp',
     data_col='nitrate_concentration',
-    param_name='Nitrate-N'
+    param_name='Nitrate-N',
+    time_unit='days'
 )
 ```
+
+> **Warning: Time Unit Consistency**
+> Notice the `time_unit` parameter in the initialization. The lag scales, detected periods, and phase lags reported by the package are all output in units of whatever time array you pass in. **waterSpec** uses this string purely for labeling, but it is your responsibility to ensure the underlying numerical time arrays actually represent consistent units (e.g., all elapsed seconds, or all elapsed days). If you analyze seconds in one dataset and days in another without standardization, your results will be directly incomparable.
 
 By default, the `file_path` argument natively supports standard formats including CSV, Excel (`.xlsx`), and JSON.
 
@@ -67,7 +71,9 @@ To meet the strict assumptions of spectral density estimation, time-series data 
 ### Log-Transformations
 Environmental parameters often exhibit highly skewed, log-normal distributions where variance scales with the mean. Spectral analysis is frequently performed on log-transformed data to stabilize this variance and reduce the disproportionate leverage of extreme peak events (e.g., flood spikes).
 
-**waterSpec** handles these log-transformations automatically within its internal pipelines when statistical models require them. It does so defensively, safely ignoring or replacing zero or negative values before logging to prevent undefined mathematical states.
+You can explicitly apply a log-transformation to your entire dataset before analysis by passing `log_transform_data=True` when initializing the `Analysis` object. You should use this setting for variables that are typically log-normally distributed, such as bacteria counts, nutrient concentrations, or suspended sediment. Conversely, variables with relatively linear or bounded variance, such as discharge or temperature, typically do not require log-transformation.
+
+When applied, **waterSpec** handles the log-transformation defensively, safely ignoring or replacing zero or negative values before logging to prevent undefined mathematical states.
 
 ### Detrending Methodologies
 Global trends—such as a decade-long increase in baseline temperatures or a gradual reduction in agricultural runoff—introduce a massive amount of low-frequency "red" noise into the power spectrum. If left uncorrected, these trends can artificially steepen spectral slopes, leading to false conclusions about the system's fractal memory.
