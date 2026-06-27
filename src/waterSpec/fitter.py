@@ -353,6 +353,13 @@ def fit_standard_model(
     fit_results["bic"] = bic
     fit_results["aic"] = aic
 
+    # Calculate R-squared for all methods (fallback/MannKS/Theil-Sen) if not already set
+    if "r_squared" not in fit_results:
+        ss_res = np.sum((log_power - log_power_fit)**2)
+        ss_tot = np.sum((log_power - np.mean(log_power))**2)
+        r_squared = 1 - (ss_res / ss_tot) if ss_tot > 1e-12 else np.nan
+        fit_results["r_squared"] = r_squared
+
     # 4. Calculate Confidence Intervals
     residuals = log_power - log_power_fit
 
@@ -823,9 +830,14 @@ def fit_segmented_spectrum(
         calculated_bic = _calculate_bic(log_power, fitted_log_power, k_params)
         calculated_aic = _calculate_aic(log_power, fitted_log_power, k_params)
 
+        ss_res = np.sum((log_power - fitted_log_power)**2)
+        ss_tot = np.sum((log_power - np.mean(log_power))**2)
+        r_squared = 1 - (ss_res / ss_tot) if ss_tot > 1e-12 else np.nan
+
         results = {
             "bic": calculated_bic,
             "aic": calculated_aic,
+            "r_squared": r_squared,
             "n_breakpoints": res.n_breakpoints,
             "breakpoints": linear_breakpoints,
             "betas": betas,

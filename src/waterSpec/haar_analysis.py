@@ -403,6 +403,7 @@ def fit_haar_slope(
         "H":             H,
         "beta":          beta,
         "r2":            r2,
+        "r_squared":     r2, # alias for consistency with standard fits
         "intercept":     intercept,
         "slope_ci_lower":  H_lo,
         "slope_ci_upper":  H_hi,
@@ -478,9 +479,15 @@ def fit_segmented_haar(
         calculated_bic = _calculate_bic(log_s1, fitted_log_s1, k_params)
         calculated_aic = _calculate_aic(log_s1, fitted_log_s1, k_params)
 
+        ss_res = np.sum((log_s1 - fitted_log_s1)**2)
+        ss_tot = np.sum((log_s1 - np.mean(log_s1))**2)
+        r2 = 1.0 - (ss_res / ss_tot) if ss_tot > 1e-15 else np.nan
+
         results = {
             "bic": calculated_bic,
             "aic": calculated_aic,
+            "r2": r2,
+            "r_squared": r2, # alias for consistency with standard fits
             "n_breakpoints": res.n_breakpoints,
             "breakpoints": linear_breakpoints,
             "Hs": Hs,

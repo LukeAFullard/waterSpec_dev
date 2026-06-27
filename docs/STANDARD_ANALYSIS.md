@@ -33,6 +33,8 @@ The standard pipeline performs the following sequence of analyses:
     1.  The **Raw $\beta$**: Describing the steady-state baseflow process.
     2.  The **$K(2)$ parameter**: Quantifying the degree of extreme intermittency.
     3.  The **Multifractal $\beta$**: The adjusted, true power-spectral density describing the total variance of the combined system ($\beta_{multi} = 1 + 2H - K(2)$).
+    4.  **R-squared ($R^2$)**: Quantifying the goodness of fit for the chosen scaling laws.
+
 
 ### 5. Deterministic Peak Detection (Lomb-Scargle)
 *   While Haar estimates the broadband slope, the pipeline runs a Lomb-Scargle Periodogram to detect strong, distinct deterministic cycles (e.g., diurnal 24-hour cycles, annual seasonal cycles).
