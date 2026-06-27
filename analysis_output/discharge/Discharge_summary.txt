@@ -1,0 +1,49 @@
+Automatic Analysis for: Discharge
+-----------------------------------
+Model Comparison (Lower BIC is better):
+  - Standard        BIC = -5218.20 (β = 1.12)
+  - Segmented (1 BP) BIC = -5666.42 (β1=0.55, β2=1.30)
+
+==> Chosen Model: Segmented 1bp
+-----------------------------------
+
+Details for Chosen (Segmented 1bp) Model:
+Segmented Analysis for: Discharge
+Low-Frequency (Long-term) Fit:
+  β1 = 0.55 (95% CI: 0.45–0.65 (parametric))
+  Interpretation: 0 < β < 1 (fGn-like): Weakly persistent, suggesting event-driven transport.
+  Persistence: Medium (Mixed)
+--- Breakpoint 1 @ ~13.7 days (95% CI: 11.1 days–17.0 days (parametric)) ---
+High-Frequency (Short-term) Fit:
+  β2 = 1.30 (95% CI: 1.23–1.37 (parametric))
+  Interpretation: 1 < β < 3.0 (fBm-like): Strong persistence, suggesting transport is damped by storage.
+  Persistence: High (Storage-dominated)
+
+-----------------------------------
+Significant Periodicities Found (at 1.0% FAP Level):
+  - Period: 12.1 months
+  - Period: 6.8 years
+  - Period: 2.1 years
+  - Period: 13.6 months
+  - Period: 6.0 months
+  - Period: 1.9 months
+  - Period: 3.1 months
+  - Period: 4.2 months
+  - Period: 3.9 years
+  - Period: 2.7 months
+  - Period: 2.7 years
+  - Period: 3.3 months
+  - Period: 39.6 days
+  - Period: 1.5 months
+  - Period: 4.9 months
+  - Period: 4.7 months
+  - Period: 2.4 months
+
+-----------------------------------
+Haar Wavelet Analysis:
+  β = 0.99
+  m = -0.01
+  R² = -0.27
+  Mean N_eff: 265.0 (of N=9919)
+  Persistence: Medium (Mixed)
+  Interpretation: β ≈ 1 (Pink Noise): Stronger persistence, common in natural systems.

@@ -32,17 +32,25 @@ Furthermore, **waterSpec** enforces a strict lower bound on the Effective Degree
 
 ### The Problem
 
-Many environmental processes—such as rainfall events, turbulent river flows, or episodic contaminant flushing—are inherently "bursty" or intermittent. Standard spectral analysis assumes a monofractal framework characterized by constant variance across time. When applied to intermittent systems, these traditional assumptions break down, causing the analysis to underestimate the true scaling slope and misrepresent the underlying physical process.
+Many environmental processes—such as rainfall events, turbulent river flows, or episodic contaminant flushing—are inherently "bursty" or intermittent. Standard spectral analysis assumes a monofractal framework characterized by constant variance across time. When applied to intermittent systems, these traditional assumptions break down.
 
-### The waterSpec Solution
+Extreme, bursty events inject highly localized spikes of variance into the system. If analyzed via traditional periodograms (like Lomb-Scargle), these non-Gaussian bursts cause high-frequency aliasing that artificially inflates the measured spectral slope, misrepresenting the underlying physical memory of the system.
 
-To accurately capture the dynamics of bursty systems, **waterSpec** transitions from a monofractal to a multifractal framework. It calculates the second-order structure function across the time series to estimate the intermittency parameter, $K(2)$.
+### The waterSpec Solution: Dual-Reporting
 
-Once $K(2)$ is quantified, **waterSpec** applies the Universal Multifractal relation to correct the spectral slope ($\beta$):
+To accurately capture the dynamics of bursty systems, **waterSpec** transitions from a monofractal to a multifractal framework. By calculating both the first-order and second-order structure functions, **waterSpec** isolates the intermittency parameter, $K(2)$.
 
-$$ \beta_{corrected} = 1 + 2H - K(2) $$
+Rather than simply providing a single number, **waterSpec** implements a **Dual-Reporting Framework** to fully characterize an intermittent system:
 
-By incorporating the intermittency parameter, this correction prevents artificially flattened spectral slopes, ensuring the true scaling behavior of bursty and extreme environmental systems is accurately quantified.
+1. **The Standard Beta ($eta_{standard}$):**
+   Calculated natively from the robust First-Order Structure Function (Haar mean absolute fluctuation), this value is highly resistant to extreme variance spikes. It perfectly recovers the **underlying baseline generator** of the process. For example, if evaluating an intermittent river, $eta_{standard}$ reveals the "hidden" steady-state memory of the continuous baseflow, ignoring the extreme storms.
+
+2. **The Multifractal Corrected Beta ($eta_{multi}$):**
+   While the standard beta strips out the noise, the *total* macroscopic behavior of the river is still heavily dictated by those extreme events! The true, mathematically measurable power-spectral density of the final combined signal is flattened by the injected burst variance. **waterSpec** applies the Universal Multifractal relation to calculate this effective transport slope:
+   $$ eta_{multi} = 1 + 2H - K(2) $$
+   This gives you the **true effective transport scaling** of the overall physical signal.
+
+By reporting and contrasting both $eta_{standard}$ and $eta_{multi}$, researchers can independently quantify a system's slow, structural memory vs. its extreme, event-driven transport mechanisms.
 
 ## 6.4 Analysis of Extremes
 

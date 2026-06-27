@@ -4,41 +4,67 @@ This README contains the results of a spectral analysis on the Water Temperature
 
 ## Overview
 
-The dataset was first preprocessed by resolving mixed date formats and removing any rows with missing or undefined dates/values. Following that, it was processed with `waterSpec` to estimate spectral slopes ($\beta$) and identify significant periodicities. Because the original data contains irregular gaps, a robust combination of Haar Wavelets (for slope estimation) and Lomb-Scargle (for peak detection) was used.
+The dataset was preprocessed by resolving mixed date formats and removing missing rows. Following that, it was processed with `waterSpec` to estimate spectral slopes ($eta$) and identify significant periodicities. Because the original data contains irregular gaps, a robust combination of **Haar Wavelet Fluctuation Analysis** (for spectral slope estimation and breakpoint detection) and **Lomb-Scargle** (for peak detection) was used.
+
+## Methodological Caveat: Lomb-Scargle vs. Haar
+
+During the analysis, the standard Lomb-Scargle (LS) periodogram detected a spectral breakpoint at roughly **13 days**. However, the Haar Fluctuation Analysis detected the primary regime shift at roughly **267 days**.
+
+**Why is there such a massive discrepancy, and which do we trust?**
+
+The discrepancy arises from how the two methods handle the irregular sampling and missing gaps in the Pukeokahu dataset:
+1. **Lomb-Scargle Bias:** The LS periodogram fits sine waves globally across the data. When large gaps exist, high-frequency sine waves alias and distort, which often artificially flattens the high-frequency spectrum. The 13-day breakpoint from LS is almost certainly a mathematical artifact caused by these data gaps, not a real physical shift.
+2. **Haar Robustness:** Haar Fluctuation Analysis operates locally in the time domain, simply averaging differences between adjacent blocks. It natively skips gaps without corrupting other scales.
+
+Therefore, **we discard the Lomb-Scargle slope and breakpoint estimates** and rely entirely on the **Haar analysis** for determining the true scaling behavior and regime shifts. We retain Lomb-Scargle *only* for its highly accurate detection of specific periodic peaks (e.g., the annual cycle).
+
+---
+
+## Confidence and Methodological Limits
+
+`waterSpec` provides built-in metrics to evaluate the reliability of the Haar method for this specific dataset:
+
+1. **Effective Degrees of Freedom ($N_{eff}$):**
+   Because Haar uses sliding windows, the number of independent samples drops at larger timescales. For this dataset, the shortest scales have $N_{eff} pprox 1355$ (excellent confidence). However, the largest scales (approaching the multi-year range) drop to $N_{eff} pprox 1.1$. This triggers an internal warning in `waterSpec` that maximum-scale variance estimates are highly uncertain due to the finite length of the dataset. To safeguard against this, the analysis uses **Weighted Least Squares (WLS)**, which correctly down-weights these unreliable large scales during slope fitting.
+2. **Goodness of Fit ($R^2$):**
+   The standard (single straight line) Haar fit returned an $R^2$ of **-0.98**, meaning a single slope is mathematically worse than a flat horizontal line across the spectrum. This strictly invalidates the single-slope model for this dataset. However, the Segmented regime model successfully captures the distinct "peak and drop" variance structure (rising to a peak at ~196 days before collapsing), yielding a valid weighted $R^2$ of **0.56**. This confirms that the segmented model is both statistically necessary and appropriate.
 
 ## Analysis Results and Interpretation
 
-The analysis compared standard linear fits to segmented fits on the spectral power log-log scale. Using Bayesian Information Criterion (BIC), a regime shift model (one breakpoint) emerged as the best representation of the variance cascade across scales.
+### Spectral Scaling and Multifractal Intermittency (Haar)
 
-```
-Model Comparison (Lower BIC is better):
-  - Standard        BIC = -4907.02 (β = 1.70)
-  - Segmented (1 BP) BIC = -5728.81 (β1=0.65, β2=2.04)
+When calculating the spectral slope natively on the irregular data using the Haar First-Order Structure Function (SF), we extract two distinct but equally important views of the system's dynamics:
 
-==> Chosen Model: Segmented 1bp
-```
+- **Standard Beta ($eta_{standard}$):** 1.44
+- **Intermittency Correction ($K(2)$):** 0.77
+- **Multifractal Corrected Beta ($eta_{multi}$):** 0.67
 
-### Segmented Regime Fit
+**Interpretation:**
+To properly understand the temperature dynamics, we must report and contrast both scaling values:
 
-The segmented regression indicates a distinct shift in process dynamics taking place around roughly **13 days**:
+1. **The Underlying Generator ($eta_{standard} pprox 1.44$):** The standard Haar calculation is highly resistant to extreme outliers. It reveals that the hidden, underlying thermal structural memory of the river leans toward **Fractional Brownian Motion (Storage-driven)**. Ignoring sudden extreme weather events, the water temperature resists rapid changes due to its thermal mass, causing strong day-to-day persistence.
+2. **The Total Effective Dynamics ($eta_{multi} pprox 0.67$):** However, the very high $K(2)$ value (0.77) indicates that the time series is highly intermittent, characterized by extreme, non-Gaussian fluctuations (e.g., sudden storm runoffs or rapid atmospheric temperature drops). These extreme events act like injected noise, destroying the long-term correlation of the total thermal energy. When correcting for this intermittency ($eta_{multi} = 1 + 2H - K(2)$), we find the true, mathematically measurable power-spectral slope of the final temperature signal is **0.67**. This reveals that the overall macroscopic behavior of the river temperature is effectively a **Fractional Gaussian Noise** process, heavily bounded and driven by external, non-persistent forcing rather than just its internal thermal inertia.
+### Segmented Regime Fit (Haar)
 
-- **Low-Frequency (Long-term) Fit (Scales > ~13.1 days):**
-  - $\beta_1$ = 0.65 (95% CI: 0.55–0.75)
-  - **Interpretation:** $0 < \beta < 1$ (Fractional Gaussian Noise / event-driven). This points to weakly persistent, bounded variability at seasonal and multi-week scales (medium persistence). Changes at this scale are more stationary, potentially driven by overarching seasonal forcing and weather patterns buffering the system.
+The segmented regression applied to the Haar fluctuations indicates a distinct shift in process dynamics taking place around roughly **267 days** (approx. 9 months):
 
-- **Breakpoint:** ~13.1 days (95% CI: 11.6 days–14.7 days)
-  - **Interpretation:** This crossover points to the threshold where rapid, high-persistence daily/weekly variability yields to stable seasonal event-driven shifts.
+- **Low-Frequency (Long-term) Fit (Scales > ~267 days):**
+  - $eta_1$ = -1.23
+  - **Interpretation:** $eta < 0$ (Blue/Violet Noise). At very long (inter-annual) timescales, the temperature is strongly anti-persistent and bounded. The signal rapidly reverses back toward a stationary multi-year mean, meaning there is no long-term memory or drift from year to year.
 
-- **High-Frequency (Short-term) Fit (Scales < ~13.1 days):**
-  - $\beta_2$ = 2.04 (95% CI: 1.96–2.11)
-  - **Interpretation:** $\beta \approx 2$ (Brownian Noise). This indicates a strong random walk process or highly persistent behavior (storage-dominated) dominating short-term day-to-day temperature variability. Daily water temperatures strongly depend on the previous day's temperature, driven by the thermal mass and short-term heating/cooling cycles.
+- **Breakpoint:** ~266.8 days
+  - **Interpretation:** This crossover makes strong physical sense. It corresponds to the transition point where short-term, persistent day-to-day weather and flow variations hit the "ceiling" of the annual solar cycle (12 months), forcing the system to become bounded and mean-reverting at scales larger than a year.
 
-### Significant Periodicities Found
+- **High-Frequency (Short-term) Fit (Scales < ~267 days):**
+  - $eta_2$ = 1.91
+  - **Interpretation:** $eta pprox 2$ (Brownian Noise). This indicates a strong random walk process or highly persistent behavior (storage-dominated) dominating short-term and seasonal temperature variability. Water temperatures within a given year strongly depend on the previous days/weeks' temperature, driven by thermal mass and progressive seasonal heating/cooling cycles.
 
-Significant periodic cycles were robustly identified using Lomb-Scargle spectral peak detection at a 1.0% False Alarm Probability (FAP) level:
+### Significant Periodicities Found (Lomb-Scargle)
 
-  - **Period: 12.1 months** - Represents the annual (seasonal) solar and atmospheric temperature cycle.
-  - **Period: 5.9 months** - Represents the semi-annual harmonic, capturing seasonal asymmetries or bi-annual shifts in flow/temperature dynamics.
+While LS slopes are biased by gaps, its peak detection remains robust. Significant periodic cycles were identified at a 1.0% False Alarm Probability (FAP) level:
+
+  - **Period: 12.1 months** - Represents the primary annual (seasonal) solar and atmospheric temperature cycle.
+  - **Period: 5.9 months** - Represents the semi-annual harmonic, capturing seasonal asymmetries or bi-annual shifts in river flow and temperature dynamics.
 
 ## Generated Plots
 
