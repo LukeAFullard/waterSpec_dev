@@ -135,10 +135,22 @@ print(results['summary_text'])
 
 ### Interpreting Haar Slopes ($m$) vs Spectral Exponents ($\beta$)
 
-The Haar scaling exponent $m$ (slope of $\log S_1$ vs $\log \tau$) maps to the spectral exponent $\beta$.
+The Haar scaling exponent $m$ (slope of $\log S_1$ vs $\log \tau$) maps to the spectral exponent $\beta$ via $\beta = 2m + 1$.
 
 | Haar Slope $m$ | Spectral Exponent $\beta$ | Physical Interpretation | Process Type |
 | :--- | :--- | :--- | :--- |
+| **< -0.5** | **< 0.0** | Blue/Violet Noise (Anti-persistent) | Super-diffusive / Rapid fluctuation |
+| **-0.5** | **0.0** | White Noise (uncorrelated) | Stationary (fGn) |
+| **0.0** | **1.0** | Pink Noise (1/f) | Boundary |
+| **+0.5** | **2.0** | Brown Noise (Random Walk) | Non-Stationary (fBm) |
+
+**Dual-Reporting for Intermittent Systems:**
+If your data contains extreme events (storms, floods), you should calculate the **Multifractal Intermittency Correction ($K(2)$)** using `calc_intermittency=True`.
+* **Standard $\beta$:** Describes the steady-state baseflow/underlying process, ignoring the extreme events.
+* **Multifractal $\beta$ ($\beta_{multi}$):** Describes the true power-spectral density of the combined system, mathematically accounting for the variance injected by the extreme intermittent bursts ($1+2H-K(2)$).
+
+---
+ | :--- | :--- | :--- |
 | **< -0.5** | **< 0.0** | Blue/Violet Noise (Anti-persistent) | Super-diffusive / Rapid fluctuation |
 | **-0.5** | **0.0** | White Noise (uncorrelated) | Stationary (fGn) |
 | **0.0** | **1.0** | Pink Noise (1/f) | Boundary |

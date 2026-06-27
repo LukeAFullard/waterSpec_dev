@@ -31,15 +31,17 @@ Therefore, **we discard the Lomb-Scargle slope and breakpoint estimates** and re
 
 ### Spectral Scaling and Multifractal Intermittency (Haar)
 
-When calculating the spectral slope natively on the irregular data using the Haar First-Order Structure Function (SF), the following global parameters were found:
+When calculating the spectral slope natively on the irregular data using the Haar First-Order Structure Function (SF), we extract two distinct but equally important views of the system's dynamics:
 
-- **Hurst Exponent ($H$):** -0.005
-- **Standard Beta ($eta$):** 0.99
+- **Standard Beta ($eta_{standard}$):** 0.99
 - **Intermittency Correction ($K(2)$):** 0.48
 - **Multifractal Corrected Beta ($eta_{multi}$):** 0.51
 
-**Interpretation:** The standard slope ($eta pprox 0.99$) initially suggests a Pink Noise process (1/f, balanced persistence). However, the moderately high $K(2)$ value (0.48) indicates that the discharge is highly intermittent, featuring extreme, flash-flood events that heavily skew the raw variance. When correcting for this intermittency ($eta_{corrected} = 1 + 2H - K(2)$), the effective scaling drops to **$eta = 0.51$**. This reveals that the underlying runoff process is a classic Fractional Gaussian Noise ($0 < eta < 1$), heavily driven by external, non-persistent events (storms) rather than slow, persistent groundwater storage.
+**Interpretation:**
+To properly understand the discharge, we must report and contrast both scaling values:
 
+1. **The Underlying Baseflow ($eta_{standard} pprox 0.99$):** The standard Haar calculation is highly resistant to extreme outliers. It reveals that the hidden, underlying baseflow generator of the catchment—ignoring extreme storms—operates as a **Pink Noise (1/f)** process, featuring balanced, long-term persistence and structural memory.
+2. **The Total Effective Transport ($eta_{multi} pprox 0.51$):** However, the moderately high $K(2)$ value (0.48) indicates the river is highly intermittent, subjected to extreme, flash-flood bursts. These extreme events act like injected noise, destroying the long-term correlation of the total energy. When correcting for this intermittency ($eta_{multi} = 1 + 2H - K(2)$), we find the true, mathematically measurable power-spectral slope of the final river signal is **0.51**. This reveals that the overall macroscopic behavior of the river is effectively a **Fractional Gaussian Noise** process, heavily driven by external, non-persistent events (storms) rather than just the continuous baseflow.
 ### Segmented Regime Fit (Haar)
 
 The segmented regression applied to the Haar fluctuations indicates a distinct shift in process dynamics taking place around roughly **322.5 days**:

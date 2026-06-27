@@ -33,15 +33,17 @@ Therefore, **we discard the Lomb-Scargle slope and breakpoint estimates** and re
 
 ### Spectral Scaling and Multifractal Intermittency (Haar)
 
-When calculating the spectral slope natively on the irregular data using the Haar First-Order Structure Function (SF), the following global parameters were found:
+When calculating the spectral slope natively on the irregular data using the Haar First-Order Structure Function (SF), we extract two distinct but equally important views of the system's dynamics:
 
-- **Hurst Exponent ($H$):** 0.22
-- **Standard Beta ($eta$):** 1.44
+- **Standard Beta ($eta_{standard}$):** 1.44
 - **Intermittency Correction ($K(2)$):** 0.77
 - **Multifractal Corrected Beta ($eta_{multi}$):** 0.67
 
-**Interpretation:** The standard slope ($eta pprox 1.44$) initially suggests a process leaning toward Fractional Brownian Motion (strong memory). However, the high $K(2)$ value (0.77) indicates that the time series is highly intermittent—characterized by extreme, non-Gaussian fluctuations (e.g., sudden storm events or rapid temperature drops). When correcting for this intermittency ($eta_{corrected} = 1 + 2H - K(2)$), the effective scaling drops to **$eta = 0.67$**, revealing that the underlying, steady-state process is actually closer to event-driven Fractional Gaussian Noise ($0 < eta < 1$) rather than a persistent random walk.
+**Interpretation:**
+To properly understand the temperature dynamics, we must report and contrast both scaling values:
 
+1. **The Underlying Generator ($eta_{standard} pprox 1.44$):** The standard Haar calculation is highly resistant to extreme outliers. It reveals that the hidden, underlying thermal structural memory of the river leans toward **Fractional Brownian Motion (Storage-driven)**. Ignoring sudden extreme weather events, the water temperature resists rapid changes due to its thermal mass, causing strong day-to-day persistence.
+2. **The Total Effective Dynamics ($eta_{multi} pprox 0.67$):** However, the very high $K(2)$ value (0.77) indicates that the time series is highly intermittent, characterized by extreme, non-Gaussian fluctuations (e.g., sudden storm runoffs or rapid atmospheric temperature drops). These extreme events act like injected noise, destroying the long-term correlation of the total thermal energy. When correcting for this intermittency ($eta_{multi} = 1 + 2H - K(2)$), we find the true, mathematically measurable power-spectral slope of the final temperature signal is **0.67**. This reveals that the overall macroscopic behavior of the river temperature is effectively a **Fractional Gaussian Noise** process, heavily bounded and driven by external, non-persistent forcing rather than just its internal thermal inertia.
 ### Segmented Regime Fit (Haar)
 
 The segmented regression applied to the Haar fluctuations indicates a distinct shift in process dynamics taking place around roughly **267 days** (approx. 9 months):

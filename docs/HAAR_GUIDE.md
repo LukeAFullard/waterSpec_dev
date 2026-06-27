@@ -75,8 +75,14 @@ print(f"Intermittency K(2): {results['K2']}")
 
 ### Interpretation
 
-*   **$K(2) \approx 0$:** The process is effectively monofractal. The standard $\beta$ is accurate.
-*   **$K(2) > 0$:** The process is intermittent (multifractal). The standard $\beta$ is likely an overestimate. Use `beta_multifractal`.
+When interpreting results, it is highly recommended to report both the standard slope and the multifractal corrected slope to fully characterize the system:
+
+*   **Standard Beta ($eta_{standard}$):** Represents the scaling of the underlying **"baseline generator"** of the process, effectively ignoring the extreme intermittent bursts. This is highly useful for characterizing the steady-state baseflow or background noise mechanics.
+*   **Multifractal Corrected Beta ($eta_{multi}$):** Represents the **"true effective transport scaling"** of the final physical signal (e.g., the mathematically measurable Power Spectral Density slope). Because intermittent events (storms, flash floods) act as injected white noise, they heavily flatten the true power spectrum. $eta_{multi}$ incorporates this flattening.
+
+**Guidelines for $K(2)$:**
+*   **$K(2) pprox 0$:** The process is effectively monofractal. The standard $eta$ is accurate for both the generator and the final signal.
+*   **$K(2) > 0$:** The process is intermittent (multifractal). The standard $eta$ represents the baseflow, while `beta_multifractal` represents the true effective energy distribution of the combined system.
 
 ### Validation
 
