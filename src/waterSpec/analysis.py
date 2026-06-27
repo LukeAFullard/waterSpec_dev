@@ -353,7 +353,8 @@ class Analysis:
         statistic: str = "mean",
         percentile: Optional[float] = None,
         percentile_method: str = "hazen",
-        ci_level: float = 95
+        ci_level: float = 95,
+        calc_intermittency: bool = False
     ):
         """Performs Haar Wavelet Analysis."""
         self.logger.info("Performing Haar Wavelet Analysis...")
@@ -365,7 +366,8 @@ class Analysis:
             statistic=statistic,
             percentile=percentile,
             percentile_method=percentile_method,
-            ci_level=ci_level
+            ci_level=ci_level,
+            calc_intermittency=calc_intermittency
         )
         self.logger.info(
             f"Haar Analysis complete. Beta: {haar_results.get('beta', np.nan):.2f}, "
@@ -679,6 +681,7 @@ class Analysis:
                     statistic=analysis_kwargs.get("haar_statistic", "mean"),
                     percentile=analysis_kwargs.get("haar_percentile"),
                     percentile_method=analysis_kwargs.get("haar_percentile_method", "hazen"),
+                    calc_intermittency=analysis_kwargs.get("calc_intermittency", False)
                 )
                 fit_results["haar_results"] = haar_res
 
@@ -868,6 +871,7 @@ class Analysis:
                 statistic=kwargs.get("haar_statistic", "mean"),
                 percentile=kwargs.get("haar_percentile"),
                 percentile_method=kwargs.get("haar_percentile_method", "hazen"),
+                calc_intermittency=kwargs.get("calc_intermittency", False)
             )
             fit_results["haar_results"] = haar_res
             fit_results["haar_obj"] = haar_obj
@@ -919,6 +923,7 @@ class Analysis:
         haar_statistic="mean",
         haar_percentile=None,
         haar_percentile_method="hazen",
+        calc_intermittency=False,
     ):
         """
         Runs the complete analysis workflow and saves all outputs to a directory.
@@ -1017,6 +1022,7 @@ class Analysis:
             "haar_statistic": haar_statistic,
             "haar_percentile": haar_percentile,
             "haar_percentile_method": haar_percentile_method,
+            "calc_intermittency": calc_intermittency,
         }
 
         # 1. Setup (Validation & Changepoint Detection)
@@ -1035,3 +1041,50 @@ class Analysis:
         # 3. Completion
         self.logger.info(f"Analysis complete. Outputs saved to '{output_dir}'.")
         return self.results.copy()
+
+    def run_standard_analysis(
+        self,
+        output_dir,
+        **kwargs
+    ):
+        """
+        Runs the standard analysis workflow recommended for environmental data.
+
+        This is a wrapper around `run_full_analysis` that enforces the recommended
+        defaults for a comprehensive, standard analysis:
+        - Haar Fluctuation Analysis is enabled (with overlapping windows).
+        - Segmented Haar fits are allowed (up to 1 breakpoint).
+        - Intermittency correction (K(2)) is calculated for extreme events.
+        - Robust bootstrap confidence intervals are used.
+        - Lomb-Scargle periodogram is still run to detect significant periodic peaks.
+
+        Args:
+            output_dir (str): Path to the directory where outputs will be saved.
+            **kwargs: Additional keyword arguments to pass to `run_full_analysis`.
+                Note: Arguments overriding the standard defaults will be ignored
+                with a warning or accepted depending on the parameter.
+
+        Returns:
+            dict: Dictionary containing all analysis results, identical to `run_full_analysis`.
+        """
+        self.logger.info("Starting standard analysis pipeline...")
+
+        # Enforce standard defaults
+        standard_kwargs = {
+            "run_haar": True,
+            "haar_overlap": True,
+            "haar_max_breakpoints": 1,
+            "calc_intermittency": True,
+            "ci_method": "bootstrap"
+        }
+
+        # Merge kwargs, prioritizing standard_kwargs for the core settings
+        final_kwargs = kwargs.copy()
+        for k, v in standard_kwargs.items():
+            if k in kwargs and kwargs[k] != v:
+                self.logger.warning(
+                    f"Overriding provided '{k}={kwargs[k]}' with standard default '{k}={v}'"
+                )
+            final_kwargs[k] = v
+
+        return self.run_full_analysis(output_dir, **final_kwargs)
