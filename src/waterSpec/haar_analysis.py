@@ -11,6 +11,10 @@ import MannKS
 
 from .surrogates import generate_power_law_surrogates
 from .fitter import _calculate_bic, _calculate_aic
+from .haar_periodicity import (
+    compute_periodic_structure_function,
+    correct_structure_function_for_periodicity,
+)
 
 def _compute_statistic(
     data: np.ndarray,
@@ -510,13 +514,36 @@ def plot_haar_analysis(
     intercept: Optional[float] = None,
     output_path: Optional[str] = None,
     time_unit: str = "seconds",
-    segmented_results: Optional[Dict] = None
+    segmented_results: Optional[Dict] = None,
+    s1_raw: Optional[np.ndarray] = None,
+    s1_periodic_model: Optional[np.ndarray] = None,
 ):
     """
     Plots the Haar Structure Function analysis results.
+
+    Args:
+        s1_raw: OPTIONAL. If periodicity correction was applied, the
+            pre-correction structure function (for visual comparison against
+            the corrected `s1`). Default None (no overlay - identical to
+            previous plot output).
+        s1_periodic_model: OPTIONAL. The periodic-only model's structure
+            function, on the same lag grid, shown for diagnostic purposes.
     """
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.loglog(lags, s1, 'o-', label='Haar Structure Function $S_1(\\Delta t)$', alpha=0.6)
+
+    if s1_raw is not None:
+        ax.loglog(lags, s1_raw, 'o--', color='0.6', alpha=0.5,
+                   label='Raw $S_2(\\Delta t)$ (before periodicity correction)')
+    if s1_periodic_model is not None:
+        ax.loglog(lags, s1_periodic_model, ':', color='darkorange', alpha=0.8,
+                   label='Periodic-only model $S_2(\\Delta t)$')
+
+    main_label = (
+        'Corrected Haar Structure Function $S_2(\\Delta t)$'
+        if s1_raw is not None else
+        'Haar Structure Function $S_1(\\Delta t)$'
+    )
+    ax.loglog(lags, s1, 'o-', label=main_label, alpha=0.8, color='C0')
 
     # Plot standard fit line if available
     if not np.isnan(H) and segmented_results is None:
@@ -567,6 +594,139 @@ def plot_haar_analysis(
 
     return fig
 
+def format_haar_summary(haar_results: Dict, param_name: str = "Parameter", time_unit: str = "seconds") -> str:
+    """
+    Standalone, human-readable summary formatter for Haar Wavelet Analysis
+    results, mirroring the "Automatic Analysis / Model Comparison / Chosen
+    Model" structure already used for the Lomb-Scargle branch (see
+    `waterSpec.interpreter.interpret_results`), but written specifically for
+    Haar's LAG-domain (not frequency-domain) breakpoints.
+
+    This function is intentionally self-contained rather than being bolted
+    onto `interpret_results`: reusing that function directly would require
+    converting Haar's lag-valued breakpoints into the frequency convention
+    `interpret_results` expects, which is easy to get backwards silently.
+    Keeping the two formatters separate trades a small amount of duplication
+    for a lower risk of a unit-conversion bug in either code path.
+
+    Only produces the "Model Comparison" header when
+    `haar_results.get("analysis_mode") == "auto"`, i.e. when
+    `HaarAnalysis.run(max_breakpoints=N>0)` was used. For the default
+    `max_breakpoints=0` case, callers should keep using the original plain
+    formatting (see `Analysis._save_results`) - this function is only
+    wired in for the auto-selection path so default output is unaffected.
+    """
+    from .interpreter import get_scientific_interpretation, get_persistence_traffic_light, _format_period
+
+    hr = haar_results
+    lines: List[str] = []
+
+    if hr.get("analysis_mode") == "auto":
+        lines.append(f"Automatic Analysis for: {param_name} (Haar Wavelet Analysis)")
+        lines.append("-----------------------------------")
+        lines.append("Model Comparison (Lower BIC is better):")
+        for model in hr.get("all_models", []):
+            nb = model.get("n_breakpoints")
+            bic_val = model.get("bic", np.inf)
+            bic_str = f"{bic_val:.2f}" if np.isfinite(bic_val) else "N/A"
+            name = "Standard" if nb == 0 else f"Segmented ({nb} BP)"
+            if nb == 0:
+                beta_val = model.get("beta")
+                beta_str = f"β = {beta_val:.2f}" if beta_val is not None else ""
+            else:
+                betas_list = model.get("betas", [])
+                beta_str = ", ".join(f"β{i + 1}={b:.2f}" for i, b in enumerate(betas_list))
+            lines.append(f"  - {name:<15} BIC = {bic_str:<10} ({beta_str})")
+
+        failed_reasons = hr.get("failed_model_reasons", [])
+        if failed_reasons:
+            lines.append("\n  Models that were mathematically unjustified or failed to converge:")
+            for reason in failed_reasons:
+                lines.append(f"    - {reason}")
+
+        chosen_model_name = hr.get("chosen_model", "unknown").replace("_", " ").capitalize()
+        lines.append(f"\n==> Chosen Model: {chosen_model_name}")
+        lines.append("-----------------------------------\n")
+        lines.append(f"Details for Chosen ({chosen_model_name}) Model:")
+
+    n_breakpoints = hr.get("n_breakpoints", 0)
+
+    if n_breakpoints and n_breakpoints > 0 and "betas" in hr:
+        # --- Segmented model details ---
+        betas = hr["betas"]
+        betas_ci = hr.get("betas_ci", [(np.nan, np.nan)] * len(betas))
+        breakpoints = hr.get("breakpoints", [])
+        breakpoints_ci = hr.get("breakpoints_ci", [(np.nan, np.nan)] * len(breakpoints))
+
+        lines.append(f"Segmented Haar Analysis for: {param_name}")
+        beta1_str = f"β1 = {betas[0]:.2f}"
+        if np.all(np.isfinite(betas_ci[0])):
+            beta1_str += f" (95% CI: {betas_ci[0][0]:.2f}-{betas_ci[0][1]:.2f})"
+        # NOTE: unlike the Lomb-Scargle branch (sorted by ascending FREQUENCY,
+        # where segment 0 = lowest frequency = longest-term behavior), Haar's
+        # segments are sorted by ascending LAG. Segment 0 here is therefore
+        # the SHORTEST lag, i.e. the HIGH-frequency / short-term regime.
+        lines.append("Short-Term (High-Frequency) Fit:")
+        lines.append(f"  {beta1_str}")
+        lines.append(f"  Interpretation: {get_scientific_interpretation(betas[0])}")
+        lines.append(f"  Persistence: {get_persistence_traffic_light(betas[0])}")
+
+        for i in range(n_breakpoints):
+            bp_lag = breakpoints[i]
+            bp_ci = breakpoints_ci[i] if i < len(breakpoints_ci) else (np.nan, np.nan)
+            # NOTE: breakpoints here are already LAGS (time units), unlike the
+            # Lomb-Scargle branch which stores frequencies. `_format_period`
+            # expects a frequency, so we invert once here purely to reuse its
+            # display formatting (days/months/years) - this is the only
+            # place a unit conversion happens, and it is a pure round-trip
+            # (1 / (1 / lag) == lag) rather than a real frequency value.
+            bp_str = f"~{_format_period(1.0 / bp_lag, time_unit=time_unit)}" if bp_lag > 0 else "N/A"
+            if np.all(np.isfinite(bp_ci)) and bp_ci[0] > 0 and bp_ci[1] > 0:
+                p_small = _format_period(1.0 / bp_ci[0], time_unit=time_unit)
+                p_large = _format_period(1.0 / bp_ci[1], time_unit=time_unit)
+                bp_str += f" (95% CI: {p_small}-{p_large})"
+            lines.append(f"--- Breakpoint {i + 1} @ {bp_str} ---")
+
+            # Same reversal as above: the LAST segment (largest lags) is the
+            # LOW-frequency / long-term regime for Haar, not the high-frequency one.
+            name = "Long-Term (Low-Frequency) Fit" if (i + 1) == n_breakpoints else f"Mid-Term Segment {i + 1}"
+            beta_next = betas[i + 1]
+            beta_next_ci = betas_ci[i + 1] if (i + 1) < len(betas_ci) else (np.nan, np.nan)
+            beta_next_str = f"β{i + 2} = {beta_next:.2f}"
+            if np.all(np.isfinite(beta_next_ci)):
+                beta_next_str += f" (95% CI: {beta_next_ci[0]:.2f}-{beta_next_ci[1]:.2f})"
+            lines.append(f"{name}:")
+            lines.append(f"  {beta_next_str}")
+            lines.append(f"  Interpretation: {get_scientific_interpretation(beta_next)}")
+            lines.append(f"  Persistence: {get_persistence_traffic_light(beta_next)}")
+    else:
+        # --- Standard (single power-law) model details ---
+        beta = hr.get("beta", np.nan)
+        beta_ci = (hr.get("beta_ci_lower", np.nan), hr.get("beta_ci_upper", np.nan))
+        beta_str = f"β = {beta:.2f}"
+        if np.all(np.isfinite(beta_ci)):
+            beta_str += f" (95% CI: {beta_ci[0]:.2f}-{beta_ci[1]:.2f})"
+        lines.append(f"Standard Haar Analysis for: {param_name}")
+        lines.append(f"  Value: {beta_str}")
+        lines.append(f"  Persistence: {get_persistence_traffic_light(beta)}")
+        lines.append(f"  Interpretation: {get_scientific_interpretation(beta)}")
+
+    if hr.get("periodicity_correction") is not None:
+        pc = hr["periodicity_correction"]
+        periods_str = ", ".join(f"{p:.4g}" for p in pc["periods_used"])
+        mean_frac = float(np.nanmean(pc["fraction_variance_removed"])) * 100
+        lines.append("\nPeriodicity Correction: APPLIED")
+        lines.append(f"  Periods removed (time units): [{periods_str}]")
+        lines.append(f"  Mean variance fraction removed across lags: {mean_frac:.1f}%")
+        if pc.get("overshoot_fraction", 0.0) > 0.3:
+            lines.append(
+                "  WARNING: periodic model variance exceeded measured variance at "
+                f"{pc['overshoot_fraction']*100:.0f}% of lags - correction may be unreliable."
+            )
+
+    return "\n".join(lines)
+
+
 class HaarAnalysis:
     def __init__(self, time: np.ndarray, data: np.ndarray, time_unit: str = "seconds"):
         self.time = time
@@ -581,6 +741,8 @@ class HaarAnalysis:
         self.r2 = None
         self.intercept = None
         self.segmented_results = None
+        self.model_comparison = None
+        self.periodicity_correction = None
 
         self.K2 = None
         self.beta_multifractal = None
@@ -643,7 +805,7 @@ class HaarAnalysis:
 
         return self.K2
 
-    def run(self, min_lag=None, max_lag=None, num_lags=30, log_spacing=True, n_bootstraps=100, ci_level=95, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=3, bootstrap_method="standard", seed=None, statistic="mean", percentile=None, percentile_method="hazen", aggregation="mean", calc_intermittency=False):
+    def run(self, min_lag=None, max_lag=None, num_lags=30, log_spacing=True, n_bootstraps=100, ci_level=95, overlap=True, overlap_step_fraction=0.1, max_breakpoints=0, min_samples_per_window=3, bootstrap_method="standard", seed=None, statistic="mean", percentile=None, percentile_method="hazen", aggregation="mean", calc_intermittency=False, correct_periodicity=False, periodic_periods=None):
         """
         Runs the Haar analysis.
 
@@ -659,12 +821,77 @@ class HaarAnalysis:
                                "std_corrected" is recommended for Gaussian data or sufficiently large windows
                                to avoid small-sample bias.
             calc_intermittency (bool): If True, also calculates K(2) intermittency correction.
+            correct_periodicity (bool): OPTIONAL, default False. If True, removes the known
+                contribution of deterministic periodic signal(s) from the RMS structure
+                function via quadrature subtraction, entirely in structure-function space
+                (the raw time series passed to this class is never modified). Requires
+                `aggregation="rms"` and `periodic_periods` to be set. See
+                `waterSpec.haar_periodicity` and docs/HAAR_GUIDE.md for the full method,
+                assumptions, and how to choose `periodic_periods` (in particular, how to
+                avoid double-counting near-duplicate Lomb-Scargle sidebands of the same
+                cycle via `waterSpec.haar_periodicity.list_period_candidates`).
+            periodic_periods (list[float]): Required if `correct_periodicity=True`. An
+                EXPLICIT list of periods (in the series' time units) to remove. There is no
+                automatic/implicit period selection here by design - use
+                `waterSpec.haar_periodicity.list_period_candidates` to inspect and
+                consolidate Lomb-Scargle peaks first, then pass in the final list yourself.
         """
+        if correct_periodicity:
+            if aggregation != "rms":
+                raise ValueError(
+                    "correct_periodicity=True requires aggregation='rms'. The "
+                    "quadrature (variance) subtraction used to remove a periodic "
+                    "component's contribution is only mathematically valid for the "
+                    "RMS-based structure function S2, not for the mean/median "
+                    "absolute fluctuation statistics. Set aggregation='rms' explicitly."
+                )
+            if not periodic_periods:
+                raise ValueError(
+                    "correct_periodicity=True requires an explicit `periodic_periods` "
+                    "list (periods in the series' time units). Use "
+                    "waterSpec.haar_periodicity.list_period_candidates(significant_peaks) "
+                    "to inspect and consolidate candidate periods first, then pass the "
+                    "chosen representative period(s) here."
+                )
+
         self.lags, self.s1, self.counts, self.n_effective = calculate_haar_fluctuations(
             self.time, self.data, min_lag=min_lag, max_lag=max_lag, num_lags=num_lags, log_spacing=log_spacing,
             overlap=overlap, overlap_step_fraction=overlap_step_fraction, min_samples_per_window=min_samples_per_window,
             statistic=statistic, percentile=percentile, percentile_method=percentile_method, aggregation=aggregation
         )
+
+        self.periodicity_correction = None
+        if correct_periodicity:
+            shared_fluctuation_kwargs = dict(
+                overlap=overlap,
+                overlap_step_fraction=overlap_step_fraction,
+                min_samples_per_window=min_samples_per_window,
+                statistic=statistic,
+                percentile=percentile,
+                percentile_method=percentile_method,
+            )
+            s_periodic, synthetic_signal, harmonic_coeffs = compute_periodic_structure_function(
+                self.time, self.data, periodic_periods, self.lags,
+                fluctuation_func=calculate_haar_fluctuations,
+                fluctuation_kwargs=shared_fluctuation_kwargs,
+            )
+            s1_raw = self.s1.copy()
+            s1_corrected, correction_diagnostics = correct_structure_function_for_periodicity(
+                s1_raw, s_periodic
+            )
+            self.periodicity_correction = {
+                "periods_used": list(periodic_periods),
+                "harmonic_coefficients": harmonic_coeffs,
+                "synthetic_periodic_signal": synthetic_signal,
+                "s1_raw": s1_raw,
+                "s1_periodic_model": s_periodic,
+                "s1_corrected": s1_corrected,
+                **correction_diagnostics,
+            }
+            # All downstream fitting (standard + segmented) now uses the
+            # corrected structure function. The raw values remain available
+            # above under self.periodicity_correction for transparency/plotting.
+            self.s1 = s1_corrected
 
         # Run standard fit. If monte_carlo, use 0 bootstraps for the initial fit to save time (we will bootstrap later).
         # Actually, let's keep n_bootstraps for standard even if monte_carlo, so we have a comparison?
@@ -730,29 +957,66 @@ class HaarAnalysis:
                 fit_results['boot_Hs'] = Hs_boot
                 fit_results['bootstrap_method'] = 'monte_carlo_percentile'
 
-        # Run segmented fit if requested
+        # Run segmented fit if requested, and select the best model (standard
+        # vs. each segmented candidate) via BIC - mirroring the model-selection
+        # logic already used for the Lomb-Scargle branch (see model_selector.py).
+        self.model_comparison = None
         if max_breakpoints > 0:
-            best_bic = np.inf
-            best_results = None
+            all_models = []
+            failed_model_reasons = []
 
-            # Calculate BIC for standard fit (0 breakpoints)
+            # Calculate BIC for the standard fit (0 breakpoints)
             valid = (self.lags > 0) & (self.s1 > 0)
+            bic_0 = np.inf
             if np.sum(valid) > 2:
                 log_lags = np.log10(self.lags[valid])
                 log_s1 = np.log10(self.s1[valid])
                 predicted = self.H * log_lags + self.intercept
                 bic_0 = _calculate_bic(log_s1, predicted, n_params=2)
-                best_bic = bic_0
+                all_models.append({
+                    "model_type": "standard",
+                    "n_breakpoints": 0,
+                    "bic": bic_0,
+                    "beta": self.beta,
+                    "H": self.H,
+                })
+            else:
+                failed_model_reasons.append(
+                    "Standard model (0 breakpoints): Not enough valid (lag, S1) "
+                    "points to compute BIC."
+                )
+
+            best_bic = bic_0
+            best_results = None
+            best_nb = 0
 
             for nb in range(1, max_breakpoints + 1):
                 # Note: Segmented fit still uses standard MannKS bootstrap for now.
                 # Monte Carlo for segmented fit is very expensive and complex (finding breakpoints in surrogates).
                 res = fit_segmented_haar(self.lags, self.s1, n_breakpoints=nb, ci=ci_level, n_bootstraps=n_bootstraps, seed=seed)
-                if res.get("bic", np.inf) < best_bic:
-                    best_bic = res["bic"]
-                    best_results = res
+                bic_nb = res.get("bic", np.inf)
+                if np.isfinite(bic_nb):
+                    model_entry = dict(res)
+                    model_entry["model_type"] = f"segmented_{nb}bp"
+                    all_models.append(model_entry)
+                    if bic_nb < best_bic:
+                        best_bic = bic_nb
+                        best_results = res
+                        best_nb = nb
+                else:
+                    reason = res.get("failure_reason", "Model did not converge or was not significant")
+                    failed_model_reasons.append(f"Segmented model ({nb} breakpoint(s)): {reason}")
 
-            self.segmented_results = best_results
+            self.segmented_results = best_results  # unchanged field, kept for backward compatibility
+
+            chosen_model_type = "standard" if best_nb == 0 else f"segmented_{best_nb}bp"
+            self.model_comparison = {
+                "analysis_mode": "auto",
+                "chosen_model": chosen_model_type,
+                "all_models": all_models,
+                "failed_model_reasons": failed_model_reasons,
+                "n_breakpoints": best_nb,
+            }
 
         # Construct full result dictionary merging everything
         self.full_results = {
@@ -767,6 +1031,28 @@ class HaarAnalysis:
             "_overlap_step_fraction": overlap_step_fraction,
             "_min_samples_per_window": min_samples_per_window
         }
+
+        if self.model_comparison is not None:
+            # NOTE: only populated when max_breakpoints > 0 (opt-in), so the
+            # default (max_breakpoints=0) output is completely unaffected -
+            # no new keys are added in that case.
+            self.full_results.update(self.model_comparison)
+            if self.segmented_results is not None:
+                # Promote the BIC-winning segmented model's parameters to the
+                # top level so downstream reporting (format_haar_summary)
+                # reflects whichever model was actually chosen, instead of
+                # always showing the single global (0-breakpoint) fit.
+                self.full_results["betas"] = self.segmented_results["betas"]
+                self.full_results["betas_ci"] = self.segmented_results["betas_ci"]
+                self.full_results["Hs"] = self.segmented_results["Hs"]
+                self.full_results["Hs_ci"] = self.segmented_results["Hs_ci"]
+                # NOTE: unlike the Lomb-Scargle branch, these breakpoints are
+                # stored directly as LAGS (time units), not frequencies.
+                self.full_results["breakpoints"] = self.segmented_results["breakpoints"]
+                self.full_results["breakpoints_ci"] = self.segmented_results["breakpoints_ci"]
+
+        if self.periodicity_correction is not None:
+            self.full_results["periodicity_correction"] = self.periodicity_correction
 
         if overlap and np.any(self.n_effective < 5):
             warnings.warn(
@@ -784,8 +1070,15 @@ class HaarAnalysis:
     def plot(self, output_path=None):
         if self.lags is None:
             raise ValueError("Run analysis first.")
+        s1_raw = None
+        s1_periodic_model = None
+        if self.periodicity_correction is not None:
+            s1_raw = self.periodicity_correction.get("s1_raw")
+            s1_periodic_model = self.periodicity_correction.get("s1_periodic_model")
         plot_haar_analysis(
             self.lags, self.s1, self.H, self.beta, self.intercept,
             output_path, time_unit=self.time_unit,
-            segmented_results=self.segmented_results
+            segmented_results=self.segmented_results,
+            s1_raw=s1_raw,
+            s1_periodic_model=s1_periodic_model,
         )

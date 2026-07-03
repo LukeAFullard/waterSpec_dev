@@ -207,6 +207,40 @@ res = haar.run()
 # fit_segmented_spectrum also uses robust regression internally
 segmented_fit = fit_segmented_spectrum(res['lags'], res['s1'], n_breakpoints=1, ci=95.0)
 ```
+
+## Correcting for a Known Periodicity (Optional)
+
+A strong deterministic cycle (e.g. an annual temperature cycle) can smear its power
+across a *broad range* of scales in the Haar structure function - unlike a Lomb-Scargle
+periodogram, where the same signal concentrates into a few narrow frequency bins that can
+simply be excluded from a continuum fit. If your log-log Haar plot shows a hump/scallop
+rather than a clean power law, and you know the offending period(s) (e.g. from your own
+Lomb-Scargle results), you can correct the *structure function itself* for it, without
+modifying your input data:
+
+```python
+from waterSpec.haar_periodicity import list_period_candidates
+
+# 1. Preview candidate periods from your Lomb-Scargle results (optional but recommended -
+#    this consolidates near-duplicate sidebands of the same cycle into one representative
+#    period; it does NOT get called for you automatically).
+clusters = list_period_candidates(results['significant_peaks'], tolerance=0.15)
+for c in clusters:
+    print(c)
+
+# 2. YOU choose which periods to correct for.
+chosen_periods = [c.representative_period for c in clusters if c.representative_period > 100]
+
+# 3. Run Haar analysis with the correction enabled. Requires aggregation="rms".
+haar_results = analyzer.run_full_analysis(
+    output_dir="temperature_analysis_output",
+    run_haar=True,
+    haar_aggregation="rms",
+    haar_correct_periodicity=True,
+    haar_periodic_periods=chosen_periods,
+)
+```
+
 \n\n## From haar_method_description.md
 
 # Statistical Description of the Haar Structure Function Method for Beta Estimation
