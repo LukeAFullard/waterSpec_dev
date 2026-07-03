@@ -23,7 +23,7 @@ from .spectral_analyzer import (
     calculate_periodogram,
     detect_peaks,
 )
-from .haar_analysis import HaarAnalysis
+from .haar_analysis import HaarAnalysis, format_haar_summary
 from .utils_sim import power_law
 from .utils import make_rng, validate_run_parameters, sanitize_filename
 
@@ -354,9 +354,20 @@ class Analysis:
         percentile: Optional[float] = None,
         percentile_method: str = "hazen",
         ci_level: float = 95,
-        calc_intermittency: bool = False
+        calc_intermittency: bool = False,
+        correct_periodicity: bool = False,
+        periodic_periods: Optional[list] = None,
+        aggregation: str = "mean",
     ):
-        """Performs Haar Wavelet Analysis."""
+        """Performs Haar Wavelet Analysis.
+
+        `correct_periodicity`/`periodic_periods` are OPTIONAL (default off).
+        See `waterSpec.haar_analysis.HaarAnalysis.run` and docs/HAAR_GUIDE.md
+        for details. When `correct_periodicity=True`, `aggregation` is
+        forced to "rms" regardless of the value passed in (enforced inside
+        `HaarAnalysis.run`, which raises a clear error instead if a
+        conflicting `aggregation` was explicitly requested).
+        """
         self.logger.info("Performing Haar Wavelet Analysis...")
         haar = HaarAnalysis(self.time, self.data, time_unit=self.time_unit)
         haar_results = haar.run(
@@ -367,7 +378,10 @@ class Analysis:
             percentile=percentile,
             percentile_method=percentile_method,
             ci_level=ci_level,
-            calc_intermittency=calc_intermittency
+            calc_intermittency=calc_intermittency,
+            aggregation=aggregation,
+            correct_periodicity=correct_periodicity,
+            periodic_periods=periodic_periods,
         )
         self.logger.info(
             f"Haar Analysis complete. Beta: {haar_results.get('beta', np.nan):.2f}, "
@@ -427,29 +441,60 @@ class Analysis:
             self.logger.info(f"Haar plot saved to {haar_plot_path}")
 
             hr = results["haar_results"]
-            beta = hr.get("beta", np.nan)
 
-            haar_summary = "\n\n-----------------------------------\n"
-            haar_summary += "Haar Wavelet Analysis:\n"
-            haar_summary += f"  β = {beta:.2f}\n"
-            haar_summary += f"  m = {hr.get('H', np.nan):.2f}\n"
-            haar_summary += f"  R² = {hr.get('r2', np.nan):.2f}\n"
+            if hr.get("analysis_mode") == "auto":
+                # BIC-driven automatic model selection was used
+                # (haar_max_breakpoints >= 1). Delegate to the dedicated Haar
+                # summary formatter so the reported result always reflects
+                # whichever model (standard vs. segmented) actually won on
+                # BIC, mirroring the Lomb-Scargle branch's reporting.
+                haar_summary = "\n\n-----------------------------------\n"
+                haar_summary += format_haar_summary(
+                    hr, param_name=self.param_name, time_unit=self.time_unit
+                )
+                n_eff_vals = hr.get('n_effective', None)
+                if n_eff_vals is not None and len(n_eff_vals) > 0:
+                    mean_neff = np.nanmean(n_eff_vals)
+                    haar_summary += f"\n  Mean N_eff: {mean_neff:.1f} (of N={len(self.time)})\n"
+            else:
+                # --- Legacy path: UNCHANGED from previous behavior ---
+                # (haar_max_breakpoints=0, the default - no model comparison
+                # was performed, so we keep reporting the single global fit
+                # exactly as before.)
+                beta = hr.get("beta", np.nan)
 
-            # Add Effective Sample Size info
-            n_eff_vals = hr.get('n_effective', None)
-            if n_eff_vals is not None and len(n_eff_vals) > 0:
-                mean_neff = np.nanmean(n_eff_vals)
-                haar_summary += f"  Mean N_eff: {mean_neff:.1f} (of N={len(self.time)})\n"
+                haar_summary = "\n\n-----------------------------------\n"
+                haar_summary += "Haar Wavelet Analysis:\n"
+                haar_summary += f"  β = {beta:.2f}\n"
+                haar_summary += f"  m = {hr.get('H', np.nan):.2f}\n"
+                haar_summary += f"  R² = {hr.get('r2', np.nan):.2f}\n"
 
-            haar_summary += f"  Persistence: {get_persistence_traffic_light(beta)}\n"
-            haar_summary += f"  Interpretation: {get_scientific_interpretation(beta)}\n"
+                # Add Effective Sample Size info
+                n_eff_vals = hr.get('n_effective', None)
+                if n_eff_vals is not None and len(n_eff_vals) > 0:
+                    mean_neff = np.nanmean(n_eff_vals)
+                    haar_summary += f"  Mean N_eff: {mean_neff:.1f} (of N={len(self.time)})\n"
 
-            # Add segmented info if available
-            if "segmented_results" in hr and hr["segmented_results"] is not None:
-                sr = hr["segmented_results"]
-                haar_summary += "\n  Segmented Fit:\n"
-                haar_summary += f"  Breakpoints (Time Units): {sr['breakpoints']}\n"
-                haar_summary += f"  Betas: {sr['betas']}\n"
+                haar_summary += f"  Persistence: {get_persistence_traffic_light(beta)}\n"
+                haar_summary += f"  Interpretation: {get_scientific_interpretation(beta)}\n"
+
+                # Add segmented info if available
+                if "segmented_results" in hr and hr["segmented_results"] is not None:
+                    sr = hr["segmented_results"]
+                    haar_summary += "\n  Segmented Fit:\n"
+                    haar_summary += f"  Breakpoints (Time Units): {sr['breakpoints']}\n"
+                    haar_summary += f"  Betas: {sr['betas']}\n"
+
+            # New (optional): note when periodicity correction was applied,
+            # regardless of which branch above produced the summary.
+            if hr.get("periodicity_correction") is not None and hr.get("analysis_mode") != "auto":
+                pc = hr["periodicity_correction"]
+                haar_summary += "\n  Periodicity Correction: APPLIED\n"
+                haar_summary += f"    Periods removed (time units): {list(np.round(pc['periods_used'], 3))}\n"
+                haar_summary += (
+                    f"    Mean variance fraction removed: "
+                    f"{np.nanmean(pc['fraction_variance_removed']) * 100:.1f}%\n"
+                )
 
         # Append Validation Summary
         validation_summary = ""
@@ -681,7 +726,10 @@ class Analysis:
                     statistic=analysis_kwargs.get("haar_statistic", "mean"),
                     percentile=analysis_kwargs.get("haar_percentile"),
                     percentile_method=analysis_kwargs.get("haar_percentile_method", "hazen"),
-                    calc_intermittency=analysis_kwargs.get("calc_intermittency", False)
+                    calc_intermittency=analysis_kwargs.get("calc_intermittency", False),
+                    aggregation=analysis_kwargs.get("haar_aggregation", "mean"),
+                    correct_periodicity=analysis_kwargs.get("haar_correct_periodicity", False),
+                    periodic_periods=analysis_kwargs.get("haar_periodic_periods"),
                 )
                 fit_results["haar_results"] = haar_res
 
@@ -714,12 +762,23 @@ class Analysis:
             # Append Haar summary to segment summary if available
             if "haar_results" in fit_results:
                  hr = fit_results["haar_results"]
-                 beta = hr.get("beta", np.nan)
-                 haar_summary = "\n\n  [Haar Analysis]\n"
-                 haar_summary += f"  β = {beta:.2f}, H = {hr.get('H', np.nan):.2f}\n"
-                 if "segmented_results" in hr and hr["segmented_results"]:
-                     sr = hr["segmented_results"]
-                     haar_summary += f"  (Segmented Fit Detected: Breakpoints {sr['breakpoints']})\n"
+                 if hr.get("analysis_mode") == "auto":
+                     # BIC-driven automatic model selection was used for this
+                     # segment - reuse the same dedicated formatter as the
+                     # top-level (non-changepoint) reporting path, so the
+                     # segment-level summary also reflects whichever model
+                     # (standard vs. segmented) actually won on BIC.
+                     haar_summary = "\n\n  [Haar Analysis]\n  " + format_haar_summary(
+                         hr, param_name=segment_name, time_unit=self.time_unit
+                     ).replace("\n", "\n  ")
+                 else:
+                     # --- Legacy path: UNCHANGED from previous behavior ---
+                     beta = hr.get("beta", np.nan)
+                     haar_summary = "\n\n  [Haar Analysis]\n"
+                     haar_summary += f"  β = {beta:.2f}, H = {hr.get('H', np.nan):.2f}\n"
+                     if "segmented_results" in hr and hr["segmented_results"]:
+                         sr = hr["segmented_results"]
+                         haar_summary += f"  (Segmented Fit Detected: Breakpoints {sr['breakpoints']})\n"
                  segment_results["summary_text"] += haar_summary
 
         finally:
@@ -871,7 +930,10 @@ class Analysis:
                 statistic=kwargs.get("haar_statistic", "mean"),
                 percentile=kwargs.get("haar_percentile"),
                 percentile_method=kwargs.get("haar_percentile_method", "hazen"),
-                calc_intermittency=kwargs.get("calc_intermittency", False)
+                calc_intermittency=kwargs.get("calc_intermittency", False),
+                aggregation=kwargs.get("haar_aggregation", "mean"),
+                correct_periodicity=kwargs.get("haar_correct_periodicity", False),
+                periodic_periods=kwargs.get("haar_periodic_periods"),
             )
             fit_results["haar_results"] = haar_res
             fit_results["haar_obj"] = haar_obj
@@ -923,6 +985,9 @@ class Analysis:
         haar_statistic="mean",
         haar_percentile=None,
         haar_percentile_method="hazen",
+        haar_aggregation="mean",
+        haar_correct_periodicity=False,
+        haar_periodic_periods=None,
         calc_intermittency=False,
     ):
         """
@@ -994,6 +1059,25 @@ class Analysis:
             haar_statistic (str, optional): Statistic for Haar window aggregation ("mean", "median", "percentile"). Defaults to "mean".
             haar_percentile (float, optional): Percentile to compute if `haar_statistic` is "percentile".
             haar_percentile_method (str, optional): Method for percentile calculation. Defaults to "hazen".
+            haar_aggregation (str, optional): Fluctuation aggregation method for Haar
+                ("mean", "median", "rms", "std_corrected"). Defaults to "mean". Must be
+                "rms" if `haar_correct_periodicity=True`.
+            haar_correct_periodicity (bool, optional): OPTIONAL, default False. If True,
+                removes the known contribution of deterministic periodic signal(s) (e.g.
+                an annual cycle) from the Haar RMS structure function via quadrature
+                subtraction, entirely in structure-function space - the input time series
+                is never modified. Requires `haar_aggregation="rms"` and
+                `haar_periodic_periods` to be set. See
+                `waterSpec.haar_periodicity.list_period_candidates` for how to turn a
+                Lomb-Scargle `significant_peaks` list into a clean set of candidate
+                periods (avoiding double-counting near-duplicate sidebands of the same
+                cycle) BEFORE calling this method. Defaults to False (no behavior change
+                unless explicitly enabled).
+            haar_periodic_periods (list[float], optional): Required if
+                `haar_correct_periodicity=True`. An EXPLICIT list of periods (in the
+                series' time units) to remove. There is no automatic/implicit period
+                selection here by design - you choose exactly which periods to correct
+                for.
 
         Returns:
             dict: A dictionary containing all analysis results.
@@ -1022,6 +1106,9 @@ class Analysis:
             "haar_statistic": haar_statistic,
             "haar_percentile": haar_percentile,
             "haar_percentile_method": haar_percentile_method,
+            "haar_aggregation": haar_aggregation,
+            "haar_correct_periodicity": haar_correct_periodicity,
+            "haar_periodic_periods": haar_periodic_periods,
             "calc_intermittency": calc_intermittency,
         }
 
