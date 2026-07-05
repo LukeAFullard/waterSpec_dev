@@ -76,15 +76,15 @@ pip install -e '.[test]'
 
 ## Documentation
 
-*   **[Walkthrough Tutorial](docs/WALKTHROUGH.md):** Step-by-step guide on advanced features (Haar, Bivariate, Hysteresis, Anomaly Detection).
-*   **[Methods Summary](docs/methods_summary.md):** Overview of algorithms (Lomb-Scargle, Haar, PSRESP) and their strengths/weaknesses.
-*   **[Validation & Benchmarks](docs/validation_and_benchmarks.md):** Scientific validation of the methods against real-world data.
-*   **[Haar Percentile Validation](docs/validation_haar_percentiles.md):** Specific validation for the Haar percentile features.
-*   **[Beta Values Library](docs/beta_values_library.md):** Reference values for spectral slopes across different domains (Hydrology, Climate, etc.).
-*   **[Dataset Sources](docs/dataset_sources.md):** Sources for public datasets used for testing and benchmarking.
+*   **[Walkthrough Tutorial](docs/user_guide/WALKTHROUGH.md):** Step-by-step guide on advanced features (Haar, Bivariate, Hysteresis, Anomaly Detection).
+*   **[Methods Summary](docs/user_guide/methods_summary.md):** Overview of algorithms (Lomb-Scargle, Haar, PSRESP) and their strengths/weaknesses.
+*   **[Validation & Benchmarks](docs/validation/VALIDATION_BENCHMARKS.md):** Scientific validation of the methods against real-world data.
+*   **[Haar Percentile Validation](docs/dev_notes/haar_percentiles.md):** Specific validation for the Haar percentile features.
+*   **[Beta Values Library](docs/validation/beta_values_library.md):** Reference values for spectral slopes across different domains (Hydrology, Climate, etc.).
+*   **[Dataset Sources](docs/validation/dataset_sources.md):** Sources for public datasets used for testing and benchmarking.
 *   **[Haar Framework Design](docs/design_docs/haar_framework_design.md):** Deep dive into the theoretical framework of the Haar analysis implementation.
-*   **[Analyzing Extremes with Percentiles](docs/WALKTHROUGH_PERCENTILES.md):** Guide on using median and percentile statistics to study the scaling of extremes.
-*   **[Haar Analysis Guide](docs/HAAR_ANALYSIS_GUIDE.md):** Detailed guide on aggregation methods and intermittency corrections.
+*   **[Analyzing Extremes with Percentiles](docs/user_guide/WALKTHROUGH.md):** Guide on using median and percentile statistics to study the scaling of extremes.
+*   **[Haar Analysis Guide](docs/user_guide/HAAR_GUIDE.md):** Detailed guide on aggregation methods and intermittency corrections.
 
 ---
 

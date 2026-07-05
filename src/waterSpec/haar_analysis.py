@@ -826,7 +826,7 @@ class HaarAnalysis:
                 function via quadrature subtraction, entirely in structure-function space
                 (the raw time series passed to this class is never modified). Requires
                 `aggregation="rms"` and `periodic_periods` to be set. See
-                `waterSpec.haar_periodicity` and docs/HAAR_GUIDE.md for the full method,
+                `waterSpec.haar_periodicity` and docs/user_guide/HAAR_GUIDE.md for the full method,
                 assumptions, and how to choose `periodic_periods` (in particular, how to
                 avoid double-counting near-duplicate Lomb-Scargle sidebands of the same
                 cycle via `waterSpec.haar_periodicity.list_period_candidates`).

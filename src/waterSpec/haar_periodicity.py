@@ -15,7 +15,7 @@ roughly from a fraction of the period up to several multiples of it - unlike
 a Lomb-Scargle periodogram, where the same signal concentrates into a small
 number of narrow frequency bins that can simply be excluded from a continuum
 fit. Deseasonalizing the raw data before running Haar analysis is one fix
-(see docs/HAAR_GUIDE.md); this module implements a second, complementary
+(see docs/user_guide/HAAR_GUIDE.md); this module implements a second, complementary
 approach that operates entirely on the *structure function itself*:
 
   1. Reconstruct a synthetic signal containing ONLY the known periodic
