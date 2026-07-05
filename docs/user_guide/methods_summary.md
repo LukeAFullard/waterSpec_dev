@@ -21,7 +21,7 @@ This document summarizes the methods available in the `waterSpec` package, outli
 ### 2. Haar Wavelet Analysis
 **Implementation:** `waterSpec.haar_analysis.HaarAnalysis`
 **Usage:** Integrated into `Analysis` (via `run_full_analysis(..., run_haar=True)`) or available as a standalone class `HaarAnalysis`.
-**Detailed Guide:** [Haar Implementation Details](docs/HAAR_IMPLEMENTATION_DETAILS.md)
+**Detailed Guide:** [Haar Implementation Details](docs/design_docs/haar_framework_design.md)
 
 *   **Description:** Calculates the first-order structure function ($S_1$) of the time series using Haar wavelets. The spectral slope $\beta$ is estimated from the measured Haar slope $m$ of the structure function ($\beta = 2m + 1$).
 *   **Strengths:**

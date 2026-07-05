@@ -362,7 +362,7 @@ class Analysis:
         """Performs Haar Wavelet Analysis.
 
         `correct_periodicity`/`periodic_periods` are OPTIONAL (default off).
-        See `waterSpec.haar_analysis.HaarAnalysis.run` and docs/HAAR_GUIDE.md
+        See `waterSpec.haar_analysis.HaarAnalysis.run` and docs/user_guide/HAAR_GUIDE.md
         for details. When `correct_periodicity=True`, `aggregation` is
         forced to "rms" regardless of the value passed in (enforced inside
         `HaarAnalysis.run`, which raises a clear error instead if a
