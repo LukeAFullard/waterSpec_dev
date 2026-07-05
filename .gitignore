@@ -216,3 +216,14 @@ __marimo__/
 .streamlit/secrets.toml
 analysis_output/Water_Temperature_Pukeokahu*.csv
 analysis_output/Discharge_Pukeokahu*.csv
+
+# Ignored output directories
+analysis_output/
+example_output/
+example_output_uneven/
+output_demo_90/
+output_demo_mean/
+results/
+temperature_analysis/
+validation_output/
+validation_psresp/
