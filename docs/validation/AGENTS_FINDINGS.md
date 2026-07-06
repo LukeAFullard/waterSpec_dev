@@ -10,10 +10,6 @@
 ## `verify_synthetic.py`
 - Fails for Uneven Sampling with Red Noise (Beta=2.0, Est=0.54) and Pink Noise (Beta=1.0, Est=0.65).
 - This is a known limitation of Lomb-Scargle periodogram for red noise with irregular sampling (spectral leakage bias).
-- The package provides `psresp` module (Power Spectral Response) to handle this, verified by `run_psresp_beta_sweep.py`.
-- `Analysis` class currently uses standard LS method.
-- **Action**: Acknowledge as known limitation. Users should use `psresp` for uneven red noise.
-
 ## `run_full_comparison_sweep.py`
 - Failed due to missing arguments.
 

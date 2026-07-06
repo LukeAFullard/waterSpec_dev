@@ -30,20 +30,6 @@ This document summarizes the methods available in the `waterSpec` package, outli
 *   **Weaknesses:**
     *   **Peak Detection:** Not suitable for detecting specific narrowband periodicities (peaks).
 
-### 3. PSRESP (Power Spectral Response)
-**Implementation:** `waterSpec.psresp.psresp_fit`
-**Usage:** Available as a standalone function.
-
-*   **Description:** A forward-modeling approach (based on Uttley et al. 2002) that fits a spectral model (e.g., power law) by simulating many time series with known PSDs, degrading them with the observed sampling pattern (window function) and noise, and comparing the simulated periodograms to the observed one.
-*   **Strengths:**
-    *   **Rigorous Bias Handling:** Explicitly accounts for spectral leakage and redistribution caused by the sampling pattern (window function) and aliasing. This is often the "gold standard" for testing spectral models on complex window functions.
-    *   **Goodness of Fit:** Provides a "success fraction" (similar to a p-value) to assess whether the model is consistent with the data.
-*   **Weaknesses:**
-    *   **Computational Cost:** Extremely expensive compared to other methods, as it requires generating and analyzing thousands of simulated time series.
-    *   **Model Dependence:** Requires assuming a spectral model form (e.g., power law) to fit, rather than just estimating a spectrum non-parametrically.
-
----
-
 ## Analysis Workflows
 
 ### 4. Automated Spectral Analysis
