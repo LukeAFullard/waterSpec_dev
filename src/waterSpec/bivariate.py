@@ -104,7 +104,8 @@ class BivariateAnalysis:
         percentile_method1: str = "hazen",
         statistic2: str = "mean",
         percentile2: Optional[float] = None,
-        percentile_method2: str = "hazen"
+        percentile_method2: str = "hazen",
+        fdr_correction: str = "within_lag"
     ) -> Dict:
         """Helper to calculate Cross-Haar Correlation."""
         results = {
@@ -207,7 +208,8 @@ class BivariateAnalysis:
         percentile_method1: str = "hazen",
         statistic2: str = "mean",
         percentile2: Optional[float] = None,
-        percentile_method2: str = "hazen"
+        percentile_method2: str = "hazen",
+        fdr_correction: str = "within_lag"
     ) -> Dict:
         """
         Calculates Cross-Haar Correlation at specified lags.
@@ -239,11 +241,20 @@ class BivariateAnalysis:
         percentile_method1: str = "hazen",
         statistic2: str = "mean",
         percentile2: Optional[float] = None,
-        percentile_method2: str = "hazen"
+        percentile_method2: str = "hazen",
+        fdr_correction: str = "within_lag"
     ) -> Dict:
         """
         Calculates significance of Cross-Haar Correlation using phase-randomized surrogates.
         """
+        if min_samples_per_window < 10:
+            import warnings
+            warnings.warn(
+                f"min_samples_per_window={min_samples_per_window} is less than the recommended threshold of 10 for lagged cross-Haar. "
+                "Estimates from windows with very few points may be unreliable.",
+                UserWarning
+            )
+
         if self.aligned_data is None:
             raise ValueError("Data must be aligned first using `align_data`.")
 
@@ -366,6 +377,28 @@ class BivariateAnalysis:
                 p_val = calculate_significance_p_value(obs, dist, two_sided=True)
                 p_values.append(p_val)
 
+        p_values = np.array(p_values)
+
+        # Apply FDR correction
+        if fdr_correction == "within_lag":
+            valid_p_idx = ~np.isnan(p_values)
+            if np.any(valid_p_idx):
+                try:
+                    from statsmodels.stats.multitest import fdrcorrection
+                    # Correct only valid p-values to avoid issues with NaNs
+                    _, p_values_fdr_valid = fdrcorrection(p_values[valid_p_idx], method="negcorr")
+
+                    # Reconstruct full array with NaNs
+                    p_values_fdr = np.full_like(p_values, np.nan)
+                    p_values_fdr[valid_p_idx] = p_values_fdr_valid
+                    p_values = p_values_fdr
+
+                    warning_flags.append(f"Applied FDR correction (Benjamini-Yekutieli) mode: {fdr_correction}")
+                except ImportError:
+                    warning_flags.append("statsmodels not installed; FDR correction not applied to p-values.")
+        elif fdr_correction == "across_table":
+            warning_flags.append("fdr_correction='across_table' selected. Returning RAW uncorrected p-values. You MUST manually apply FDR correction across all aggregation methods after collecting them.")
+
         return {
             'lags': lags,
             'observed_correlation': obs_corrs,
@@ -386,7 +419,8 @@ class BivariateAnalysis:
         percentile_method1: str = "hazen",
         statistic2: str = "mean",
         percentile2: Optional[float] = None,
-        percentile_method2: str = "hazen"
+        percentile_method2: str = "hazen",
+        fdr_correction: str = "within_lag"
     ) -> Dict:
         """
         Calculates Lagged Cross-Haar Correlation for a FIXED scale tau,
@@ -394,6 +428,14 @@ class BivariateAnalysis:
 
         rho(tau, ell) = corr( Delta C(t, tau), Delta Q(t - ell, tau) )
         """
+        if min_samples_per_window < 10:
+            import warnings
+            warnings.warn(
+                f"min_samples_per_window={min_samples_per_window} is less than the recommended threshold of 10 for lagged cross-Haar. "
+                "Estimates from windows with very few points may be unreliable.",
+                UserWarning
+            )
+
         if self.aligned_data is None:
              raise ValueError("Data must be aligned first.")
 
@@ -516,7 +558,8 @@ class BivariateAnalysis:
         percentile_method1: str = "hazen",
         statistic2: str = "mean",
         percentile2: Optional[float] = None,
-        percentile_method2: str = "hazen"
+        percentile_method2: str = "hazen",
+        fdr_correction: str = "within_lag"
     ) -> Dict:
         """
         Calculates the Hysteresis Loop Area between fluctuations of the two variables at scale tau.
@@ -528,6 +571,14 @@ class BivariateAnalysis:
         Returns:
             Dict: {'area': float, 'normalized_area': float, 'direction': str}
         """
+        if min_samples_per_window < 10:
+            import warnings
+            warnings.warn(
+                f"min_samples_per_window={min_samples_per_window} is less than the recommended threshold of 10 for lagged cross-Haar. "
+                "Estimates from windows with very few points may be unreliable.",
+                UserWarning
+            )
+
         if self.aligned_data is None:
             raise ValueError("Data must be aligned first.")
 

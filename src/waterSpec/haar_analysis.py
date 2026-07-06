@@ -84,6 +84,13 @@ def calculate_haar_fluctuations(
         counts (np.ndarray): Number of fluctuation pairs per lag.
         n_effective_values (np.ndarray): Effective number of independent samples (adjusts for overlap).
     """
+    if min_samples_per_window < 10:
+        import warnings
+        warnings.warn(
+            f"min_samples_per_window={min_samples_per_window} is less than the design doc recommended threshold of 10. "
+            "Estimates from windows with very few points may be unreliable.",
+            UserWarning
+        )
     n = len(time)
     if n < 2:
         raise ValueError("Time series must have at least 2 points.")
@@ -402,6 +409,16 @@ def fit_haar_slope(
     else:
         H_lo = res.lower_ci
         H_hi = res.upper_ci
+
+    if not np.isnan(H):
+        if H < -0.9 or H > 0.9:
+            import warnings
+            warnings.warn(
+                f"Fitted H ({H:.3f}) is near or outside the theoretical valid bounds of (-1, 1). "
+                "Estimates near the boundary (e.g. true beta near 0 or 2) may exhibit persistent statistical bias. "
+                "Interpret results with caution.",
+                UserWarning
+            )
 
     return {
         "H":             H,
@@ -770,7 +787,7 @@ class HaarAnalysis:
 
         # Run secondary analysis with RMS aggregation
         # Re-use most parameters from self.full_results if available, or defaults
-        lags_rms, s_rms, _, _ = calculate_haar_fluctuations(
+        lags_rms, s_rms, _, n_eff_rms = calculate_haar_fluctuations(
             self.time, self.data,
             lag_times=self.lags, # Use exactly same lags
             statistic=self.full_results.get("statistic", "mean"),
@@ -782,7 +799,8 @@ class HaarAnalysis:
         )
 
         # Fit scaling for RMS (zeta2/2)
-        res_rms = fit_haar_slope(lags_rms, s_rms, n_bootstraps=0)
+        # We pass n_eff_rms to ensure we use the same Weighted Least Squares (WLS) fitting scheme as the primary H fit.
+        res_rms = fit_haar_slope(lags_rms, s_rms, n_effective=n_eff_rms, n_bootstraps=0)
         zeta2_half = res_rms.get("H", np.nan)
 
         if np.isnan(zeta2_half):
@@ -1054,9 +1072,10 @@ class HaarAnalysis:
         if self.periodicity_correction is not None:
             self.full_results["periodicity_correction"] = self.periodicity_correction
 
-        if overlap and np.any(self.n_effective < 5):
+        if overlap and np.any(self.n_effective < 50):
             warnings.warn(
                 f"Minimum effective sample size is {np.min(self.n_effective):.1f}. "
+                "The methodology recommends ≥ 50 effective Haar increments per scale for robust inference. "
                 "Confidence intervals from standard OLS may be underestimated, but "
                 "the WLS slope correctly downweights these unreliable scales.",
                 UserWarning
