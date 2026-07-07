@@ -22,7 +22,7 @@ As we calculate fluctuations at very large lags ($\tau$), the sliding windows be
 
 At large lags ($\tau$), the scarcity of independent windows means our variance and standard deviation estimators suffer from small-sample bias, mathematically skewing the resulting fluctuation magnitudes.
 
-To solve this, **waterSpec** offers the robust `aggregation="std_corrected"` option. When active, it applies the statistical process control $c_4$ correction factor. Derived using the gamma function, the $c_4$ factor corrects the expected value of the sample standard deviation, producing a perfectly unbiased estimator regardless of how few windows remain.
+To solve this, **waterSpec** offers the robust `aggregation="std_corrected"` option. When active, it applies the statistical process control $c_4$ correction factor. Derived using the gamma function, the $c_4$ factor corrects the expected value of the sample standard deviation, producing an estimator corrected for small-sample bias.
 
 Furthermore, **waterSpec** enforces a strict lower bound on the Effective Degrees of Freedom (`max(0.5, n_eff)`). This prevents division-by-zero errors and ensures that the downstream Weighted Least Squares (WLS) solver can properly downweight these poorly sampled, large-lag scales without crashing.
 

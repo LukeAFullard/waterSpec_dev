@@ -4,6 +4,12 @@
 
 This guide explains the advanced features of the Haar Analysis module in `waterSpec`, focusing on statistical aggregation methods and multifractal intermittency corrections.
 
+## Cross-Scale Correlation and CIs
+**Important Note on Confidence Intervals:** Overlapping-window structure functions reuse much of the same raw data across nearby scales. Consequently, the structure-function values at neighboring lags are correlated. The standard/parametric bootstrap mechanisms applied here do not fully model this cross-scale correlation. As a result, the reported confidence intervals on scaling parameters ($H$ or $\beta$) may be somewhat narrower (more optimistic) than their true structural bounds.
+
+### Max Lag Warnings (T/2 vs T/5)
+When running Haar analysis, the default maximum lag is `T/2` (half the dataset duration). This maximizes the available scale range for exploratory analysis. However, you will receive a soft warning if `max_lag` exceeds `T/5`. This dual threshold exists because while `T/2` is the mathematical limit for computing a fluctuation, the system's architectural design documents recommend `T/5` as the maximum *statistically reliable* scale, beyond which the effective degrees of freedom drop precipitously, increasing variance in the slope estimate.
+
 ## 1. Aggregation Methods
 
 The `calculate_haar_fluctuations` function (and the `HaarAnalysis` class) supports different methods for aggregating fluctuations within a time window. This choice affects the robustness and statistical properties of the estimated spectral slope.
@@ -20,16 +26,16 @@ ha.run(aggregation="mean", ci_level=95.0) # Default
 | Method | Description | Use Case |
 | :--- | :--- | :--- |
 | **"mean"** | Mean Absolute Fluctuation. Calculates $\langle | \Delta f | \rangle$. | **Default.** Robust, distribution-agnostic. Best for general use. |
-| **"std_corrected"** | Small-Sample Corrected Standard Deviation (converted to MAD). Matches `GapWaveSpectra`. | **Gaussian Data.** Best for short time series where small-sample bias is a concern, provided the data is roughly Gaussian. |
+| **"std_corrected"** | Small-Sample Corrected Standard Deviation (converted to MAD). Intentionally diverges from `GapWaveSpectra` at small N due to a derivation error in their method. | **Gaussian Data.** Best for short time series where small-sample bias is a concern, provided the data is roughly Gaussian. |
 | **"rms"** | Root Mean Square Fluctuation. Calculates $\sqrt{\langle \Delta f^2 \rangle}$. | **Higher Moments.** Used internally for intermittency calculations ($S_2$). |
 | **"median"** | Median Absolute Fluctuation. | **Outliers.** Highly robust to spikes/outliers. |
 
 ### The "std_corrected" Method
 
-This method is implemented to match the statistical approach of the `GapWaveSpectra` reference project.
+This method was originally implemented to match the statistical approach of the `GapWaveSpectra` reference project, but intentionally diverges at small N because `GapWaveSpectra` incorrectly applied a $c_4$ correction designed for unknown means (ddof=1) to an RMS calculation with a known mean (ddof=0).
 
-1.  **Zero-Mean Enforcement:** It concatenates the fluctuations $\Delta f$ with their negatives $-\Delta f$ to ensure a zero-mean distribution.
-2.  **Unbiased Estimator:** It calculates the sample standard deviation $s$ and applies a correction factor $c_4(N)$ derived from the Gamma function to obtain an unbiased estimate of the population standard deviation $\sigma$.
+1.  **True Zero-Mean Handling:** It calculates the Root Mean Square directly without artificial symmetrisation.
+2.  **Unbiased Estimator:** It applies the mathematically correct degrees-of-freedom factor for a known zero-mean calculation to obtain an unbiased estimate of the population standard deviation $\sigma$.
     $$ \hat{\sigma} = \frac{s}{c_4(N)} $$
 3.  **Conversion to MAD:** It assumes the fluctuations follow a Gaussian distribution and converts the estimated $\sigma$ to the equivalent Mean Absolute Deviation (MAD):
     $$ S_1 \approx \hat{\sigma} \sqrt{\frac{2}{\pi}} $$
