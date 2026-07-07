@@ -68,8 +68,8 @@ def calculate_haar_fluctuations(
                                    Robust and distribution-agnostic, but may be biased for small samples.
                            "median": Median Absolute Fluctuation (Robust S1).
                            "rms": Root Mean Square Fluctuation (Approximates S2^0.5).
-                           "std_corrected": Unbiased estimation of MAD assuming Gaussianity (matches GapWaveSpectra).
-                                            Uses small-sample correction for standard deviation.
+                           "std_corrected": Small-sample corrected estimation of MAD assuming Gaussianity.
+                                            Uses small-sample correction for known-mean standard deviation.
 
                                             Note: This method assumes the fluctuations (differences of window means)
                                             follow a Gaussian distribution. Due to the Central Limit Theorem, this
@@ -132,6 +132,11 @@ def calculate_haar_fluctuations(
                 f"max_lag ({max_lag}) is greater than half the total duration ({total_duration/2}). "
                 "It is recommended to use a max_lag between T/4 and T/2, and Nyquist frequency for min_lag. "
                 "Results for lags > T/2 are statistically unreliable.",
+                UserWarning
+            )
+        if max_lag > total_duration / 5:
+            warnings.warn(
+                f"max_lag ({max_lag}) exceeds the design document recommended maximum reliable scale of T/5 ({total_duration/5}).",
                 UserWarning
             )
 
@@ -203,26 +208,13 @@ def calculate_haar_fluctuations(
             elif aggregation == "rms":
                 s1 = np.sqrt(np.mean(flucs_arr**2))
             elif aggregation == "std_corrected":
-                # Symmetrise to enforce zero-mean, matching GapWaveSpectra.
-                # Note: symmetrisation does NOT change RMS ((-x)²=x²), but it sets the
-                # correct effective N for the small-sample bias correction.
-                n_sym = 2 * len(flucs_arr)           # symmetric sample size
-
-                # RMS of original sample (= RMS of symmetric sample since (-x)²=x²)
+                count = len(flucs_arr)
                 rms = np.sqrt(np.mean(flucs_arr ** 2))
-
-                # Bias correction converting RMS directly to unbiased normal std S via c4:
-                # S = rms * sqrt(N/(N-1))
-                # sigma_hat = S / c4(N),  c4(N) = sqrt(2/(N-1)) * Gamma(N/2) / Gamma((N-1)/2)
-                # => sigma_hat = rms * sqrt(N/2) * Gamma((N-1)/2) / Gamma(N/2)
-                # => sigma_hat = rms * exp(gammaln((N-1)/2) - gammaln(N/2) + 0.5 * log(N/2))
-                if 2 < n_sym < 201:
-                    log_c4_inv = (gammaln((n_sym - 1) / 2)
-                                  - gammaln(n_sym / 2)
-                                  + 0.5 * np.log(n_sym / 2))
+                if 1 < count < 100:
+                    log_c4_inv = 0.5 * np.log(count / 2) + gammaln(count / 2) - gammaln((count + 1) / 2)
                     sigma_est = rms * np.exp(log_c4_inv)
                 else:
-                    sigma_est = rms   # c4 -> 1 as N -> infinity
+                    sigma_est = rms
 
                 # Convert sigma to expected absolute deviation assuming Gaussianity
                 # E[|X|] = sigma * sqrt(2/pi)
@@ -237,7 +229,8 @@ def calculate_haar_fluctuations(
                 # Approximate n_eff based on redundancy
                 n_eff = count * (step_size / delta_t)
                 # Do NOT clamp to 1 — let the WLS naturally downweight low-EDOF scales.
-                # The floor of 0.5 prevents division-by-zero in sqrt without hiding the signal.
+                # The floor of 0.5 prevents division-by-zero in sqrt without hiding the signal
+                # (implements design doc §2.2 overlap correction constraints).
                 n_effective_values.append(max(0.5, n_eff))
             else:
                 n_effective_values.append(count)
@@ -770,6 +763,11 @@ class HaarAnalysis:
         """
         Calculates the intermittency correction K(2) and the multifractal beta estimate.
 
+        Note: The calculation for `beta_multifractal` collapses mathematically to 1 + zeta_2,
+        where zeta_2 is the slope fitted directly to the RMS (q=2) structure function.
+        While presented within the multifractal K(2) framework for interpretability,
+        it yields the exact same numerical result as a direct RMS fit.
+
         This requires running Haar analysis with 'rms' aggregation to get S2 scaling (zeta2),
         comparing it with the current 'mean' aggregation scaling (zeta1/H).
 
@@ -837,8 +835,9 @@ class HaarAnalysis:
             percentile_method (str): Method for percentile calculation (default "hazen").
             aggregation (str): Method to aggregate fluctuations ("mean", "median", "rms", "std_corrected").
                                "std_corrected" is recommended for Gaussian data or sufficiently large windows
-                               to avoid small-sample bias.
+                               to correct small-sample bias.
             calc_intermittency (bool): If True, also calculates K(2) intermittency correction.
+                                   (note: beta_multifractal is mathematically identical to fitting beta directly to the RMS structure function).
             correct_periodicity (bool): OPTIONAL, default False. If True, removes the known
                 contribution of deterministic periodic signal(s) from the RMS structure
                 function via quadrature subtraction, entirely in structure-function space

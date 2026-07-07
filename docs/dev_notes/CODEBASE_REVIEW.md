@@ -12,11 +12,11 @@ This report details an exhaustive review of the `waterSpec` codebase focusing on
 ### Effective Degrees of Freedom (EDOF)
 **Location:** `src/waterSpec/haar_analysis.py:233`, `calculate_haar_fluctuations` function.
 **The Problem:** The approximation of effective sample size for overlapping windows is `n_eff = count * (step_size / delta_t)`. While this is mathematically proportional to the redundancy (following the equivalent of Allan variance overlap corrections), for extremely small `step_size` compared to `delta_t`, the calculated `n_eff` could dip below 1, which implies less than a single independent sample despite having valid windows.
-**The Solution:** An explicit lower bound of `1.0` was added to `n_eff` when overlap is used: `n_effective_values.append(max(1.0, n_eff))`. This ensures the effective degrees of freedom used downstream remain mathematically valid.
+**The Solution:** An explicit lower bound of `0.5` was added to `n_eff` when overlap is used: `n_effective_values.append(max(0.5, n_eff))`. This ensures the effective degrees of freedom used downstream remain mathematically valid.
 
 ### Bias & Correction Factors (Small Sample Standard Deviation)
-**Location:** `src/waterSpec/haar_analysis.py:31`, `_small_sample_std` function.
-**The Problem/Verification:** The small-sample standard deviation bias correction uses the formula `factor = np.exp(gammaln((n - 1) / 2) - gammaln(n / 2)) * np.sqrt((n - 1) / 2)`. It was deeply reviewed. This factor is the reciprocal of the standard `c4` correction factor used in statistical process control to provide an unbiased estimator of population sigma for normally distributed data. The mathematical identities hold, and the application of log-gamma (`gammaln`) prevents catastrophic overflow for large `n`. The threshold of `101` for the correction is appropriate, as for $N \ge 100$, $c_4 \approx 1$. Thus, the implementation here is **correct and highly rigorous**. No changes were required.
+**Location:** `src/waterSpec/haar_analysis.py`, `calculate_haar_fluctuations` function (`std_corrected` aggregation).
+**The Problem/Verification:** The small-sample standard deviation bias correction originally matched `GapWaveSpectra` by applying a $c_4$ correction designed for unknown means (ddof=1) to an RMS calculation with a known mean (ddof=0). This introduced a mathematical bias at small sample sizes. The formula was corrected to use the exact degrees-of-freedom-correct formula for a known-mean (ddof=0) case. Thus, it intentionally diverges from `GapWaveSpectra` at small N for statistical rigor.
 
 ### Edge Cases: Perfect Fits
 **Location:** `src/waterSpec/fitter.py:34`, `_calculate_bic` and `_calculate_aic` functions.
