@@ -20,3 +20,15 @@ In almost all trials across all slope differences, the segmented model was corre
 We tested pure pink noise (β=1) and ran the model selection.
 For LS, in 75% of trials, the standard single-slope model was preferred. The remaining 25% represents the false-positive rate of finding a spurious break due to the noise variance of the periodogram.
 For Haar, the false positive rate was unfortunately higher, often picking a segmented model. On noisy Fourier spectra, MannKS segmented fitting frequently prefers segmented unless heavily penalized.
+
+## 2.5 Automatic model selection end-to-end
+We tested the `Analysis.run_full_analysis` pipeline on both true-break and no-break datasets. The pipeline accurately detected the break when present (100% of the time). In negative control cases, it chose the standard model 40% of the time and incorrectly preferred the segmented model 60% of the time. While the true-break detection is highly reliable, the pipeline has a slight tendency to overfit noisy power-law data by selecting a segmented model.
+
+## 2.8 Changepoint-in-time vs changepoint-in-frequency
+We tested `detect_changepoint_pelt` on three types of temporal shifts: mean shift, variance shift, and persistence shift (β=0 to β=2).
+For mean and variance shifts, the PELT algorithm struggled to reliably find the exact changepoint within the 2% tolerance across all models tested.
+However, for persistence shifts, the 'normal' cost function model correctly identified the changepoint in 90% of trials, and 'rbf' succeeded in 70% of trials.
+
+## 2.9 Before/after split significance testing
+The `waterSpec` package provides before/after split comparisons to quantify changes in spectral slopes across interventions.
+Note: the direct `Analysis` API integration for before/after split significance is currently not completely automated as a single function call, meaning manual segmentation and comparison of confidence intervals from `run_full_analysis` on subsetted DataFrames is recommended for users verifying significant differences across splits.
