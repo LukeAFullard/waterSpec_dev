@@ -32,3 +32,7 @@ However, for persistence shifts, the 'normal' cost function model correctly iden
 ## 2.9 Before/after split significance testing
 The `waterSpec` package provides before/after split comparisons to quantify changes in spectral slopes across interventions.
 Note: the direct `Analysis` API integration for before/after split significance is currently not completely automated as a single function call, meaning manual segmentation and comparison of confidence intervals from `run_full_analysis` on subsetted DataFrames is recommended for users verifying significant differences across splits.
+
+## 2.6 Two breakpoints
+We constructed a three-segment PSD (β1=0.3, β2=1.0, β3=1.8 with two breaks) and ran both LS and Haar analyses allowing for `max_breakpoints=2`.
+Neither Lomb-Scargle nor Haar wavelet reliably recovered all three slopes and two breakpoints simultaneously under realistic data lengths (N=4096), as the compounding variance from three free slopes and two breakpoint positions leads to overparameterization.
