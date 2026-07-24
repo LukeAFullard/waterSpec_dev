@@ -15,16 +15,16 @@
 
 ## 0. Setup & Infrastructure
 
-- [ ] **0.1** Clone/install the package in editable mode with test extras: `pip install -e '.[test]'`. Confirm `import waterSpec` succeeds and `waterSpec.__version__` resolves.
-- [ ] **0.2** Confirm optional dependencies used by the tests below are installed: `astropy` (Lomb-Scargle), `statsmodels` (LOESS detrending), `piecewise_regression` (segmented fits), `ruptures` (PELT changepoint), `mannks` (Haar segmentation). Run `pytest tests/ -q` once and confirm the existing test suite is green **before** adding new validation on top of it — if the existing suite is red, fix or document that first.
-- [ ] **0.3** Create `validation/` with subfolders `plots/`, `data/`, `results/` and a `common.py` module containing (Note: all results should be recorded in this `validation/` folder and ideally each section should have a markdown report in its own subfolder):
+- [x] **0.1** Clone/install the package in editable mode with test extras: `pip install -e '.[test]'`. Confirm `import waterSpec` succeeds and `waterSpec.__version__` resolves.
+- [x] **0.2** Confirm optional dependencies used by the tests below are installed: `astropy` (Lomb-Scargle), `statsmodels` (LOESS detrending), `piecewise_regression` (segmented fits), `ruptures` (PELT changepoint), `mannks` (Haar segmentation). Run `pytest tests/ -q` once and confirm the existing test suite is green **before** adding new validation on top of it — if the existing suite is red, fix or document that first.
+- [x] **0.3** Create `validation/` with subfolders `plots/`, `data/`, `results/` and a `common.py` module containing (Note: all results should be recorded in this `validation/` folder and ideally each section should have a markdown report in its own subfolder):
   - A colored-noise generator wrapping `simulate_tk95(psd_func=power_law, params=(beta, amp), N=N, dt=dt, seed=seed)` for a target β (recall `power_law(f, beta, amp) = amp * f**(-beta)`, i.e. PSD ∝ f^(-β), matching waterSpec's sign convention where P(f) ∝ f^(-β)).
   - A broken-power-law generator (either via a custom `psd_func` passed to `simulate_tk95`, or by concatenating/blending two `simulate_tk95` runs — validate whichever approach is chosen against the known β's before using it downstream, see Section 2).
   - An uneven-sampling function that takes an evenly-sampled series and returns a random/patterned subset (see Section 3 for the specific schemes required).
   - A seasonality-injector that adds a sinusoid (or sum of harmonics) of specified period(s), amplitude, and phase to a base series.
   - A results-recording helper that appends `{test_id, seed, params, estimate, truth, ci_low, ci_high, pass}` rows to a CSV in `validation/results/`, so a final summary table can be generated automatically (see Section 15).
-- [ ] **0.4** Decide and document the **global tolerance policy**: e.g. for N ≥ 2000-point single-slope recovery, require the true β to fall inside the reported bootstrap CI in ≥ 90% of 30 trials (i.e. close to nominal coverage for a ~95% CI, allowing Monte Carlo slack), AND the mean point estimate to be within ±0.15 of truth. Record this policy at the top of `validation/README.md` so every subsequent test references it instead of inventing ad hoc thresholds.
-- [ ] **0.5** Fix and document a global RNG seeding strategy (e.g. `seed = 1000*section + trial_index`) so every test is exactly reproducible and seeds never collide across sections.
+- [x] **0.4** Decide and document the **global tolerance policy**: e.g. for N ≥ 2000-point single-slope recovery, require the true β to fall inside the reported bootstrap CI in ≥ 90% of 30 trials (i.e. close to nominal coverage for a ~95% CI, allowing Monte Carlo slack), AND the mean point estimate to be within ±0.15 of truth. Record this policy at the top of `validation/README.md` so every subsequent test references it instead of inventing ad hoc thresholds.
+- [x] **0.5** Fix and document a global RNG seeding strategy (e.g. `seed = 1000*section + trial_index`) so every test is exactly reproducible and seeds never collide across sections.
 
 ---
 
