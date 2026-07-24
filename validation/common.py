@@ -54,7 +54,7 @@ def inject_seasonality(time, data, period, amplitude, phase=0.0):
     sinusoid = amplitude * np.sin(2 * np.pi * (time / period) + phase)
     return time, data + sinusoid
 
-def record_result(test_id, seed, params_dict, estimate, truth, ci_low, ci_high, passed, results_dir="validation/results"):
+def record_result(test_id, seed, params_dict, estimate, truth, ci_low, ci_high, passed, results_dir="validation/section_1/results"):
     """
     Appends a row to a CSV file in the results directory.
     """
