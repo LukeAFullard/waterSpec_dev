@@ -227,3 +227,5 @@ results/
 temperature_analysis/
 validation_output/
 validation_psresp/
+validation/section_4/data/
+validation/section_4/results/
