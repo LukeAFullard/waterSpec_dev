@@ -1,78 +1,128 @@
 import numpy as np
-import pandas as pd
-import os
-import csv
-from pathlib import Path
+import matplotlib.pyplot as plt
 
-from waterSpec.utils_sim.tk95 import simulate_tk95
-from waterSpec.utils_sim.models import power_law
+def generate_lognormal_cascade(N, lambda_scale=2, sigma=0.5, seed=None):
+    """
+    Generates a log-normal multifractal cascade (Measures).
+    This produces a highly intermittent field (conservative measure).
 
-def generate_colored_noise(beta, amp=1.0, N=4096, dt=1.0, seed=None):
-    """
-    Generates colored noise matching a target beta using simulate_tk95.
-    (Note: waterSpec uses the convention P(f) ~ f^-beta).
-    """
-    time, data = simulate_tk95(psd_func=power_law, params=(beta, amp), N=N, dt=dt, seed=seed)
-    return time, data
-
-def generate_broken_power_law(beta1, beta2, break_freq, amp=1.0, N=4096, dt=1.0, seed=None):
-    """
-    Generates a broken power-law spectrum time series using simulate_tk95.
-    """
-    def broken_power_law(f, b1, b2, f_break, a):
-        p = np.zeros_like(f)
-        mask = f <= f_break
-        p[mask] = a * (f[mask] ** -b1)
-        # Match power at the break frequency
-        p_break = a * (f_break ** -b1)
-        a2 = p_break / (f_break ** -b2)
-        p[~mask] = a2 * (f[~mask] ** -b2)
-        return p
-
-    time, data = simulate_tk95(psd_func=broken_power_law, params=(beta1, beta2, break_freq, amp), N=N, dt=dt, seed=seed)
-    return time, data
-
-def apply_uneven_sampling(time, data, missing_fraction, method='uniform', seed=None):
-    """
-    Takes an evenly-sampled series and returns a random/patterned subset.
-    methods: 'uniform' (randomly drop points)
+    The scaling exponent K(q) for log-normal cascade is:
+    K(q) = (sigma^2 / (2 * log(lambda_scale))) * (q^2 - q)
+    So K(2) = (sigma^2 / (2 * log(lambda_scale))) * (4 - 2) = sigma^2 / log(lambda_scale)
     """
     if seed is not None:
         np.random.seed(seed)
 
-    n_points = len(time)
-    if method == 'uniform':
-        keep_indices = np.sort(np.random.choice(n_points, size=int(n_points * (1 - missing_fraction)), replace=False))
-        return time[keep_indices], data[keep_indices]
+    steps = int(np.log(N) / np.log(lambda_scale))
+    measure = np.ones(1)
+
+    for _ in range(steps):
+        mu = -0.5 * sigma**2
+        multipliers = np.exp(mu + sigma * np.random.standard_normal(len(measure) * lambda_scale))
+        measure = np.repeat(measure, lambda_scale) * multipliers
+
+    return measure
+
+def fractional_integration(data, H):
+    """
+    Fractionally integrates a series to give it spectral slope +2H.
+    """
+    N = len(data)
+    fft = np.fft.rfft(data)
+    freqs = np.fft.rfftfreq(N)
+
+    with np.errstate(divide='ignore'):
+        filter_ = np.where(freqs > 0, freqs**(-H), 0)
+
+    fft_filtered = fft * filter_
+    return np.fft.irfft(fft_filtered, n=N)
+
+def generate_multifractal_series(N, H_target, sigma_cascade, lambda_scale=2, seed=None):
+    """
+    Generates a multifractal series with known H and K(2).
+    """
+    if seed is not None:
+        np.random.seed(seed)
+
+    noise = generate_lognormal_cascade(N, lambda_scale=lambda_scale, sigma=sigma_cascade, seed=seed)
+
+    signs = np.random.choice([-1, 1], size=N)
+    signed_noise = noise * signs
+
+    if H_target == 0.5:
+        process = np.cumsum(signed_noise)
     else:
-        raise NotImplementedError(f"Sampling method {method} not implemented")
+        # Need to subtract 0.5 because cumsum adds 0.5 to H. So we use fractional integration with H_target - 0.5
+        integrated_noise = fractional_integration(signed_noise, H_target - 0.5)
+        process = np.cumsum(integrated_noise)
 
-def inject_seasonality(time, data, period, amplitude, phase=0.0):
+    time = np.arange(N)
+
+    true_K2 = (sigma_cascade**2) / np.log(lambda_scale)
+    true_H = H_target
+    true_beta_multi = 1 + 2 * true_H - true_K2
+
+    return time, process, true_H, true_K2, true_beta_multi
+
+def generate_lognormal_cascade(N, lambda_scale=2, sigma=0.5, seed=None):
     """
-    Adds a sinusoid of specified period, amplitude, and phase to a base series.
+    Generates a log-normal multifractal cascade (Measures).
+    This produces a highly intermittent field (conservative measure).
+
+    The scaling exponent K(q) for log-normal cascade is:
+    K(q) = (sigma^2 / (2 * log(lambda_scale))) * (q^2 - q)
+    So K(2) = (sigma^2 / (2 * log(lambda_scale))) * (4 - 2) = sigma^2 / log(lambda_scale)
     """
-    sinusoid = amplitude * np.sin(2 * np.pi * (time / period) + phase)
-    return time, data + sinusoid
+    if seed is not None:
+        np.random.seed(seed)
 
-def record_result(test_id, seed, params_dict, estimate, truth, ci_low, ci_high, passed, results_dir="validation/section_1/results"):
+    steps = int(np.log(N) / np.log(lambda_scale))
+    measure = np.ones(1)
+
+    for _ in range(steps):
+        mu = -0.5 * sigma**2
+        multipliers = np.exp(mu + sigma * np.random.standard_normal(len(measure) * lambda_scale))
+        measure = np.repeat(measure, lambda_scale) * multipliers
+
+    return measure
+
+def fractional_integration(data, H):
     """
-    Appends a row to a CSV file in the results directory.
+    Fractionally integrates a series to give it spectral slope +2H.
     """
-    os.makedirs(results_dir, exist_ok=True)
-    file_path = os.path.join(results_dir, "validation_results.csv")
+    N = len(data)
+    fft = np.fft.rfft(data)
+    freqs = np.fft.rfftfreq(N)
 
-    file_exists = os.path.isfile(file_path)
+    with np.errstate(divide='ignore'):
+        filter_ = np.where(freqs > 0, freqs**(-H), 0)
 
-    with open(file_path, mode='a', newline='') as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(['test_id', 'seed', 'params', 'estimate', 'truth', 'ci_low', 'ci_high', 'passed'])
+    fft_filtered = fft * filter_
+    return np.fft.irfft(fft_filtered, n=N)
 
-        # Format params as a string representation of the dict
-        params_str = str(params_dict).replace(',', ';') # Avoid CSV comma confusion
+def generate_multifractal_series(N, H_target, sigma_cascade, lambda_scale=2, seed=None):
+    """
+    Generates a multifractal series with known H and K(2).
+    """
+    if seed is not None:
+        np.random.seed(seed)
 
-        writer.writerow([test_id, seed, params_str, estimate, truth, ci_low, ci_high, passed])
+    noise = generate_lognormal_cascade(N, lambda_scale=lambda_scale, sigma=sigma_cascade, seed=seed)
 
-def get_seed(section, trial_index):
-    """Global RNG seeding strategy: seed = 1000 * section + trial_index"""
-    return int(1000 * section + trial_index)
+    signs = np.random.choice([-1, 1], size=N)
+    signed_noise = noise * signs
+
+    if H_target == 0.5:
+        process = np.cumsum(signed_noise)
+    else:
+        # Need to subtract 0.5 because cumsum adds 0.5 to H. So we use fractional integration with H_target - 0.5
+        integrated_noise = fractional_integration(signed_noise, H_target - 0.5)
+        process = np.cumsum(integrated_noise)
+
+    time = np.arange(N)
+
+    true_K2 = (sigma_cascade**2) / np.log(lambda_scale)
+    true_H = H_target
+    true_beta_multi = 1 + 2 * true_H - true_K2
+
+    return time, process, true_H, true_K2, true_beta_multi
