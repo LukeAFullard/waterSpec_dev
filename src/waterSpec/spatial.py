@@ -51,7 +51,7 @@ class SpatialHaarAnalysis:
         )
 
         # Fit slope
-        fit_res = fit_haar_slope(scales, s1, n_bootstraps=n_bootstraps)
+        fit_res = fit_haar_slope(scales, s1, n_effective=n_eff, n_bootstraps=n_bootstraps)
 
         self.results = {
             "scales": scales,
