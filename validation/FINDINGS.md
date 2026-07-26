@@ -116,3 +116,14 @@
   - **Details:** Validated that sequentially dropping censored data, logging, detrending, and normalizing through `preprocess_data` produced results matching an equivalent manual implementation. Pipeline integrated beta=0.946, Manual independent beta=0.946.
 - **Test 7.9 (Cross-reference examples):** PASS
   - **Details:** The existing tests and scripts (e.g. `tests/test_preprocessor.py`) comprehensively cover the edge cases presented in the examples files.
+
+## Section 10: LS Cross-Spectrum Validation
+
+- **Test 10.1 (Known phase lag recovery, evenly sampled):** PASS
+  - 100% success rate on 30 trials with 0.05 frequency and 3.5 true lag.
+- **Test 10.2 (Known lag recovery, unevenly sampled):** PASS
+  - 100% success rate under 30% independent missingness for both series.
+- **Test 10.3 (Zero-lag negative control):** PASS
+  - 100% success rate. The estimator does not falsely invent time lags between zero-phase variables with noise.
+- **Test 10.4 (Broadband lagged pair):** PASS
+  - 100% success rate. Safely recovered lag of 10.0 using low-frequency estimation strategy. No new failure modes found.

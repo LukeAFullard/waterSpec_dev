@@ -167,10 +167,10 @@ Goal: validate `BivariateAnalysis` and `multivariate.calculate_partial_cross_haa
 
 ## 10. LS Cross-Spectrum (Phase/Lead-Lag on Irregular Data)
 
-- [ ] **10.1 Known phase lag recovery, evenly sampled**: two sinusoids of the same known frequency with a known phase offset (converted to a time lag). Run `calculate_ls_cross_spectrum`/`calculate_time_lag`. Pass: recovered phase/lag matches truth within tolerance, across several chosen frequencies spanning the resolvable range.
-- [ ] **10.2 Known lag recovery, unevenly sampled**: repeat 10.1 with both series independently and irregularly subsampled (different gap patterns for each, as would happen with two independently-serviced field sensors) — this is the scenario `calculate_ls_cross_spectrum` is specifically designed for ("Irregular Data Native", per the README). Pass: lag still recovered within a (likely wider) tolerance; quantify how tolerance/CI-width degrades vs. the even-sampling case in 10.1.
-- [ ] **10.3 Zero-lag negative control**: two series with genuinely zero phase offset. Pass: recovered lag ≈ 0 within CI, across ≥20 seeds — an analogous false-positive-rate check to 4.5/8.2/9.3 but for lag detection specifically.
-- [ ] **10.4 Broadband (non-sinusoidal, colored-noise) lagged pair**: repeat using colored-noise series with a known broadband lag (as in 8.3) rather than pure sinusoids, to confirm the cross-spectrum approach isn't only validated on the easiest possible (single-frequency) case.
+- [x] **10.1 Known phase lag recovery, evenly sampled**: two sinusoids of the same known frequency with a known phase offset (converted to a time lag). Run `calculate_ls_cross_spectrum`/`calculate_time_lag`. Pass: recovered phase/lag matches truth within tolerance, across several chosen frequencies spanning the resolvable range.
+- [x] **10.2 Known lag recovery, unevenly sampled**: repeat 10.1 with both series independently and irregularly subsampled (different gap patterns for each, as would happen with two independently-serviced field sensors) — this is the scenario `calculate_ls_cross_spectrum` is specifically designed for ("Irregular Data Native", per the README). Pass: lag still recovered within a (likely wider) tolerance; quantify how tolerance/CI-width degrades vs. the even-sampling case in 10.1.
+- [x] **10.3 Zero-lag negative control**: two series with genuinely zero phase offset. Pass: recovered lag ≈ 0 within CI, across ≥20 seeds — an analogous false-positive-rate check to 4.5/8.2/9.3 but for lag detection specifically.
+- [x] **10.4 Broadband (non-sinusoidal, colored-noise) lagged pair**: repeat using colored-noise series with a known broadband lag (as in 8.3) rather than pure sinusoids, to confirm the cross-spectrum approach isn't only validated on the easiest possible (single-frequency) case.
 
 ---
 
