@@ -158,10 +158,10 @@ Goal: validate `BivariateAnalysis` and `multivariate.calculate_partial_cross_haa
 
 ## 9. Spatial Haar Analysis
 
-- [ ] **9.1 Spatial analogue of colored-noise recovery**: construct a synthetic 1D spatial field (e.g. a value along a river's distance-from-source axis) with a known spatial "roughness" exponent using the same TK95-style approach but with `distance` in place of `time`. Run `SpatialHaarAnalysis.run_spatial_analysis`. Pass: recovered spatial scaling exponent matches the constructed truth, mirroring Section 1's tolerance policy.
-- [ ] **9.2 Spatial hotspot detection (positive control)**: inject a localized anomaly (a "hotspot" — a contiguous run of elevated values) at a known spatial location into an otherwise smooth/background field. Run `detect_spatial_hotspots`. Pass: the known hotspot location is detected; location recovered within a small tolerance in distance units.
-- [ ] **9.3 No-hotspot negative control**: run `detect_spatial_hotspots` on a smooth field with no injected anomaly, ≥20 seeds. Pass: empirical false-positive rate for hotspot detection is at/near the nominal significance level used internally (analogous to 4.5/8.2) — if the method has a tunable significance threshold, sweep it and report the false-positive curve.
-- [ ] **9.4 Uneven spatial sampling**: repeat 9.1/9.2 with irregular spacing along the distance axis (analogous to Section 3) since spatial monitoring networks are rarely evenly spaced. Pass: qualitative degradation check, same spirit as Section 3.
+- [x] **9.1 Spatial analogue of colored-noise recovery**: construct a synthetic 1D spatial field (e.g. a value along a river's distance-from-source axis) with a known spatial "roughness" exponent using the same TK95-style approach but with `distance` in place of `time`. Run `SpatialHaarAnalysis.run_spatial_analysis`. Pass: recovered spatial scaling exponent matches the constructed truth, mirroring Section 1's tolerance policy.
+- [x] **9.2 Spatial hotspot detection (positive control)**: inject a localized anomaly (a "hotspot" — a contiguous run of elevated values) at a known spatial location into an otherwise smooth/background field. Run `detect_spatial_hotspots`. Pass: the known hotspot location is detected; location recovered within a small tolerance in distance units.
+- [x] **9.3 No-hotspot negative control**: run `detect_spatial_hotspots` on a smooth field with no injected anomaly, ≥20 seeds. Pass: empirical false-positive rate for hotspot detection is at/near the nominal significance level used internally (analogous to 4.5/8.2) — if the method has a tunable significance threshold, sweep it and report the false-positive curve.
+- [x] **9.4 Uneven spatial sampling**: repeat 9.1/9.2 with irregular spacing along the distance axis (analogous to Section 3) since spatial monitoring networks are rarely evenly spaced. Pass: qualitative degradation check, same spirit as Section 3.
 
 ---
 
