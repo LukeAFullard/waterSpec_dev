@@ -85,7 +85,6 @@ def calculate_haar_fluctuations(
         n_effective_values (np.ndarray): Effective number of independent samples (adjusts for overlap).
     """
     if min_samples_per_window < 10:
-        import warnings
         warnings.warn(
             f"min_samples_per_window={min_samples_per_window} is less than the design doc recommended threshold of 10. "
             "Estimates from windows with very few points may be unreliable.",
