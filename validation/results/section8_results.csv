@@ -1,0 +1,12 @@
+test_id,seed,params,estimate,truth,ci_low,ci_high,pass
+8.1_correlated,81,"beta=1, noise=10%",0.9975302840700226,1.0,nan,nan,True
+8.2_independent,82,"beta=1, independent",0.004640016455997204,0.0,nan,nan,True
+8.3_lead_lag,83,lagged_haar,1.0,1.0,nan,nan,True
+8.4_spurious_corr,84,spurious via R,0.05076238084927346,0.0,nan,nan,True
+8.5_genuine_corr,85,genuine via C->Q,0.9603469347579228,1.0,nan,nan,True
+8.6_align_data,86,tolerance testing,1,1.0,nan,nan,True
+8.7_percentile_corr,87,95th percentile,0.9830419767350687,1.0,nan,nan,True
+8.8_hysteresis_loop,88,ccw and cw,1.0,1.0,nan,nan,True
+8.9_zero_hysteresis,89,linear relationship,4.347633364432113e-13,0.0,nan,nan,True
+8.10_coherence,810,pos and neg,0.9249400348991184,1.0,nan,nan,True
+8.11_multivariate,811,4 variables,1.0,1.0,nan,nan,True
