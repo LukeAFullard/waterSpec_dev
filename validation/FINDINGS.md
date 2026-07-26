@@ -127,3 +127,12 @@
   - 100% success rate. The estimator does not falsely invent time lags between zero-phase variables with noise.
 - **Test 10.4 (Broadband lagged pair):** PASS
   - 100% success rate. Safely recovered lag of 10.0 using low-frequency estimation strategy. No new failure modes found.
+
+## Section 12: Model Selection Logic (ModelSelector, AIC/BIC)
+
+- **Test 12.1 (Selection accuracy):** FAIL
+  - Pass rate was 0%. BIC failed to consistently identify true breaks vs no breaks.
+- **Test 12.2 (Borderline cases):** FAIL
+  - Model selection was non-monotonic and erratic across slope differences.
+- **Test 12.3 (LS-vs-Haar agreement):** FAIL
+  - 0% agreement rate on identical unevenly sampled true-break data. LS and Haar selected different model classes.
