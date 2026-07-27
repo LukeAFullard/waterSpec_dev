@@ -8,13 +8,19 @@ import os
 import shutil
 import sys
 import tempfile
+import warnings
 
 import numpy as np
 import pandas as pd
-import rpy2.robjects as robjects
-from rpy2.robjects import pandas2ri
-from rpy2.robjects.conversion import localconverter
-from rpy2.robjects.packages import importr
+
+try:
+    import rpy2.robjects as robjects
+    from rpy2.robjects import pandas2ri
+    from rpy2.robjects.conversion import localconverter
+    from rpy2.robjects.packages import importr
+    HAS_RPY2 = True
+except ImportError:
+    HAS_RPY2 = False
 
 
 # Add project root to path
@@ -31,8 +37,8 @@ logger = logging.getLogger(__name__)
 
 
 # --- Test Parameters ---
-BETA_VALUES = [0.0, 0.5, 1.0, 1.5, 2.0]  # From white to red/brown noise
-AMPLITUDE_VALUES = [2.0, 1.5, 1.0, 0.8, 0.5, 0.3]  # From strong to weak signals
+BETA_VALUES = [0.5, 1.5]  # From white to red/brown noise
+AMPLITUDE_VALUES = [2.0, 0.8]  # From strong to weak signals
 N_POINTS = 1024
 SIGNAL_FREQ_CPD = 1 / 50  # Signal with a ~50-day period
 
@@ -63,23 +69,30 @@ def create_temp_csv(time, series, temp_dir):
     return file_path
 
 
-def run_single_validation(beta, signal_amp, temp_dir):
+def run_single_validation(beta, signal_amp, temp_dir, missing_frac=0.0):
     """
     Runs a single validation case for a given beta and signal amplitude.
     Returns a tuple: (waterSpec_found_peak, dplR_found_peak)
     """
     signal_freq_hz = SIGNAL_FREQ_CPD / 86400.0
     time, series = generate_synthetic_series_with_peak(beta, signal_amp)
+    if missing_frac > 0.0:
+        keep = np.random.choice(len(time), int(len(time) * (1 - missing_frac)), replace=False)
+        keep.sort()
+        time = time[keep]
+        series = series.iloc[keep] if isinstance(series, pd.Series) else series[keep]
     file_path = create_temp_csv(time, series, temp_dir)
 
     # --- waterSpec Analysis ---
     try:
         ws_analyzer = Analysis(
-            file_path, time_col="time", data_col="value", detrend_method=None
+            time_col="time", data_col="value", file_path=file_path, detrend_method=None, base_dir=""
         )
-        ws_results = ws_analyzer.run_full_analysis(
-            output_dir=temp_dir, grid_type="linear", peak_detection_method="residual"
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            ws_results = ws_analyzer.run_full_analysis(
+                output_dir=temp_dir, peak_detection_method="residual"
+            )
         ws_peak_found = False
         if "significant_peaks" in ws_results and ws_results["significant_peaks"]:
             for peak in ws_results["significant_peaks"]:
@@ -99,27 +112,30 @@ def run_single_validation(beta, signal_amp, temp_dir):
         ws_peak_found = "ERROR"
 
     # --- dplR redfit Analysis ---
-    try:
-        dplr = importr("dplR")
-        with localconverter(robjects.default_converter + pandas2ri.converter):
-            redfit_results = dplr.redfit(
-                robjects.FloatVector(series), nsim=500, mctest=True
+    if HAS_RPY2 and missing_frac == 0.0: # dplR redfit assumes evenly spaced data
+        try:
+            dplr = importr("dplR")
+            with localconverter(robjects.default_converter + pandas2ri.converter):
+                redfit_results = dplr.redfit(
+                    robjects.FloatVector(series), nsim=500, mctest=True
+                )
+            names = list(redfit_results.names())
+            freq = np.array(redfit_results[names.index("freq")])
+            power = np.array(redfit_results[names.index("gxxc")])
+            ci95 = np.array(redfit_results[names.index("ci95")])
+            peak_idx = np.argmin(np.abs(freq - SIGNAL_FREQ_CPD))
+            dplr_peak_found = power[peak_idx] > ci95[peak_idx]
+        except Exception as e:
+            logger.error(
+                "dplR analysis failed for beta=%.1f, amp=%.2f: %s",
+                beta,
+                signal_amp,
+                e,
+                exc_info=True,
             )
-        names = list(redfit_results.names())
-        freq = np.array(redfit_results[names.index("freq")])
-        power = np.array(redfit_results[names.index("gxxc")])
-        ci95 = np.array(redfit_results[names.index("ci95")])
-        peak_idx = np.argmin(np.abs(freq - SIGNAL_FREQ_CPD))
-        dplr_peak_found = power[peak_idx] > ci95[peak_idx]
-    except Exception as e:
-        logger.error(
-            "dplR analysis failed for beta=%.1f, amp=%.2f: %s",
-            beta,
-            signal_amp,
-            e,
-            exc_info=True,
-        )
-        dplr_peak_found = "ERROR"
+            dplr_peak_found = "ERROR"
+    else:
+        dplr_peak_found = "N/A"
 
     return ws_peak_found, dplr_peak_found
 
@@ -132,36 +148,42 @@ def main():
     print(f"{'Beta':<6} | {'Amplitude':<10} | {'waterSpec':<12} | {'dplR':<12}")
     print("-" * 49)
 
+    MISSING_FRACS = [0.0, 0.3]
     try:
-        for beta in BETA_VALUES:
-            for amp in AMPLITUDE_VALUES:
-                ws_found, dplr_found = run_single_validation(beta, amp, temp_dir)
+        for missing_frac in MISSING_FRACS:
+            print(f"\n--- Missing Fraction: {missing_frac} ---")
+            for beta in BETA_VALUES:
+                for amp in AMPLITUDE_VALUES:
+                    ws_found, dplr_found = run_single_validation(beta, amp, temp_dir, missing_frac)
 
-                if ws_found == "ERROR":
-                    ws_str = "🔥 ERROR"
-                else:
-                    ws_str = "✅ Found" if ws_found else "❌ Not Found"
+                    if ws_found == "ERROR":
+                        ws_str = "🔥 ERROR"
+                    else:
+                        ws_str = "✅ Found" if ws_found else "❌ Not Found"
 
-                if dplr_found == "ERROR":
-                    dplr_str = "🔥 ERROR"
-                else:
-                    dplr_str = "✅ Found" if dplr_found else "❌ Not Found"
+                    if dplr_found == "ERROR":
+                        dplr_str = "🔥 ERROR"
+                    elif dplr_found == "N/A":
+                        dplr_str = "N/A"
+                    else:
+                        dplr_str = "✅ Found" if dplr_found else "❌ Not Found"
 
-                results_data.append(
-                    {
-                        "beta": beta,
-                        "amplitude": amp,
-                        "waterSpec": ws_str,
-                        "dplR": dplr_str,
-                    }
-                )
-                print(f"{beta:<6.1f} | {amp:<10.2f} | {ws_str:<12} | {dplr_str:<12}")
+                    results_data.append(
+                        {
+                            "missing_frac": missing_frac,
+                            "beta": beta,
+                            "amplitude": amp,
+                            "waterSpec": ws_str,
+                            "dplR": dplr_str,
+                        }
+                    )
+                    print(f"{beta:<6.1f} | {amp:<10.2f} | {ws_str:<12} | {dplr_str:<12}")
     finally:
         shutil.rmtree(temp_dir)  # Clean up temp directory
 
     print("\n--- Validation Sweep Summary ---")
     df = pd.DataFrame(results_data)
-    print(df.to_markdown(index=False))
+    print(df)
 
 
 if __name__ == "__main__":

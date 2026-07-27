@@ -1,0 +1,2 @@
+Analysis failed: All models failed; no valid BIC values found. Reasons:
+- Standard model (0 breakpoints): An unexpected error occurred during the initial standard model fit with method 'theil-sen': MemoryError((249993, 249993), dtype('float64'))
