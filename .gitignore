@@ -229,3 +229,11 @@ validation_output/
 validation_psresp/
 validation/section_4/data/
 validation/section_4/results/
+
+# Validation outputs
+validation/section_13/data/
+validation/section_13/results/
+validation/section_13/plots/
+validation/section_14/data/
+validation/section_14/results/
+validation/section_14/plots/
