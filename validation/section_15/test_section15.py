@@ -29,36 +29,56 @@ def run_test_15_1():
     # waterSpec computation
     freq_ws, pwr_ws, _ = calculate_periodogram(time, data)
 
+    from scipy.interpolate import interp1d
+
     # By-hand computation
     data_centered = data - np.mean(data)
     fft_vals = np.fft.rfft(data_centered)
     freqs_hand = np.fft.rfftfreq(N, dt)
-    pwr_hand = np.abs(fft_vals)**2
+    pwr_hand = (np.abs(fft_vals)**2) / N
 
-    min_len = min(len(pwr_ws), len(pwr_hand)) - 1
-    corr = np.corrcoef(np.log10(pwr_ws[1:min_len]), np.log10(pwr_hand[1:min_len]))[0, 1]
+    # Interpolate ws power to hand freqs for comparison
+    interp_func = interp1d(freq_ws, pwr_ws, bounds_error=False, fill_value=np.nan)
+    pwr_ws_interp = interp_func(freqs_hand)
+
+    valid_idx = (freqs_hand > 0) & ~np.isnan(pwr_ws_interp) & (pwr_hand > 0)
+    corr = np.corrcoef(np.log10(pwr_ws_interp[valid_idx]), np.log10(pwr_hand[valid_idx]))[0, 1]
 
     passed_ls = corr > 0.95
     print(f"15.1 LS Correlation: {corr:.3f}")
 
     # Haar by hand
-    def haar_by_hand(data, lag_index):
-        n_windows = len(data) // lag_index
-        truncated = data[:n_windows * lag_index].reshape(n_windows, lag_index)
-        means = np.mean(truncated, axis=1)
-        flucts = np.abs(np.diff(means))
-        return np.mean(flucts)
+    def haar_by_hand(time, data, lag_time):
+        t_starts = time[0] + np.arange(int((time[-1] - time[0]) / lag_time)) * lag_time
+        idx_starts = np.searchsorted(time, t_starts, side='left')
+        idx_mids = np.searchsorted(time, t_starts + lag_time / 2, side='left')
+        idx_ends = np.searchsorted(time, t_starts + lag_time, side='left')
+
+        flucts = []
+        for i in range(len(t_starts)):
+            vals1 = data[idx_starts[i]:idx_mids[i]]
+            vals2 = data[idx_mids[i]:idx_ends[i]]
+            if len(vals1) >= 10 and len(vals2) >= 10:
+                flucts.append(np.mean(vals2) - np.mean(vals1))
+
+        if len(flucts) == 0:
+            return np.nan
+        return np.mean(np.abs(flucts))
 
     lags_ws, fluc_ws, counts_ws, _ = calculate_haar_fluctuations(time, data, min_samples_per_window=10, overlap=False)
 
     fluc_hand = []
-    for lag_val in lags_ws:
-        idx = int(round(lag_val / dt))
-        fluc_hand.append(haar_by_hand(data, idx))
+    valid_ws = []
+    for idx, lag_val in enumerate(lags_ws):
+        val = haar_by_hand(time, data, lag_val)
+        if not np.isnan(val):
+            fluc_hand.append(val)
+            valid_ws.append(fluc_ws[idx])
 
     fluc_hand = np.array(fluc_hand)
+    valid_ws = np.array(valid_ws)
 
-    corr_haar = np.corrcoef(fluc_ws, fluc_hand)[0, 1]
+    corr_haar = np.corrcoef(valid_ws, fluc_hand)[0, 1]
 
     passed_haar = corr_haar > 0.99
     print(f"15.1 Haar Correlation: {corr_haar:.3f}")

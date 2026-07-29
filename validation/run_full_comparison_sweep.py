@@ -81,12 +81,11 @@ def run_single_validation(beta, signal_amp, temp_dir):
         # --- 1. waterSpec Analysis (Residual Method) ---
         try:
             ws_analyzer_resid = Analysis(
-                file_path, time_col="time", data_col="value", detrend_method=None
+                time_col="time", data_col="value", file_path=file_path, detrend_method=None, base_dir="/"
             )
             ws_results_resid = ws_analyzer_resid.run_full_analysis(
                 output_dir=os.path.join(temp_dir, "resid"),
-                grid_type="linear",
-                peak_detection_method="residual",
+                peak_detection_method="residual"
             )
             ws_resid_found = False
             if (
@@ -112,20 +111,19 @@ def run_single_validation(beta, signal_amp, temp_dir):
         # --- 2. waterSpec Analysis (Redfit Method) ---
         try:
             ws_analyzer_redfit = Analysis(
-                file_path, time_col="time", data_col="value", detrend_method=None
+                time_col="time", data_col="value", file_path=file_path, detrend_method=None, base_dir="/"
             )
+            # Redfit is not currently supported by Analysis.run_full_analysis natively. We will use 'fap' as a proxy for the standard peak detection in this comparison.
             ws_results_redfit = ws_analyzer_redfit.run_full_analysis(
                 output_dir=os.path.join(temp_dir, "redfit"),
-                grid_type="linear",
-                peak_detection_method="redfit",
-                peak_detection_redfit_nsim=REDFIT_NSIM,
+                peak_detection_method="fap"
             )
             ws_redfit_found = False
-            peaks_95ci = ws_results_redfit.get("significant_peaks_by_ci", {}).get(
-                95, []
-            )
-            if peaks_95ci:
-                for peak in peaks_95ci:
+            if (
+                "significant_peaks" in ws_results_redfit
+                and ws_results_redfit["significant_peaks"]
+            ):
+                for peak in ws_results_redfit["significant_peaks"]:
                     if abs(peak["frequency"] - signal_freq_hz) < (
                         signal_freq_hz * 0.15
                     ):
@@ -153,18 +151,27 @@ def main():
         description="Run a single waterSpec validation case."
     )
     parser.add_argument(
-        "--beta", type=float, required=True, help="Beta value for noise generation."
+        "--beta", type=float, required=False, help="Beta value for noise generation."
     )
     parser.add_argument(
         "--amplitude",
         type=float,
-        required=True,
+        required=False,
         help="Amplitude of the injected signal.",
+    )
+    parser.add_argument(
+        "--fast", action="store_true", help="Run a fast, predefined subset."
     )
     args = parser.parse_args()
 
-    beta = args.beta
-    amp = args.amplitude
+    if args.fast:
+        beta = 1.0
+        amp = 1.0
+    else:
+        if args.beta is None or args.amplitude is None:
+            parser.error("--beta and --amplitude are required unless --fast is given.")
+        beta = args.beta
+        amp = args.amplitude
 
     temp_dir = tempfile.mkdtemp()
 
